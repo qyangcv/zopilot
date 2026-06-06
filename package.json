@@ -1,14 +1,14 @@
 {
-  "name": "zotero-plugin-template",
+  "name": "zotero-copilot",
   "type": "module",
-  "version": "3.1.0",
-  "description": "Zotero Plugin Template",
+  "version": "0.0.0",
+  "description": "Zotero Copilot",
   "config": {
-    "addonName": "Zotero Plugin Template",
-    "addonID": "addontemplate@euclpts.com",
-    "addonRef": "addontemplate",
-    "addonInstance": "AddonTemplate",
-    "prefsPrefix": "extensions.zotero.addontemplate"
+    "addonName": "Zotero Copilot",
+    "addonID": "zotero-copilot@yang.local",
+    "addonRef": "zotero-copilot",
+    "addonInstance": "ZoteroCopilot",
+    "prefsPrefix": "extensions.zotero.zotero-copilot"
   },
   "repository": {
     "type": "git",
