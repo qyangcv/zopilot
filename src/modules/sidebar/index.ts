@@ -173,7 +173,7 @@ class SidebarController {
     const icon = event.doc.createElement("span");
     icon.setAttribute("aria-hidden", "true");
     button.appendChild(icon);
-    button.addEventListener("click", () => this.openCopilotPane(event.reader));
+    button.addEventListener("click", () => this.toggle(event.reader));
 
     this.readerToolbarButtons.add(button);
     event.doc.defaultView?.addEventListener(
@@ -383,11 +383,11 @@ class SidebarController {
       this.textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }
 
-  private toggle(): void {
+  private toggle(reader?: _ZoteroTypes.ReaderInstance): void {
     if (this.open) {
       this.setOpen(false);
     } else {
-      this.openCopilotPane();
+      this.openCopilotPane(reader);
     }
   }
 
