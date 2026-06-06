@@ -1,5 +1,3 @@
-pref-title = Addon Template Example
-pref-enable =
-    .label = Enable
-pref-input = Input
-pref-help = { $name } Build { $version } { $time }
+pref-title = Zotero Copilot
+pref-status = The plugin skeleton is loaded. Sidebar and Codex settings will be added in later milestones.
+pref-help = { $name } build { $version } { $time }
