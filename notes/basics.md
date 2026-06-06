@@ -70,10 +70,10 @@
 重点知道这些函数：
 
 ```js
-startup()
-onMainWindowLoad()
-onMainWindowUnload()
-shutdown()
+startup();
+onMainWindowLoad();
+onMainWindowUnload();
+shutdown();
 ```
 
 但你通常不需要频繁改它。
@@ -93,11 +93,11 @@ Zotero.ZoteroCopilot = addon;
 这里定义插件对象 `Addon`。它保存插件状态，例如：
 
 ```ts
-alive
-config
-env
-initialized
-ztoolkit
+alive;
+config;
+env;
+initialized;
+ztoolkit;
 ```
 
 新手理解：这是插件的“状态容器”。
@@ -109,22 +109,19 @@ ztoolkit
 重点函数：
 
 ```ts
-onStartup()
-onMainWindowLoad()
-onMainWindowUnload()
-onShutdown()
-onNotify()
-onPrefsEvent()
-onShortcuts()
+onStartup();
+onMainWindowLoad();
+onMainWindowUnload();
+onShutdown();
 ```
 
 你以后加功能，通常会从这里接入。
 
-9. [src/modules/examples.ts](/Users/yang/code/zotero/zotero-copilot/src/modules/examples.ts:1)
+9. [src/modules/sidebar/index.ts](/Users/yang/code/zotero/zotero-copilot/src/modules/sidebar/index.ts:1)
 
-这里是模板自带的示例功能。你可以学习它怎么注册菜单、快捷键、弹窗、列、样式等。
+这里是当前第一个真实 UI 模块。你可以从这里看 sidebar 如何注册 toolbar button、reader button、右侧 pane 和基础交互。
 
-但后续正式开发时，很多 example 代码应该删掉或替换成你自己的模块。
+后续加功能时，优先新建小模块再由 `index.ts` 编排，不要把所有逻辑继续塞进一个文件。
 
 10. [src/utils/ztoolkit.ts](/Users/yang/code/zotero/zotero-copilot/src/utils/ztoolkit.ts:1)
 
@@ -210,7 +207,7 @@ addon.data.dialog?.window?.close();
 可选链。意思是：如果前面的值存在，就继续访问；不存在就跳过，避免报错。
 
 ```ts
-function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void>
+function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void>;
 ```
 
 TypeScript 类型标注。`: _ZoteroTypes.MainWindow` 表示参数类型，`: Promise<void>` 表示返回一个异步结果。
@@ -254,7 +251,7 @@ npm start
 
 2. 只改 [src/hooks.ts](/Users/yang/code/zotero/zotero-copilot/src/hooks.ts:12)，加一行日志或弹窗，确认 Zotero 里有变化。
 
-3. 再读 [src/modules/examples.ts](/Users/yang/code/zotero/zotero-copilot/src/modules/examples.ts:1)，看模板功能是怎么注册的。
+3. 再读 [src/modules/sidebar/index.ts](/Users/yang/code/zotero/zotero-copilot/src/modules/sidebar/index.ts:1)，看真实 sidebar 功能是怎么注册和挂载的。
 
 4. 然后把 example 功能逐个删掉，替换成你自己的功能模块。
 

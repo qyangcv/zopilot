@@ -8,6 +8,43 @@
   color: var(--accent-blue, AccentColor);
 }
 
+.zcp-reader-toolbar-button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: currentColor;
+  cursor: default;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  margin: 0 2px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.zcp-reader-toolbar-button:hover,
+.zcp-reader-toolbar-button[data-active] {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.zcp-reader-toolbar-button span {
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  mask-image: url("chrome://zotero-copilot/content/icons/message-circle.svg");
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  opacity: 0.72;
+}
+
+.zcp-reader-toolbar-button[data-active] span {
+  opacity: 1;
+}
+
 #zotero-copilot-sidebar-splitter {
   min-width: 1px;
 }

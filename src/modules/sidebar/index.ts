@@ -1,14 +1,18 @@
 import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
-
-const TOOLBAR_TOGGLE_BUTTON_ID = "zotero-copilot-sidebar-toolbar-toggle";
-const READER_TOOLBAR_BUTTON_ID = "zotero-copilot-reader-toolbar-toggle";
-const SIDEBAR_ID = "zotero-copilot-sidebar-shell";
-const SPLITTER_ID = "zotero-copilot-sidebar-splitter";
-const STYLE_URI = `chrome://${config.addonRef}/content/zoteroPane.css`;
-const ICON_URI = `chrome://${config.addonRef}/content/icons/message-circle.svg`;
-
-const HTML_NS = "http://www.w3.org/1999/xhtml";
+import {
+  HTML_NS,
+  ICON_URI,
+  READER_TOOLBAR_BUTTON_ID,
+  SIDEBAR_ID,
+  SPLITTER_ID,
+  STYLE_URI,
+  TOOLBAR_TOGGLE_BUTTON_ID,
+} from "./constants";
+import { renderMarkdown } from "./markdown";
+import { getPlaceholderAnswer } from "./placeholder";
+import { createReaderToolbarButton } from "./readerToolbar";
+import { getSelectedItemTitle } from "./selectedItem";
 
 const controllers = new WeakMap<Window, SidebarController>();
 
@@ -160,20 +164,9 @@ class SidebarController {
       return;
     }
 
-    ensureReaderToolbarStyles(event.doc);
-
-    const button = event.doc.createElement("button");
-    button.id = READER_TOOLBAR_BUTTON_ID;
-    button.className = "zcp-reader-toolbar-button";
-    button.type = "button";
-    button.title = getString("sidebar-toggle-tooltip");
-    button.setAttribute("aria-label", getString("sidebar-toggle-tooltip"));
-    button.setAttribute("aria-pressed", String(this.open));
-
-    const icon = event.doc.createElement("span");
-    icon.setAttribute("aria-hidden", "true");
-    button.appendChild(icon);
-    button.addEventListener("click", () => this.toggle(event.reader));
+    const button = createReaderToolbarButton(event.doc, this.open, () =>
+      this.toggle(event.reader),
+    );
 
     this.readerToolbarButtons.add(button);
     event.doc.defaultView?.addEventListener(
@@ -487,46 +480,7 @@ class SidebarController {
     reader?: _ZoteroTypes.ReaderInstance,
     currentItem?: Zotero.Item,
   ): string {
-    if (currentItem) {
-      return (
-        currentItem.getDisplayTitle?.() ||
-        currentItem.getField?.("title") ||
-        getString("sidebar-untitled-item")
-      );
-    }
-
-    if (reader?.itemID) {
-      const item = Zotero.Items.get(reader.itemID);
-      return (
-        item?.parentItem?.getDisplayTitle?.() ||
-        item?.parentItem?.getField?.("title") ||
-        item?.getDisplayTitle?.() ||
-        item?.getField?.("title") ||
-        getString("sidebar-untitled-item")
-      );
-    }
-
-    const pane =
-      (this.win as any).ZoteroPane || (this.win as any).ZoteroPane_Local;
-    const selectedItems =
-      pane?.getSelectedItems?.() || pane?.itemsView?.getSelectedItems?.() || [];
-
-    if (!selectedItems.length) {
-      return getString("sidebar-no-item-selected");
-    }
-    if (selectedItems.length > 1) {
-      return getString("sidebar-multiple-items-selected", {
-        args: { count: selectedItems.length },
-      });
-    }
-
-    const item = selectedItems[0];
-    return (
-      item?.getDisplayTitle?.() ||
-      item?.getField?.("title") ||
-      item?.title ||
-      getString("sidebar-untitled-item")
-    );
+    return getSelectedItemTitle(this.win, reader, currentItem);
   }
 
   private html(tagName: string, className?: string): HTMLElement {
@@ -555,257 +509,4 @@ function setHidden(element: Element | undefined, hidden: boolean): void {
   } else {
     element.removeAttribute("hidden");
   }
-}
-
-function ensureReaderToolbarStyles(doc: Document): void {
-  if (doc.getElementById("zotero-copilot-reader-toolbar-style")) {
-    return;
-  }
-  const style = doc.createElement("style");
-  style.id = "zotero-copilot-reader-toolbar-style";
-  style.textContent = `
-    .zcp-reader-toolbar-button {
-      align-items: center;
-      appearance: none;
-      background: transparent;
-      border: 0;
-      border-radius: 4px;
-      box-sizing: border-box;
-      color: currentColor;
-      cursor: default;
-      display: inline-flex;
-      height: 32px;
-      justify-content: center;
-      margin: 0 2px;
-      min-width: 32px;
-      padding: 0;
-    }
-    .zcp-reader-toolbar-button:hover,
-    .zcp-reader-toolbar-button[data-active] {
-      background: color-mix(in srgb, currentColor 12%, transparent);
-    }
-    .zcp-reader-toolbar-button span {
-      background: currentColor;
-      height: 20px;
-      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath stroke='none' d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1'/%3E%3C/svg%3E");
-      mask-position: center;
-      mask-repeat: no-repeat;
-      mask-size: contain;
-      opacity: 0.72;
-      width: 20px;
-    }
-    .zcp-reader-toolbar-button[data-active] span {
-      opacity: 1;
-    }
-  `;
-  doc.head?.appendChild(style);
-}
-
-function renderMarkdown(
-  doc: Document,
-  container: HTMLElement,
-  markdown: string,
-): void {
-  container.replaceChildren();
-  const lines = markdown.trim().split(/\r?\n/);
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-
-    if (!line.trim()) {
-      index += 1;
-      continue;
-    }
-
-    if (line.startsWith("```")) {
-      const codeLines: string[] = [];
-      index += 1;
-      while (index < lines.length && !lines[index].startsWith("```")) {
-        codeLines.push(lines[index]);
-        index += 1;
-      }
-      index += 1;
-      const pre = doc.createElementNS(HTML_NS, "pre");
-      const code = doc.createElementNS(HTML_NS, "code");
-      code.textContent = codeLines.join("\n");
-      pre.appendChild(code);
-      container.appendChild(pre);
-      continue;
-    }
-
-    if (line.startsWith("$$")) {
-      const mathLines: string[] = [];
-      index += 1;
-      while (index < lines.length && !lines[index].startsWith("$$")) {
-        mathLines.push(lines[index]);
-        index += 1;
-      }
-      index += 1;
-      const block = doc.createElementNS(HTML_NS, "div");
-      block.className = "zcp-math-block";
-      block.textContent = mathLines.join("\n");
-      container.appendChild(block);
-      continue;
-    }
-
-    if (isTableStart(lines, index)) {
-      const table = doc.createElementNS(HTML_NS, "table");
-      const headerCells = splitTableRow(lines[index]);
-      const bodyRows: string[][] = [];
-      index += 2;
-      while (index < lines.length && /^\s*\|.+\|\s*$/.test(lines[index])) {
-        bodyRows.push(splitTableRow(lines[index]));
-        index += 1;
-      }
-      const thead = doc.createElementNS(HTML_NS, "thead");
-      const headerRow = doc.createElementNS(HTML_NS, "tr");
-      headerCells.forEach((cell) => {
-        const th = doc.createElementNS(HTML_NS, "th");
-        appendInline(doc, th, cell);
-        headerRow.appendChild(th);
-      });
-      thead.appendChild(headerRow);
-      table.appendChild(thead);
-      const tbody = doc.createElementNS(HTML_NS, "tbody");
-      bodyRows.forEach((row) => {
-        const tr = doc.createElementNS(HTML_NS, "tr");
-        row.forEach((cell) => {
-          const td = doc.createElementNS(HTML_NS, "td");
-          appendInline(doc, td, cell);
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      container.appendChild(table);
-      continue;
-    }
-
-    if (/^\s*[-*]\s+/.test(line)) {
-      const list = doc.createElementNS(HTML_NS, "ul");
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        const item = doc.createElementNS(HTML_NS, "li");
-        appendInline(doc, item, lines[index].replace(/^\s*[-*]\s+/, ""));
-        list.appendChild(item);
-        index += 1;
-      }
-      container.appendChild(list);
-      continue;
-    }
-
-    if (/^\s*\d+\.\s+/.test(line)) {
-      const list = doc.createElementNS(HTML_NS, "ol");
-      while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
-        const item = doc.createElementNS(HTML_NS, "li");
-        appendInline(doc, item, lines[index].replace(/^\s*\d+\.\s+/, ""));
-        list.appendChild(item);
-        index += 1;
-      }
-      container.appendChild(list);
-      continue;
-    }
-
-    const paragraph = doc.createElementNS(HTML_NS, "p");
-    appendInline(doc, paragraph, line);
-    container.appendChild(paragraph);
-    index += 1;
-  }
-}
-
-function isTableStart(lines: string[], index: number): boolean {
-  return (
-    /^\s*\|.+\|\s*$/.test(lines[index]) &&
-    index + 1 < lines.length &&
-    /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
-  );
-}
-
-function splitTableRow(line: string): string[] {
-  return line
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
-}
-
-function appendInline(doc: Document, parent: Element, text: string): void {
-  const tokenPattern =
-    /(\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\$[^$]+\$|\\\([^)]+\\\))/g;
-  let lastIndex = 0;
-  for (const match of text.matchAll(tokenPattern)) {
-    if (match.index > lastIndex) {
-      parent.appendChild(
-        doc.createTextNode(text.slice(lastIndex, match.index)),
-      );
-    }
-    parent.appendChild(createInlineNode(doc, match[0]));
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    parent.appendChild(doc.createTextNode(text.slice(lastIndex)));
-  }
-}
-
-function createInlineNode(doc: Document, token: string): Node {
-  if (token.startsWith("[")) {
-    const match = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (match) {
-      const anchor = doc.createElementNS(HTML_NS, "a");
-      anchor.textContent = match[1];
-      anchor.setAttribute("href", match[2]);
-      anchor.setAttribute("target", "_blank");
-      anchor.setAttribute("rel", "noopener noreferrer");
-      return anchor;
-    }
-  }
-  if (token.startsWith("`")) {
-    const code = doc.createElementNS(HTML_NS, "code");
-    code.textContent = token.slice(1, -1);
-    return code;
-  }
-  if (token.startsWith("**")) {
-    const strong = doc.createElementNS(HTML_NS, "strong");
-    strong.textContent = token.slice(2, -2);
-    return strong;
-  }
-  if (token.startsWith("$")) {
-    return createInlineMath(doc, token.slice(1, -1));
-  }
-  if (token.startsWith("\\(")) {
-    return createInlineMath(doc, token.slice(2, -2));
-  }
-  return doc.createTextNode(token);
-}
-
-function createInlineMath(doc: Document, text: string): HTMLElement {
-  const math = doc.createElementNS(HTML_NS, "span") as HTMLElement;
-  math.className = "zcp-math-inline";
-  math.textContent = text;
-  return math;
-}
-
-function getPlaceholderAnswer(): string {
-  return [
-    getString("sidebar-placeholder-answer"),
-    "",
-    `- ${getString("sidebar-placeholder-context")}`,
-    `- ${getString("sidebar-placeholder-rendering")}`,
-    "",
-    `| ${getString("sidebar-placeholder-surface")} | ${getString(
-      "sidebar-placeholder-status",
-    )} |`,
-    "| --- | --- |",
-    `| Markdown | ${getString("sidebar-placeholder-markdown-ready")} |`,
-    `| LaTeX | ${getString("sidebar-placeholder-latex-placeholder")} |`,
-    "",
-    `${getString("sidebar-placeholder-inline-formula")} $E = mc^2$`,
-    "",
-    "$$",
-    "p(y \\mid x) = \\prod_t p(y_t \\mid y_{<t}, x)",
-    "$$",
-    "",
-    "[Zotero](https://www.zotero.org)",
-  ].join("\n");
 }
