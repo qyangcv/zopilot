@@ -1,5 +1,10 @@
 import { getString, initLocale } from "./utils/locale";
 import { registerPreferencePane } from "./modules/preferenceScript";
+import {
+  registerSidebar,
+  unregisterAllSidebars,
+  unregisterSidebar,
+} from "./modules/sidebar";
 import { createZToolkit } from "./utils/ztoolkit";
 
 async function onStartup() {
@@ -30,14 +35,22 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     `${addon.data.config.addonRef}-mainWindow.ftl`,
   );
 
+  try {
+    registerSidebar(win);
+  } catch (error) {
+    ztoolkit.log("failed to register sidebar", error);
+  }
+
   ztoolkit.log(getString("startup-finish"));
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {
+  unregisterSidebar(win);
   ztoolkit.unregisterAll();
 }
 
 function onShutdown(): void {
+  unregisterAllSidebars();
   ztoolkit.unregisterAll();
   // Remove addon object
   addon.data.alive = false;

@@ -1,1 +1,384 @@
-/* Reserved for Zotero pane styles added in later milestones. */
+#zotero-copilot-sidebar-toolbar-toggle {
+  -moz-context-properties: fill, stroke;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+#zotero-copilot-sidebar-toolbar-toggle[checked="true"] {
+  color: var(--accent-blue, AccentColor);
+}
+
+#zotero-copilot-sidebar-splitter {
+  min-width: 1px;
+}
+
+#zotero-copilot-sidebar-shell {
+  min-width: 300px;
+  max-width: min(520px, 48vw);
+  min-height: 0;
+  background: Canvas;
+  color: CanvasText;
+  border-inline-start: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+}
+
+.zcp-sidebar {
+  --zcp-border: color-mix(in srgb, CanvasText 14%, transparent);
+  --zcp-subtle-border: color-mix(in srgb, CanvasText 9%, transparent);
+  --zcp-muted: color-mix(in srgb, CanvasText 58%, Canvas);
+  --zcp-muted-strong: color-mix(in srgb, CanvasText 72%, Canvas);
+  --zcp-panel: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  --zcp-panel-strong: color-mix(in srgb, Canvas 84%, CanvasText 16%);
+  --zcp-accent: var(--accent-blue, AccentColor);
+  --zcp-accent-text: AccentColorText;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  font: menu;
+  font-size: 13px;
+  line-height: 1.42;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.zcp-sidebar *,
+.zcp-sidebar *::before,
+.zcp-sidebar *::after {
+  box-sizing: border-box;
+}
+
+.zcp-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--zcp-border);
+}
+
+.zcp-sidebar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.zcp-sidebar-icon,
+.zcp-message-avatar,
+.zcp-context-chip-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  background: currentColor;
+  mask-image: url("chrome://zotero-copilot/content/icons/message-circle.svg");
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.zcp-sidebar-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--zcp-accent);
+}
+
+.zcp-sidebar-title-block {
+  min-width: 0;
+}
+
+.zcp-sidebar-title {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.zcp-sidebar-selected-title {
+  margin-top: 2px;
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--zcp-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zcp-icon-button,
+.zcp-context-add,
+.zcp-send-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+}
+
+.zcp-icon-button {
+  width: 28px;
+  height: 28px;
+  color: var(--zcp-muted-strong);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.zcp-icon-button:hover,
+.zcp-context-add:hover {
+  background: var(--zcp-panel-strong);
+}
+
+.zcp-chat-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 12px 10px;
+}
+
+.zcp-message {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.zcp-message-assistant {
+  align-items: flex-start;
+}
+
+.zcp-message-avatar {
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  color: var(--zcp-accent);
+}
+
+.zcp-message-body {
+  min-width: 0;
+  max-width: 100%;
+  color: CanvasText;
+}
+
+.zcp-message-body p,
+.zcp-message-body ul,
+.zcp-message-body ol,
+.zcp-message-body pre,
+.zcp-message-body table,
+.zcp-message-body .zcp-math-block {
+  margin: 0 0 8px;
+}
+
+.zcp-message-body p:last-child,
+.zcp-message-body ul:last-child,
+.zcp-message-body ol:last-child,
+.zcp-message-body pre:last-child,
+.zcp-message-body table:last-child,
+.zcp-message-body .zcp-math-block:last-child {
+  margin-bottom: 0;
+}
+
+.zcp-message-body ul,
+.zcp-message-body ol {
+  padding-inline-start: 18px;
+}
+
+.zcp-message-body li + li {
+  margin-top: 3px;
+}
+
+.zcp-message-body a {
+  color: LinkText;
+  text-decoration: none;
+}
+
+.zcp-message-body a:hover {
+  text-decoration: underline;
+}
+
+.zcp-message-body code,
+.zcp-message-body pre,
+.zcp-math-inline,
+.zcp-math-block {
+  border: 1px solid var(--zcp-subtle-border);
+  border-radius: 5px;
+  background: var(--zcp-panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.zcp-message-body code,
+.zcp-math-inline {
+  padding: 1px 4px;
+  font-size: 0.92em;
+}
+
+.zcp-message-body pre,
+.zcp-math-block {
+  overflow: auto;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
+.zcp-message-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.zcp-message-body th,
+.zcp-message-body td {
+  border: 1px solid var(--zcp-subtle-border);
+  padding: 5px 6px;
+  text-align: start;
+  vertical-align: top;
+}
+
+.zcp-message-body th {
+  background: var(--zcp-panel);
+  font-weight: 600;
+}
+
+.zcp-message-user {
+  justify-content: flex-end;
+}
+
+.zcp-message-bubble {
+  max-width: min(82%, 420px);
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  background: var(--zcp-panel-strong);
+  padding: 7px 9px;
+  color: CanvasText;
+}
+
+.zcp-composer {
+  flex: 0 0 auto;
+  margin: 0 10px 10px;
+  border: 1px solid var(--zcp-border);
+  border-radius: 8px;
+  background: var(--zcp-panel);
+  box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 10%, transparent);
+}
+
+.zcp-context-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 6px 8px 0;
+}
+
+.zcp-context-add {
+  width: 22px;
+  height: 22px;
+  color: var(--zcp-muted-strong);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.zcp-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px dashed var(--zcp-border);
+  border-radius: 6px;
+  padding: 3px 7px;
+  color: var(--zcp-muted-strong);
+}
+
+.zcp-context-chip-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--zcp-accent);
+}
+
+.zcp-context-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zcp-composer-input {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: CanvasText;
+  padding: 9px 12px 7px;
+  font: menu;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.zcp-composer-input::placeholder {
+  color: var(--zcp-muted);
+  opacity: 1;
+}
+
+.zcp-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px 8px;
+}
+
+.zcp-composer-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.zcp-composer-pill {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zcp-muted-strong);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zcp-composer-pill + .zcp-composer-pill {
+  border-inline-start: 1px solid var(--zcp-border);
+  padding-inline-start: 7px;
+}
+
+.zcp-send-button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  background: var(--zcp-accent);
+  color: var(--zcp-accent-text);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.zcp-send-button:hover {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 860px) {
+  #zotero-copilot-sidebar-shell {
+    min-width: 280px;
+    max-width: 58vw;
+  }
+
+  .zcp-sidebar-selected-title {
+    max-width: 210px;
+  }
+}

@@ -5,6 +5,6 @@ export function registerPreferencePane() {
     pluginID: addon.data.config.addonID,
     src: rootURI + "content/preferences.xhtml",
     label: getString("prefs-title"),
-    image: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+    image: `chrome://${addon.data.config.addonRef}/content/icons/message-circle.svg`,
   });
 }

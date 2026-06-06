@@ -63,12 +63,21 @@ npm start
 - 先不要接模型。
 
 要做：
-- 添加一个 toggle button 或菜单项：打开/关闭 “Zotero Copilot” sidebar。
-- sidebar 内部只做 4 个区域：
-  - 顶部：当前模式和当前论文标题
-  - 中间：消息列表
-  - 底部：输入框
-  - 很小的状态栏：Idle / Reading paper / Asking Codex
+- 添加一个 sidebar 的 button：打开/关闭 “Zotero Copilot” sidebar。
+- sidebar 内部只做 3 个区域：
+  - 顶部和中间：对话区域（ai 输出区域）
+  - 输入框：用户输入框
+  - 输入框下方一行很小的状态栏：使用的模型名称，模型推理强度
+- 使用占位文本，暂时不接入模型、不实现真实的功能代码
+
+sidebar 模仿 vscode copilot sidebar 的优秀设计：
+- 弹性高度用户输入框
+  - 纯输入区域（除去顶部附件区域、底部状态栏）默认高度约为 1.5 倍字体高度
+  - 当用户输入更多内容时，输入区域尺寸自适应变大，并有一个最大高度限制，约为 1/3 ～ 1/2 的侧边栏高度
+- 高信息密度
+  - 在相同尺寸的侧边栏视图中，通过对字体大小、行距、显示信息的优秀控制，展示更多有价值信息内容
+- 富语言支持
+  - 支持 latex 行内/行间公式、markdown 语法（具体哪一种参考 vscode copilot 的支持）、表格、链接等等元素的渲染
 
 你能得到：
 - 一个可交互的产品雏形。
@@ -77,7 +86,7 @@ npm start
 如何验证：
 - 能打开、关闭、重复打开，不产生多个重复 sidebar。
 - 切换 Zotero item 时，顶部论文标题能更新。
-- 输入一条消息后，本地先回显一个 mock assistant response。
+- 能进行初步的对话，回复内容实用一段固定文本占位。
 
 完成标准：
 - UI 不依赖模型也能跑。
@@ -88,7 +97,7 @@ npm start
 - `src/modules/sidebar/`：新增 sidebar 的创建、挂载、状态更新逻辑。
 - `src/hooks.ts`：在主窗口加载时注册 sidebar button/menu。
 - `addon/content/zoteroPane.css`：新增 sidebar 布局和消息样式。
-- `addon/locale/*/mainWindow.ftl`：新增按钮、标题、状态文案。
+- `addon/locale/*/addon.ftl`：新增按钮、标题、状态文案。
 - `src/utils/window.ts`：如果需要，补充获取主窗口/当前 Zotero pane 的工具函数。
 
 ---
