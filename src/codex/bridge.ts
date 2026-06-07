@@ -5,42 +5,14 @@ import type {
   CodexBridgeStatus,
   CodexPromptOptions,
   CodexPromptResult,
+  CodexSubprocessModule,
+  CodexSubprocessProcess,
   JsonRpcMessage,
   JsonRpcRequest,
   JsonRpcResponse,
   JsonValue,
 } from "./types";
 import { getPref } from "../utils/prefs";
-
-type SubprocessModule = {
-  call(options: {
-    command: string;
-    arguments?: string[];
-    environmentAppend?: boolean;
-    stderr?: "ignore" | "stdout" | "pipe";
-    workdir?: string;
-  }): Promise<SubprocessProcess>;
-  getEnvironment(): Record<string, string>;
-  pathSearch(
-    command: string,
-    environment?: Record<string, string>,
-  ): Promise<string>;
-};
-
-type SubprocessProcess = {
-  stdin: {
-    write(buffer: string): Promise<unknown>;
-    close(force?: boolean): Promise<unknown>;
-  };
-  stdout: {
-    readString(length?: number | null): Promise<string>;
-  };
-  stderr?: {
-    readString(length?: number | null): Promise<string>;
-  };
-  wait(): Promise<{ exitCode: number }>;
-  kill(timeout?: number): Promise<{ exitCode: number }>;
-};
 
 type PendingRequest = {
   method: string;
@@ -63,8 +35,8 @@ type ActiveTurn = {
 export { CodexBridge, getCodexBridge, shutdownCodexBridge };
 
 class CodexBridge {
-  private subprocess?: SubprocessModule;
-  private process?: SubprocessProcess;
+  private subprocess?: CodexSubprocessModule;
+  private process?: CodexSubprocessProcess;
   private nextRequestId = 0;
   private pendingRequests = new Map<number, PendingRequest>();
   private stdoutBuffer = "";
@@ -281,7 +253,16 @@ class CodexBridge {
       });
     });
 
-    await proc.stdin.write(`${JSON.stringify(message)}\n`);
+    try {
+      await proc.stdin.write(`${JSON.stringify(message)}\n`);
+    } catch (error) {
+      const pending = this.pendingRequests.get(id);
+      if (pending) {
+        this.pendingRequests.delete(id);
+        this.clearTimer(pending.timer);
+      }
+      throw error;
+    }
     return promise;
   }
 
@@ -294,7 +275,7 @@ class CodexBridge {
     await proc.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
-  private readStdout(proc: SubprocessProcess): void {
+  private readStdout(proc: CodexSubprocessProcess): void {
     void (async () => {
       while (this.process === proc) {
         const chunk = await proc.stdout.readString().catch(() => "");
@@ -307,7 +288,7 @@ class CodexBridge {
     })();
   }
 
-  private readStderr(proc: SubprocessProcess): void {
+  private readStderr(proc: CodexSubprocessProcess): void {
     const stderr = proc.stderr;
     if (!stderr) {
       return;
@@ -480,7 +461,7 @@ class CodexBridge {
     activeTurn.reject(toError(error));
   }
 
-  private watchExit(proc: SubprocessProcess): void {
+  private watchExit(proc: CodexSubprocessProcess): void {
     void proc.wait().then(({ exitCode }) => {
       if (this.process !== proc) {
         return;
@@ -502,13 +483,13 @@ class CodexBridge {
     this.clearActiveTurn(error);
   }
 
-  private getSubprocess(): SubprocessModule {
+  private getSubprocess(): CodexSubprocessModule {
     if (this.subprocess) {
       return this.subprocess;
     }
     const imported = ChromeUtils.importESModule(
       "resource://gre/modules/Subprocess.sys.mjs",
-    ) as { Subprocess: SubprocessModule };
+    ) as { Subprocess: CodexSubprocessModule };
     this.subprocess = imported.Subprocess;
     return this.subprocess;
   }
@@ -551,13 +532,7 @@ function getNestedString(
   value: JsonValue | undefined,
   path: string[],
 ): string | undefined {
-  let current: JsonValue | undefined = value;
-  for (const key of path) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
-      return undefined;
-    }
-    current = current[key];
-  }
+  const current = getNestedValue(value, path);
   return typeof current === "string" ? current : undefined;
 }
 
@@ -565,6 +540,14 @@ function getNestedBoolean(
   value: JsonValue | undefined,
   path: string[],
 ): boolean | undefined {
+  const current = getNestedValue(value, path);
+  return typeof current === "boolean" ? current : undefined;
+}
+
+function getNestedValue(
+  value: JsonValue | undefined,
+  path: string[],
+): JsonValue | undefined {
   let current: JsonValue | undefined = value;
   for (const key of path) {
     if (!current || typeof current !== "object" || Array.isArray(current)) {
@@ -572,7 +555,7 @@ function getNestedBoolean(
     }
     current = current[key];
   }
-  return typeof current === "boolean" ? current : undefined;
+  return current;
 }
 
 function formatServerError(params: JsonValue | undefined): string {

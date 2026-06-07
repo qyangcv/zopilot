@@ -1,17 +1,10 @@
 import { getPref } from "../utils/prefs";
-
-type SubprocessModule = {
-  getEnvironment(): Record<string, string>;
-  pathSearch(
-    command: string,
-    environment?: Record<string, string>,
-  ): Promise<string>;
-};
+import type { CodexSubprocessModule } from "./types";
 
 export { resolveCodexBinaryPath };
 
 async function resolveCodexBinaryPath(
-  subprocess: SubprocessModule,
+  subprocess: CodexSubprocessModule,
 ): Promise<string> {
   const configuredPath = String(getPref("codex.path") || "").trim();
   if (configuredPath) {
@@ -53,7 +46,7 @@ async function resolveCodexBinaryPath(
 }
 
 async function resolveCommand(
-  subprocess: SubprocessModule,
+  subprocess: CodexSubprocessModule,
   command: string,
 ): Promise<string> {
   if (command.includes("/")) {

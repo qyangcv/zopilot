@@ -18,8 +18,8 @@
 也可以在 Console 里直接跑：
 
 ```js
-document.getElementById("zotero-copilot-sidebar-splitter")
-document.getElementById("zotero-copilot-sidebar-shell")
+document.getElementById("zotero-copilot-sidebar-splitter");
+document.getElementById("zotero-copilot-sidebar-shell");
 ```
 
 **2. Zotero 内置 content / item panel 的 UI**
@@ -64,8 +64,8 @@ chrome/content/zotero/elements/itemPaneSidenav.js
 并且事件逻辑是：
 
 ```js
-if (action === 'toggle-pane') {
-  button.addEventListener('command', () => {
+if (action === "toggle-pane") {
+  button.addEventListener("command", () => {
     this._collapsed = !this._collapsed;
   });
 }

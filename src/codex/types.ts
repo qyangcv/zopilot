@@ -34,6 +34,36 @@ export type JsonRpcMessage =
   | JsonRpcNotification
   | JsonRpcResponse;
 
+export type CodexSubprocessModule = {
+  call(options: {
+    command: string;
+    arguments?: string[];
+    environmentAppend?: boolean;
+    stderr?: "ignore" | "stdout" | "pipe";
+    workdir?: string;
+  }): Promise<CodexSubprocessProcess>;
+  getEnvironment(): Record<string, string>;
+  pathSearch(
+    command: string,
+    environment?: Record<string, string>,
+  ): Promise<string>;
+};
+
+export type CodexSubprocessProcess = {
+  stdin: {
+    write(buffer: string): Promise<unknown>;
+    close(force?: boolean): Promise<unknown>;
+  };
+  stdout: {
+    readString(length?: number | null): Promise<string>;
+  };
+  stderr?: {
+    readString(length?: number | null): Promise<string>;
+  };
+  wait(): Promise<{ exitCode: number }>;
+  kill(timeout?: number): Promise<{ exitCode: number }>;
+};
+
 export type CodexAccount =
   | {
       type: "chatgpt";

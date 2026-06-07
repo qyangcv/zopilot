@@ -103,7 +103,7 @@ sidebar 模仿 vscode copilot sidebar 的优秀设计：
 
 - 能打开、关闭、重复打开，不产生多个重复 sidebar。
 - 切换 Zotero item 时，顶部论文标题能更新。
-- 能进行初步的对话，回复内容实用一段固定文本占位。
+- 能进行初步的对话；Step 2 阶段是固定占位回复，Step 3 后改为调用本机 Codex。
 
 完成标准：
 
@@ -113,7 +113,7 @@ sidebar 模仿 vscode copilot sidebar 的优秀设计：
 
 最小修改文件或目录（大致）：
 
-- `src/modules/sidebar/`：新增 sidebar controller，并把 constants、reader toolbar、selected item title、Markdown renderer、placeholder reply 分模块维护。
+- `src/modules/sidebar/`：新增 sidebar controller，并把 constants、reader toolbar、selected item title、Markdown renderer 分模块维护。
 - `src/hooks.ts`：在主窗口加载时注册 sidebar button/menu。
 - `addon/content/zoteroPane.css`：新增 sidebar 布局、消息样式和 reader toolbar button 样式；主窗口和 PDF reader 共用同一个 chrome stylesheet。
 - `addon/locale/*/addon.ftl`：新增按钮、标题、状态文案。
@@ -123,7 +123,7 @@ sidebar 模仿 vscode copilot sidebar 的优秀设计：
 
 - 主界面 `#zotero-items-toolbar` 和 PDF reader `renderToolbar` 均有 toggle 入口。
 - 侧栏挂在 Zotero 主布局右侧，不使用 `ItemPaneManager.registerSection()`。
-- 输入提交只返回固定占位回复；还没有接模型或真实论文上下文。
+- 输入提交已接入本机 Codex；还没有拼接真实论文上下文。
 
 ---
 
@@ -158,7 +158,7 @@ codex app-server --stdio
   - 发送 JSON-RPC request
   - 接收 JSON-RPC response / notification
   - 处理 timeout
-  - 进程崩溃后重启
+  - 进程崩溃后报错，并允许后续请求重新启动
 
 你能得到：
 
@@ -168,23 +168,34 @@ codex app-server --stdio
 如何验证：
 
 - app-server 能 initialize。
-- 能调用简单方法，例如读取 model list 或启动一个最小 thread。
+- 能 initialize、启动一个 ephemeral thread，并发起一个最小 `turn/start`。
 - Codex 进程退出时，sidebar 显示明确错误，而不是卡死。
 
 完成标准：
 
-- `CodexBridge.start()` 成功。
-- `CodexBridge.request(method, params)` 可复用。
+- `CodexBridge.start()` 成功完成 `initialize` / `initialized` 握手。
+- `CodexBridge.sendPrompt(prompt)` 可复用，内部通过 JSON-RPC 发起 `thread/start` / `turn/start`。
 - 所有 request 有超时和错误提示。
 - 多次发送消息不会并发打乱。初期可以简单做 queue，一次只跑一个 turn。
 
 最小修改文件或目录（大致）：
 
 - `src/codex/bridge.ts`：新增 Codex app-server 进程启动和 JSON-RPC 通信。
-- `src/codex/types.ts`：定义 request、response、notification、turn event 类型。
+- `src/codex/types.ts`：定义 request、response、notification、turn event 和 Subprocess 边界类型。
 - `src/codex/binaryPath.ts`：解析 `codex` 路径和用户自定义路径。
 - `src/modules/sidebar/`：接入 bridge 状态，显示启动失败/未登录/运行中。
-- `addon/prefs.js`、`addon/content/preferences.xhtml`：增加 Codex path、启用开关等配置。
+- `addon/prefs.js`、`addon/content/preferences.xhtml`：增加 Codex path、request timeout、sidebar width 等配置。
+
+当前实现状态：
+
+- 已新增 `src/codex/bridge.ts`、`src/codex/types.ts`、`src/codex/binaryPath.ts`。
+- `resolveCodexBinaryPath()` 优先使用 `codex.path`，为空时依次搜索 PATH、`~/.local/bin/codex`、`/opt/homebrew/bin/codex`、`/usr/local/bin/codex`。
+- `CodexBridge.start()` 使用 Zotero/Mozilla `Subprocess` 启动 `codex app-server --stdio`，通过 line-delimited JSON-RPC 完成 `initialize` / `initialized`。
+- `sendPrompt()` 会确保存在一个 ephemeral thread，再发 `turn/start`；`item/agentMessage/delta` 会流式更新 assistant message，`turn/completed` 后写入最终文本。
+- prompt turn 通过 `promptQueue` 串行化，避免多个用户输入并发打乱同一个 `activeTurn`。
+- request timeout 来自 `codex.timeoutMs`，默认 `180000` ms；异常、warning、app-server exit 会传到 sidebar。
+- shutdown 时调用 `shutdownCodexBridge()` 停止本机 app-server 进程。
+- 当前还没有 Step 4 的 Zotero metadata / PDF selection context 注入，也没有 MCP tools、conversation registry、thread resume 或模型选择 UI。
 
 ---
 

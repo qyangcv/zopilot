@@ -148,11 +148,11 @@ Tool 层：怎么把 Zotero 能力暴露给模型
 
 不要一开始做完整 agent 系统。
 
-**四、Step 3 的实现计划：接入本机 Codex CLI / app-server**
+**四、Step 3 的当前实现：接入本机 Codex CLI / app-server**
 
 Step 3 位于 [notes/zotero-copilot-roadmap.md](/Users/yang/code/zotero/zotero-copilot/notes/zotero-copilot-roadmap.md:130)。
 
-它的目的只有一个：让 Zotero 插件能和本机 Codex runtime 通信。
+它的目的只有一个：让 Zotero 插件能和本机 Codex runtime 通信。当前代码已经完成基础通信通道，但还没有把 Zotero 论文上下文注入 prompt。
 
 要做的事：
 
@@ -176,17 +176,17 @@ codex login
 codex app-server --stdio
 ```
 
-4. 新建 `CodexBridge`，只负责五件事：
+4. 当前已新增 `CodexBridge`，职责保持在通信层：
 
 ```text
 启动 Codex 进程
 发送 JSON-RPC request
 接收 response / notification
 处理 timeout
-进程崩溃后重启或报错
+进程退出后报错，并允许后续请求重新启动
 ```
 
-建议文件：
+已落地文件：
 
 ```text
 src/codex/bridge.ts
@@ -196,14 +196,35 @@ src/codex/binaryPath.ts
 
 这一步不要关心论文内容，也不要做 MCP。它只是在修“通信管道”。
 
-完成标准是：
+当前真实逻辑是：
 
 ```text
-CodexBridge.start() 能成功
-CodexBridge.request(method, params) 可复用
-请求有 timeout
-Codex 崩溃时 UI 不会卡死
-多次发送不会并发错乱
+resolveCodexBinaryPath() 解析用户配置或常见 codex 路径
+CodexBridge.start() 启动 codex app-server --stdio
+start() 完成 initialize / initialized 握手
+sendPrompt() 确保有一个 ephemeral thread
+sendPrompt() 调用 turn/start
+item/agentMessage/delta 流式更新 sidebar assistant message
+turn/completed 返回 threadId、turnId、最终文本
+promptQueue 保证同一 bridge 内一次只运行一个 turn
+timeout、JSON-RPC error、warning、进程退出都会反馈到 sidebar
+```
+
+偏好项也已落地：
+
+```text
+codex.path       可选；为空时自动搜索 PATH、~/.local/bin、Homebrew 等常见路径
+codex.timeoutMs  默认 180000 ms
+sidebar.width    保存用户调整后的右侧栏宽度
+```
+
+需要注意的边界：
+
+```text
+当前 sidebar 直接把用户输入发给 Codex
+还没有拼接 Zotero item 标题、作者、摘要、PDF 选中文本
+还没有 MCP、conversation registry、thread resume 或模型选择 UI
+CodexBridge.request() 是 bridge 内部方法；UI 层使用 sendPrompt()
 ```
 
 **五、Step 4 的实现计划：显式上下文注入论文问答**
