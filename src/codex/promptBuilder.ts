@@ -9,7 +9,6 @@ function buildPaperQuestionPrompt(
   const metadata = context.metadata;
   const attachment = context.attachment;
   const selection = context.selection.text || "(none)";
-  const textPreview = context.text.preview || "(none)";
   const warnings = context.warnings.length
     ? context.warnings.map((warning) => `- ${warning}`).join("\n")
     : "(none)";
@@ -41,9 +40,6 @@ function buildPaperQuestionPrompt(
     "",
     "Reader selected text:",
     selection,
-    "",
-    "PDF full-text preview:",
-    textPreview,
     "",
     "Context warnings:",
     warnings,

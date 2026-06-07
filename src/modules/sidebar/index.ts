@@ -32,7 +32,9 @@ export {
 
 type PanePersistState = Record<string, Record<string, string>>;
 type PromptDebugWindow = Window & {
+  // Development-only snapshot for inspecting the full prompt in Zotero's console.
   __zcpLastPrompt?: string;
+  // Development-only snapshot for inspecting the gateway context in Zotero's console.
   __zcpLastPromptContext?: unknown;
 };
 
