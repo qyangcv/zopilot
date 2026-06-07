@@ -59,15 +59,57 @@
   - `error` / `warning` notification 会进入 sidebar notice 或最终错误；`willRetry` 的 error 只作为 notice 显示。
   - app-server exit 会清空进程、thread、pending request 和 active turn；后续请求可重新 start。
   - request 写入失败、timeout、JSON-RPC error 都会清理 pending request，避免遗留 promise。
-- `src/modules/sidebar/index.ts` 当前直接调用 `getCodexBridge().sendPrompt(value)`：
+- `src/modules/sidebar/index.ts` 当前在提交时先构造 Zotero paper prompt，再调用 `getCodexBridge().sendPrompt(prompt)`：
   - 用户消息立即追加到 chat log。
   - assistant message 先显示“正在启动本机 Codex...”。
+  - `ZoteroContextGateway.getPromptContext(activeReader)` 读取当前 PDF reader paper context。
+  - `buildPaperQuestionPrompt(value, promptContext)` 把用户问题和 Zotero context 组织成 prompt。
   - delta 到达时用 `renderMarkdown()` 重新渲染 assistant body。
   - 完成但无文本时显示 empty response 文案。
   - 失败时用 fenced code block 展示错误消息。
 - `addon/content/preferences.xhtml` 暴露 Codex CLI path 和 request timeout；`addon/prefs.js` 默认 `codex.timeoutMs = 180000`。
 - `src/hooks.ts` shutdown 阶段会调用 `shutdownCodexBridge()` 停止 app-server；模板预留 hook 暂时保留，后续接 notifier、shortcut、dialog 或 preference 事件时再接入真实注册逻辑。
 - 当前实现边界：
-  - 已能把用户输入发送给本机 Codex。
-  - 还没有 Step 4 的 PDF reader 当前 paper metadata、abstract、reader selection 或 attachment text preview 注入。
+  - 已能把带当前 Zotero PDF reader paper context 的 prompt 发送给本机 Codex。
   - 还没有 conversation registry、thread resume、model selector、approval UI、MCP tools 或最终回答/trace 分离。
+
+## Step 4 ZoteroContextGateway + 显式上下文注入
+
+- commit `db260ee05df16abdf48d750a0de3cd9ee9f31217` 已实现 Step 4 的 reader-only 论文上下文读取。
+- 当前产品范围仍只覆盖 PDF reader 场景：用户已经在 Zotero PDF reader 中打开一篇文献，然后在该 reader 上下文中使用 zotero-copilot。主窗口文献列表 selection 不作为 `ZoteroContextGateway` 的上下文来源。
+- `src/zotero/types.ts` 定义 Step 4/5 共享类型：
+  - `PaperScope`：reader scope，包含 reader item、attachment、parent item、library 和 warning。
+  - `PaperMetadata`：parent item metadata，包含 title、creators、year、DOI、abstract 等。
+  - `PdfAttachment`：当前 reader PDF attachment 的 path/content type/readable 状态。
+  - `PaperTextResult`：全文索引/全文读取结果。
+  - `SelectedTextResult`：reader selection 读取结果。
+  - `PaperPromptContext`：promptBuilder 使用的聚合上下文。
+- `src/zotero/contextGateway.ts` 是唯一的 Zotero paper context 读取边界：
+  - `getActivePaper(reader?)` 只从 PDF reader 当前 `itemID` 识别 paper scope。
+  - `getPaperMetadata(scope)` 优先从 PDF attachment 的 parent regular item 读取 metadata，失败时返回 warning 并降级。
+  - `getPrimaryPdfAttachment(scope)` 读取当前 attachment 的 PDF 类型、本地路径、文件存在性和 readable 状态。
+  - `getAttachmentTextStatusForPrompt(scope)` 只读取 Zotero full-text indexed state，不读取完整全文。
+  - `getAttachmentFullTextForTool(scope)` 读取完整 `attachment.attachmentText`，用于后续 Step 5 `paper_search` / `paper_read`。
+  - `getSelectedText(reader?)` best-effort 读取 reader iframe/window selection，限制长度为 `8000` 字符。
+  - `getPromptContext(reader?)` 并行读取 metadata、attachment、text status，并汇总去重 warning。
+- `src/codex/promptBuilder.ts` 把 `PaperPromptContext` 和用户问题组织成 prompt：
+  - 明确要求模型只在上下文足够时回答 paper-specific facts，不足时说明限制。
+  - 注入 title、authors、year、DOI、abstract、attachment 状态、full-text status、selected text、warnings。
+  - 当前不会注入完整 PDF full text；`PDF full-text preview` 通常为 `(none)`，后续接 MCP 后应删掉或改成 omitted 说明。
+- `src/modules/sidebar/index.ts` 当前 submit 流程：
+  - 追加用户消息。
+  - 读取 `promptContext`。
+  - 调用 `buildPaperQuestionPrompt()`。
+  - 通过 `CodexBridge.sendPrompt(prompt)` 发起 turn。
+  - 将 `prompt` 和 `promptContext` 暂存到 `window.__zcpLastPrompt` / `window.__zcpLastPromptContext`，便于开发期在 Zotero console 检查完整 prompt。
+- Step 4 目的满足情况：
+  - 能识别当前 PDF reader 中打开的论文。
+  - 能从 reader PDF attachment 回溯 parent regular item。
+  - 能用 metadata/abstract/selection 增强用户问题。
+  - 无 selection、无 parent item、非 PDF、无本地文件、全文 API 不可用时都返回 warning，不阻断提问。
+  - sidebar 不显示 raw prompt，只显示用户问题和最终回答。
+- 当前未实现：
+  - Step 5 MCP endpoint 和 read-only tools。
+  - `paper_search` chunking/retrieval/cache。
+  - `paper_read` section/page/overview 语义。
+  - MCP scope token、bearer token、tool schema、timeout、provenance。

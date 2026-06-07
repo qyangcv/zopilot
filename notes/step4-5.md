@@ -1,6 +1,15 @@
-MCP tools 可以取代大部分“上下文拼接型 promptBuilder”，但不能简单替换成“mention PDF path，让 Codex 自己处理 PDF”。
+**当前结论**
 
-更稳的结论是：
+基于 commit `db260ee05df16abdf48d750a0de3cd9ee9f31217`，Step 4 已经实现：Zotero Copilot 会在用户提交问题时读取当前 PDF reader paper 的 metadata、attachment、全文索引状态、reader selection 和 warning，并把这些结构化上下文拼入发给 Codex app-server 的 prompt。
+
+Step 5 还没有实现：当前没有 MCP endpoint、没有 read-only tools、没有 Codex thread MCP config 注入，也没有 `paper_search` / `paper_read`。因此现在的状态不是“MCP-first 已完成”，而是：
+
+```text
+Step 4 explicit context injection: done
+Step 5 scoped read-only MCP tools: pending
+```
+
+这并不推翻之前的架构判断：MCP tools 仍然应该取代大部分“上下文拼接型 promptBuilder”，但不能简单替换成“mention PDF path，让 Codex 自己处理 PDF”。更稳的长期方向仍是：
 
 ```text
 让 MCP tool 成为 Zotero PDF 阅读器
@@ -10,7 +19,45 @@ promptBuilder 只保留极薄的任务路由
 
 ---
 
-**一、为什么不把 PDF path 当主能力**
+**一、Step 4 已实现什么**
+
+当前调用链：
+
+```text
+Sidebar submit
+  -> ZoteroContextGateway.getPromptContext(activeReader)
+  -> buildPaperQuestionPrompt(userQuestion, promptContext)
+  -> CodexBridge.sendPrompt(prompt)
+```
+
+新增实现：
+
+- `src/zotero/contextGateway.ts`
+- `src/zotero/types.ts`
+- `src/codex/promptBuilder.ts`
+- `src/modules/sidebar/index.ts` 中 submit 流程接入 gateway 和 promptBuilder
+
+已满足的 Step 4 目的：
+
+- 只基于当前 PDF reader 识别 paper scope，不读取主窗口文献列表 selection。
+- 从 reader 当前 PDF attachment 回溯 parent regular item。
+- 读取 title、authors、year、DOI、abstract、itemID、libraryID、key。
+- 读取当前 PDF attachment 的 content type、path、exists、readable。
+- 读取 Zotero full-text indexed state。
+- best-effort 读取 reader selected text。
+- 无 active reader、无 parent item、非 PDF、无 selection、全文 API 不可用等情况返回 warning。
+- sidebar 仍只显示用户问题和最终回答，不显示 raw prompt。
+- 通过 `window.__zcpLastPrompt` / `window.__zcpLastPromptContext` 保留开发期调试入口。
+
+需要注意的实现取舍：
+
+- Prompt 路径现在只读取全文索引状态，不读取完整 PDF full text，也不注入 text preview。
+- 完整全文读取留在 `getAttachmentFullTextForTool()`，作为 Step 5 `paper_search` / `paper_read` 的数据源。
+- 因此当前 `promptBuilder` 中 `PDF full-text preview` 通常会是 `(none)`；后续应删掉该字段或改成“prompt path omitted full text”。
+
+---
+
+**二、为什么仍然不把 PDF path 当主能力**
 
 `mention` PDF path 只是告诉 `codex app-server`：
 
@@ -28,7 +75,7 @@ Codex 能访问 Zotero attachment
 Codex 能处理 Zotero scope / 权限 / 多附件
 ```
 
-当前 app-server 协议里的 `mention` 是 `{ name, path }` 这类路径引用，不是 PDF 专用输入。真正要读 PDF，仍然需要某个执行者完成：
+真正要读 PDF，仍然需要某个执行者完成：
 
 ```text
 打开 PDF
@@ -46,13 +93,13 @@ Codex 能处理 Zotero scope / 权限 / 多附件
 5. scope 限制更难做，模型可能读到用户没打算暴露的本地文件。
 6. 错误提示更难做：路径不可读、PDF 无文本层、解析失败、章节定位失败会混在一起。
 
-所以 `mention PDF path` 表面更简单，实际是把复杂度从插件代码转移给 Codex runtime，而且边界更不稳定。
+所以 `mention PDF path` 可以作为 debug 或 fallback，但不应作为主能力。
 
 ---
 
-**二、推荐架构**
+**三、Step 5 推荐架构**
 
-推荐把 Step 4 和 Step 5 合并为一个 MCP-first 阶段：
+下一步仍建议把 Step 5 做成 scoped read-only MCP：
 
 ```text
 Sidebar
@@ -60,17 +107,17 @@ Sidebar
   -> codex app-server
   -> Zotero MCP tools
       -> ZoteroContextGateway
-      -> Zotero full-text cache / PDF text extraction / attachment access
+      -> Zotero full-text cache / chunking / retrieval
 ```
 
-当前阶段的 scope 只来自 Zotero PDF reader：用户已经点击打开了一篇文献，zotero-copilot 只围绕该 reader 当前 PDF 工作。暂不读取 Zotero 主窗口文献列表中的 selected regular item 或 selected PDF attachment；主窗口 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话。
+当前阶段 scope 仍只来自 Zotero PDF reader：用户已经点击打开了一篇文献，zotero-copilot 只围绕该 reader 当前 PDF 工作。暂不读取 Zotero 主窗口文献列表中的 selected regular item 或 selected PDF attachment；主窗口 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话。
 
-`promptBuilder` 不再负责塞入大量论文内容，只负责“任务指令和路由提示”：
+Step 5 后，`promptBuilder` 应收薄为任务路由：
 
 ```text
 You are answering questions about the current Zotero paper.
 Use Zotero MCP tools when paper content is needed.
-Current paper scope: itemID=...
+Current paper scope: attachmentID=..., parentItemID=...
 User question: ...
 ```
 
@@ -80,106 +127,24 @@ User question: ...
 get_active_paper()
 get_paper_metadata()
 read_selected_text()
-paper_read({ section: "3" })
-paper_read({ pageRange: "5-7" })
 paper_search({ query: "method" })
+paper_read({ mode: "overview" })
+paper_read({ mode: "targeted", query: "training objective" })
+paper_read({ pageRange: "5-7" })
 ```
-
-这样用户不需要手动选中内容，可以直接问：
-
-```text
-分析第 3 节的方法
-总结实验设置
-解释 Figure 2 附近的论证
-比较 Related Work 和 Method 的核心差异
-```
-
-但负责“读 PDF / 定位章节 / 返回文本”的应该是 Zotero MCP tool，而不是裸传 PDF path。
 
 ---
 
-**三、metadata 为什么仍然有价值**
-
-Zotero metadata 不一定要作为主要论文上下文塞给模型，但它适合作为轻量 scope：
-
-```text
-itemID
-libraryID
-attachmentID
-title
-year
-DOI
-PDF path
-```
-
-这些信息不是给模型“理解论文”的，而是给系统“确定读哪篇论文”的。尤其在 Zotero 里，一个 regular item 可能有多个附件，PDF title 也可能和 Zotero item title 不一致。
-
-在当前 reader-only 阶段，regular item 只通过 reader 当前 PDF attachment 的 parent item 获得；不从主窗口 selection 读取 regular item，也不从主窗口选中的 regular item 反向猜主 PDF。
-
-所以 metadata 应该服务于 scope 和 disambiguation，而不是取代 PDF 内容。
-
----
-
-**四、实现顺序**
-
-1. 实现 `ZoteroContextGateway`
-
-职责：
-
-```text
-读取 PDF reader 当前 item
-从 reader PDF attachment 回溯 parent item
-确认当前 reader PDF attachment
-读取 PDF path
-读取 Zotero full-text cache
-读取 reader selection
-返回轻量 metadata / scope
-```
-
-2. 实现 MCP tools first
-
-第一批只做 read-only tools：
-
-```text
-get_active_paper
-get_paper_metadata
-get_paper_text_status
-read_selected_text
-paper_search
-paper_read
-```
-
-其中 `paper_search` 应优先于复杂的章节解析，因为 query-based retrieval 更稳。`paper_read({ section })` 和 `paper_read({ pageRange })` 可以逐步增强。
-
-3. 保留 minimal `promptBuilder`
-
-只传：
-
-```text
-当前 paper scope
-可用工具说明
-用户问题
-必要的行为约束
-```
-
-不要再把 abstract、selected text、attachment preview 大段塞入 prompt，除非作为 MCP 失败后的 fallback。
-
-4. 不优先使用 `mention PDF path`
-
-`mention PDF path` 可以作为 debug 或 fallback，但不要作为主能力。主能力应该是 scope-bound Zotero MCP tools。
-
----
-
-**五、PDF 读取策略**
+**四、PDF 读取策略**
 
 不要自己从零实现 PDF parser。插件要实现的是读取编排、chunking、检索、缓存和错误处理。
 
 优先级：
 
-1. 使用 Zotero 已有 full-text content。
+1. 使用 Zotero 已有 full-text content：`attachment.attachmentText`。
 2. 对全文做 chunking 和缓存。
 3. 用 `paper_search(query)` 返回相关片段。
-4. 用启发式 heading 匹配支持 `paper_read(section)`。
+4. 用启发式 heading 匹配支持 `paper_read(mode="targeted", sections?)`。
 5. 后续再用 PDF.js、`pdftotext`、PyMuPDF 等成熟工具支持 page-level fallback。
 
 `paper_read` / `paper_search` 返回时要带 provenance 和 warning：
@@ -188,7 +153,7 @@ paper_read
 {
   "paperId": "123",
   "attachmentId": "456",
-  "locator": "section: 3",
+  "locator": "query: method",
   "source": "zotero_fulltext",
   "confidence": "medium",
   "snippets": [
@@ -202,7 +167,7 @@ paper_read
 }
 ```
 
-PDF 解析永远不可能绝对稳定，所以 tool 应该显式处理：
+必须显式处理：
 
 ```text
 PDF 没有文本层
@@ -215,25 +180,31 @@ Zotero 尚未完成索引
 
 ---
 
-**六、完成标准**
+**五、当前完成标准核查**
 
-合并后的 Step 4/5 完成标准：
+已完成：
 
-```text
-Codex 能通过 MCP 识别当前 Zotero paper scope
-scope 来源是当前 PDF reader，而不是 Zotero 主窗口文献列表 selection
-Codex 能调用 get_active_paper / paper_search / paper_read / read_selected_text
-paper_search 能基于 Zotero full-text 返回相关片段
-paper_read 能处理 section 或 pageRange，并在不确定时返回 warning
-MCP tool 有 schema、错误处理、scope 限制和 timeout
-MCP scope 限制当前 reader paper，不做全库 library search
-sidebar 默认只显示最终回答，不显示 raw prompt / raw tool result
-promptBuilder 只保留 minimal task routing
-mention PDF path 不作为主路径
-```
+- reader-only `ZoteroContextGateway`。
+- 当前 PDF reader paper scope 识别。
+- parent metadata 读取。
+- PDF attachment path/status 读取。
+- reader selected text best-effort 读取。
+- full-text indexed state 读取。
+- tool/retrieval 用完整全文读取入口预留。
+- sidebar 默认只显示最终回答，不显示 raw prompt / raw context。
+
+未完成：
+
+- MCP initialize。
+- `tools/list` / `tools/call`。
+- `get_active_paper` / `get_paper_metadata` / `read_selected_text` / `paper_search` / `paper_read`。
+- tool schema、错误处理、timeout、scope token、bearer token。
+- Codex thread config 注入 MCP server。
+- `paper_search` chunking/retrieval/cache。
+- `paper_read` section/page/overview 语义。
 
 ---
 
 **一句话总结**
 
-MCP tools 的确可以取代“大段上下文注入”的 promptBuilder；但不能简单替换成“mention PDF path”。更稳的做法是：让 Zotero MCP tool 成为 PDF 阅读器，Codex 通过 tool 按需读章节、页码或检索片段；`promptBuilder` 只保留极薄的一层任务路由。
+commit `db260ee` 已经把 Step 4 从普通聊天升级为“围绕当前 Zotero PDF reader paper 的显式上下文问答”；Step 5 仍应按 scoped read-only MCP 推进，让 Zotero MCP tools 成为受控 PDF 阅读器，而不是把 PDF path 裸传给 Codex。

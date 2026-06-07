@@ -195,7 +195,7 @@ codex app-server --stdio
 - prompt turn 通过 `promptQueue` 串行化，避免多个用户输入并发打乱同一个 `activeTurn`。
 - request timeout 来自 `codex.timeoutMs`，默认 `180000` ms；异常、warning、app-server exit 会传到 sidebar。
 - shutdown 时调用 `shutdownCodexBridge()` 停止本机 app-server 进程。
-- 当前还没有 Step 4 的 Zotero metadata / PDF selection context 注入，也没有 MCP tools、conversation registry、thread resume 或模型选择 UI。
+- 当前已在 Step 4 接入 Zotero PDF reader paper context；还没有 MCP tools、conversation registry、thread resume 或模型选择 UI。
 
 ---
 
@@ -214,10 +214,13 @@ codex app-server --stdio
 要做：
 
 - 写 `ZoteroContextGateway`：
-  - `getActiveReaderPaper()`
-  - `getItemMetadata()`
-  - `getSelectedTextFromReader()`
-  - `getAttachmentTextPreview()`
+  - `getActivePaper()`
+  - `getPaperMetadata()`
+  - `getPrimaryPdfAttachment()`
+  - `getAttachmentTextStatusForPrompt()`
+  - `getAttachmentFullTextForTool()`
+  - `getSelectedText()`
+  - `getPromptContext()`
 
 - 用户提问时，把上下文拼成一段清晰 prompt：
 
@@ -260,8 +263,22 @@ User question:
 - `src/zotero/contextGateway.ts`：新增 reader 当前 PDF、parent item metadata、PDF 选中文本读取。
 - `src/codex/promptBuilder.ts`：把论文上下文和用户问题组织成 prompt。
 - `src/modules/sidebar/`：把用户输入、上下文读取、Codex turn 串起来。
-- `src/shared/types.ts`：定义 `PaperContext`、`ChatMessage` 等轻量类型。
-- `src/utils/zoteroItems.ts` 或 `src/utils/window.ts`：如果需要，封装 Zotero API 访问。
+- `src/zotero/types.ts`：定义 `PaperScope`、`PaperMetadata`、`PdfAttachment`、`PaperTextResult`、`SelectedTextResult`、`PaperPromptContext`。
+
+当前实现状态：
+
+- commit `db260ee05df16abdf48d750a0de3cd9ee9f31217` 已实现 Step 4。
+- `src/zotero/contextGateway.ts` 只从 PDF reader 当前 `itemID` 识别 paper scope，不读取 Zotero 主窗口文献列表 selection。
+- `getActivePaper()` 返回 reader scope：`readerItemID`、`attachmentItemID`、`attachmentKey`、`parentItemID`、`libraryID`、`readerType` 和 warnings。
+- `getPaperMetadata()` 优先读取 parent regular item，返回 title、creators、date/year、DOI、abstract、itemID、libraryID、key、itemType。
+- `getPrimaryPdfAttachment()` 返回当前 PDF attachment 的 content type、path、exists、readable 等状态。
+- `getSelectedText()` best-effort 读取 reader iframe/window selection，无 selection 时返回 warning，不报错。
+- `getAttachmentTextStatusForPrompt()` 只读取 Zotero full-text indexed state，不把完整全文塞入普通 prompt。
+- `getAttachmentFullTextForTool()` 预留给 Step 5 retrieval/tools，后续 `paper_search` / `paper_read` 可复用它读取完整 `attachment.attachmentText`。
+- `src/codex/promptBuilder.ts` 会把 metadata、abstract、attachment 状态、selection、warnings 和用户问题组织为 prompt。
+- `src/modules/sidebar/index.ts` 在 submit 时调用 `contextGateway.getPromptContext(activeReader)`，再把 `buildPaperQuestionPrompt()` 的结果传给 `CodexBridge.sendPrompt()`。
+- sidebar 默认仍只显示用户问题和最终回答；raw prompt/context 只通过 `window.__zcpLastPrompt` 和 `window.__zcpLastPromptContext` 作为开发期调试入口。
+- 当前 `promptBuilder` 的 `PDF full-text preview` 字段通常为 `(none)`，因为 prompt 路径有意只读取 text status；后续接 MCP 后应删掉该字段或改成明确的 omitted 说明。
 
 ---
 
@@ -278,7 +295,9 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 建议第一批 tools：
 
 - `get_active_paper`
+- `get_paper_metadata`
 - `read_selected_text`
+- `paper_search`
 - `paper_read`
 
 要做：
@@ -310,9 +329,16 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 
 - `src/mcp/server.ts`：新增本地 MCP endpoint 和 JSON-RPC dispatch。
 - `src/mcp/protocol.ts`：定义 MCP initialize、tools/list、tools/call 的协议常量和类型。
-- `src/mcp/tools/`：新增 `get_active_paper`、`read_selected_text`、`paper_read`。
+- `src/mcp/tools/`：新增 `get_active_paper`、`get_paper_metadata`、`read_selected_text`、`paper_search`、`paper_read`。
 - `src/codex/mcpConfig.ts`：把 MCP server 配置注入 Codex app-server thread。
 - `src/zotero/contextGateway.ts`：复用已有 Zotero 读取逻辑给 MCP tools。
+
+当前实现状态：
+
+- 尚未实现 Step 5 MCP。
+- 目前没有 `src/mcp/`、MCP HTTP endpoint、bearer token、scope token、tools/list、tools/call 或 Codex thread MCP config。
+- `ZoteroContextGateway` 已提供 Step 5 复用基础，尤其是 `getAttachmentFullTextForTool()`，但还没有 chunking、retrieval、locator、confidence 或 provenance。
+- 下一步建议优先实现 `get_active_paper`、`get_paper_metadata`、`read_selected_text`、`paper_search`；`paper_read(section/pageRange)` 等定位能力可以在 retrieval 稳定后逐步增强。
 
 ---
 
