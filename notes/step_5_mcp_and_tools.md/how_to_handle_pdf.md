@@ -47,7 +47,7 @@ attachment.attachmentText，你的最佳路线是：
 
 可以这样划分：**`paper_read tool` 是模型可见的“意图接口”；内部 service 是模型不可见的“实现系统”**。
 
-`paper_read` 不负责“怎么检索得更准”，它只负责把模型/用户的阅读意图变成一个受控请求；`PaperReadingService` 才负责 chunk、retrieval、ranking、locator、warning、provenance。
+`paper_read` 不负责“怎么检索得更准”，它只负责把模型/用户的阅读意图变成一个受控请求；`ActivePaperRetrievalService` 才负责 chunk、retrieval、ranking、locator、warning、provenance。
 
 **总览**
 
@@ -55,7 +55,7 @@ attachment.attachmentText，你的最佳路线是：
 LLM / Codex
   -> calls MCP tool: paper_read(input)
       -> PaperReadToolHandler
-          -> PaperReadingService.read(request)
+          -> ActivePaperRetrievalService.read(request)
               -> ZoteroContextGateway
               -> TextLoader
               -> Chunker
@@ -77,7 +77,7 @@ LLM / Codex
 - 限定 scope：只能读当前 Zotero reader 里的当前 PDF。
 - 做权限和安全边界：read-only，不写 note，不改 metadata，不读全库。
 - 把模型输入转换成内部 typed request。
-- 调用 `PaperReadingService`。
+- 调用 `ActivePaperRetrievalService`。
 - 把 service 结果包装成 MCP tool result。
 - 把错误翻译成模型/用户能理解的 warning。
 
@@ -128,9 +128,9 @@ type PaperReadToolOutput = {
 LLM / Codex app-server / MCP client
 ```
 
-**2. `PaperReadingService` 的职责**
+**2. `ActivePaperRetrievalService` 的职责**
 
-`PaperReadingService` 是内部 application service，面向工程实现。
+`ActivePaperRetrievalService` 是内部 application service，面向工程实现。
 
 它负责真正“怎么读论文”：
 
@@ -216,7 +216,7 @@ getAttachmentFullTextForTool()
 
 ```text
 ZoteroContextGateway = 数据获取
-PaperReadingService = 阅读/检索策略
+ActivePaperRetrievalService = 阅读/检索策略
 paper_read tool = 模型可见接口
 ```
 
@@ -224,7 +224,7 @@ paper_read tool = 模型可见接口
 
 如果某个逻辑是“模型需要知道并选择的行为”，才放进 `paper_read tool` schema。
 
-如果某个逻辑是“为了完成读取而采用的工程策略”，放进 `PaperReadingService`。
+如果某个逻辑是“为了完成读取而采用的工程策略”，放进 `ActivePaperRetrievalService`。
 
 例如：
 
@@ -252,9 +252,9 @@ src/mcp/tools/paperRead.ts
   - 解析 MCP input
   - 校验 schema
   - resolve current scope
-  - 调 PaperReadingService
+  - 调 ActivePaperRetrievalService
 
-src/paperReading/PaperReadingService.ts
+src/paperReading/ActivePaperRetrievalService.ts
   - read()
   - buildOverviewContext()
   - retrieveRelevantSnippets()
@@ -277,7 +277,7 @@ src/zotero/contextGateway.ts
 
 ```text
 paper_read tool 决定“模型能请求什么”。
-PaperReadingService 决定“系统如何把请求变成可靠证据”。
+ActivePaperRetrievalService 决定“系统如何把请求变成可靠证据”。
 ZoteroContextGateway 决定“从 Zotero 哪里拿原材料”。
 ```
 

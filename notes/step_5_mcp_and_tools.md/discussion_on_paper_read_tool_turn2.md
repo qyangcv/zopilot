@@ -61,7 +61,7 @@ ZoteroContextGateway
   -> getSelectedText()
   -> getAttachmentFullTextForTool()
 
-PaperReadingService
+ActivePaperRetrievalService
   -> buildOverviewContext()
   -> retrieveRelevantSnippets()
   -> resolvePageText()
@@ -311,7 +311,7 @@ For current-paper QA, expose one read tool and keep retrieval internal.
 
 ```text
 paper_read = 唯一论文内容读取入口
-retrieval/search = PaperReadingService 内部实现细节
+retrieval/search = ActivePaperRetrievalService 内部实现细节
 ZoteroContextGateway = 数据来源边界
 ```
 
