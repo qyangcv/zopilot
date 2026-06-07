@@ -33,6 +33,7 @@
   - `readerToolbar.ts`：创建 PDF reader toolbar button，并给 reader document 注入共享 chrome stylesheet。
   - `selectedItem.ts`：读取当前 Zotero selection 或 reader attachment parent 的标题。
   - `markdown.ts`：Step-2 原型用的最小 Markdown/公式占位 renderer。
+- Step 4/5 设计范围已收窄为 PDF reader 内的单篇论文 QA。`selectedItem.ts` 里的主窗口 selection 标题读取只是当前 UI chip 的展示能力，不作为 `ZoteroContextGateway` 的上下文来源；主窗口 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话。
 - 2026-06-07 调整：放弃 `Zotero.ItemPaneManager.registerSection()` / item-pane sidenav 方案，因为它无法可靠隔离 item details 的纵向 section scroll。当前入口是主界面 `#zotero-items-toolbar` 和 PDF reader `renderToolbar` 注入按钮；点击后打开挂在 Zotero 主布局里的独立右侧 Copilot pane，和 Zotero 内置 item pane sections 使用不同 DOM 容器。
 - UI 采用 VS Code Copilot Chat sidebar 的几个可迁移原则：一个高价值侧栏、紧凑标题与消息密度、输入区承载上下文 chip、模型和推理强度状态、textarea 按内容自动增高且有最大高度。
 - Step 2 的固定 assistant 占位回复已被 Step 3 的真实 Codex 请求路径替换；`placeholder.ts` 和对应 locale key 已删除。
@@ -68,5 +69,5 @@
 - `src/hooks.ts` shutdown 阶段会调用 `shutdownCodexBridge()` 停止 app-server；模板预留 hook 暂时保留，后续接 notifier、shortcut、dialog 或 preference 事件时再接入真实注册逻辑。
 - 当前实现边界：
   - 已能把用户输入发送给本机 Codex。
-  - 还没有 Step 4 的当前 item metadata、abstract、PDF selection 或 attachment text preview 注入。
+  - 还没有 Step 4 的 PDF reader 当前 paper metadata、abstract、reader selection 或 attachment text preview 注入。
   - 还没有 conversation registry、thread resume、model selector、approval UI、MCP tools 或最终回答/trace 分离。

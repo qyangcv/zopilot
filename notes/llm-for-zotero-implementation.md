@@ -38,7 +38,9 @@
 **我建议你的实现路线**
 
 - 主路线：`Zotero plugin -> Codex app-server stdio -> Codex logged-in runtime`。不要做 ChatGPT 网页抓取，也不要依赖 legacy backend URL。
-- 初版只做 read-only MCP：`library_search`、`paper_read`、`note_read`、`selection_read`。写 note、改 metadata、删除 item 后面再加。
+- 当前 Step 4/5 只做 PDF reader 内的单篇论文 QA：用户已经打开一篇 PDF 后，`ZoteroContextGateway` 只读取该 reader 当前 PDF、parent item metadata、全文文本和 reader selection。
+- 暂不读取 Zotero 主窗口文献列表中的 selected regular item 或 selected PDF attachment；主窗口 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话。
+- 初版只做当前 paper 的 read-only MCP：`get_active_paper`、`get_paper_metadata`、`read_selected_text`、`paper_search`、`paper_read`。`library_search`、`note_read`、写 note、改 metadata、删除 item 后面再加。
 - UI 做“信息过滤器”，不要做完整 agent trace：
   - 默认只显示 assistant answer、引用/证据、当前使用的 context chips。
   - reasoning、tool call、raw MCP result 放到可展开的 diagnostics drawer。

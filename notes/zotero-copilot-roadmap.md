@@ -205,14 +205,16 @@ codex app-server --stdio
 
 准备：
 
-- 先只支持“当前选中的 Zotero item”。
-- 先只读标题、作者、年份、摘要、PDF 选中文本。
+- 先只支持 PDF reader 场景：用户已经点击打开了一篇文献，并在该 PDF reader 上下文中使用 zotero-copilot。
+- 暂不读取 Zotero 主窗口文献列表中的 selected regular item 或 selected PDF attachment。
+- 主窗口的 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话，当前阶段不实现。
+- 先只读 reader 当前 PDF 对应 parent item 的标题、作者、年份、摘要，以及 PDF reader 选中文本。
 - 不做全库搜索。
 
 要做：
 
 - 写 `ZoteroContextGateway`：
-  - `getActiveItem()`
+  - `getActiveReaderPaper()`
   - `getItemMetadata()`
   - `getSelectedTextFromReader()`
   - `getAttachmentTextPreview()`
@@ -236,25 +238,26 @@ User question:
 
 你能得到：
 
-- 第一个真正有用的版本：用户选中论文，直接问 Codex。
+- 第一个真正有用的版本：用户打开 PDF 后，直接围绕当前 reader 中的论文问 Codex。
 - 还没有复杂工具调用，所以容易 debug。
 
 如何验证：
 
-- 选中一篇有摘要的文献，问：“这篇论文主要贡献是什么？”
-- 选中 PDF 中一段文字，问：“解释这段。”
+- 在 PDF reader 中打开一篇有摘要的文献，问：“这篇论文主要贡献是什么？”
+- 在 PDF reader 中选中一段文字，问：“解释这段。”
 - 回答中应该明显使用了当前论文/选中文本，而不是泛泛回答。
 
 完成标准：
 
 - 能回答当前论文相关问题。
 - 无选中文本时不会报错。
-- 当前 item 没有 PDF 时也能用 metadata/abstract 回答。
+- 能从 reader 当前 PDF attachment 回溯到 parent item，并用 metadata/abstract 回答。
+- 不要求支持 Zotero 主窗口文献列表 selection；该能力留到未来 library QA。
 - sidebar 中只显示最终回答，不显示底层 prompt。
 
 最小修改文件或目录（大致）：
 
-- `src/zotero/contextGateway.ts`：新增当前 item、metadata、PDF 选中文本读取。
+- `src/zotero/contextGateway.ts`：新增 reader 当前 PDF、parent item metadata、PDF 选中文本读取。
 - `src/codex/promptBuilder.ts`：把论文上下文和用户问题组织成 prompt。
 - `src/modules/sidebar/`：把用户输入、上下文读取、Codex turn 串起来。
 - `src/shared/types.ts`：定义 `PaperContext`、`ChatMessage` 等轻量类型。
@@ -277,26 +280,24 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 - `get_active_paper`
 - `read_selected_text`
 - `paper_read`
-- `library_search`
 
 要做：
 
 - 在 Zotero 本地 HTTP server 上注册一个 MCP endpoint。
 - 给 endpoint 加 bearer token。
-- 每次 Codex turn 生成一个 scope，例如当前 library、当前 paper、当前 conversation。
+- 每次 Codex turn 生成一个 scope，例如当前 reader paper、当前 PDF attachment、当前 conversation。
 - Codex app-server thread config 里注入这个 MCP server。
 
 你能得到：
 
-- Codex 可以自己决定何时读取论文、搜索库、读取选中文本。
+- Codex 可以自己决定何时读取当前论文、读取选中文本。
 - 上下文不必全部塞进 prompt，后续可扩展性更好。
 
 如何验证：
 
 - 问：“这篇论文第 3 节讲了什么？”
 - 模型应该调用 `paper_read`，而不是瞎猜。
-- 问：“我的库里有没有和 RAG evaluation 相关的论文？”
-- 模型应该调用 `library_search`。
+- 不验证 library 级问题；例如“我的库里有没有和 RAG evaluation 相关的论文？”留到未来 `library_search` 阶段。
 
 完成标准：
 
@@ -309,7 +310,7 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 
 - `src/mcp/server.ts`：新增本地 MCP endpoint 和 JSON-RPC dispatch。
 - `src/mcp/protocol.ts`：定义 MCP initialize、tools/list、tools/call 的协议常量和类型。
-- `src/mcp/tools/`：新增 `get_active_paper`、`read_selected_text`、`paper_read`、`library_search`。
+- `src/mcp/tools/`：新增 `get_active_paper`、`read_selected_text`、`paper_read`。
 - `src/codex/mcpConfig.ts`：把 MCP server 配置注入 Codex app-server thread。
 - `src/zotero/contextGateway.ts`：复用已有 Zotero 读取逻辑给 MCP tools。
 
@@ -320,7 +321,7 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 准备：
 
 - 明确两类 conversation：
-  - Global chat：和整个 Zotero library 相关
+  - Global chat：和整个 Zotero library 相关，留到未来主窗口 zotero-copilot 入口实现
   - Paper chat：绑定某一篇论文
 
 要做：
@@ -474,9 +475,10 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 
 建议测试清单：
 
-- Zotero 无 item 选中
-- item 无 PDF
-- PDF 有选中文本
+- 无 active PDF reader 时提示当前阶段需要先打开 PDF
+- reader 当前 PDF attachment 无 parent item
+- parent item 无摘要
+- PDF reader 有选中文本
 - Codex 未登录
 - Codex app-server 启动失败
 - MCP tool 超时
@@ -521,9 +523,9 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 
 - Zotero sidebar
 - Codex app-server bridge
-- 当前论文 metadata + selected text 注入
+- PDF reader 当前论文 metadata + selected text 注入
 - 最终回答流式显示
 - 隐藏 reasoning/tool noise
 - 简单 conversation history
 
-这版已经能体现你的设计哲学。之后再加 MCP、library search、note writing。这样风险低，也能保证你写出来的是自己的插件，而不是 `llm-for-zotero` 的复杂复刻。
+这版已经能体现你的设计哲学。之后再加 MCP、主窗口 library search、note writing。这样风险低，也能保证你写出来的是自己的插件，而不是 `llm-for-zotero` 的复杂复刻。

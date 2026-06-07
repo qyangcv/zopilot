@@ -64,9 +64,9 @@ codex app-server --stdio
 
 `thread id`：Codex runtime 里的对话线程 ID。保存它之后，下次可以继续同一段上下文，而不是每次都重新开始。
 
-`conversation key`：Zotero 插件自己定义的会话键。例如“全局聊天”一个 key，“某篇论文聊天”一个 key。它负责把 Zotero 侧的语义会话映射到 Codex 的 thread id。
+`conversation key`：Zotero 插件自己定义的会话键。例如“某篇论文聊天”一个 key，未来“全局聊天”也可以有一个 key。它负责把 Zotero 侧的语义会话映射到 Codex 的 thread id。
 
-`global chat`：不绑定单篇论文的聊天，面向整个 Zotero library。
+`global chat`：不绑定单篇论文的聊天，面向整个 Zotero library。当前阶段不实现，主窗口 zotero-copilot 入口预留给这个方向。
 
 `paper chat`：绑定某一篇论文的聊天。这样你切换论文时，对话不会串。
 
@@ -78,21 +78,20 @@ codex app-server --stdio
 
 `thin context injection`：更轻量的上下文，只给最必要的信息，减少 token 使用。
 
-`MCP`：Model Context Protocol。简单理解：给模型提供工具的标准协议。不是把所有文献内容一次性塞进 prompt，而是给模型工具，例如 `paper_read`、`library_search`，模型需要时自己调用。
+`MCP`：Model Context Protocol。简单理解：给模型提供工具的标准协议。不是把所有文献内容一次性塞进 prompt，而是给模型工具，例如当前阶段的 `paper_read`、`read_selected_text`，模型需要时自己调用。`library_search` 留到未来 library 级 QA。
 
 `MCP tool`：一个可被模型调用的函数。例如：
 
 ```text
 paper_read(paper_id, section)
-library_search(query)
 read_selected_text()
 ```
 
-`read-only MCP`：只读工具，只能读论文、读选中文本、搜索文献，不能删除、写 note、运行命令。初版更安全。
+`read-only MCP`：只读工具，只能读当前 reader paper、读选中文本，不能删除、写 note、运行命令。初版更安全；全库搜索不属于当前阶段。
 
 `bearer token`：访问 MCP endpoint 的令牌。作用是防止随便一个本地请求都能调用 Zotero 工具。
 
-`scope header`：给每次工具调用限定范围，例如“只能访问当前 library / 当前 paper / 当前 conversation”。这是为了防止模型读错库或跨会话访问。
+`scope header`：给每次工具调用限定范围，例如当前阶段“只能访问当前 PDF reader paper / 当前 conversation”。这是为了防止模型读错论文或跨会话访问；library 级 scope 留到未来主窗口 QA。
 
 `shell tool`：让模型运行 shell 命令的能力。笔记里建议关掉，因为 Zotero 插件初版不需要模型执行系统命令，风险高。
 
@@ -104,11 +103,11 @@ read_selected_text()
 
 `Runtime Adapter`：运行时适配层。意思是 UI 不直接依赖 Codex，后面如果换 Claude、OpenAI API、本地模型，只换 adapter。
 
-`Context Gateway`：Zotero 上下文入口。统一负责读当前 item、metadata、PDF 选中文本、note、attachment 等。
+`Context Gateway`：Zotero 上下文入口。当前阶段统一负责读 PDF reader 当前 item、parent metadata、PDF 选中文本、attachment 等；不读取 Zotero 主窗口文献列表 selection。
 
 `Scoped MCP`：带作用域限制的 MCP。每轮对话生成一个 scope，避免工具无限制访问 Zotero 数据。
 
-`Conversation Registry`：会话注册表。保存 `conversationKey -> runtimeThreadId -> paper/library scope` 的关系。
+`Conversation Registry`：会话注册表。当前阶段保存 `conversationKey -> runtimeThreadId -> paper scope` 的关系；未来再扩展到 library scope。
 
 `Delta Context`：上下文增量更新机制。目的是省 token、减少重复输入。
 
@@ -231,7 +230,9 @@ CodexBridge.request() 是 bridge 内部方法；UI 层使用 sendPrompt()
 
 Step 4 位于 [notes/zotero-copilot-roadmap.md](/Users/yang/code/zotero/zotero-copilot/notes/zotero-copilot-roadmap.md:191)。
 
-它的目的：让用户选中一篇 Zotero 论文后，能问出真正基于这篇论文的问题。
+它的目的：让用户在 Zotero PDF reader 中打开一篇文献后，能问出真正基于这篇论文的问题。
+
+当前阶段只考虑 PDF reader 场景：不读取 Zotero 主窗口文献列表中的 selected regular item 或 selected PDF attachment。主窗口的 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话。
 
 这一步仍然不做 MCP，而是先用最直观的 prompt 拼接。
 
@@ -240,7 +241,7 @@ Step 4 位于 [notes/zotero-copilot-roadmap.md](/Users/yang/code/zotero/zotero-c
 1. 新建 `ZoteroContextGateway`：
 
 ```text
-getActiveItem()
+getActiveReaderPaper()
 getItemMetadata()
 getSelectedTextFromReader()
 getAttachmentTextPreview()
@@ -276,8 +277,9 @@ src/shared/types.ts
 
 ```text
 能回答当前论文相关问题
-没有 PDF 时也能基于 metadata/abstract 回答
+能从 reader 当前 PDF attachment 回溯到 parent item，并基于 metadata/abstract 回答
 没有选中文本时不报错
+不要求支持 Zotero 主窗口文献列表 selection
 sidebar 只显示最终回答，不显示底层 prompt
 ```
 
@@ -294,7 +296,7 @@ Step 4 解决“Codex 怎么知道当前 Zotero 论文是什么”
 
 `Step 3` 是基础设施层。它不理解论文、不读 Zotero item、不构造 prompt。只负责启动 Codex、发消息、收消息、处理错误。
 
-`Step 4` 是产品能力层。它开始读取 Zotero 当前 item、标题、作者、摘要、PDF 选中文本，并把这些内容组织成 Codex 能理解的上下文。
+`Step 4` 是产品能力层。它开始读取 PDF reader 当前 item、parent item 标题、作者、摘要、PDF 选中文本，并把这些内容组织成 Codex 能理解的上下文。
 
 所以依赖关系是：
 
@@ -307,4 +309,4 @@ Step 2 sidebar
 Step 3 成功后，你得到的是“能聊天，但还不懂 Zotero”。
 Step 4 成功后，你得到的是“能围绕当前论文问答”。
 
-后面的 Step 5 MCP 才是再进一步：不再每次把上下文显式塞进 prompt，而是让模型按需调用 `paper_read`、`library_search` 这类工具。
+后面的 Step 5 MCP 才是再进一步：不再每次把上下文显式塞进 prompt，而是让模型按需调用 `paper_read`、`read_selected_text` 这类当前 reader paper 工具。`library_search` 留到未来 library 级 QA。
