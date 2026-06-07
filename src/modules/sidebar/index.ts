@@ -1,7 +1,9 @@
 import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
 import { getCodexBridge } from "../../codex/bridge";
+import { buildPaperQuestionPrompt } from "../../codex/promptBuilder";
 import { getPref, setPref } from "../../utils/prefs";
+import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import {
   HTML_NS,
   ICON_URI,
@@ -29,6 +31,10 @@ export {
 };
 
 type PanePersistState = Record<string, Record<string, string>>;
+type PromptDebugWindow = Window & {
+  __zcpLastPrompt?: string;
+  __zcpLastPromptContext?: unknown;
+};
 
 function cleanupPersistedSidebarPaneState(): void {
   const rawPersist = Zotero.Prefs.get(ZOTERO_PANE_PERSIST_PREF);
@@ -102,12 +108,14 @@ class SidebarController {
   private busy = false;
   private readonly listeners: Array<() => void> = [];
   private readonly readerToolbarButtons = new Set<Element>();
+  private readonly contextGateway: ZoteroContextGateway;
   private readonly readerToolbarHandler: _ZoteroTypes.Reader.EventHandler<"renderToolbar"> =
     (event) => this.renderReaderToolbarButton(event);
 
   constructor(win: Window) {
     this.win = win;
     this.doc = win.document;
+    this.contextGateway = new ZoteroContextGateway(win);
   }
 
   mount(): void {
@@ -488,7 +496,12 @@ class SidebarController {
     try {
       let hasAssistantText = false;
       const bridge = getCodexBridge();
-      const result = await bridge.sendPrompt(value, {
+      const promptContext = await this.contextGateway.getPromptContext(
+        this.activeReader,
+      );
+      const prompt = buildPaperQuestionPrompt(value, promptContext);
+      this.storePromptDebugSnapshot(prompt, promptContext);
+      const result = await bridge.sendPrompt(prompt, {
         onDelta: (_delta, fullText) => {
           hasAssistantText = Boolean(fullText);
           this.renderAssistantBody(
@@ -548,6 +561,15 @@ class SidebarController {
 
   private renderAssistantBody(body: HTMLElement, markdown: string): void {
     renderMarkdown(this.doc, body, markdown);
+  }
+
+  private storePromptDebugSnapshot(
+    prompt: string,
+    promptContext: unknown,
+  ): void {
+    const debugWin = this.win as PromptDebugWindow;
+    debugWin.__zcpLastPrompt = prompt;
+    debugWin.__zcpLastPromptContext = promptContext;
   }
 
   private setBusy(busy: boolean): void {
