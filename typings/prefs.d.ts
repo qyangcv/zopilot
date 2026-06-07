@@ -8,6 +8,9 @@ declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
       "enabled": boolean;
+      "codex.path": string;
+      "codex.timeoutMs": number;
+      "sidebar.width": number;
     };
   }
 }

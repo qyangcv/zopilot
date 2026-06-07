@@ -1,5 +1,7 @@
 import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
+import { getCodexBridge } from "../../codex/bridge";
+import { getPref, setPref } from "../../utils/prefs";
 import {
   HTML_NS,
   ICON_URI,
@@ -10,13 +12,53 @@ import {
   TOOLBAR_TOGGLE_BUTTON_ID,
 } from "./constants";
 import { renderMarkdown } from "./markdown";
-import { getPlaceholderAnswer } from "./placeholder";
 import { createReaderToolbarButton } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
 
 const controllers = new WeakMap<Window, SidebarController>();
+const DEFAULT_SIDEBAR_WIDTH = 372;
+const DEFAULT_CONTEXT_PANE_WIDTH = 357;
+const MAX_REASONABLE_NATIVE_PANE_WIDTH = 900;
+const ZOTERO_PANE_PERSIST_PREF = "pane.persist";
 
-export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
+export {
+  cleanupPersistedSidebarPaneState,
+  registerSidebar,
+  unregisterSidebar,
+  unregisterAllSidebars,
+};
+
+type PanePersistState = Record<string, Record<string, string>>;
+
+function cleanupPersistedSidebarPaneState(): void {
+  const rawPersist = Zotero.Prefs.get(ZOTERO_PANE_PERSIST_PREF);
+  if (typeof rawPersist !== "string" || !rawPersist) {
+    return;
+  }
+
+  try {
+    const persist = JSON.parse(rawPersist) as PanePersistState;
+    if (!Object.prototype.hasOwnProperty.call(persist, SIDEBAR_ID)) {
+      return;
+    }
+
+    delete persist[SIDEBAR_ID];
+
+    const contextPane = persist["zotero-context-pane"];
+    const contextWidth = Number(contextPane?.width);
+    if (contextPane && contextWidth > MAX_REASONABLE_NATIVE_PANE_WIDTH) {
+      contextPane.width = String(DEFAULT_CONTEXT_PANE_WIDTH);
+    }
+
+    Zotero.Prefs.set(ZOTERO_PANE_PERSIST_PREF, JSON.stringify(persist));
+  } catch (error) {
+    Zotero.debug(
+      `[${config.addonName}] failed to clean persisted sidebar pane state: ${String(
+        error,
+      )}`,
+    );
+  }
+}
 
 function registerSidebar(win: _ZoteroTypes.MainWindow): void {
   const existing = controllers.get(win);
@@ -47,15 +89,17 @@ class SidebarController {
   private readonly win: Window;
   private styleNode?: ProcessingInstruction;
   private toolbarToggleButton?: Element;
-  private splitter?: XUL.Splitter;
+  private splitter?: HTMLElement;
   private shell?: XUL.Box;
   private selectedTitle?: HTMLElement;
   private contextChipText?: HTMLElement;
   private chatLog?: HTMLElement;
   private composer?: HTMLFormElement;
   private textarea?: HTMLTextAreaElement;
+  private sendButton?: HTMLButtonElement;
   private activeReader?: _ZoteroTypes.ReaderInstance;
   private open = false;
+  private busy = false;
   private readonly listeners: Array<() => void> = [];
   private readonly readerToolbarButtons = new Set<Element>();
   private readonly readerToolbarHandler: _ZoteroTypes.Reader.EventHandler<"renderToolbar"> =
@@ -186,35 +230,27 @@ class SidebarController {
   }
 
   private mountPanel(): void {
-    if (this.shell?.isConnected && this.splitter?.isConnected) {
+    if (this.shell) {
       return;
     }
 
-    const host = this.getSidebarHost();
-    if (!host || this.doc.getElementById(SIDEBAR_ID)) {
-      return;
-    }
+    this.doc.getElementById(SIDEBAR_ID)?.remove();
 
-    this.splitter = this.createSplitter();
     this.shell = this.createShell();
     this.shell.appendChild(this.createSidebarContent());
-    host.append(this.splitter, this.shell);
-    this.setOpen(false);
   }
 
   private getSidebarHost(): Element | null {
     return this.doc.getElementById("tabs-deck")?.parentElement || null;
   }
 
-  private createSplitter(): XUL.Splitter {
-    const splitter = this.doc.createXULElement("splitter") as XUL.Splitter;
+  private createSplitter(): HTMLElement {
+    const splitter = this.html("div", "zcp-resize-handle");
     splitter.id = SPLITTER_ID;
-    splitter.setAttribute("resizebefore", "closest");
-    splitter.setAttribute("resizeafter", "closest");
-    splitter.setAttribute("collapse", "after");
-    splitter.setAttribute("orient", "horizontal");
-    const grippy = this.doc.createXULElement("grippy");
-    splitter.appendChild(grippy);
+    splitter.setAttribute("aria-hidden", "true");
+    splitter.addEventListener("pointerdown", (event) =>
+      this.startResize(event as PointerEvent),
+    );
     return splitter;
   }
 
@@ -222,8 +258,7 @@ class SidebarController {
     const shell = this.doc.createXULElement("box") as XUL.Box;
     shell.id = SIDEBAR_ID;
     shell.setAttribute("orient", "vertical");
-    shell.setAttribute("width", "372");
-    shell.setAttribute("zotero-persist", "width");
+    shell.setAttribute("width", String(this.getInitialShellWidth()));
     return shell;
   }
 
@@ -231,6 +266,7 @@ class SidebarController {
     const aside = this.html("aside", "zcp-sidebar");
     aside.setAttribute("role", "complementary");
     aside.setAttribute("aria-label", getString("sidebar-title"));
+    const splitter = this.createSplitter();
 
     const header = this.html("header", "zcp-sidebar-header");
     const identity = this.html("div", "zcp-sidebar-identity");
@@ -259,11 +295,109 @@ class SidebarController {
 
     const composer = this.createComposer();
 
-    aside.append(header, chatLog, composer);
+    aside.append(splitter, header, chatLog, composer);
+    this.splitter = splitter;
     this.selectedTitle = selectedTitle;
     this.chatLog = chatLog;
     this.composer = composer;
     return aside;
+  }
+
+  private startResize(event: PointerEvent): void {
+    const shell = this.shell;
+    if (event.button !== 0 || !shell) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const splitter = event.currentTarget as HTMLElement;
+    const startX = event.clientX;
+    const startWidth = this.getShellWidth();
+    const isRtl = Boolean((Zotero as unknown as { rtl?: boolean }).rtl);
+
+    shell.toggleAttribute("data-resizing", true);
+    splitter.setPointerCapture?.(event.pointerId);
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== event.pointerId) {
+        return;
+      }
+      moveEvent.preventDefault();
+      moveEvent.stopPropagation();
+      const delta = isRtl
+        ? moveEvent.clientX - startX
+        : startX - moveEvent.clientX;
+      this.setShellWidth(startWidth + delta);
+    };
+
+    const stopResize = (endEvent: PointerEvent) => {
+      if (endEvent.pointerId !== event.pointerId) {
+        return;
+      }
+      endEvent.preventDefault();
+      endEvent.stopPropagation();
+      splitter.releasePointerCapture?.(event.pointerId);
+      this.persistShellWidth();
+      shell.removeAttribute("data-resizing");
+      this.win.removeEventListener("pointermove", onPointerMove, {
+        capture: true,
+      });
+      this.win.removeEventListener("pointerup", stopResize, { capture: true });
+      this.win.removeEventListener("pointercancel", stopResize, {
+        capture: true,
+      });
+    };
+
+    this.win.addEventListener("pointermove", onPointerMove, { capture: true });
+    this.win.addEventListener("pointerup", stopResize, { capture: true });
+    this.win.addEventListener("pointercancel", stopResize, { capture: true });
+  }
+
+  private getShellWidth(): number {
+    const width =
+      this.shell?.getBoundingClientRect().width ||
+      Number(this.shell?.getAttribute("width")) ||
+      DEFAULT_SIDEBAR_WIDTH;
+    return Math.round(width);
+  }
+
+  private setShellWidth(width: number): void {
+    if (!this.shell) {
+      return;
+    }
+    const { min, max } = this.getShellWidthBounds();
+    const nextWidth = clamp(Math.round(width), min, max);
+    this.shell.setAttribute("width", String(nextWidth));
+    this.shell.style.width = `${nextWidth}px`;
+    this.resizeInput();
+  }
+
+  private persistShellWidth(): void {
+    const { min, max } = this.getShellWidthBounds();
+    setPref("sidebar.width", clamp(this.getShellWidth(), min, max));
+  }
+
+  private getInitialShellWidth(): number {
+    const storedWidth = Number(getPref("sidebar.width"));
+    const { min, max } = this.getShellWidthBounds();
+    return clamp(
+      Number.isFinite(storedWidth) ? storedWidth : DEFAULT_SIDEBAR_WIDTH,
+      min,
+      max,
+    );
+  }
+
+  private getShellWidthBounds(): { min: number; max: number } {
+    const viewportWidth =
+      this.doc.documentElement?.clientWidth || this.win.innerWidth || 1024;
+    const min = viewportWidth <= 860 ? 280 : 300;
+    const maxByViewport =
+      viewportWidth <= 860
+        ? Math.floor(viewportWidth * 0.58)
+        : Math.floor(Math.min(520, viewportWidth * 0.48));
+    return { min, max: Math.max(min, maxByViewport) };
   }
 
   private createComposer(): HTMLFormElement {
@@ -308,7 +442,10 @@ class SidebarController {
       this.createComposerPill(getString("sidebar-model-name")),
       this.createComposerPill(getString("sidebar-reasoning-depth")),
     );
-    const sendButton = this.html("button", "zcp-send-button");
+    const sendButton = this.html(
+      "button",
+      "zcp-send-button",
+    ) as HTMLButtonElement;
     sendButton.setAttribute("type", "submit");
     sendButton.setAttribute("aria-label", getString("sidebar-send"));
     sendButton.title = getString("sidebar-send");
@@ -318,6 +455,7 @@ class SidebarController {
     form.append(contextRow, textarea, footer);
     this.contextChipText = chipText;
     this.textarea = textarea;
+    this.sendButton = sendButton;
     return form;
   }
 
@@ -328,19 +466,54 @@ class SidebarController {
   }
 
   private submitPrompt(): void {
+    void this.submitPromptAsync();
+  }
+
+  private async submitPromptAsync(): Promise<void> {
     const value = this.textarea?.value.trim();
-    if (!value || !this.chatLog || !this.textarea) {
+    if (!value || !this.chatLog || !this.textarea || this.busy) {
       return;
     }
 
     this.chatLog.appendChild(this.createUserMessage(value));
-    this.chatLog.appendChild(
-      this.createAssistantMessage(getPlaceholderAnswer()),
+    const assistantBody = this.appendAssistantMessage(
+      getString("sidebar-codex-starting"),
     );
     this.textarea.value = "";
     this.resizeInput();
     this.refreshContext();
     this.chatLog.scrollTop = this.chatLog.scrollHeight;
+
+    this.setBusy(true);
+    try {
+      let hasAssistantText = false;
+      const bridge = getCodexBridge();
+      const result = await bridge.sendPrompt(value, {
+        onDelta: (_delta, fullText) => {
+          hasAssistantText = Boolean(fullText);
+          this.renderAssistantBody(
+            assistantBody,
+            fullText || getString("sidebar-codex-starting"),
+          );
+          this.scrollToBottom();
+        },
+        onNotice: (notice) => {
+          if (!hasAssistantText) {
+            this.renderAssistantBody(assistantBody, notice);
+          }
+          this.scrollToBottom();
+        },
+      });
+      this.renderAssistantBody(
+        assistantBody,
+        result.text || getString("sidebar-codex-empty-response"),
+      );
+    } catch (error) {
+      this.renderAssistantBody(assistantBody, formatCodexError(error));
+    } finally {
+      this.setBusy(false);
+      this.scrollToBottom();
+    }
   }
 
   private createUserMessage(text: string): HTMLElement {
@@ -352,12 +525,46 @@ class SidebarController {
   }
 
   private createAssistantMessage(markdown: string): HTMLElement {
+    return this.createAssistantMessageParts(markdown).row;
+  }
+
+  private appendAssistantMessage(markdown: string): HTMLElement {
+    const { row, body } = this.createAssistantMessageParts(markdown);
+    this.chatLog?.appendChild(row);
+    return body;
+  }
+
+  private createAssistantMessageParts(markdown: string): {
+    row: HTMLElement;
+    body: HTMLElement;
+  } {
     const row = this.html("article", "zcp-message zcp-message-assistant");
     const avatar = this.html("div", "zcp-message-avatar");
     const body = this.html("div", "zcp-message-body");
     renderMarkdown(this.doc, body, markdown);
     row.append(avatar, body);
-    return row;
+    return { row, body };
+  }
+
+  private renderAssistantBody(body: HTMLElement, markdown: string): void {
+    renderMarkdown(this.doc, body, markdown);
+  }
+
+  private setBusy(busy: boolean): void {
+    this.busy = busy;
+    this.composer?.toggleAttribute("aria-busy", busy);
+    this.textarea?.toggleAttribute("disabled", busy);
+    this.sendButton?.toggleAttribute("disabled", busy);
+    if (this.sendButton) {
+      this.sendButton.textContent = busy ? "..." : "↑";
+    }
+  }
+
+  private scrollToBottom(): void {
+    if (!this.chatLog) {
+      return;
+    }
+    this.chatLog.scrollTop = this.chatLog.scrollHeight;
   }
 
   private resizeInput(): void {
@@ -386,13 +593,15 @@ class SidebarController {
 
   private setOpen(open: boolean): void {
     this.open = open;
-    if (!open) {
+    if (open) {
+      this.attachPanel();
+    } else {
       this.activeReader = undefined;
+      this.detachPanel();
     }
-    setHidden(this.shell, !open);
-    setHidden(this.splitter, !open);
     this.updateToggleButtons();
     this.refreshContext();
+    this.notifyLayoutChanged();
 
     if (open) {
       this.win.requestAnimationFrame(() => {
@@ -400,6 +609,25 @@ class SidebarController {
         this.textarea?.focus();
       });
     }
+  }
+
+  private attachPanel(): void {
+    this.mountPanel();
+    const host = this.getSidebarHost();
+    if (!host || !this.shell || this.shell.isConnected) {
+      return;
+    }
+    host.append(this.shell);
+  }
+
+  private detachPanel(): void {
+    this.shell?.remove();
+  }
+
+  private notifyLayoutChanged(): void {
+    this.win.requestAnimationFrame(() => {
+      this.win.dispatchEvent(new this.win.Event("resize"));
+    });
   }
 
   private updateToggleButtons(): void {
@@ -500,13 +728,13 @@ function hasStylesheet(doc: Document, uri: string): boolean {
   });
 }
 
-function setHidden(element: Element | undefined, hidden: boolean): void {
-  if (!element) {
-    return;
-  }
-  if (hidden) {
-    element.setAttribute("hidden", "true");
-  } else {
-    element.removeAttribute("hidden");
-  }
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function formatCodexError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return [getString("sidebar-codex-error"), "", "```", message, "```"].join(
+    "\n",
+  );
 }

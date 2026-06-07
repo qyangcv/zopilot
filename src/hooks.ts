@@ -1,10 +1,12 @@
 import { getString, initLocale } from "./utils/locale";
 import { registerPreferencePane } from "./modules/preferenceScript";
 import {
+  cleanupPersistedSidebarPaneState,
   registerSidebar,
   unregisterAllSidebars,
   unregisterSidebar,
 } from "./modules/sidebar";
+import { shutdownCodexBridge } from "./codex/bridge";
 import { createZToolkit } from "./utils/ztoolkit";
 
 async function onStartup() {
@@ -15,6 +17,7 @@ async function onStartup() {
   ]);
 
   initLocale();
+  cleanupPersistedSidebarPaneState();
 
   registerPreferencePane();
 
@@ -51,6 +54,7 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 
 function onShutdown(): void {
   unregisterAllSidebars();
+  void shutdownCodexBridge();
   ztoolkit.unregisterAll();
   // Remove addon object
   addon.data.alive = false;

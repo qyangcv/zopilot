@@ -46,16 +46,45 @@
 }
 
 #zotero-copilot-sidebar-splitter {
-  min-width: 1px;
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 3;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+#zotero-copilot-sidebar-splitter::before {
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: color-mix(in srgb, CanvasText 32%, transparent);
+  content: "";
+}
+
+#zotero-copilot-sidebar-splitter:hover::before,
+#zotero-copilot-sidebar-shell[data-resizing="true"]
+  #zotero-copilot-sidebar-splitter::before {
+  background: color-mix(
+    in srgb,
+    var(--accent-blue, AccentColor) 52%,
+    CanvasText 32%
+  );
 }
 
 #zotero-copilot-sidebar-shell {
   min-width: 300px;
   max-width: min(520px, 48vw);
   min-height: 0;
+  position: relative;
   background: Canvas;
   color: CanvasText;
   border-inline-start: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+}
+
+#zotero-copilot-sidebar-shell[data-resizing="true"] {
+  user-select: none;
 }
 
 .zcp-sidebar {

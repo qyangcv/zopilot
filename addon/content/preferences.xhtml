@@ -9,3 +9,23 @@
     data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
   ></html:p>
 </groupbox>
+<groupbox>
+  <label><html:h2 data-l10n-id="pref-codex-title"></html:h2></label>
+  <vbox>
+    <label data-l10n-id="pref-codex-path"></label>
+    <html:input
+      type="text"
+      preference="extensions.zotero.zotero-copilot.codex.path"
+    />
+    <html:p data-l10n-id="pref-codex-path-description"></html:p>
+  </vbox>
+  <vbox>
+    <label data-l10n-id="pref-codex-timeout"></label>
+    <html:input
+      type="number"
+      min="1000"
+      step="1000"
+      preference="extensions.zotero.zotero-copilot.codex.timeoutMs"
+    />
+  </vbox>
+</groupbox>
