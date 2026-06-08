@@ -10,7 +10,7 @@ paper_read
 
 然后把 search/retrieval/chunk/ranking 全部放到底层实现里，而不是暴露成 `paper_search` tool。
 
-**为什么合并更合理**
+## 为什么合并更合理
 
 模型看到两个工具：
 
@@ -48,7 +48,7 @@ LocatorResolver
 
 但这些不必成为模型可见工具。
 
-**更好的分层应该是**
+## 更好的分层应该是
 
 ```text
 模型可见：
@@ -84,7 +84,7 @@ tool API = 用户/模型意图层
 service API = 工程实现层
 ```
 
-**合并后的 paper_read 应该怎么设计**
+## 合并后的 paper_read 应该怎么设计
 
 我建议不要照搬 `mode` 体系，但仍然需要让输入表达“我要读什么”。可以设计成一个更自然的 schema：
 
@@ -131,7 +131,7 @@ service API = 工程实现层
 
 我更倾向于保留 `question`，因为它让所有读取都变成“围绕用户问题构造上下文”，比 `mode=overview/targeted` 更统一。
 
-**返回结构**
+## 返回结构
 
 `paper_read` 返回的不是最终答案，而是“可引用的阅读材料”：
 
@@ -169,7 +169,7 @@ service API = 工程实现层
 
 模型再基于这些材料回答用户。
 
-**这种合并方案的优点**
+## 这种合并方案的优点
 
 第一，模型 action space 更小。
 只要需要论文内容，就调用 `paper_read`。没有 `search vs read` 的选择成本。
@@ -195,7 +195,7 @@ service API = 工程实现层
 第五，避免把工程细节暴露给模型。
 `paper_search` 其实是 implementation detail。把它暴露出去，会让模型参与“检索策略选择”，但模型并不一定比你的 service 层更适合做这个决策。
 
-**合并方案的风险**
+## 合并方案的风险
 
 合并后最大风险是 `paper_read` 变成万能大工具。这个要靠 schema 克制。
 
@@ -252,7 +252,7 @@ paper_read result.retrievalDebug
 
 正式结果里默认隐藏。
 
-**我会怎么改文档里的设计**
+## 我会怎么改文档里的设计
 
 把原来的：
 
@@ -267,36 +267,27 @@ paper_read
 收敛成：
 
 ```text
-get_active_paper
 paper_read
 ```
 
-甚至第一版只做：
-
-```text
-paper_read
-```
-
-但我会保留 `get_active_paper`，因为它有一个独立价值：快速确认 scope，调试“当前读的是哪篇论文”。它不是内容读取工具，不会和 `paper_read` 混淆。
+这里的 `get_active_paper` 能力仍然需要保留，但不作为 MCP tool 暴露给模型。它应该下沉为 `paper_read` 的内部前置步骤：每次 `paper_read` 调用都先确认当前 active PDF reader scope，再读取 metadata / selection / fulltext / snippets。
 
 最终推荐：
 
 ```text
 MCP tools:
-1. get_active_paper
-2. paper_read
+1. paper_read
 ```
 
 其中：
 
 ```text
-get_active_paper = 当前 reader scope / metadata 状态
-paper_read = 读取当前论文内容，内部完成 selection/fulltext/retrieval/page/section hint
+paper_read = 唯一论文内容读取入口，内部完成 active paper scope 解析、metadata/status、selection/fulltext/retrieval/page/section hint
 ```
 
-这样比五个工具干净很多。
+这样比五个工具干净很多，也比 `get_active_paper + paper_read` 更少一次 tool-choice 分叉。调试“当前读的是哪篇论文”应通过 `paper_read` result 的 scope summary、开发期 diagnostics、`window.__zcpLastActivePaper` 或 Zotero debug log 完成，而不是额外公开一个模型可见 tool。
 
-**结论**
+## 结论
 
 你的方向是对的：`paper_search` 和 `paper_read` 的边界确实不够硬。既然本项目当前目标是“读当前 Zotero PDF”，不是构建完整文献 agent platform，那么外部只暴露 `paper_read` 更合理。
 

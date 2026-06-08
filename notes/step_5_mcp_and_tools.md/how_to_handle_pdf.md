@@ -49,7 +49,7 @@ attachment.attachmentText，你的最佳路线是：
 
 `paper_read` 不负责“怎么检索得更准”，它只负责把模型/用户的阅读意图变成一个受控请求；`ActivePaperRetrievalService` 才负责 chunk、retrieval、ranking、locator、warning、provenance。
 
-**总览**
+## 总览
 
 ```text
 LLM / Codex
@@ -66,7 +66,7 @@ LLM / Codex
   <- tool result: readable evidence package
 ```
 
-**1. `paper_read tool` 的职责**
+## 1. `paper_read tool` 的职责
 
 `paper_read` 是外部 contract，面向模型。
 
@@ -128,7 +128,7 @@ type PaperReadToolOutput = {
 LLM / Codex app-server / MCP client
 ```
 
-**2. `ActivePaperRetrievalService` 的职责**
+## 2. `ActivePaperRetrievalService` 的职责
 
 `ActivePaperRetrievalService` 是内部 application service，面向工程实现。
 
@@ -197,7 +197,7 @@ paper_read tool handler
 未来也可以被内部 diagnostics、unit tests、dev console 调用
 ```
 
-**3. `ZoteroContextGateway` 的职责**
+## 3. `ZoteroContextGateway` 的职责
 
 它再低一层，是 Zotero 数据来源边界。
 
@@ -220,7 +220,7 @@ ActivePaperRetrievalService = 阅读/检索策略
 paper_read tool = 模型可见接口
 ```
 
-**4. 最清晰的边界判断规则**
+## 4. 最清晰的边界判断规则
 
 如果某个逻辑是“模型需要知道并选择的行为”，才放进 `paper_read tool` schema。
 
@@ -236,7 +236,7 @@ paper_read tool = 模型可见接口
 - `maxChars`：可以放 tool input，因为它影响返回预算。
 - `debug`：默认不放，开发期可以通过 pref 或 dev flag 控制。
 
-**5. 对当前项目的推荐划分**
+## 5. 对当前项目的推荐划分
 
 外部 MCP tools 保持：
 
