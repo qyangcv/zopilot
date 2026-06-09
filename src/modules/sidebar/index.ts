@@ -253,6 +253,7 @@ class SidebarController {
     } else {
       toolbar?.append(button);
     }
+    this.positionReaderToolbarButton(doc, button);
   }
 
   private getReaderToolbar(doc?: Document): Element | undefined {
@@ -261,6 +262,16 @@ class SidebarController {
       doc?.querySelector(".toolbar") ||
       undefined
     );
+  }
+
+  private positionReaderToolbarButton(
+    doc: Document,
+    button: HTMLButtonElement,
+  ): void {
+    const anchor =
+      doc.querySelector(".toolbar .end .context-pane-toggle") ||
+      doc.querySelector(".toolbar .end .find");
+    anchor?.parentNode?.insertBefore(button, anchor.nextSibling);
   }
 
   private unregisterReaderToolbarButtons(): void {
