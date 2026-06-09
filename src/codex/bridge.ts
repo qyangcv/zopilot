@@ -30,6 +30,7 @@ type ActiveTurn = {
   reject: (error: Error) => void;
   onDelta?: (delta: string, fullText: string) => void;
   onNotice?: (notice: string) => void;
+  onToolActivity?: () => void;
   timer: number;
   threadId: string;
   turnId?: string;
@@ -241,6 +242,7 @@ class CodexBridge {
         reject,
         onDelta: options.onDelta,
         onNotice: options.onNotice,
+        onToolActivity: options.onToolActivity,
         timer,
         threadId,
       };
@@ -484,6 +486,7 @@ class CodexBridge {
         break;
       }
       case "item/mcpToolCall/progress": {
+        activeTurn?.onToolActivity?.();
         ztoolkit.log(
           "codex mcp tool progress",
           summarizeJsonForLog(message.params),
@@ -493,6 +496,7 @@ class CodexBridge {
       case "item/started":
       case "item/completed": {
         if (includesText(message.params, "mcpToolCall")) {
+          activeTurn?.onToolActivity?.();
           ztoolkit.log(
             `codex mcp tool item ${message.method}`,
             summarizeJsonForLog(message.params),

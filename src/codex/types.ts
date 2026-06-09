@@ -88,6 +88,7 @@ export type CodexPromptResult = {
 export type CodexPromptOptions = {
   onDelta?: (delta: string, fullText: string) => void;
   onNotice?: (notice: string) => void;
+  onToolActivity?: () => void;
 };
 
 export type CodexBridgeStatus =

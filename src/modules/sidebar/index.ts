@@ -21,6 +21,7 @@ const DEFAULT_SIDEBAR_WIDTH = 372;
 const DEFAULT_CONTEXT_PANE_WIDTH = 357;
 const MAX_REASONABLE_NATIVE_PANE_WIDTH = 900;
 const ZOTERO_PANE_PERSIST_PREF = "pane.persist";
+const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
 
 export {
   cleanupPersistedSidebarPaneState,
@@ -571,15 +572,27 @@ class SidebarController {
       let hasAssistantText = false;
       const bridge = getCodexBridge();
       const prompt = buildPaperQuestionPrompt(value);
+      let assistantOutput = "";
+      let pendingToolBoundary = false;
       this.storePromptDebugSnapshot(prompt);
       const result = await bridge.sendPrompt(prompt, {
-        onDelta: (_delta, fullText) => {
+        onDelta: (delta, fullText) => {
           hasAssistantText = Boolean(fullText);
+          if (pendingToolBoundary && assistantOutput.trim() && delta.trim()) {
+            assistantOutput += CODEX_TOOL_OUTPUT_SEPARATOR;
+            pendingToolBoundary = false;
+          }
+          assistantOutput += delta;
           this.renderAssistantBody(
             assistantBody,
-            fullText || getString("sidebar-codex-starting"),
+            assistantOutput || getString("sidebar-codex-starting"),
           );
           this.scrollToBottom();
+        },
+        onToolActivity: () => {
+          if (assistantOutput.trim()) {
+            pendingToolBoundary = true;
+          }
         },
         onNotice: (notice) => {
           if (!hasAssistantText) {
@@ -590,7 +603,9 @@ class SidebarController {
       });
       this.renderAssistantBody(
         assistantBody,
-        result.text || getString("sidebar-codex-empty-response"),
+        assistantOutput ||
+          result.text ||
+          getString("sidebar-codex-empty-response"),
       );
     } catch (error) {
       this.renderAssistantBody(assistantBody, formatCodexError(error));
