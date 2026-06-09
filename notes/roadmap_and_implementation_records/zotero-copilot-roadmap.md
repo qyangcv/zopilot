@@ -1,6 +1,7 @@
 可以。建议你按“先能用，再变聪明，再变可靠”的顺序做，不要一开始就复刻 `llm-for-zotero` 的完整 agent 系统。
 
 ## 路线总览
+
 你的目标可以拆成 8 个里程碑：
 
 1. 建立 Zotero 插件开发环境
@@ -274,11 +275,10 @@ User question:
 - `getPrimaryPdfAttachment()` 返回当前 PDF attachment 的 content type、path、exists、readable 等状态。
 - `getSelectedText()` best-effort 读取 reader iframe/window selection，无 selection 时返回 warning，不报错。
 - `getAttachmentTextStatusForPrompt()` 只读取 Zotero full-text indexed state，不把完整全文塞入普通 prompt。
-- `getAttachmentFullTextForTool()` 预留给 Step 5 retrieval/tools，后续 `paper_search` / `paper_read` 可复用它读取完整 `attachment.attachmentText`。
-- `src/codex/promptBuilder.ts` 会把 metadata、abstract、attachment 状态、selection、warnings 和用户问题组织为 prompt。
-- `src/modules/sidebar/index.ts` 在 submit 时调用 `contextGateway.getPromptContext(activeReader)`，再把 `buildPaperQuestionPrompt()` 的结果传给 `CodexBridge.sendPrompt()`。
-- sidebar 默认仍只显示用户问题和最终回答；raw prompt/context 只通过 `window.__zcpLastPrompt` 和 `window.__zcpLastPromptContext` 作为开发期调试入口。
-- 当前 `promptBuilder` 的 `PDF full-text preview` 字段通常为 `(none)`，因为 prompt 路径有意只读取 text status；后续接 MCP 后应删掉该字段或改成明确的 omitted 说明。
+- Step 5 完成后，普通 turn prompt 已收缩为用户原问题本身；`src/codex/promptBuilder.ts` 的 `buildPaperQuestionPrompt()` 只返回 `userQuestion`。
+- 论文读取不再依赖 `getPromptContext()` 拼接 metadata/abstract/selection；当前真实路径是 developer instructions 要求模型需要论文信息时调用 MCP `paper_read`。
+- `ZoteroContextGateway` 当前只保留 Step 5 运行时需要的 reader scope 和 full-text 读取：`getActivePaper()` / `getAttachmentFullTextForTool()`。
+- sidebar 默认仍只显示用户问题和最终回答；开发期仅保留 `window.__zcpLastPrompt` 观察实际发送给 Codex 的最小 prompt。
 
 ---
 
@@ -292,20 +292,18 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 - 不做删除、写 note、运行命令。
 - 工具名字保持少而清晰。
 
-建议第一批 tools：
+实际 v1 public tool：
 
-- `get_active_paper`
-- `get_paper_metadata`
-- `read_selected_text`
-- `paper_search`
 - `paper_read`
+
+`get_active_paper`、metadata 读取、full-text 检索、chunk/rank 都不暴露成模型可见 tool，留在 Zotero 侧内部实现里。
 
 要做：
 
-- 在 Zotero 本地 HTTP server 上注册一个 MCP endpoint。
-- 给 endpoint 加 bearer token。
-- 每次 Codex turn 生成一个 scope，例如当前 reader paper、当前 PDF attachment、当前 conversation。
-- Codex app-server thread config 里注入这个 MCP server。
+- 在 Zotero 本地 HTTP server 上注册一个 MCP endpoint：`/zotero-copilot/mcp`。
+- 给 endpoint 加 session bearer token，并校验本机 `Host` / `Origin`。
+- Codex app-server thread config 里注入这个 MCP server，只启用 `paper_read`。
+- `paper_read` 每次调用时内部解析当前 PDF reader paper，再读取 Zotero full-text，做轻量 lexical chunk scoring，返回 evidence snippets。
 
 你能得到：
 
@@ -320,25 +318,33 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 
 完成标准：
 
-- MCP initialize 成功。
-- tools/list 返回你的工具。
-- 每个 tool 有 schema、错误处理、scope 限制。
-- 工具调用失败时，sidebar 给用户一句可理解的错误。
+- MCP `initialize` 成功。
+- `tools/list` 只返回 `paper_read`。
+- `tools/call` 支持 `paper_read({ question })`，输入 schema 禁止多余字段。
+- 无 active PDF reader、无 Zotero full-text、未知工具、鉴权失败等路径都有明确错误。
 
 最小修改文件或目录（大致）：
 
-- `src/mcp/server.ts`：新增本地 MCP endpoint 和 JSON-RPC dispatch。
+- `src/mcp/httpServer.ts`：新增本地 MCP endpoint、JSON-RPC dispatch、bearer token / Host / Origin 校验和启动 smoke check。
 - `src/mcp/protocol.ts`：定义 MCP initialize、tools/list、tools/call 的协议常量和类型。
-- `src/mcp/tools/`：新增 `get_active_paper`、`get_paper_metadata`、`read_selected_text`、`paper_search`、`paper_read`。
+- `src/mcp/toolRegistry.ts`：注册模型可见 tool；Step 5 v1 只注册 `paper_read`。
+- `src/mcp/tools/paperRead.ts`：实现 `paper_read` 的 input schema、scope 解析、错误处理和文本输出。
+- `src/mcp/activePaperRetrievalService.ts`：实现 full-text chunking、query tokenize 和轻量 lexical scoring。
 - `src/codex/mcpConfig.ts`：把 MCP server 配置注入 Codex app-server thread。
-- `src/zotero/contextGateway.ts`：复用已有 Zotero 读取逻辑给 MCP tools。
+- `src/codex/developerInstructions.ts`：给 Codex 固定一句工具路由提示，不污染用户 prompt。
+- `src/zotero/contextGateway.ts`：只保留 current-reader scope 和 full-text 读取逻辑给 `paper_read`。
 
 当前实现状态：
 
-- 尚未实现 Step 5 MCP。
-- 目前没有 `src/mcp/`、MCP HTTP endpoint、bearer token、scope token、tools/list、tools/call 或 Codex thread MCP config。
-- `ZoteroContextGateway` 已提供 Step 5 复用基础，尤其是 `getAttachmentFullTextForTool()`，但还没有 chunking、retrieval、locator、confidence 或 provenance。
-- 下一步建议优先实现 `get_active_paper`、`get_paper_metadata`、`read_selected_text`、`paper_search`；`paper_read(section/pageRange)` 等定位能力可以在 retrieval 稳定后逐步增强。
+- commit `1fa1d45fc4cd5999ec6f162decf8f61642cec740` 到 `7b17fd508ee2cc9627cb71e0181adec2677a7ab0` 已实现 Step 5 MCP。
+- `src/hooks.ts` 在插件 startup 时预启动 MCP endpoint；shutdown 时删除 `Zotero.Server.Endpoints["/zotero-copilot/mcp"]`。
+- `src/codex/bridge.ts` 在 `thread/start` 时注入 `mcp_servers`，并通过 `mcpServerStatus/list` 和 MCP progress notification 写 debug log；用户聊天区不显示 tool trace。
+- `src/codex/appServerConfig.ts` 启动 `codex app-server --stdio` 时关闭可能冲突的 Zotero/llm-for-zotero MCP 配置。
+- `tools/list` 的公开边界是一个 read-only `paper_read`；`paper_search`、`get_active_paper`、`get_paper_metadata`、`read_selected_text` 均没有实现为 public tool。
+- `paper_read` 当前只接受可选 `question`；返回文本 snippets，不返回本地附件路径、chunk index、score 或 structuredContent。
+- `ActivePaperRetrievalService` 使用固定长度 chunk、简单 query term tokenize、term count scoring；这是 Step 5 v1 的轻量实现，不是 BM25/embedding/RRF。
+- 当前已覆盖单元测试：MCP config、HTTP handler、tool registry、`paper_read` 输入校验/错误路径、context gateway reader scope/full-text 读取、prompt/developer instructions。
+- 剩余 Step 5 runtime gap：仍需要在真实 Zotero PDF reader 中手工验证 Codex app-server 能看到并调用该 MCP endpoint；endpoint token/capability hardening 后续可继续加强。
 
 ---
 
@@ -545,6 +551,7 @@ MCP 可以理解为：你给 Codex 提供一组“工具”，例如 `paper_read
 ---
 
 ## 推荐的最小可用版本范围
+
 第一版不要做完整 agent。做到这些就够：
 
 - Zotero sidebar

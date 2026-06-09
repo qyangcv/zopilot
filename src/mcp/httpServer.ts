@@ -14,7 +14,6 @@ import { McpToolRegistry, createDefaultMcpToolRegistry } from "./toolRegistry";
 export {
   MCP_ENDPOINT_PATH,
   createMcpHttpHandler,
-  getMcpHttpServerInfo,
   shutdownMcpHttpServer,
   startMcpHttpServer,
 };
@@ -125,10 +124,6 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
   });
 
   return info;
-}
-
-function getMcpHttpServerInfo(): McpHttpServerInfo | undefined {
-  return serverInfo;
 }
 
 function shutdownMcpHttpServer(): void {
@@ -458,7 +453,6 @@ async function runMcpHttpSmokeCheck(info: McpHttpServerInfo): Promise<void> {
       name: "paper_read",
       arguments: {
         question: "smoke check",
-        maxChars: 1,
       },
     },
   });

@@ -165,7 +165,6 @@ function createTextResult(
   return {
     status,
     text,
-    preview: text,
     length: text.length,
     indexedState: 1,
     warnings,

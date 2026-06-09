@@ -1,11 +1,7 @@
-import type {
-  PaperScope,
-  PaperTextResult,
-  PaperTextStatus,
-} from "../zotero/types";
+import type { PaperScope, PaperTextResult } from "../zotero/types";
 
 export { ActivePaperRetrievalService };
-export type { PaperReadEvidenceOutput, PaperReadRequest, PaperReadSnippet };
+export type { PaperReadRequest, PaperReadResult, PaperReadSnippet };
 
 type PaperReadRequest = {
   question?: string;
@@ -22,22 +18,9 @@ type PaperReadSnippet = {
   score: number;
 };
 
-type PaperReadEvidenceOutput = {
-  status: "active_reader" | "no_active_reader" | "no_text" | "error";
-  paper: {
-    attachmentItemID: number;
-    parentItemID?: number;
-    libraryID: number;
-    readerType?: string;
-  } | null;
-  request: PaperReadRequest;
-  text: {
-    status: PaperTextStatus;
-    length: number;
-    indexedState?: number;
-  } | null;
+type PaperReadResult = {
+  status: "active_reader" | "no_active_reader" | "no_text";
   snippets: PaperReadSnippet[];
-  warnings: string[];
 };
 
 type TextChunk = {
@@ -86,39 +69,20 @@ class ActivePaperRetrievalService {
   async read(
     scope: PaperScope | null,
     request: PaperReadRequest,
-  ): Promise<PaperReadEvidenceOutput> {
+  ): Promise<PaperReadResult> {
     if (!scope) {
       return {
         status: "no_active_reader",
-        paper: null,
-        request,
-        text: null,
         snippets: [],
-        warnings: [
-          "No active Zotero PDF reader paper was detected. Open a PDF reader tab before calling paper_read.",
-        ],
       };
     }
 
     const text = await this.options.readPaperText(scope);
-    const textSummary = {
-      status: text.status,
-      length: text.length,
-      indexedState: text.indexedState,
-    };
-    const warnings = [...scope.warnings, ...text.warnings];
 
     if (!text.text) {
       return {
         status: "no_text",
-        paper: createPaperSummary(scope),
-        request,
-        text: textSummary,
         snippets: [],
-        warnings: [
-          ...warnings,
-          "No Zotero full-text evidence is available for the current PDF. The PDF may be scanned, unindexed, or unavailable locally.",
-        ],
       };
     }
 
@@ -126,14 +90,7 @@ class ActivePaperRetrievalService {
     if (!queryTerms.length) {
       return {
         status: "active_reader",
-        paper: createPaperSummary(scope),
-        request,
-        text: textSummary,
         snippets: [],
-        warnings: [
-          ...warnings,
-          "paper_read.question is empty, so no lexical evidence retrieval was attempted.",
-        ],
       };
     }
 
@@ -148,29 +105,9 @@ class ActivePaperRetrievalService {
 
     return {
       status: "active_reader",
-      paper: createPaperSummary(scope),
-      request,
-      text: textSummary,
       snippets,
-      warnings: snippets.length
-        ? warnings
-        : [
-            ...warnings,
-            "No Zotero full-text chunks matched the paper_read.question terms.",
-          ],
     };
   }
-}
-
-function createPaperSummary(
-  scope: PaperScope,
-): PaperReadEvidenceOutput["paper"] {
-  return {
-    attachmentItemID: scope.attachmentItemID,
-    parentItemID: scope.parentItemID,
-    libraryID: scope.libraryID,
-    readerType: scope.readerType,
-  };
 }
 
 function createChunks(text: string): TextChunk[] {

@@ -2,12 +2,17 @@ import { assert } from "chai";
 import { buildCodexDeveloperInstructions } from "../../src/codex/developerInstructions.ts";
 
 describe("buildCodexDeveloperInstructions", function () {
-  it("keeps fixed behavior and tool routing out of the user prompt", function () {
+  it("keeps paper_read routing in developer instructions", function () {
     const instructions = buildCodexDeveloperInstructions();
 
     assert.strictEqual(
       instructions,
-      "Use `paper_read` when you need information from the paper.",
+      [
+        "You are running inside Zotero Copilot, attached to the current Zotero PDF reader.",
+        "When the user asks about paper, use `paper_read` before answering.",
+        "`paper_read` will read the current PDF in Zotero and extract information from it, which you can then use to answer the user's question.",
+        "Do not describe MCP tools, tool calls, or internal workflow.",
+      ].join("\n"),
     );
   });
 });

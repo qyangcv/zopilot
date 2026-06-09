@@ -138,7 +138,6 @@ function createTextResult(text: string): PaperTextResult {
   return {
     status: "indexed",
     text,
-    preview: text,
     length: text.length,
     indexedState: 1,
     warnings: [],

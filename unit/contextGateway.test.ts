@@ -2,43 +2,21 @@ import { assert } from "chai";
 import { ZoteroContextGateway } from "../src/zotero/contextGateway.ts";
 import type { PaperScope } from "../src/zotero/types.ts";
 
-type MockCreator = {
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-};
-
 type MockItem = {
   id: number;
   key: string;
   libraryID: number;
-  itemType: string;
   parentItem?: MockItem;
-  attachmentContentType?: string;
   attachmentText?: string;
-  firstCreator?: string;
   isAttachment?: () => boolean;
   isPDFAttachment?: () => boolean;
   isRegularItem?: () => boolean;
-  loadAllData?: () => Promise<void>;
-  getDisplayTitle?: () => string;
-  getField?: (
-    field: string,
-    unformatted?: boolean,
-    includeBaseMapped?: boolean,
-  ) => string | undefined;
-  getCreatorsJSON?: () => MockCreator[];
-  getFilePathAsync?: () => Promise<string | undefined>;
-  getFilePath?: () => string | undefined;
-  fileExists?: () => Promise<boolean | undefined>;
 };
 
 type MockReader = {
   itemID: number;
   tabID?: string;
   type?: string;
-  _iframeWindow?: Window;
-  _window?: Window;
 };
 
 type MockFullText = {
@@ -77,30 +55,46 @@ describe("ZoteroContextGateway", function () {
     delete (globalThis as unknown as { Zotero?: MockZotero }).Zotero;
   });
 
-  it("returns a warning context when no active reader exists", async function () {
+  it("returns null when no active reader exists", async function () {
     installZoteroMock({ items: [], readers: [] });
     const gateway = new ZoteroContextGateway(createWindow());
 
-    const scope = await gateway.getActivePaper();
-    const context = await gateway.getPromptContext();
-
-    assert.isNull(scope);
-    assert.isNull(context.scope);
-    assert.equal(context.text.status, "unavailable");
-    assert.include(
-      context.warnings,
-      "No active Zotero PDF reader paper was detected. Open the paper in the PDF reader and launch Zotero Copilot from that reader.",
-    );
-    assert.include(
-      context.selection.warnings,
-      "No active Zotero PDF reader is available.",
-    );
+    assert.isNull(await gateway.getActivePaper());
   });
 
-  it("reports warnings when the reader item is not an attachment", async function () {
+  it("resolves the active PDF reader scope", async function () {
+    const parent = createItem({
+      id: 20,
+      isRegularItem: () => true,
+    });
+    const attachment = createItem({
+      id: 10,
+      key: "PDF",
+      parentItem: parent,
+      isAttachment: () => true,
+      isPDFAttachment: () => true,
+    });
+    installZoteroMock({
+      items: [attachment, parent],
+      readers: [createReader(attachment.id)],
+    });
+    const gateway = new ZoteroContextGateway(createReaderWindow());
+
+    const scope = await requireScope(gateway);
+
+    assert.equal(scope.source, "reader");
+    assert.equal(scope.readerItemID, attachment.id);
+    assert.equal(scope.attachmentItemID, attachment.id);
+    assert.equal(scope.attachmentKey, "PDF");
+    assert.equal(scope.parentItemID, parent.id);
+    assert.equal(scope.libraryID, 1);
+    assert.equal(scope.readerType, "pdf");
+    assert.isEmpty(scope.warnings);
+  });
+
+  it("reports reader scope warnings without blocking paper_read", async function () {
     const item = createItem({
       id: 10,
-      itemType: "journalArticle",
       isAttachment: () => false,
       isPDFAttachment: () => false,
     });
@@ -111,7 +105,6 @@ describe("ZoteroContextGateway", function () {
     const gateway = new ZoteroContextGateway(createReaderWindow());
 
     const scope = await requireScope(gateway);
-    const attachment = await gateway.getPrimaryPdfAttachment(scope);
 
     assert.equal(scope.attachmentItemID, item.id);
     assert.include(
@@ -126,64 +119,12 @@ describe("ZoteroContextGateway", function () {
       scope.warnings,
       "Current reader attachment has no regular parent item.",
     );
-    assert.isNull(attachment);
   });
 
-  it("resolves metadata from a PDF attachment with a parent regular item", async function () {
-    const parent = createItem({
-      id: 20,
-      key: "PARENT",
-      itemType: "journalArticle",
-      fields: {
-        DOI: "10.123/example",
-        abstractNote: "Parent abstract.",
-        date: "2026-01-02",
-        title: "Parent paper title",
-      },
-      creators: [{ firstName: "Ada", lastName: "Lovelace" }],
-      isRegularItem: () => true,
-    });
+  it("reads normalized full text for MCP tools", async function () {
     const attachment = createItem({
       id: 10,
-      key: "PDF",
-      itemType: "attachment",
-      parentItem: parent,
-      attachmentContentType: "application/pdf",
-      isAttachment: () => true,
-      isPDFAttachment: () => true,
-      path: "/tmp/paper.pdf",
-    });
-    installZoteroMock({
-      items: [attachment, parent],
-      readers: [createReader(attachment.id)],
-    });
-    const gateway = new ZoteroContextGateway(createReaderWindow());
-
-    const scope = await requireScope(gateway);
-    const metadata = await gateway.getPaperMetadata(scope);
-    const pdf = await gateway.getPrimaryPdfAttachment(scope);
-
-    assert.equal(scope.parentItemID, parent.id);
-    assert.equal(metadata.itemID, parent.id);
-    assert.equal(metadata.title, "Parent paper title");
-    assert.deepEqual(metadata.creators, ["Ada Lovelace"]);
-    assert.equal(metadata.year, "2026");
-    assert.equal(metadata.doi, "10.123/example");
-    assert.equal(metadata.abstract, "Parent abstract.");
-    assert.equal(pdf?.path, "/tmp/paper.pdf");
-    assert.isTrue(pdf?.readable);
-    assert.isEmpty(scope.warnings);
-  });
-
-  it("falls back to attachment metadata when the PDF has no parent item", async function () {
-    const attachment = createItem({
-      id: 10,
-      key: "PDF",
-      itemType: "attachment",
-      fields: {
-        title: "Standalone PDF",
-      },
-      attachmentContentType: "application/pdf",
+      attachmentText: "The   method\nuses lexical retrieval.",
       isAttachment: () => true,
       isPDFAttachment: () => true,
     });
@@ -193,23 +134,19 @@ describe("ZoteroContextGateway", function () {
     });
     const gateway = new ZoteroContextGateway(createReaderWindow());
 
-    const scope = await requireScope(gateway);
-    const metadata = await gateway.getPaperMetadata(scope);
-
-    assert.isUndefined(scope.parentItemID);
-    assert.include(
-      scope.warnings,
-      "Current reader attachment has no regular parent item.",
+    const text = await gateway.getAttachmentFullTextForTool(
+      createScope(attachment),
     );
-    assert.equal(metadata.itemID, attachment.id);
-    assert.equal(metadata.itemType, "attachment");
-    assert.equal(metadata.title, "Standalone PDF");
+
+    assert.equal(text.status, "indexed");
+    assert.equal(text.text, "The method uses lexical retrieval.");
+    assert.equal(text.length, text.text.length);
+    assert.equal(text.indexedState, INDEXED_STATE);
   });
 
   it("returns an empty text result when attachmentText is empty", async function () {
     const attachment = createItem({
       id: 10,
-      itemType: "attachment",
       attachmentText: "",
       isAttachment: () => true,
       isPDFAttachment: () => true,
@@ -233,10 +170,10 @@ describe("ZoteroContextGateway", function () {
     );
   });
 
-  it("reports unavailable text status when Zotero full-text APIs are absent", async function () {
+  it("reports unavailable text when Zotero full-text APIs are absent", async function () {
     const attachment = createItem({
       id: 10,
-      itemType: "attachment",
+      attachmentText: "Readable text exists.",
       isAttachment: () => true,
       isPDFAttachment: () => true,
     });
@@ -247,7 +184,7 @@ describe("ZoteroContextGateway", function () {
     });
     const gateway = new ZoteroContextGateway(createReaderWindow());
 
-    const text = await gateway.getAttachmentTextStatusForPrompt(
+    const text = await gateway.getAttachmentFullTextForTool(
       createScope(attachment),
     );
 
@@ -305,27 +242,10 @@ function createFullText(): MockFullText {
   };
 }
 
-function createItem(
-  options: Partial<MockItem> & {
-    id: number;
-    fields?: Record<string, string>;
-    creators?: MockCreator[];
-    path?: string;
-  },
-): MockItem {
-  const fields = options.fields || {};
-  const creators = options.creators || [];
+function createItem(options: Partial<MockItem> & { id: number }): MockItem {
   return {
     key: `KEY-${options.id}`,
     libraryID: 1,
-    itemType: "journalArticle",
-    loadAllData: async () => undefined,
-    getDisplayTitle: () => fields.title || "",
-    getField: (field) => fields[field],
-    getCreatorsJSON: () => creators,
-    getFilePathAsync: async () => options.path,
-    getFilePath: () => options.path,
-    fileExists: async () => true,
     ...options,
   };
 }
@@ -335,24 +255,6 @@ function createReader(itemID: number): MockReader {
     itemID,
     tabID: TAB_ID,
     type: "pdf",
-  };
-}
-
-function createWindow(): Window {
-  return {
-    getSelection: () => ({
-      toString: () => "",
-    }),
-  } as unknown as Window;
-}
-
-function createReaderWindow(): MockWindow {
-  return {
-    ...createWindow(),
-    Zotero_Tabs: {
-      selectedID: TAB_ID,
-      selectedType: "reader",
-    },
   };
 }
 
@@ -367,4 +269,17 @@ function createScope(attachment: MockItem): PaperScope {
     readerType: "pdf",
     warnings: [],
   };
+}
+
+function createWindow(): MockWindow {
+  return {} as MockWindow;
+}
+
+function createReaderWindow(): MockWindow {
+  return {
+    Zotero_Tabs: {
+      selectedID: TAB_ID,
+      selectedType: "reader",
+    },
+  } as MockWindow;
 }

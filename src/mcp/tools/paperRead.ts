@@ -1,6 +1,6 @@
 import {
   ActivePaperRetrievalService,
-  type PaperReadEvidenceOutput,
+  type PaperReadResult,
 } from "../activePaperRetrievalService";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import type { PaperScope, PaperTextResult } from "../../zotero/types";
@@ -9,7 +9,7 @@ import type { McpTool, McpToolCallResult } from "../protocol";
 import { isJsonObject } from "../protocol";
 
 export { createPaperReadTool };
-export type { PaperReadEvidenceOutput };
+export type { PaperReadResult };
 
 type PaperReadInput = {
   question?: string;
@@ -22,6 +22,10 @@ type PaperReadToolOptions = {
 };
 
 function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
+  const retrievalService = new ActivePaperRetrievalService({
+    readPaperText: (paperScope) => readPaperText(options, paperScope),
+  });
+
   return {
     definition: {
       name: "paper_read",
@@ -55,12 +59,9 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
 
       try {
         const scope = await resolveActivePaper(options);
-        const output = await new ActivePaperRetrievalService({
-          readPaperText: (paperScope) => readPaperText(options, paperScope),
-        }).read(scope, parsedInput);
+        const output = await retrievalService.read(scope, parsedInput);
         options.logger?.("mcp.tool.paper_read.finish", {
           status: output.status,
-          hasPaper: Boolean(output.paper),
           snippetCount: output.snippets.length,
           durationMs: Date.now() - startedAt,
         });
@@ -72,9 +73,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
             },
           ],
           isError:
-            output.status === "no_active_reader" ||
-            output.status === "no_text" ||
-            output.status === "error",
+            output.status === "no_active_reader" || output.status === "no_text",
           _meta: {
             "zoteroCopilot.mcp.step": "5.2",
             "zoteroCopilot.mcp.durationMs": Date.now() - startedAt,
@@ -107,9 +106,8 @@ function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
     throw new Error("paper_read input must be an object.");
   }
 
-  const allowed = new Set(["question"]);
   for (const key of Object.keys(input)) {
-    if (!allowed.has(key)) {
+    if (key !== "question") {
       throw new Error(`paper_read input contains unsupported field: ${key}`);
     }
   }
@@ -153,7 +151,7 @@ function getBestZoteroWindow(): Window {
   return globalThis as unknown as Window;
 }
 
-function formatPaperReadSummary(output: PaperReadEvidenceOutput): string {
+function formatPaperReadSummary(output: PaperReadResult): string {
   if (output.snippets.length) {
     return output.snippets.map((snippet) => snippet.text).join("\n\n---\n\n");
   }

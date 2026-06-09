@@ -77,6 +77,7 @@ metadata_write
    不应按旧 HTTP+SSE 方案新写实现。
 
 参考：
+
 - Codex MCP: https://developers.openai.com/codex/mcp
 - MCP transports: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
 
@@ -347,10 +348,12 @@ Base paper-specific claims on `paper_read` snippets. If snippets are missing or 
 ```
 
 保留：
+
 - user prompt
 - `paper_read` tool 信息和调用约束
 
 不再默认放入 prompt：
+
 - active reader scope
 - title/authors/year/DOI
 - abstract
