@@ -17,6 +17,8 @@ sidebar-multiple-items-selected =
        *[other] 已选中 { $count } 个条目
     }
 sidebar-welcome-message = **Ask Any Question.** 
+sidebar-loading-conversation = 正在加载当前论文会话...
+sidebar-unavailable-message = 打开 PDF 阅读器标签页后即可使用 paper chat。
 sidebar-codex-starting = 正在启动本机 Codex...
 sidebar-codex-empty-response = Codex 已完成本轮请求，但没有返回最终文本。
 sidebar-codex-error = Codex 连接失败。

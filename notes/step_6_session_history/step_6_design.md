@@ -1,48 +1,60 @@
-我会把 Step 6 设计成三层，不把它塞进 MCP，也不让 sidebar 自己管历史。
+# Step 6 session history design
 
-**核心判断**
+Step 6 的目标是把 Zotero Copilot 从“当前 DOM 上的一次性聊天”推进到 paper-scoped durable conversation。当前已完成 Step 6.1；Step 6.2 多 session UI 仍待做。
 
-当前 [CodexBridge](/Users/yang/code/zotero/zotero-copilot/src/codex/bridge.ts:34) 只有一个进程级 `threadId`，而且 `thread/start` 现在传的是 `ephemeral: true`。这对 Step 3/5 可以，但对长期会话不对。刚用本机 `codex app-server generate-ts/json-schema` 确认：app-server 协议有 `thread/resume`，`Thread.ephemeral` 的含义是“不落盘”。所以 Step 6 第一件事是：paper session 创建时用 non-ephemeral thread，并保存 `threadId`。
+## 当前结论
 
-我建议 v1 的架构是：
+Step 6 不放进 MCP，也不让 sidebar 自己管理历史。MCP 继续负责 Step 5 的 `paper_read` 读取能力；conversation history 是 Zotero 侧的本地状态。
+
+当前主链路：
 
 ```text
-PDF reader current paper
-  -> PaperSessionManager
+active PDF reader
+  -> ZoteroContextGateway.getActivePaper()
+  -> paperKey = `${libraryID}:${parentItemKey}`
   -> ConversationStore local files
   -> CodexBridge thread/start or thread/resume
-  -> Sidebar renders store state
+  -> Sidebar renders persisted store state
 ```
 
-**本地存储**
+## Step 6.1 已实现设计
 
-不要用 Zotero prefs。prefs 适合小配置，不适合多篇论文、多 session、多轮 message。v1 我也不建议先上 SQLite，除非你已经需要复杂查询。你的需求是“每篇论文隔离 + 本地目录 + 重启不丢”，append-only JSONL 更直接、可调试、容易迁移。
+### paper identity
 
-默认目录建议放在 Zotero profile / plugin data 下，而不是 repo 或 `~/.codex`：
-
-```text
-<zotero-profile>/zotero-copilot/
-  conversations/
-    index.json
-    papers/
-      <libraryID>-<parentItemKey>/
-        <conversationId>.json
-        <conversationId>.jsonl
-```
-
-`index.json` 用于快速列出某篇论文有哪些 sessions；每个 `conversationId.json` 是 metadata snapshot；`.jsonl` 是 message/turn event append log。写入策略是：用户消息提交时立即 append；assistant 在 `turn/completed` 后 append 完整文本、`turnId`、`threadId`，再原子更新 conversation metadata 的 `updatedAt` / title / latest preview。
-
-**数据模型**
-
-paper identity 不要只用 Zotero integer `itemID`。建议主 key 用：
+主 key 使用：
 
 ```ts
 paperKey = `${libraryID}:${parentItemKey}`;
 ```
 
-同时 metadata 里保存 `parentItemID`、`attachmentItemID`、`attachmentKey` 作为本机快速回查和 debug 信息。这样同一 Zotero 库里同一篇 regular item 的 sessions 稳定隔离；PDF attachment 换了也不丢论文级 history。
+不要只用 Zotero integer `itemID`。`parentItemKey` 对同一篇 regular item 更稳定，PDF attachment 换了也不会丢论文级 conversation history。
 
-conversation metadata 至少有：
+`ZoteroContextGateway.getActivePaper()` 现在返回：
+
+- `libraryID`
+- `parentItemID`
+- `parentItemKey`
+- `attachmentItemID`
+- `attachmentKey`
+- reader scope warnings
+
+### local storage
+
+当前实现放在 Zotero profile 下：
+
+```text
+<zotero-profile>/zotero-copilot/conversations/
+  papers/
+    <encoded paperKey>/
+      <conversationId>.json
+      <conversationId>.jsonl
+```
+
+v1 没有单独维护 `index.json`。`ConversationStore` 直接扫描当前 `paperKey` 目录下的 metadata JSON，按 `updatedAt` 找最近未归档 conversation。这样更符合 KISS，后续只有在 session 数量变大或列表性能成为问题时再加 index。
+
+### data model
+
+当前 metadata：
 
 ```ts
 {
@@ -55,17 +67,17 @@ conversation metadata 至少有：
   attachmentItemID,
   attachmentKey,
   title,
+  label,
   createdAt,
   updatedAt,
   codexThreadId,
   codexSessionId,
-  codexThreadPath,
-  archived,
-  deletedAt
+  latestPreview,
+  archived
 }
 ```
 
-message 记录至少有：
+当前 message：
 
 ```ts
 {
@@ -80,51 +92,86 @@ message 记录至少有：
 }
 ```
 
-**resume 流程**
+### Codex thread policy
 
-打开 PDF reader 时：
+旧逻辑中 `CodexBridge` 只有一个进程级 `threadId`，并且 `thread/start` 使用 `ephemeral: true`。这条路径已经删除。
 
-1. `ZoteroContextGateway.getActivePaper(reader)` 得到当前 paper scope。
-2. `ConversationStore.listByPaper(paperKey)` 加载该论文所有 sessions。
-3. 默认选最近一个，或显示 session picker。
-4. 选中 session 后调用 `CodexBridge.useConversation(conversation)`。
-5. 如果有 `codexThreadId`，先走 `thread/resume`，并重新注入当前 Step 5 的 `mcp_servers` 和 `developerInstructions`。
-6. 如果 resume 失败，UI history 仍然可见；继续对话时新建 non-ephemeral thread，并把新的 `threadId` 写回该 conversation，旧 `threadId` 保留为 `previousThreadIds` 用于诊断。
+当前逻辑：
 
-这能做到“像 Codex resume 一样自然”的主路径。需要坦率一点：如果用户手动删除了 Codex 自己的 session 文件，`threadId` resume 就无法恢复模型内部上下文；这时 Zotero 的 JSONL 只能保证 UI history 不丢。要做到模型上下文也尽量延续，v2 再做 transcript summary / history injection fallback。
+- `prewarm()` 只启动 app-server，不提前创建未绑定 thread。
+- `sendPrompt()` 必须带 `ConversationMetadata`。
+- 当前 conversation 有 `codexThreadId` 时先调用 `thread/resume`。
+- 没有 `codexThreadId` 或 resume 失败时，调用 `thread/start` 并传 `ephemeral: false`。
+- `thread/start` / `thread/resume` 都重新注入 Step 5 的 `mcp_servers` 和 `developerInstructions`。
+- turn 完成后把返回的 `threadId` 写回 conversation metadata。
 
-**代码边界**
+如果用户删除了 Codex 自己的 session 文件，`thread/resume` 无法恢复模型内部上下文；此时 Zotero 的 JSONL 仍能恢复 UI history，继续发送会创建新的 non-ephemeral thread 并写回 metadata。历史注入或 summary fallback 留到后续阶段。
 
-我会新增这些模块：
+### Sidebar render policy
+
+旧逻辑是 submit 后直接 append DOM message。这个逻辑已经替换。
+
+当前逻辑：
+
+- sidebar 打开后解析当前 PDF reader 的 paper scope。
+- 无 active PDF reader 时显示不可用状态并禁用 composer，不进入 global chat。
+- 有 active paper 时调用 `ConversationStore.getOrCreateLatestPaperConversation()`。
+- chat log 每次从 `Conversation.messages` 重建。
+- 用户提交时先保存 user message，再调用 Codex。
+- assistant 完成或出错后保存 assistant message，再重新从 store state 渲染。
+- tab/focus 切换时重新解析当前 reader；Codex 正在回答时不切换 conversation，避免覆盖当前 turn。
+
+## Step 6.2 待实现设计
+
+Step 6.2 在当前持久化基础上增加同一 paper 的多 session UI。
+
+按钮入口放在 sidebar header：
+
+```text
+[Zotero Copilot]
+[paper title / session label]        [history] [+] [close]
+```
+
+预期行为：
+
+- `history`：打开当前 `paperKey` 下的 session list popover。
+- `+`：为当前 paper 创建 new chat，并切换为 active conversation。
+- `close`：只关闭 sidebar，不改变 active session。
+- session 标题先用第一条 user message 截断生成；没有消息时用创建时间。
+- 点击 session 切换 active conversation，并重新渲染历史。
+- 删除/归档只影响当前 `paperKey` 下的 session。
+- 重新打开 paper 时默认恢复最近 active session。
+
+## 当前不做
+
+- 不做 global/library chat。
+- 不做跨论文搜索历史。
+- 不同步到 Zotero notes。
+- 不把 conversation history 暴露成 MCP tool。
+- 不做复杂 trace store；tool noise 和 tool trace 展示留到 Step 7 或后续。
+- 不做 Codex thread 丢失后的 transcript summary/history injection fallback。
+
+## 当前代码边界
+
+已新增：
 
 ```text
 src/shared/conversation.ts
-src/store/conversationPaths.ts
 src/store/conversationStore.ts
-src/store/conversationIndex.ts
-src/codex/threadSession.ts
-src/modules/sidebar/conversationController.ts
+unit/store/conversationStore.test.ts
 ```
 
-然后改现有两处：
+已修改：
 
-- [bridge.ts](/Users/yang/code/zotero/zotero-copilot/src/codex/bridge.ts:150)：把单一 `this.threadId` 改成“当前 conversation 的 threadId”，支持 `startThread({ ephemeral: false })` 和 `resumeThread(threadId)`。
-- [sidebar/index.ts](/Users/yang/code/zotero/zotero-copilot/src/modules/sidebar/index.ts:553)：不要直接 append DOM message 后就忘掉，而是先写 store，再由 store state render 出 message list。
+```text
+src/zotero/contextGateway.ts
+src/zotero/types.ts
+src/codex/bridge.ts
+src/codex/types.ts
+src/modules/sidebar/index.ts
+addon/locale/en-US/addon.ftl
+addon/locale/zh-CN/addon.ftl
+typings/i10n.d.ts
+```
 
-**v1 不做**
-
-不做 library/global chat。
-不做跨论文搜索历史。
-不做同步到 Zotero notes。
-不把 conversation history 暴露成 MCP tool。
-不做复杂 trace store，tool noise 仍按 Step 7 再处理。
-
-**实施顺序**
-
-1. 先做 `ConversationStore` 文件读写、atomic write、按 paperKey list。
-2. 改 `CodexBridge`：支持指定 conversation、non-ephemeral start、`thread/resume`。
-3. 改 sidebar：打开 reader 时加载当前论文 sessions；提交/完成时写入 store。
-4. 加新建、切换、删除 session UI。
-5. 测试 A/B 两篇论文隔离、Zotero 重启恢复、Codex app-server 重启后 resume。
-
-这个设计和当前 roadmap 的 Step 6 一致，但要把 “保存 thread id” 升级成 “Zotero 侧 conversation index + Codex non-ephemeral threadId + 本地 transcript mirror”。这样才不会把所有可靠性押在 Codex 内部 session 文件上。
+没有新增 `PaperSessionManager`、`conversationPaths.ts`、`conversationIndex.ts`、`threadSession.ts` 或 `conversationController.ts`。当前实现刻意保持 KISS，等 Step 6.2 真的需要拆分时再抽模块。

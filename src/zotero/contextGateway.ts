@@ -37,6 +37,7 @@ class ZoteroContextGateway {
       attachmentItemID: attachment.id,
       attachmentKey: attachment.key,
       parentItemID: parent?.id,
+      parentItemKey: parent?.key,
       libraryID: attachment.libraryID,
       readerType: activeReader.type,
       warnings,

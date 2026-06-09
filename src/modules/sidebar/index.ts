@@ -2,7 +2,11 @@ import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
 import { getCodexBridge } from "../../codex/bridge";
 import { buildPaperQuestionPrompt } from "../../codex/promptBuilder";
+import type { Conversation } from "../../shared/conversation";
+import { createPaperIdentity } from "../../shared/conversation";
+import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
+import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import {
   HTML_NS,
   ICON_URI,
@@ -104,10 +108,13 @@ class SidebarController {
   private textarea?: HTMLTextAreaElement;
   private sendButton?: HTMLButtonElement;
   private activeReader?: _ZoteroTypes.ReaderInstance;
+  private activeConversation?: Conversation;
   private open = false;
   private busy = false;
+  private composerEnabled = false;
   private destroyed = false;
   private prewarmPromise?: Promise<void>;
+  private contextLoadId = 0;
   private readonly listeners: Array<() => void> = [];
   private readonly readerToolbarButtons = new Set<Element>();
   private readonly readerToolbarHandler: _ZoteroTypes.Reader.EventHandler<"renderToolbar"> =
@@ -141,7 +148,10 @@ class SidebarController {
     reader?: _ZoteroTypes.ReaderInstance,
     item?: Zotero.Item,
   ): void {
-    const title = this.getSelectedItemTitle(reader || this.activeReader, item);
+    const conversation = this.activeConversation;
+    const title = conversation
+      ? `${conversation.metadata.title} / ${conversation.metadata.label}`
+      : this.getSelectedItemTitle(reader || this.activeReader, item);
     if (this.selectedTitle) {
       this.selectedTitle.textContent = title;
       this.selectedTitle.title = title;
@@ -298,7 +308,7 @@ class SidebarController {
     this.activeReader = reader;
     this.ensureMountedSurfaces();
     this.setOpen(true);
-    this.refreshContext(reader);
+    void this.loadActiveConversation(reader);
   }
 
   private prewarmCodexBridge(): void {
@@ -310,6 +320,52 @@ class SidebarController {
       .finally(() => {
         this.prewarmPromise = undefined;
       });
+  }
+
+  private async loadActiveConversation(
+    reader?: _ZoteroTypes.ReaderInstance,
+  ): Promise<void> {
+    if (!this.open || this.destroyed) {
+      return;
+    }
+    if (this.busy) {
+      return;
+    }
+
+    const loadId = ++this.contextLoadId;
+    this.renderStatusMessage(getString("sidebar-loading-conversation"));
+
+    const gateway = new ZoteroContextGateway(this.win);
+    const scope = await gateway.getActivePaper(reader || this.activeReader);
+    if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
+      return;
+    }
+    const paper = scope ? createPaperIdentity(scope) : null;
+    if (!paper) {
+      this.activeConversation = undefined;
+      this.refreshContext(reader);
+      this.renderUnavailable();
+      return;
+    }
+
+    try {
+      const conversation =
+        await getConversationStore().getOrCreateLatestPaperConversation(paper);
+      if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
+        return;
+      }
+      this.activeConversation = conversation;
+      this.refreshContext(reader);
+      this.renderConversation(conversation);
+    } catch (error) {
+      if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
+        return;
+      }
+      this.activeConversation = undefined;
+      this.refreshContext(reader);
+      this.renderStatusMessage(formatCodexError(error));
+      this.setComposerEnabled(false);
+    }
   }
 
   private mountPanel(): void {
@@ -539,6 +595,7 @@ class SidebarController {
     this.contextChipText = chipText;
     this.textarea = textarea;
     this.sendButton = sendButton;
+    this.updateComposerDisabledState();
     return form;
   }
 
@@ -558,7 +615,23 @@ class SidebarController {
       return;
     }
 
-    this.chatLog.appendChild(this.createUserMessage(value));
+    let conversation =
+      this.activeConversation || (await this.reloadConversationForSubmit());
+    if (!conversation) {
+      this.renderUnavailable();
+      return;
+    }
+
+    conversation = await getConversationStore().addMessage(
+      conversation.metadata,
+      {
+        role: "user",
+        text: value,
+      },
+    );
+    this.activeConversation = conversation;
+    this.renderConversation(conversation);
+
     const assistantBody = this.appendAssistantMessage(
       getString("sidebar-codex-starting"),
     );
@@ -576,6 +649,7 @@ class SidebarController {
       let pendingToolBoundary = false;
       this.storePromptDebugSnapshot(prompt);
       const result = await bridge.sendPrompt(prompt, {
+        conversation: conversation.metadata,
         onDelta: (delta, fullText) => {
           hasAssistantText = Boolean(fullText);
           if (pendingToolBoundary && assistantOutput.trim() && delta.trim()) {
@@ -607,12 +681,43 @@ class SidebarController {
           result.text ||
           getString("sidebar-codex-empty-response"),
       );
+      const metadata = await getConversationStore().updateCodexThreadId(
+        conversation.metadata,
+        result.threadId,
+      );
+      conversation = await getConversationStore().addMessage(metadata, {
+        role: "assistant",
+        text:
+          assistantOutput ||
+          result.text ||
+          getString("sidebar-codex-empty-response"),
+        codexThreadId: result.threadId,
+        codexTurnId: result.turnId,
+      });
+      this.activeConversation = conversation;
+      this.renderConversation(conversation);
     } catch (error) {
-      this.renderAssistantBody(assistantBody, formatCodexError(error));
+      const errorText = formatCodexError(error);
+      this.renderAssistantBody(assistantBody, errorText);
+      conversation = await getConversationStore().addMessage(
+        conversation.metadata,
+        {
+          role: "assistant",
+          text: errorText,
+          status: "error",
+        },
+      );
+      this.activeConversation = conversation;
+      this.renderConversation(conversation);
     } finally {
       this.setBusy(false);
       this.scrollToBottom();
     }
+  }
+
+  private async reloadConversationForSubmit(): Promise<Conversation | null> {
+    await this.loadActiveConversation(this.activeReader);
+    return this.activeConversation || null;
   }
 
   private createUserMessage(text: string): HTMLElement {
@@ -621,6 +726,40 @@ class SidebarController {
     bubble.textContent = text;
     row.appendChild(bubble);
     return row;
+  }
+
+  private renderConversation(conversation: Conversation): void {
+    if (!this.chatLog) {
+      return;
+    }
+    this.chatLog.replaceChildren();
+    if (!conversation.messages.length) {
+      this.chatLog.appendChild(
+        this.createAssistantMessage(getString("sidebar-welcome-message")),
+      );
+    } else {
+      for (const message of conversation.messages) {
+        this.chatLog.appendChild(
+          message.role === "user"
+            ? this.createUserMessage(message.text)
+            : this.createAssistantMessage(message.text),
+        );
+      }
+    }
+    this.setComposerEnabled(true);
+    this.scrollToBottom();
+  }
+
+  private renderUnavailable(): void {
+    this.renderStatusMessage(getString("sidebar-unavailable-message"));
+    this.setComposerEnabled(false);
+  }
+
+  private renderStatusMessage(markdown: string): void {
+    if (!this.chatLog) {
+      return;
+    }
+    this.chatLog.replaceChildren(this.createAssistantMessage(markdown));
   }
 
   private createAssistantMessage(markdown: string): HTMLElement {
@@ -657,11 +796,21 @@ class SidebarController {
   private setBusy(busy: boolean): void {
     this.busy = busy;
     this.composer?.toggleAttribute("aria-busy", busy);
-    this.textarea?.toggleAttribute("disabled", busy);
-    this.sendButton?.toggleAttribute("disabled", busy);
+    this.updateComposerDisabledState();
     if (this.sendButton) {
       this.sendButton.textContent = busy ? "..." : "↑";
     }
+  }
+
+  private setComposerEnabled(enabled: boolean): void {
+    this.composerEnabled = enabled;
+    this.updateComposerDisabledState();
+  }
+
+  private updateComposerDisabledState(): void {
+    const disabled = this.busy || !this.composerEnabled;
+    this.textarea?.toggleAttribute("disabled", disabled);
+    this.sendButton?.toggleAttribute("disabled", disabled);
   }
 
   private scrollToBottom(): void {
@@ -702,6 +851,8 @@ class SidebarController {
       this.attachPanel();
     } else {
       this.activeReader = undefined;
+      this.activeConversation = undefined;
+      this.setComposerEnabled(false);
       this.detachPanel();
     }
     this.updateToggleButtons();
@@ -764,7 +915,11 @@ class SidebarController {
     const refreshSoon = () => {
       this.win.setTimeout(() => {
         this.activeReader = undefined;
-        this.refreshContext();
+        if (this.open) {
+          void this.loadActiveConversation();
+        } else {
+          this.refreshContext();
+        }
       }, 0);
     };
 
@@ -782,32 +937,40 @@ class SidebarController {
   }
 
   private bindLayoutRefresh(): void {
-    const refreshSoon = () => {
+    const refreshLayoutSoon = () => {
       this.win.setTimeout(() => {
         this.ensureMountedSurfaces();
         this.refreshContext();
       }, 0);
     };
+    const reloadConversationSoon = () => {
+      this.win.setTimeout(() => {
+        if (this.open) {
+          this.activeReader = undefined;
+          void this.loadActiveConversation();
+        }
+      }, 0);
+    };
 
-    const observer = new this.win.MutationObserver(refreshSoon);
+    const observer = new this.win.MutationObserver(refreshLayoutSoon);
     observer.observe(this.doc.documentElement, {
       childList: true,
       subtree: true,
     });
     this.listeners.push(() => observer.disconnect());
 
-    this.win.addEventListener("focus", refreshSoon);
-    this.win.addEventListener("resize", refreshSoon);
+    this.win.addEventListener("focus", reloadConversationSoon);
+    this.win.addEventListener("resize", refreshLayoutSoon);
     this.listeners.push(() => {
-      this.win.removeEventListener("focus", refreshSoon);
-      this.win.removeEventListener("resize", refreshSoon);
+      this.win.removeEventListener("focus", reloadConversationSoon);
+      this.win.removeEventListener("resize", refreshLayoutSoon);
     });
 
     const tabContainer = this.doc.getElementById("tabbrowser-tabs");
-    tabContainer?.addEventListener("TabSelect", refreshSoon);
+    tabContainer?.addEventListener("TabSelect", reloadConversationSoon);
     if (tabContainer) {
       this.listeners.push(() => {
-        tabContainer.removeEventListener("TabSelect", refreshSoon);
+        tabContainer.removeEventListener("TabSelect", reloadConversationSoon);
       });
     }
   }

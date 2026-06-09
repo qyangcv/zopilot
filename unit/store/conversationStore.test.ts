@@ -1,0 +1,118 @@
+import { assert } from "chai";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+  mkdir,
+  rename,
+} from "fs/promises";
+import { existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+import { ConversationStore } from "../../src/store/conversationStore.ts";
+import type { PaperIdentity } from "../../src/shared/conversation.ts";
+
+describe("ConversationStore", function () {
+  let rootDir: string;
+
+  beforeEach(async function () {
+    rootDir = await mkdtemp(join(tmpdir(), "zcp-conversations-"));
+    installFileMocks();
+  });
+
+  afterEach(async function () {
+    await rm(rootDir, { recursive: true, force: true });
+  });
+
+  it("persists paper messages and keeps paper histories isolated", async function () {
+    const paperA = createPaper("1:AAA", "AAA", "Paper A");
+    const paperB = createPaper("1:BBB", "BBB", "Paper B");
+    const store = new ConversationStore(rootDir);
+
+    let conversationA = await store.getOrCreateLatestPaperConversation(paperA);
+    conversationA = await store.addMessage(conversationA.metadata, {
+      role: "user",
+      text: "What is the method?",
+    });
+    const metadataA = await store.updateCodexThreadId(
+      conversationA.metadata,
+      "thread-a",
+    );
+    conversationA = await store.addMessage(metadataA, {
+      role: "assistant",
+      text: "The method is retrieval augmented QA.",
+      codexThreadId: "thread-a",
+      codexTurnId: "turn-a",
+    });
+
+    const conversationB =
+      await store.getOrCreateLatestPaperConversation(paperB);
+    const reloadedStore = new ConversationStore(rootDir);
+    const reloadedA = await reloadedStore.getLatestPaperConversation(
+      paperA.paperKey,
+    );
+    const reloadedB = await reloadedStore.getLatestPaperConversation(
+      paperB.paperKey,
+    );
+
+    assert.strictEqual(reloadedA?.metadata.id, conversationA.metadata.id);
+    assert.strictEqual(reloadedA?.metadata.codexThreadId, "thread-a");
+    assert.deepEqual(
+      reloadedA?.messages.map((message) => [message.role, message.text]),
+      [
+        ["user", "What is the method?"],
+        ["assistant", "The method is retrieval augmented QA."],
+      ],
+    );
+    assert.strictEqual(reloadedB?.metadata.id, conversationB.metadata.id);
+    assert.lengthOf(reloadedB?.messages || [], 0);
+    assert.notStrictEqual(reloadedA?.metadata.id, reloadedB?.metadata.id);
+  });
+});
+
+function createPaper(
+  paperKey: string,
+  parentItemKey: string,
+  title: string,
+): PaperIdentity {
+  return {
+    paperKey,
+    libraryID: 1,
+    parentItemID: parentItemKey === "AAA" ? 10 : 20,
+    parentItemKey,
+    attachmentItemID: parentItemKey === "AAA" ? 11 : 21,
+    attachmentKey: `${parentItemKey}-pdf`,
+    title,
+  };
+}
+
+function installFileMocks(): void {
+  (globalThis as typeof globalThis & { IOUtils: typeof IOUtils }).IOUtils = {
+    exists: async (path) => existsSync(path),
+    getChildren: async (path) =>
+      (await readdir(path)).map((entry) => join(path, entry)),
+    makeDirectory: async (path, options) => {
+      await mkdir(path, { recursive: Boolean(options?.createAncestors) });
+    },
+    move: async (sourcePath, targetPath) => {
+      await rename(sourcePath, targetPath);
+    },
+    readJSON: async (path) => JSON.parse(await readFile(path, "utf8")),
+    readUTF8: async (path) => readFile(path, "utf8"),
+    remove: async (path, options) => {
+      await rm(path, { force: Boolean(options?.ignoreAbsent) });
+    },
+    writeUTF8: async (path, text) => {
+      await writeFile(path, text, "utf8");
+      return text.length;
+    },
+  } as typeof IOUtils;
+
+  (
+    globalThis as typeof globalThis & { PathUtils: typeof PathUtils }
+  ).PathUtils = {
+    join,
+  } as typeof PathUtils;
+}

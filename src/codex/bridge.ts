@@ -16,6 +16,7 @@ import type {
   JsonValue,
 } from "./types";
 import { getPref } from "../utils/prefs";
+import type { ConversationMetadata } from "../shared/conversation";
 
 type PendingRequest = {
   method: string;
@@ -48,7 +49,8 @@ class CodexBridge {
   private startPromise?: Promise<void>;
   private threadPromise?: Promise<string>;
   private initialized = false;
-  private threadId?: string;
+  private activeConversationId?: string;
+  private activeThreadId?: string;
   private activeTurn?: ActiveTurn;
   private promptQueue: Promise<void> = Promise.resolve();
   private status: CodexBridgeStatus = "idle";
@@ -76,7 +78,8 @@ class CodexBridge {
 
   async stop(): Promise<void> {
     this.initialized = false;
-    this.threadId = undefined;
+    this.activeConversationId = undefined;
+    this.activeThreadId = undefined;
     this.threadPromise = undefined;
     this.rejectAll(new Error("Codex app-server stopped."));
     const proc = this.process;
@@ -100,12 +103,12 @@ class CodexBridge {
   }
 
   async prewarm(): Promise<void> {
-    await this.ensureThread();
+    await this.start();
   }
 
   sendPrompt(
     prompt: string,
-    options: CodexPromptOptions = {},
+    options: CodexPromptOptions,
   ): Promise<CodexPromptResult> {
     const queued = this.promptQueue.then(() => this.runPrompt(prompt, options));
     this.promptQueue = queued.then(
@@ -154,16 +157,18 @@ class CodexBridge {
     }
   }
 
-  private async ensureThread(): Promise<string> {
+  private async ensureThread(
+    conversation: ConversationMetadata,
+  ): Promise<string> {
     await this.start();
-    if (this.threadId) {
-      return this.threadId;
+    if (this.activeConversationId === conversation.id && this.activeThreadId) {
+      return this.activeThreadId;
     }
     if (this.threadPromise) {
       return this.threadPromise;
     }
 
-    this.threadPromise = this.createThread();
+    this.threadPromise = this.openConversationThread(conversation);
     try {
       return await this.threadPromise;
     } finally {
@@ -171,14 +176,77 @@ class CodexBridge {
     }
   }
 
-  private async createThread(): Promise<string> {
+  private async openConversationThread(
+    conversation: ConversationMetadata,
+  ): Promise<string> {
+    if (conversation.codexThreadId) {
+      try {
+        return await this.resumeThread(conversation);
+      } catch (error) {
+        ztoolkit.log(
+          "codex thread/resume failed; starting replacement thread",
+          String(error),
+        );
+      }
+    }
+    return this.createThread(conversation);
+  }
+
+  private async createThread(
+    conversation: ConversationMetadata,
+  ): Promise<string> {
+    const result = (await this.callThreadMethod(
+      "thread/start",
+      this.buildThreadParams({ ephemeral: false }),
+    )) as {
+      thread?: { id?: string };
+    };
+    const id = result?.thread?.id;
+    if (!id) {
+      throw new Error("Codex app-server did not return a thread id.");
+    }
+    this.activeConversationId = conversation.id;
+    this.activeThreadId = id;
+    this.logMcpServerStatus();
+    return id;
+  }
+
+  private async resumeThread(
+    conversation: ConversationMetadata,
+  ): Promise<string> {
+    const result = (await this.callThreadMethod(
+      "thread/resume",
+      this.buildThreadParams({ threadId: conversation.codexThreadId || "" }),
+    )) as {
+      thread?: { id?: string };
+    };
+    const id = result?.thread?.id || conversation.codexThreadId;
+    if (!id) {
+      throw new Error("Codex app-server did not resume a thread id.");
+    }
+    this.activeConversationId = conversation.id;
+    this.activeThreadId = id;
+    this.logMcpServerStatus();
+    return id;
+  }
+
+  private buildThreadParams(extra: { [key: string]: JsonValue }): {
+    [key: string]: JsonValue;
+  } {
     const cwd = this.getHomeCwd();
     const params: { [key: string]: JsonValue } = {
-      ephemeral: true,
+      ...extra,
     };
     if (cwd) {
       params.cwd = cwd;
     }
+    params.developerInstructions = buildCodexDeveloperInstructions();
+    return params;
+  }
+
+  private async addMcpConfig(params: {
+    [key: string]: JsonValue;
+  }): Promise<{ [key: string]: JsonValue }> {
     const mcpServers = await buildCodexMcpServersConfig().catch((error) => {
       ztoolkit.log("codex mcp config unavailable", String(error));
       return undefined;
@@ -191,35 +259,26 @@ class CodexBridge {
         servers: Object.keys(mcpServers),
       });
     }
-    params.developerInstructions = buildCodexDeveloperInstructions();
-
-    const result = (await this.startThread(params)) as {
-      thread?: { id?: string };
-    };
-    const id = result?.thread?.id;
-    if (!id) {
-      throw new Error("Codex app-server did not return a thread id.");
-    }
-    this.threadId = id;
-    this.logMcpServerStatus();
-    return id;
+    return params;
   }
 
-  private async startThread(params: {
-    [key: string]: JsonValue;
-  }): Promise<JsonValue | undefined> {
+  private async callThreadMethod(
+    method: "thread/start" | "thread/resume",
+    params: { [key: string]: JsonValue },
+  ): Promise<JsonValue | undefined> {
+    const fullParams = await this.addMcpConfig(params);
     try {
-      return await this.request("thread/start", params);
+      return await this.request(method, fullParams);
     } catch (error) {
       if (!isDeveloperInstructionsUnsupportedError(error)) {
         throw error;
       }
-      const fallbackParams = { ...params };
+      const fallbackParams = { ...fullParams };
       delete fallbackParams.developerInstructions;
       ztoolkit.log(
-        "codex thread/start developerInstructions unsupported; retrying without visible fallback",
+        `${method} developerInstructions unsupported; retrying without visible fallback`,
       );
-      return this.request("thread/start", fallbackParams);
+      return this.request(method, fallbackParams);
     }
   }
 
@@ -227,7 +286,7 @@ class CodexBridge {
     prompt: string,
     options: CodexPromptOptions,
   ): Promise<CodexPromptResult> {
-    const threadId = await this.ensureThread();
+    const threadId = await this.ensureThread(options.conversation);
     this.status = "running";
 
     const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
@@ -562,7 +621,8 @@ class CodexBridge {
       }
       this.process = undefined;
       this.initialized = false;
-      this.threadId = undefined;
+      this.activeConversationId = undefined;
+      this.activeThreadId = undefined;
       this.status = "error";
       this.rejectAll(new Error(`Codex app-server exited (${exitCode}).`));
     });

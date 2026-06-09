@@ -1,3 +1,5 @@
+import type { ConversationMetadata } from "../shared/conversation";
+
 export type JsonValue =
   | null
   | boolean
@@ -86,6 +88,7 @@ export type CodexPromptResult = {
 };
 
 export type CodexPromptOptions = {
+  conversation: ConversationMetadata;
   onDelta?: (delta: string, fullText: string) => void;
   onNotice?: (notice: string) => void;
   onToolActivity?: () => void;

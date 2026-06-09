@@ -17,6 +17,8 @@ sidebar-multiple-items-selected =
        *[other] { $count } items selected
     }
 sidebar-welcome-message = **Ready.** Select an item and ask a question.
+sidebar-loading-conversation = Loading paper chat...
+sidebar-unavailable-message = Open a PDF reader tab to use paper chat.
 sidebar-codex-starting = Starting local Codex...
 sidebar-codex-empty-response = Codex completed the turn without a final text response.
 sidebar-codex-error = Codex connection failed.
