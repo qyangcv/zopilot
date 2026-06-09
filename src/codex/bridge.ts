@@ -1,5 +1,6 @@
 import { config, version } from "../../package.json";
 import { buildCodexAppServerArguments } from "./appServerConfig";
+import { buildCodexDeveloperInstructions } from "./developerInstructions";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
 import { resolveCodexBinaryPath } from "./binaryPath";
 import type {
@@ -171,8 +172,9 @@ class CodexBridge {
         servers: Object.keys(mcpServers),
       });
     }
+    params.developerInstructions = buildCodexDeveloperInstructions();
 
-    const result = (await this.request("thread/start", params)) as {
+    const result = (await this.startThread(params)) as {
       thread?: { id?: string };
     };
     const id = result?.thread?.id;
@@ -182,6 +184,24 @@ class CodexBridge {
     this.threadId = id;
     this.logMcpServerStatus();
     return id;
+  }
+
+  private async startThread(params: {
+    [key: string]: JsonValue;
+  }): Promise<JsonValue | undefined> {
+    try {
+      return await this.request("thread/start", params);
+    } catch (error) {
+      if (!isDeveloperInstructionsUnsupportedError(error)) {
+        throw error;
+      }
+      const fallbackParams = { ...params };
+      delete fallbackParams.developerInstructions;
+      ztoolkit.log(
+        "codex thread/start developerInstructions unsupported; retrying without visible fallback",
+      );
+      return this.request("thread/start", fallbackParams);
+    }
   }
 
   private async runPrompt(
@@ -623,6 +643,14 @@ function formatServerError(params: JsonValue | undefined): string {
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function isDeveloperInstructionsUnsupportedError(error: unknown): boolean {
+  const message = String(error instanceof Error ? error.message : error);
+  return (
+    message.includes("developerInstructions") &&
+    /(unsupported|unknown|unrecognized|invalid)/i.test(message)
+  );
 }
 
 function summarizeJsonForLog(
