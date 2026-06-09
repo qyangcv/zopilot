@@ -45,6 +45,7 @@ class CodexBridge {
   private stdoutBuffer = "";
   private stderrBuffer = "";
   private startPromise?: Promise<void>;
+  private threadPromise?: Promise<string>;
   private initialized = false;
   private threadId?: string;
   private activeTurn?: ActiveTurn;
@@ -75,6 +76,7 @@ class CodexBridge {
   async stop(): Promise<void> {
     this.initialized = false;
     this.threadId = undefined;
+    this.threadPromise = undefined;
     this.rejectAll(new Error("Codex app-server stopped."));
     const proc = this.process;
     this.process = undefined;
@@ -94,6 +96,10 @@ class CodexBridge {
     await this.start();
     const result = await this.request("account/read", {});
     return result as CodexAccountReadResult;
+  }
+
+  async prewarm(): Promise<void> {
+    await this.ensureThread();
   }
 
   sendPrompt(
@@ -152,7 +158,19 @@ class CodexBridge {
     if (this.threadId) {
       return this.threadId;
     }
+    if (this.threadPromise) {
+      return this.threadPromise;
+    }
 
+    this.threadPromise = this.createThread();
+    try {
+      return await this.threadPromise;
+    } finally {
+      this.threadPromise = undefined;
+    }
+  }
+
+  private async createThread(): Promise<string> {
     const cwd = this.getHomeCwd();
     const params: { [key: string]: JsonValue } = {
       ephemeral: true,

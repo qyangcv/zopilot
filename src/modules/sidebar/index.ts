@@ -106,6 +106,7 @@ class SidebarController {
   private open = false;
   private busy = false;
   private destroyed = false;
+  private prewarmPromise?: Promise<void>;
   private readonly listeners: Array<() => void> = [];
   private readonly readerToolbarButtons = new Set<Element>();
   private readonly readerToolbarHandler: _ZoteroTypes.Reader.EventHandler<"renderToolbar"> =
@@ -297,6 +298,17 @@ class SidebarController {
     this.ensureMountedSurfaces();
     this.setOpen(true);
     this.refreshContext(reader);
+  }
+
+  private prewarmCodexBridge(): void {
+    this.prewarmPromise ??= getCodexBridge()
+      .prewarm()
+      .catch((error) => {
+        ztoolkit.log("codex prewarm failed", String(error));
+      })
+      .finally(() => {
+        this.prewarmPromise = undefined;
+      });
   }
 
   private mountPanel(): void {
@@ -669,6 +681,7 @@ class SidebarController {
   }
 
   private setOpen(open: boolean): void {
+    const wasOpen = this.open;
     this.open = open;
     if (open) {
       this.attachPanel();
@@ -681,6 +694,9 @@ class SidebarController {
     this.notifyLayoutChanged();
 
     if (open) {
+      if (!wasOpen) {
+        this.prewarmCodexBridge();
+      }
       this.win.requestAnimationFrame(() => {
         this.resizeInput();
         this.textarea?.focus();
