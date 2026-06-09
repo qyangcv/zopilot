@@ -115,14 +115,14 @@ sidebar 模仿 vscode copilot sidebar 的优秀设计：
 最小修改文件或目录（大致）：
 
 - `src/modules/sidebar/`：新增 sidebar controller，并把 constants、reader toolbar、selected item title、Markdown renderer 分模块维护。
-- `src/hooks.ts`：在主窗口加载时注册 sidebar button/menu。
-- `addon/content/zoteroPane.css`：新增 sidebar 布局、消息样式和 reader toolbar button 样式；主窗口和 PDF reader 共用同一个 chrome stylesheet。
+- `src/hooks.ts`：在主窗口加载时注册 sidebar controller。
+- `addon/content/zoteroPane.css`：新增 sidebar 布局、消息样式和 reader toolbar button 样式；sidebar pane 和 PDF reader 共用同一个 chrome stylesheet。
 - `addon/locale/*/addon.ftl`：新增按钮、标题、状态文案。
 - `src/utils/window.ts`：如果需要，补充获取主窗口/当前 Zotero pane 的工具函数。
 
 当前实现状态：
 
-- 主界面 `#zotero-items-toolbar` 和 PDF reader `renderToolbar` 均有 toggle 入口。
+- 入口只在 PDF reader `renderToolbar` 注入的 button 中显示；主窗口 library 视图的 top item bar 不显示 zotero-copilot button。
 - 侧栏挂在 Zotero 主布局右侧，不使用 `ItemPaneManager.registerSection()`。
 - 输入提交已接入本机 Codex；还没有拼接真实论文上下文。
 

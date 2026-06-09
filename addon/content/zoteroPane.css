@@ -1,13 +1,3 @@
-#zotero-copilot-sidebar-toolbar-toggle {
-  -moz-context-properties: fill, stroke;
-  fill: currentColor;
-  stroke: currentColor;
-}
-
-#zotero-copilot-sidebar-toolbar-toggle[checked="true"] {
-  color: var(--accent-blue, AccentColor);
-}
-
 .zcp-reader-toolbar-button {
   align-items: center;
   appearance: none;

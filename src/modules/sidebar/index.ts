@@ -9,18 +9,17 @@ import { getPref, setPref } from "../../utils/prefs";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import {
   HTML_NS,
-  ICON_URI,
   READER_TOOLBAR_BUTTON_ID,
   SIDEBAR_ID,
   SPLITTER_ID,
   STYLE_URI,
-  TOOLBAR_TOGGLE_BUTTON_ID,
 } from "./constants";
 import { renderMarkdown } from "./markdown";
 import { createReaderToolbarButton } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
 
 const controllers = new WeakMap<Window, SidebarController>();
+const LEGACY_TOOLBAR_TOGGLE_BUTTON_ID = "zotero-copilot-sidebar-toolbar-toggle";
 const DEFAULT_SIDEBAR_WIDTH = 372;
 const DEFAULT_CONTEXT_PANE_WIDTH = 357;
 const MAX_REASONABLE_NATIVE_PANE_WIDTH = 900;
@@ -98,7 +97,6 @@ class SidebarController {
   private readonly doc: Document;
   private readonly win: Window;
   private styleNode?: ProcessingInstruction;
-  private toolbarToggleButton?: Element;
   private splitter?: HTMLElement;
   private shell?: XUL.Box;
   private selectedTitle?: HTMLElement;
@@ -143,7 +141,7 @@ class SidebarController {
     this.destroyed = true;
     this.listeners.splice(0).forEach((dispose) => dispose());
     this.styleNode?.remove();
-    this.toolbarToggleButton?.remove();
+    this.removeMainWindowToolbarToggleButton();
     this.removeReaderToolbarButtons();
     this.splitter?.remove();
     this.shell?.remove();
@@ -180,7 +178,7 @@ class SidebarController {
   }
 
   private ensureMountedSurfaces(): void {
-    this.mountToolbarToggleButton();
+    this.removeMainWindowToolbarToggleButton();
     this.mountPanel();
     this.updateToggleButtons();
   }
@@ -197,30 +195,8 @@ class SidebarController {
     this.mountOpenReaderToolbarButtons();
   }
 
-  private mountToolbarToggleButton(): void {
-    if (this.toolbarToggleButton?.isConnected) {
-      return;
-    }
-
-    const toolbar = this.doc.querySelector("#zotero-items-toolbar");
-    if (!toolbar || this.doc.getElementById(TOOLBAR_TOGGLE_BUTTON_ID)) {
-      return;
-    }
-
-    const button = this.doc.createXULElement("toolbarbutton");
-    button.id = TOOLBAR_TOGGLE_BUTTON_ID;
-    button.classList.add("zotero-tb-button", "zcp-sidebar-toggle");
-    button.setAttribute("tooltiptext", getString("sidebar-toggle-tooltip"));
-    button.setAttribute("aria-label", getString("sidebar-toggle-tooltip"));
-    button.setAttribute("aria-pressed", "false");
-    button.setAttribute("image", ICON_URI);
-    button.addEventListener("command", () => this.toggle());
-
-    const itemPaneToggle = this.doc.getElementById(
-      "zotero-tb-toggle-item-pane-stacked",
-    );
-    toolbar.insertBefore(button, itemPaneToggle || null);
-    this.toolbarToggleButton = button;
+  private removeMainWindowToolbarToggleButton(): void {
+    this.doc.getElementById(LEGACY_TOOLBAR_TOGGLE_BUTTON_ID)?.remove();
   }
 
   private renderReaderToolbarButton(
@@ -1125,10 +1101,7 @@ class SidebarController {
   }
 
   private updateToggleButtons(): void {
-    for (const button of [
-      this.toolbarToggleButton,
-      ...this.readerToolbarButtons,
-    ]) {
+    for (const button of this.readerToolbarButtons) {
       button?.setAttribute("checked", String(this.open));
       button?.setAttribute("aria-pressed", String(this.open));
       if (button) {

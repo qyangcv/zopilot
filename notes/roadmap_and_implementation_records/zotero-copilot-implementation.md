@@ -29,12 +29,12 @@
 
 - `src/modules/sidebar/` 负责 Zotero Copilot sidebar，当前拆分如下：
   - `index.ts`：窗口级 controller，只负责注册、挂载、打开/关闭、输入提交和上下文刷新编排。
-  - `constants.ts`：DOM id、chrome stylesheet/icon URL、HTML namespace。
+  - `constants.ts`：DOM id、共享 chrome stylesheet URL、HTML namespace。
   - `readerToolbar.ts`：创建 PDF reader toolbar button，并给 reader document 注入共享 chrome stylesheet。
   - `selectedItem.ts`：读取当前 Zotero selection 或 reader attachment parent 的标题。
   - `markdown.ts`：Step-2 原型用的最小 Markdown/公式占位 renderer。
-- Step 4/5 设计范围已收窄为 PDF reader 内的单篇论文 QA。`selectedItem.ts` 里的主窗口 selection 标题读取只是当前 UI chip 的展示能力，不作为 `ZoteroContextGateway` 的上下文来源；主窗口 zotero-copilot 入口预留给未来 library 级别文献 QA / 全库对话。
-- 2026-06-07 调整：放弃 `Zotero.ItemPaneManager.registerSection()` / item-pane sidenav 方案，因为它无法可靠隔离 item details 的纵向 section scroll。当前入口是主界面 `#zotero-items-toolbar` 和 PDF reader `renderToolbar` 注入按钮；点击后打开挂在 Zotero 主布局里的独立右侧 Copilot pane，和 Zotero 内置 item pane sections 使用不同 DOM 容器。
+- Step 4/5 设计范围已收窄为 PDF reader 内的单篇论文 QA。`selectedItem.ts` 里的主窗口 selection 标题读取只是当前 UI chip 的展示能力，不作为 `ZoteroContextGateway` 的上下文来源；zotero-copilot button 只在 PDF reader 中显示，不在主窗口 library 视图 top item bar 中显示。
+- 2026-06-07 调整：放弃 `Zotero.ItemPaneManager.registerSection()` / item-pane sidenav 方案，因为它无法可靠隔离 item details 的纵向 section scroll。当前入口是 PDF reader `renderToolbar` 注入按钮；点击后打开挂在 Zotero 主布局里的独立右侧 Copilot pane，和 Zotero 内置 item pane sections 使用不同 DOM 容器。
 - UI 采用 VS Code Copilot Chat sidebar 的几个可迁移原则：一个高价值侧栏、紧凑标题与消息密度、输入区承载上下文 chip、模型和推理强度状态、textarea 按内容自动增高且有最大高度。
 - Step 2 的固定 assistant 占位回复已被 Step 3 的真实 Codex 请求路径替换；`placeholder.ts` 和对应 locale key 已删除。
 - 内置最小 Markdown renderer 位于 `src/modules/sidebar/markdown.ts`，覆盖 Step-2 原型需要的段落、列表、链接、表格、代码块、行内公式和行间公式占位；后续接模型后可替换为正式 renderer。
