@@ -94,6 +94,7 @@
   --zcp-muted-strong: color-mix(in srgb, CanvasText 72%, Canvas);
   --zcp-panel: color-mix(in srgb, Canvas 92%, CanvasText 8%);
   --zcp-panel-strong: color-mix(in srgb, Canvas 84%, CanvasText 16%);
+  --zcp-popover: color-mix(in srgb, Canvas 98%, CanvasText 2%);
   --zcp-accent: var(--accent-blue, AccentColor);
   --zcp-accent-text: AccentColorText;
   box-sizing: border-box;
@@ -102,6 +103,7 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  position: relative;
   font: menu;
   font-size: 13px;
   line-height: 1.42;
@@ -182,6 +184,7 @@
 .zcp-context-add,
 .zcp-send-button {
   appearance: none;
+  -moz-appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -191,13 +194,17 @@
   color: inherit;
   cursor: default;
   font: inherit;
+  margin: 0;
+  padding: 0;
 }
 
 .zcp-icon-button {
+  display: grid;
+  place-items: center;
   width: 28px;
   height: 28px;
   color: var(--zcp-muted-strong);
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1;
 }
 
@@ -210,15 +217,53 @@
   opacity: 0.45;
 }
 
-.zcp-history-button::before {
+.zcp-history-icon {
   display: block;
-  width: 14px;
+  width: 16px;
+  height: 16px;
+  background:
+    linear-gradient(currentColor, currentColor) center 3px / 16px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center 7px / 16px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center 11px / 16px 2px no-repeat;
+  pointer-events: none;
+}
+
+.zcp-action-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.zcp-plus-icon {
+  background:
+    linear-gradient(currentColor, currentColor) center / 16px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 2px 16px no-repeat;
+}
+
+.zcp-close-icon {
+  position: relative;
+}
+
+.zcp-close-icon::before,
+.zcp-close-icon::after {
+  position: absolute;
+  inset-block-start: 7px;
+  inset-inline-start: 0;
+  display: block;
+  width: 16px;
   height: 2px;
+  border-radius: 1px;
   background: currentColor;
-  box-shadow:
-    0 5px 0 currentColor,
-    0 10px 0 currentColor;
   content: "";
+}
+
+.zcp-close-icon::before {
+  transform: rotate(45deg);
+}
+
+.zcp-close-icon::after {
+  transform: rotate(-45deg);
 }
 
 .zcp-session-popover {
@@ -230,8 +275,11 @@
   overflow: auto;
   border: 1px solid var(--zcp-border);
   border-radius: 8px;
-  background: Canvas;
+  background-color: var(--zcp-popover);
+  color: CanvasText;
   box-shadow: 0 8px 22px color-mix(in srgb, CanvasText 18%, transparent);
+  font: menu;
+  font-size: 13px;
 }
 
 .zcp-session-popover[hidden] {
@@ -254,13 +302,15 @@
 .zcp-session-list {
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  gap: 2px;
+  padding: 6px;
 }
 
 .zcp-session-row {
   display: flex;
   align-items: stretch;
   gap: 2px;
+  min-height: 52px;
   border-radius: 6px;
 }
 
@@ -271,19 +321,25 @@
 .zcp-session-select,
 .zcp-session-archive {
   appearance: none;
+  -moz-appearance: none;
   border: 0;
   background: transparent;
   color: inherit;
   cursor: default;
   font: inherit;
+  margin: 0;
+  padding: 0;
 }
 
 .zcp-session-select {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  justify-content: center;
   min-width: 0;
-  padding: 7px 8px;
+  min-height: 52px;
+  overflow: hidden;
+  padding: 8px 10px;
   text-align: start;
 }
 
@@ -294,6 +350,7 @@
 
 .zcp-session-label,
 .zcp-session-meta {
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -303,15 +360,19 @@
 .zcp-session-label {
   font-size: 12px;
   font-weight: 600;
+  line-height: 18px;
 }
 
 .zcp-session-meta {
   margin-top: 2px;
   color: var(--zcp-muted);
   font-size: 11px;
+  line-height: 16px;
 }
 
 .zcp-session-archive {
+  display: grid;
+  place-items: center;
   flex: 0 0 28px;
   width: 28px;
   color: var(--zcp-muted);

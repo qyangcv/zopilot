@@ -439,6 +439,7 @@ class SidebarController {
     historyButton.setAttribute("aria-haspopup", "true");
     historyButton.setAttribute("aria-expanded", "false");
     historyButton.title = getString("sidebar-history");
+    historyButton.appendChild(this.html("span", "zcp-history-icon"));
     historyButton.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.toggleSessionPopover();
@@ -451,7 +452,8 @@ class SidebarController {
     newSessionButton.setAttribute("type", "button");
     newSessionButton.setAttribute("aria-label", getString("sidebar-new-chat"));
     newSessionButton.title = getString("sidebar-new-chat");
-    newSessionButton.textContent = "+";
+    const newSessionIcon = this.html("span", "zcp-action-icon zcp-plus-icon");
+    newSessionButton.appendChild(newSessionIcon);
     newSessionButton.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.createNewSession();
@@ -461,7 +463,8 @@ class SidebarController {
     closeButton.setAttribute("type", "button");
     closeButton.setAttribute("aria-label", getString("sidebar-close"));
     closeButton.title = getString("sidebar-close");
-    closeButton.textContent = "x";
+    const closeIcon = this.html("span", "zcp-action-icon zcp-close-icon");
+    closeButton.appendChild(closeIcon);
     closeButton.addEventListener("click", () => this.setOpen(false));
     actions.append(historyButton, newSessionButton, closeButton);
     header.append(identity, actions);
@@ -740,7 +743,8 @@ class SidebarController {
     archive.setAttribute("type", "button");
     archive.setAttribute("aria-label", getString("sidebar-delete-session"));
     archive.title = getString("sidebar-delete-session");
-    archive.textContent = "x";
+    const archiveIcon = this.html("span", "zcp-action-icon zcp-close-icon");
+    archive.appendChild(archiveIcon);
     archive.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.archiveSession(conversation);
