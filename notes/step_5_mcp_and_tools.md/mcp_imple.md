@@ -30,11 +30,11 @@ metadata_write
 
 ## 当前实现状态
 
-1. 当前仓库已实现 `5.1 MCP HTTP skeleton`。
+1. 当前仓库已实现 MCP transport skeleton。
    - `src/mcp/httpServer.ts` 注册 Zotero 本地 HTTP MCP endpoint：`/zotero-copilot/mcp`。
    - `src/mcp/protocol.ts` 定义 MCP / JSON-RPC 基础类型与响应 helper。
    - `src/mcp/toolRegistry.ts` 只注册并暴露 `paper_read`。
-   - `src/mcp/tools/paperRead.ts` 实现 `paper_read` skeleton：校验输入，解析当前 active reader scope，返回 scope/status，占位说明全文读取会在 5.2 接入。
+   - `src/mcp/tools/paperRead.ts` 实现 `paper_read` skeleton：校验输入，解析当前 active reader scope，返回 scope/status，占位说明后续会接入 evidence path。
    - `src/codex/mcpConfig.ts` 生成 `thread/start.config.mcp_servers` 配置。
 
 2. 当前 `CodexBridge` 仍启动：
@@ -58,7 +58,7 @@ metadata_write
    - `config.mcp_servers.<name>` 可在 `thread/start` 时注入临时 MCP server。
    - `mcpServerStatus/list` 能看到注入的 server 和 tools。
    - `mcpServer/tool/call` 能手动调用 dummy MCP tool。
-   - `item/mcpToolCall/progress`、`mcpServer/startupStatus/updated` 是真实 app-server notifications。
+   - `item/mcpToolCall/progress`、`mcpServer/startupStatus/updated` 是真实 app-server notifications，可通过 Zotero Toolbox Console 查看，不需要额外做 UI diagnostics。
 
 4. Codex MCP 配置使用：
 
@@ -80,7 +80,7 @@ metadata_write
 - Codex MCP: https://developers.openai.com/codex/mcp
 - MCP transports: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
 
-## 5.1 实现记录
+## 已有 transport 记录
 
 已完成：
 
@@ -90,8 +90,8 @@ metadata_write
 - `tools/list` 只返回 `paper_read`，不公开 `get_active_paper`、`paper_search` 或任何写操作。
 - `paper_read` 当前是 skeleton：输入只接受 `question?: string` 和 `maxChars?: number`；输出当前 reader scope/status、warnings 和 `_meta`，不读取全文、不返回 PDF path。
 - `CodexBridge.ensureThread()` 在 `thread/start` 时注入 MCP server config，并在 thread 创建后调用 `mcpServerStatus/list` 记录 app-server 侧可见状态。
-- `CodexBridge.handleNotification()` 已记录 `mcpServer/startupStatus/updated`、`item/mcpToolCall/progress`，以及包含 `mcpToolCall` 的 `item/started` / `item/completed`。
-- `promptBuilder` 已加入 tool routing 指令：论文内容不足时调用 Zotero MCP tool `paper_read`，并把 tool result 当作 evidence。
+- `CodexBridge.handleNotification()` 已记录 `mcpServer/startupStatus/updated`、`item/mcpToolCall/progress`，以及包含 `mcpToolCall` 的 `item/started` / `item/completed`。这些日志用于 Zotero Toolbox Console 调试，不做单独 UI diagnostics。
+- `promptBuilder` 当前已加入 tool routing 指令；后续 evidence path 接入时应进一步收薄为 MCP-first 最小 prompt。
 
 调试日志链路：
 
@@ -208,9 +208,9 @@ paperRead tool
   - 包装 MCP result
 
 RetrievalService
-  - 组织 metadata / text status / full text / warnings
-  - 控制 maxChars
-  - 生成 evidence package
+  - 从 Zotero 原材料生成 snippets/chunks
+  - 返回全部命中的 chunks
+  - 生成带 provenance 的 evidence package
   - 后续内部扩展 lexical retrieval
 
 ZoteroContextGateway
@@ -221,23 +221,21 @@ ZoteroContextGateway
   - 已有 getAttachmentFullTextForTool()
 ```
 
-## paper_read v1 contract
+## paper_read evidence contract
 
 输入保持克制：
 
 ```ts
 type PaperReadToolInput = {
   question?: string;
-  maxChars?: number;
 };
 ```
 
 字段：
 
-- `question`: 用户问题或阅读意图。v1 可记录并用于 result 说明；不做复杂 retrieval。
-- `maxChars`: 返回正文预算。需要默认值和上限。
+- `question`: 用户问题或阅读意图。用于 retrieval query / chunk ranking。
 
-不放入 v1：
+不放入首版公开 schema：
 
 ```text
 mode
@@ -245,6 +243,7 @@ pages
 sectionHint
 includeSelection
 maxSnippets
+maxChars
 debug
 path
 itemId
@@ -255,22 +254,18 @@ libraryId
 
 ```ts
 type PaperReadToolOutput = {
-  paper: {
-    attachmentItemID: number;
-    parentItemID?: number;
-    title?: string;
-  } | null;
-  metadata: PaperMetadata | null;
-  fullText: {
+  snippets: Array<{
     text: string;
-    length: number;
-    returnedChars: number;
-    truncated: boolean;
-    status: PaperTextStatus;
-    indexedState?: number;
     source: "zotero_fulltext";
-  } | null;
-  warnings: string[];
+    locator?: {
+      chunkIndex?: number;
+      charStart?: number;
+      charEnd?: number;
+      page?: number;
+    };
+    score?: number;
+  }>;
+  warnings?: string[];
 };
 ```
 
@@ -285,25 +280,18 @@ MCP result 同时返回：
 }
 ```
 
-`paper_read` 返回 evidence，不返回最终答案。
+`paper_read` 返回 evidence，不返回最终答案。正式回答证据以 `snippets` 为主体；metadata、abstract、selected text、full-text status 不作为默认 answer context 返回。`warnings` 只用于 tool result 的失败或可信度限制说明，例如 no active reader、全文不可用、section/page locator 不可靠；不做单独 diagnostics 系统。
 
-## v1 读取策略
+## evidence path 读取策略
 
 1. 调 `ZoteroContextGateway.getActivePaper()`。
-2. 无 active reader：返回 `isError: true` 和明确 warning。
-3. 有 scope：读取 metadata。
-4. 调 `getAttachmentFullTextForTool(scope)`。
-5. 无全文、扫描 PDF、API error：返回 metadata + warning。
-6. 有全文：按 `maxChars` 截断后返回。
+2. 无 active reader：返回 `isError: true`，`snippets: []`，并在 `warnings` 中说明无法读取当前论文。
+3. 有 scope：内部可读取 metadata / abstract / text status 辅助定位，但不默认输出为模型上下文。
+4. 调 `getAttachmentFullTextForTool(scope)` 取得 Zotero full-text 原材料。
+5. 无全文、扫描 PDF、API error：返回 `snippets: []`，并在 `warnings` 中说明限制。
+6. 有全文：做最小 chunking + lexical retrieval，按 `question` 排序后返回全部命中的 chunks。
 
-默认建议：
-
-```text
-default maxChars: 20000
-hard maxChars: 50000
-```
-
-不要在 v1 承诺“完整论文全文一定全部返回”。真实实现必须处理长文截断和 token 预算。
+5.2 不额外设计 snippet 预算、`maxChars` 或 `maxSnippets`。当前很多顶级模型已经支持 1M 级上下文；相比提前截断，首版更应该保证 evidence 不被预算逻辑误删。`paper_read` 仍不是“返回整篇全文”的接口：它返回 retrieval 命中的 chunks；如果 retrieval 命中很多，就全部返回。不要新增一个只截取全文开头的中间阶段；transport skeleton 之后就应直接进入真实 evidence path。
 
 ## CodexBridge 改动
 
@@ -337,10 +325,7 @@ hard maxChars: 50000
    }
    ```
 
-3. `handleNotification()` 增加最小处理：
-   - `mcpServer/startupStatus/updated`
-   - `item/mcpToolCall/progress`
-   - `item/started` / `item/completed` 中的 `mcpToolCall` item 可后续用于 UI diagnostics
+3. `handleNotification()` 只记录 MCP startup/tool-call 相关日志，供 Zotero Toolbox Console 查看。
 
 4. 继续安全拒绝无关 server request。
 
@@ -349,27 +334,34 @@ hard maxChars: 50000
 - 让 Zotero 插件处理 `mcpServer/tool/call` request。
 - 写入用户全局 `~/.codex/config.toml`。
 - 要求用户手动 `codex mcp add`。
+- 做单独的 UI diagnostics 面板或状态系统。
 
 ## Prompt 改动
 
-`src/codex/promptBuilder.ts` 只增加 tool routing 指令，不注入全文：
+MCP 完整接入后，`src/codex/promptBuilder.ts` 应从 Step 4 的 context-in-prompt 过渡为 MCP-first 最小 prompt。正式问答路径只保留用户问题和 tool routing 信息：
 
 ```text
-When paper-specific content beyond the metadata, abstract, selected text, and full-text status is needed, call the Zotero MCP tool `paper_read`. Treat `paper_read` results as evidence, not as final answers.
+You are answering a question about the currently open Zotero paper.
+Use the Zotero MCP tool `paper_read` when paper-specific evidence is needed.
+Base paper-specific claims on `paper_read` snippets. If snippets are missing or insufficient, say so explicitly.
 ```
 
 保留：
+- user prompt
+- `paper_read` tool 信息和调用约束
+
+不再默认放入 prompt：
 - active reader scope
 - title/authors/year/DOI
 - abstract
 - selected text
 - full-text status
 - warnings
-
-不放回：
 - full text preview
 - PDF path
 - retrieval debug
+
+这些字段仍可作为内部实现原材料或 tool-result warnings 的依据，但不应作为正式 prompt 的常驻上下文。这样可以避免模型跳过 `paper_read`，也避免 metadata、abstract、selected text 尚未实现或不完整时干扰回答。
 
 ## 测试与验收
 
@@ -388,9 +380,9 @@ unit/codex/mcpConfig.test.ts
 - unknown tool 返回 MCP error。
 - schema 拒绝未知字段和错误类型。
 - no active reader。
-- full text success。
-- full text empty / unavailable / error。
-- `maxChars` 截断。
+- snippet success。
+- full text empty / unavailable / error 时返回空 snippets + warnings。
+- 多个 chunks 命中时全部返回。
 - result 不包含 PDF path。
 
 命令：
@@ -413,36 +405,37 @@ npm test
 
 ## 分阶段交付
 
-### 5.1 MCP HTTP skeleton
+### 5.1 MCP transport + Codex wiring
 
 - 启动 localhost MCP endpoint。
 - 实现 `initialize`、`tools/list`、`tools/call`。
-- `paper_read` 先返回占位 scope/status。
-- app-server 能通过 `thread/start.config.mcp_servers` 看到 `paper_read`。
+- `tools/list` 只暴露 `paper_read`。
+- `CodexBridge` 在 `thread/start.config.mcp_servers` 注入 MCP server。
+- 用 Zotero Toolbox Console 验证 endpoint、tool list、manual tool call、Codex MCP startup/tool-call log。
 
-### 5.2 paper_read v1
+### 5.2 paper_read evidence path
 
 - 接入 `ZoteroContextGateway`。
-- 返回 metadata、full-text status、受 `maxChars` 控制的 text。
+- 接入 `ActivePaperRetrievalService` / `PaperReadingService`。
+- 读取当前 PDF reader scope 下的 Zotero full-text 原材料。
+- 做最小 chunking + lexical retrieval。
+- 返回 snippets + provenance + warnings，不返回整篇 full text。
+- 不做 snippet 预算控制；命中的 chunks 全部返回。
+- metadata、abstract、selected text、full-text status 仅作为内部原材料或 tool-result warnings 的依据，不作为默认 answer context。
 - 处理 no reader / no full text / scanned PDF。
+- prompt 收薄为 MCP-first，只保留 user prompt + tool routing。
 
-### 5.3 Bridge 与 UI 状态
+### 5.3 retrieval upgrade, optional
 
-- 注入 MCP config。
-- 记录 MCP startup/tool progress。
-- UI 默认只显示简洁状态，不展示大段 JSON。
+evidence path 可用后再做：
 
-### 5.4 v2 lexical retrieval
+- 更好的 chunking。
+- BM25 / RRF / query planning。
+- section/page hint。
+- semantic search。
+- page capture / visual reading。
 
-v1 稳定后再做：
-
-- chunker
-- lexical retriever
-- ranker
-- evidence packer
-- snippets/provenance
-
-v2 仍不新增公开 `paper_search` tool。
+retrieval upgrade 仍不新增公开 `paper_search` tool。
 
 ## 暂不做
 
@@ -461,4 +454,4 @@ v2 仍不新增公开 `paper_search` tool。
 - durable conversation history。
 - global chat / paper chat 持久化。
 
-durable history、global chat、paper chat 属于 Step 6。OCR、page image、embedding/hybrid RAG 是后续质量增强，不阻塞 Step 5 v1。
+durable history、global chat、paper chat 属于 Step 6。OCR、page image、embedding/hybrid RAG 是后续质量增强，不阻塞 Step 5 的首条 evidence path。

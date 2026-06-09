@@ -467,7 +467,7 @@ class CodexBridge {
   }
 
   private logMcpServerStatus(): void {
-    void this.request("mcpServerStatus/list", undefined, 10000)
+    void this.request("mcpServerStatus/list", {}, 10000)
       .then((result) => {
         ztoolkit.log(
           "codex mcp server status list",
