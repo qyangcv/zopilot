@@ -1,4 +1,5 @@
 import { config, version } from "../../package.json";
+import { buildCodexAppServerArguments } from "./appServerConfig";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
 import { resolveCodexBinaryPath } from "./binaryPath";
 import type {
@@ -111,7 +112,7 @@ class CodexBridge {
     const command = await resolveCodexBinaryPath(subprocess);
     const proc = await subprocess.call({
       command,
-      arguments: ["app-server", "--stdio"],
+      arguments: buildCodexAppServerArguments(),
       environmentAppend: true,
       stderr: "pipe",
       workdir: subprocess.getEnvironment().HOME,

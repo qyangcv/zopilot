@@ -71,7 +71,6 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
               text: formatPaperReadSummary(output),
             },
           ],
-          structuredContent: output as unknown as JsonValue,
           isError:
             output.status === "no_active_reader" ||
             output.status === "no_text" ||
@@ -87,17 +86,8 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           error: message,
           durationMs: Date.now() - startedAt,
         });
-        const output: PaperReadEvidenceOutput = {
-          status: "error",
-          paper: null,
-          request: parsedInput,
-          text: null,
-          snippets: [],
-          warnings: [message],
-        };
         return {
           content: [{ type: "text", text: message }],
-          structuredContent: output as unknown as JsonValue,
           isError: true,
           _meta: {
             "zoteroCopilot.mcp.step": "5.2",
@@ -164,31 +154,17 @@ function getBestZoteroWindow(): Window {
 }
 
 function formatPaperReadSummary(output: PaperReadEvidenceOutput): string {
-  if (!output.paper) {
-    return output.warnings.join("\n");
+  if (output.snippets.length) {
+    return output.snippets.map((snippet) => snippet.text).join("\n\n---\n\n");
   }
-  const lines = [
-    `paper_read returned ${output.snippets.length} Zotero full-text snippet(s).`,
-    `Current paper scope: ${JSON.stringify(output.paper)}`,
-  ];
 
-  if (output.text) {
-    lines.push(
-      `Full-text status: ${output.text.status}; length: ${output.text.length}`,
-    );
+  if (output.status === "no_active_reader") {
+    return "No active Zotero PDF reader paper is available.";
   }
-  if (output.warnings.length) {
-    lines.push(
-      "Warnings:",
-      ...output.warnings.map((warning) => `- ${warning}`),
-    );
+
+  if (output.status === "no_text") {
+    return "The current PDF has no readable Zotero full text.";
   }
-  output.snippets.forEach((snippet, index) => {
-    lines.push(
-      "",
-      `[snippet ${index + 1}; chunk ${snippet.locator.chunkIndex}; chars ${snippet.locator.charStart}-${snippet.locator.charEnd}; score ${snippet.score}]`,
-      snippet.text,
-    );
-  });
-  return lines.join("\n");
+
+  return "No relevant text was found.";
 }

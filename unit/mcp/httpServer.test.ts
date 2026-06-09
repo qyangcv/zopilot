@@ -51,8 +51,8 @@ describe("MCP HTTP handler", function () {
       readResult(tools).tools.map((tool: { name: string }) => tool.name),
       ["paper_read"],
     );
-    assert.equal(readResult(call).structuredContent.status, "active_reader");
-    assert.lengthOf(readResult(call).structuredContent.snippets, 1);
+    assert.include(readResult(call).content[0].text, "smoke method snippet");
+    assert.notProperty(readResult(call), "structuredContent");
     assert.isFalse(readResult(call).isError);
   });
 

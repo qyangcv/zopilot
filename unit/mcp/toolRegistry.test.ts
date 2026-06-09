@@ -47,18 +47,16 @@ describe("McpToolRegistry", function () {
     const result = await registry.callTool("paper_read", {
       question: "What is the retrieval method?",
     });
-    const output = result.structuredContent as any;
 
     assert.isFalse(result.isError);
-    assert.include(result.content[0].text, "Zotero full-text snippet");
-    assert.equal(output.status, "active_reader");
-    assert.lengthOf(output.snippets, 1);
-    assert.include(output.snippets[0].text, "retrieval augmented method");
-    assert.equal(output.snippets[0].source, "zotero_fulltext");
-    assert.deepInclude(output.snippets[0].locator, {
-      chunkIndex: 0,
-      charStart: 0,
-    });
+    assert.include(result.content[0].text, "retrieval augmented method");
+    assert.notInclude(result.content[0].text, "paper_read");
+    assert.notInclude(result.content[0].text, "Current paper scope");
+    assert.notInclude(result.content[0].text, "[snippet");
+    assert.notProperty(result, "structuredContent");
+    assert.notInclude(JSON.stringify(result), "chunkIndex");
+    assert.notInclude(JSON.stringify(result), "charStart");
+    assert.notInclude(JSON.stringify(result), "score");
     assert.notInclude(JSON.stringify(result), "/tmp");
   });
 
@@ -82,15 +80,13 @@ describe("McpToolRegistry", function () {
     const result = await registry.callTool("paper_read", {
       question: "What is the method?",
     });
-    const output = result.structuredContent as any;
 
     assert.isTrue(result.isError);
-    assert.equal(output.status, "no_text");
-    assert.isEmpty(output.snippets);
-    assert.include(
-      output.warnings,
-      "No Zotero full-text evidence is available for the current PDF. The PDF may be scanned, unindexed, or unavailable locally.",
+    assert.equal(
+      result.content[0].text,
+      "The current PDF has no readable Zotero full text.",
     );
+    assert.notProperty(result, "structuredContent");
   });
 
   it("returns no_active_reader when paper_read has no PDF reader scope", async function () {
@@ -99,11 +95,13 @@ describe("McpToolRegistry", function () {
     const result = await registry.callTool("paper_read", {
       question: "What is the method?",
     });
-    const output = result.structuredContent as any;
 
     assert.isTrue(result.isError);
-    assert.equal(output.status, "no_active_reader");
-    assert.isEmpty(output.snippets);
+    assert.equal(
+      result.content[0].text,
+      "No active Zotero PDF reader paper is available.",
+    );
+    assert.notProperty(result, "structuredContent");
   });
 
   it("calls paper_read without returning local attachment paths", async function () {
@@ -123,9 +121,8 @@ describe("McpToolRegistry", function () {
     });
 
     assert.isFalse(result.isError);
-    assert.deepInclude(result.structuredContent as object, {
-      status: "active_reader",
-    });
+    assert.include(result.content[0].text, "lexical retrieval");
+    assert.notProperty(result, "structuredContent");
     assert.notInclude(JSON.stringify(result), "/tmp");
   });
 
