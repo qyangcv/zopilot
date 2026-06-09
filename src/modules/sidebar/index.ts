@@ -108,6 +108,7 @@ class SidebarController {
   private activeReader?: _ZoteroTypes.ReaderInstance;
   private open = false;
   private busy = false;
+  private destroyed = false;
   private readonly listeners: Array<() => void> = [];
   private readonly readerToolbarButtons = new Set<Element>();
   private readonly contextGateway: ZoteroContextGateway;
@@ -122,7 +123,7 @@ class SidebarController {
 
   mount(): void {
     this.injectStylesheet();
-    this.registerReaderToolbarButton();
+    this.registerReaderToolbarButtons();
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
@@ -130,11 +131,11 @@ class SidebarController {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.listeners.splice(0).forEach((dispose) => dispose());
     this.styleNode?.remove();
     this.toolbarToggleButton?.remove();
-    this.readerToolbarButtons.forEach((button) => button.remove());
-    this.readerToolbarButtons.clear();
+    this.removeReaderToolbarButtons();
     this.splitter?.remove();
     this.shell?.remove();
   }
@@ -171,18 +172,16 @@ class SidebarController {
     this.updateToggleButtons();
   }
 
-  private registerReaderToolbarButton(): void {
+  private registerReaderToolbarButtons(): void {
     Zotero.Reader.registerEventListener(
       "renderToolbar",
       this.readerToolbarHandler,
       config.addonID,
     );
     this.listeners.push(() => {
-      Zotero.Reader.unregisterEventListener(
-        "renderToolbar",
-        this.readerToolbarHandler,
-      );
+      this.unregisterReaderToolbarButtons();
     });
+    this.mountOpenReaderToolbarButtons();
   }
 
   private mountToolbarToggleButton(): void {
@@ -214,22 +213,88 @@ class SidebarController {
   private renderReaderToolbarButton(
     event: _ZoteroTypes.Reader.EventParams<"renderToolbar">,
   ): void {
-    if (event.doc.getElementById(READER_TOOLBAR_BUTTON_ID)) {
+    this.mountReaderToolbarButton(event.reader, event.doc, event.append);
+  }
+
+  private mountOpenReaderToolbarButtons(): void {
+    const readers = (
+      Zotero.Reader as unknown as { _readers?: _ZoteroTypes.ReaderInstance[] }
+    )._readers;
+    readers?.forEach((reader) => {
+      void reader._initPromise?.then(() => {
+        if (this.destroyed) {
+          return;
+        }
+        this.mountReaderToolbarButton(reader);
+      });
+    });
+  }
+
+  private mountReaderToolbarButton(
+    reader: _ZoteroTypes.ReaderInstance,
+    doc = reader._iframeWindow?.document,
+    append?: (button: HTMLButtonElement) => void,
+  ): void {
+    if (
+      this.destroyed ||
+      !doc ||
+      doc.getElementById(READER_TOOLBAR_BUTTON_ID)
+    ) {
       return;
     }
 
-    const button = createReaderToolbarButton(event.doc, this.open, () =>
-      this.toggle(event.reader),
+    const toolbar = append ? undefined : this.getReaderToolbar(doc);
+    if (!append && !toolbar) {
+      return;
+    }
+
+    const button = createReaderToolbarButton(doc, this.open, () =>
+      this.toggle(reader),
     );
 
     this.readerToolbarButtons.add(button);
-    event.doc.defaultView?.addEventListener(
+    doc.defaultView?.addEventListener(
       "unload",
       () => this.readerToolbarButtons.delete(button),
       { once: true },
     );
     this.updateReaderToolbarButton(button);
-    event.append(button);
+    if (append) {
+      append(button);
+    } else {
+      toolbar?.append(button);
+    }
+  }
+
+  private getReaderToolbar(doc?: Document): Element | undefined {
+    return (
+      doc?.querySelector(".toolbar .end") ||
+      doc?.querySelector(".toolbar") ||
+      undefined
+    );
+  }
+
+  private unregisterReaderToolbarButtons(): void {
+    const unregisterByPluginID = (
+      Zotero.Reader as unknown as {
+        _unregisterEventListenerByPluginID?: (pluginID: string) => void;
+      }
+    )._unregisterEventListenerByPluginID;
+    unregisterByPluginID?.call(Zotero.Reader, config.addonID);
+  }
+
+  private removeReaderToolbarButtons(): void {
+    this.readerToolbarButtons.forEach((button) => button.remove());
+    this.readerToolbarButtons.clear();
+
+    const readers = (
+      Zotero.Reader as unknown as { _readers?: _ZoteroTypes.ReaderInstance[] }
+    )._readers;
+    readers?.forEach((reader) => {
+      reader._iframeWindow?.document
+        ?.getElementById(READER_TOOLBAR_BUTTON_ID)
+        ?.remove();
+    });
   }
 
   private openCopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
