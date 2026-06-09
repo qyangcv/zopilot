@@ -1,4 +1,5 @@
 import { config, version } from "../../package.json";
+import { buildCodexMcpServersConfig } from "./mcpConfig";
 import { resolveCodexBinaryPath } from "./binaryPath";
 import type {
   CodexAccountReadResult,
@@ -157,6 +158,18 @@ class CodexBridge {
     if (cwd) {
       params.cwd = cwd;
     }
+    const mcpServers = await buildCodexMcpServersConfig().catch((error) => {
+      ztoolkit.log("codex mcp config unavailable", String(error));
+      return undefined;
+    });
+    if (mcpServers) {
+      params.config = {
+        mcp_servers: mcpServers,
+      };
+      ztoolkit.log("codex thread/start mcp config injected", {
+        servers: Object.keys(mcpServers),
+      });
+    }
 
     const result = (await this.request("thread/start", params)) as {
       thread?: { id?: string };
@@ -166,6 +179,7 @@ class CodexBridge {
       throw new Error("Codex app-server did not return a thread id.");
     }
     this.threadId = id;
+    this.logMcpServerStatus();
     return id;
   }
 
@@ -423,9 +437,46 @@ class CodexBridge {
         ztoolkit.log("codex app-server warning", warning);
         break;
       }
+      case "mcpServer/startupStatus/updated": {
+        ztoolkit.log(
+          "codex mcp startup status",
+          summarizeJsonForLog(message.params),
+        );
+        break;
+      }
+      case "item/mcpToolCall/progress": {
+        ztoolkit.log(
+          "codex mcp tool progress",
+          summarizeJsonForLog(message.params),
+        );
+        break;
+      }
+      case "item/started":
+      case "item/completed": {
+        if (includesText(message.params, "mcpToolCall")) {
+          ztoolkit.log(
+            `codex mcp tool item ${message.method}`,
+            summarizeJsonForLog(message.params),
+          );
+        }
+        break;
+      }
       default:
         break;
     }
+  }
+
+  private logMcpServerStatus(): void {
+    void this.request("mcpServerStatus/list", undefined, 10000)
+      .then((result) => {
+        ztoolkit.log(
+          "codex mcp server status list",
+          summarizeJsonForLog(result),
+        );
+      })
+      .catch((error) => {
+        ztoolkit.log("codex mcp server status list failed", String(error));
+      });
   }
 
   private completeActiveTurn(params: JsonValue | undefined): void {
@@ -571,4 +622,24 @@ function formatServerError(params: JsonValue | undefined): string {
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function summarizeJsonForLog(
+  value: JsonValue | undefined,
+): JsonValue | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const text = JSON.stringify(value);
+  if (text.length <= 4000) {
+    return value;
+  }
+  return `${text.slice(0, 4000)}...`;
+}
+
+function includesText(value: JsonValue | undefined, needle: string): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  return JSON.stringify(value).includes(needle);
 }

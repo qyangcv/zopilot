@@ -16,6 +16,7 @@ function buildPaperQuestionPrompt(
   return [
     "You are answering a question from Zotero Copilot about the currently open Zotero paper.",
     "Use the Zotero context below when it is relevant. If the context is missing or insufficient, say so explicitly instead of inventing paper-specific facts.",
+    "When paper-specific content beyond the metadata, abstract, selected text, and full-text status is needed, call the Zotero MCP tool `paper_read`. Treat `paper_read` results as evidence, not as final answers.",
     "Answer in the same language as the user's question unless the user asks otherwise.",
     "",
     "Current Zotero paper:",

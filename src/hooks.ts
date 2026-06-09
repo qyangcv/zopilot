@@ -7,6 +7,7 @@ import {
   unregisterSidebar,
 } from "./modules/sidebar";
 import { shutdownCodexBridge } from "./codex/bridge";
+import { shutdownMcpHttpServer, startMcpHttpServer } from "./mcp/httpServer";
 import { createZToolkit } from "./utils/ztoolkit";
 
 async function onStartup() {
@@ -24,6 +25,10 @@ async function onStartup() {
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
   );
+
+  await startMcpHttpServer().catch((error) => {
+    ztoolkit.log("failed to start zotero copilot mcp server", String(error));
+  });
 
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)
@@ -54,6 +59,7 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 
 function onShutdown(): void {
   unregisterAllSidebars();
+  shutdownMcpHttpServer();
   void shutdownCodexBridge();
   ztoolkit.unregisterAll();
   // Remove addon object
