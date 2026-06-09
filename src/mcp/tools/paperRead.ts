@@ -1,39 +1,25 @@
+import {
+  ActivePaperRetrievalService,
+  type PaperReadEvidenceOutput,
+} from "../activePaperRetrievalService";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
-import type { PaperScope } from "../../zotero/types";
+import type { PaperScope, PaperTextResult } from "../../zotero/types";
 import type { JsonValue } from "../../codex/types";
-import type { JsonObject, McpTool, McpToolCallResult } from "../protocol";
+import type { McpTool, McpToolCallResult } from "../protocol";
 import { isJsonObject } from "../protocol";
 
 export { createPaperReadTool };
-export type { PaperReadSkeletonOutput };
+export type { PaperReadEvidenceOutput };
 
 type PaperReadInput = {
   question?: string;
-  maxChars?: number;
-};
-
-type PaperReadSkeletonOutput = {
-  status: "active_reader" | "no_active_reader" | "error";
-  paper: {
-    attachmentItemID: number;
-    parentItemID?: number;
-    libraryID: number;
-    readerType?: string;
-  } | null;
-  request: {
-    question?: string;
-    maxChars?: number;
-  };
-  warnings: string[];
 };
 
 type PaperReadToolOptions = {
   resolveActivePaper?: () => Promise<PaperScope | null>;
+  readPaperText?: (scope: PaperScope) => Promise<PaperTextResult>;
   logger?: (message: string, details?: JsonValue) => void;
 };
-
-const DEFAULT_MAX_CHARS = 20000;
-const HARD_MAX_CHARS = 50000;
 
 function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
   return {
@@ -41,21 +27,15 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
       name: "paper_read",
       title: "Read current Zotero paper",
       description:
-        "Read-only skeleton for the currently active Zotero PDF reader paper. Step 5.1 returns scope/status only; full text is wired in Step 5.2.",
+        "Read Zotero full-text evidence snippets for the currently active PDF reader paper. Returns evidence and provenance, not a final answer.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
           question: {
             type: "string",
-            description: "The paper-specific reading question or intent.",
-          },
-          maxChars: {
-            type: "integer",
-            minimum: 1,
-            maximum: HARD_MAX_CHARS,
             description:
-              "Requested text budget. Accepted in 5.1 for compatibility; full text is not returned until 5.2.",
+              "The user's paper-specific reading question or intent. Used for lexical evidence retrieval.",
           },
         },
       },
@@ -71,15 +51,17 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
       const parsedInput = parsePaperReadInput(input);
       options.logger?.("mcp.tool.paper_read.start", {
         hasQuestion: Boolean(parsedInput.question),
-        maxChars: parsedInput.maxChars || null,
       });
 
       try {
         const scope = await resolveActivePaper(options);
-        const output = createSkeletonOutput(scope, parsedInput);
+        const output = await new ActivePaperRetrievalService({
+          readPaperText: (paperScope) => readPaperText(options, paperScope),
+        }).read(scope, parsedInput);
         options.logger?.("mcp.tool.paper_read.finish", {
           status: output.status,
           hasPaper: Boolean(output.paper),
+          snippetCount: output.snippets.length,
           durationMs: Date.now() - startedAt,
         });
         return {
@@ -90,24 +72,27 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
             },
           ],
           structuredContent: output as unknown as JsonValue,
-          isError: !scope,
+          isError:
+            output.status === "no_active_reader" ||
+            output.status === "no_text" ||
+            output.status === "error",
           _meta: {
-            "zoteroCopilot.mcp.step": "5.1",
+            "zoteroCopilot.mcp.step": "5.2",
             "zoteroCopilot.mcp.durationMs": Date.now() - startedAt,
           },
         };
       } catch (error) {
-        const message = `paper_read failed before reading paper scope: ${String(
-          error,
-        )}`;
+        const message = `paper_read failed while reading paper evidence: ${String(error)}`;
         options.logger?.("mcp.tool.paper_read.error", {
           error: message,
           durationMs: Date.now() - startedAt,
         });
-        const output: PaperReadSkeletonOutput = {
+        const output: PaperReadEvidenceOutput = {
           status: "error",
           paper: null,
           request: parsedInput,
+          text: null,
+          snippets: [],
           warnings: [message],
         };
         return {
@@ -115,7 +100,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           structuredContent: output as unknown as JsonValue,
           isError: true,
           _meta: {
-            "zoteroCopilot.mcp.step": "5.1",
+            "zoteroCopilot.mcp.step": "5.2",
             "zoteroCopilot.mcp.durationMs": Date.now() - startedAt,
           },
         };
@@ -126,15 +111,13 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
 
 function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
   if (input === undefined || input === null) {
-    return {
-      maxChars: DEFAULT_MAX_CHARS,
-    };
+    return {};
   }
   if (!isJsonObject(input)) {
     throw new Error("paper_read input must be an object.");
   }
 
-  const allowed = new Set(["question", "maxChars"]);
+  const allowed = new Set(["question"]);
   for (const key of Object.keys(input)) {
     if (!allowed.has(key)) {
       throw new Error(`paper_read input contains unsupported field: ${key}`);
@@ -145,24 +128,8 @@ function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
   if (question !== undefined && typeof question !== "string") {
     throw new Error("paper_read.question must be a string.");
   }
-
-  const rawMaxChars = input.maxChars;
-  if (rawMaxChars !== undefined) {
-    if (
-      typeof rawMaxChars !== "number" ||
-      !Number.isInteger(rawMaxChars) ||
-      rawMaxChars < 1 ||
-      rawMaxChars > HARD_MAX_CHARS
-    ) {
-      throw new Error(
-        `paper_read.maxChars must be an integer between 1 and ${HARD_MAX_CHARS}.`,
-      );
-    }
-  }
-
   return {
     question,
-    maxChars: typeof rawMaxChars === "number" ? rawMaxChars : DEFAULT_MAX_CHARS,
   };
 }
 
@@ -176,6 +143,17 @@ async function resolveActivePaper(
   return new ZoteroContextGateway(win).getActivePaper();
 }
 
+async function readPaperText(
+  options: PaperReadToolOptions,
+  scope: PaperScope,
+): Promise<PaperTextResult> {
+  if (options.readPaperText) {
+    return options.readPaperText(scope);
+  }
+  const win = getBestZoteroWindow();
+  return new ZoteroContextGateway(win).getAttachmentFullTextForTool(scope);
+}
+
 function getBestZoteroWindow(): Window {
   const windows = Zotero.getMainWindows?.();
   const firstWindow = windows?.[0];
@@ -185,52 +163,32 @@ function getBestZoteroWindow(): Window {
   return globalThis as unknown as Window;
 }
 
-function createSkeletonOutput(
-  scope: PaperScope | null,
-  request: PaperReadInput,
-): PaperReadSkeletonOutput {
-  if (!scope) {
-    return {
-      status: "no_active_reader",
-      paper: null,
-      request,
-      warnings: [
-        "No active Zotero PDF reader paper was detected. Open a PDF reader tab before calling paper_read.",
-      ],
-    };
-  }
-
-  return {
-    status: "active_reader",
-    paper: {
-      attachmentItemID: scope.attachmentItemID,
-      parentItemID: scope.parentItemID,
-      libraryID: scope.libraryID,
-      readerType: scope.readerType,
-    },
-    request,
-    warnings: [...scope.warnings],
-  };
-}
-
-function formatPaperReadSummary(output: PaperReadSkeletonOutput): string {
+function formatPaperReadSummary(output: PaperReadEvidenceOutput): string {
   if (!output.paper) {
     return output.warnings.join("\n");
   }
-  const details: JsonObject = {
-    status: output.status,
-    attachmentItemID: output.paper.attachmentItemID,
-    libraryID: output.paper.libraryID,
-  };
-  if (output.paper.parentItemID) {
-    details.parentItemID = output.paper.parentItemID;
+  const lines = [
+    `paper_read returned ${output.snippets.length} Zotero full-text snippet(s).`,
+    `Current paper scope: ${JSON.stringify(output.paper)}`,
+  ];
+
+  if (output.text) {
+    lines.push(
+      `Full-text status: ${output.text.status}; length: ${output.text.length}`,
+    );
   }
-  if (output.paper.readerType) {
-    details.readerType = output.paper.readerType;
+  if (output.warnings.length) {
+    lines.push(
+      "Warnings:",
+      ...output.warnings.map((warning) => `- ${warning}`),
+    );
   }
-  return [
-    "paper_read Step 5.1 skeleton is reachable.",
-    `Current paper scope: ${JSON.stringify(details)}`,
-    "Full text retrieval is not wired until Step 5.2.",
-  ].join("\n");
+  output.snippets.forEach((snippet, index) => {
+    lines.push(
+      "",
+      `[snippet ${index + 1}; chunk ${snippet.locator.chunkIndex}; chars ${snippet.locator.charStart}-${snippet.locator.charEnd}; score ${snippet.score}]`,
+      snippet.text,
+    );
+  });
+  return lines.join("\n");
 }

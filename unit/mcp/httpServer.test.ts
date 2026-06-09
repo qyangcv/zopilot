@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import type { JsonValue } from "../../src/codex/types.ts";
-import type { PaperScope } from "../../src/zotero/types.ts";
+import type { PaperScope, PaperTextResult } from "../../src/zotero/types.ts";
 import { createMcpHttpHandler } from "../../src/mcp/httpServer.ts";
 import { McpToolRegistry } from "../../src/mcp/toolRegistry.ts";
 import { createPaperReadTool } from "../../src/mcp/tools/paperRead.ts";
@@ -40,8 +40,7 @@ describe("MCP HTTP handler", function () {
       params: {
         name: "paper_read",
         arguments: {
-          question: "smoke",
-          maxChars: 1,
+          question: "smoke method",
         },
       },
     });
@@ -53,6 +52,7 @@ describe("MCP HTTP handler", function () {
       ["paper_read"],
     );
     assert.equal(readResult(call).structuredContent.status, "active_reader");
+    assert.lengthOf(readResult(call).structuredContent.snippets, 1);
     assert.isFalse(readResult(call).isError);
   });
 
@@ -108,6 +108,7 @@ function createRegistry(scope: PaperScope | null): McpToolRegistry {
   registry.register(
     createPaperReadTool({
       resolveActivePaper: async () => scope,
+      readPaperText: async () => createTextResult("A smoke method snippet."),
     }),
   );
   return registry;
@@ -131,4 +132,15 @@ async function post(
 
 function readResult(response: { body?: string }): any {
   return JSON.parse(response.body || "{}").result;
+}
+
+function createTextResult(text: string): PaperTextResult {
+  return {
+    status: "indexed",
+    text,
+    preview: text,
+    length: text.length,
+    indexedState: 1,
+    warnings: [],
+  };
 }
