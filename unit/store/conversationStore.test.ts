@@ -70,6 +70,47 @@ describe("ConversationStore", function () {
     assert.lengthOf(reloadedB?.messages || [], 0);
     assert.notStrictEqual(reloadedA?.metadata.id, reloadedB?.metadata.id);
   });
+
+  it("lists, activates, and archives sessions within one paper", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const otherPaper = createPaper("1:BBB", "BBB", "Paper B");
+    const store = new ConversationStore(rootDir);
+
+    let first = await store.createPaperConversation(paper);
+    first = await store.addMessage(first.metadata, {
+      role: "user",
+      text: "First session question",
+    });
+    await waitForTimestampTick();
+    const second = await store.createPaperConversation(paper);
+    const other = await store.createPaperConversation(otherPaper);
+
+    let paperSessions = await store.listPaperConversations(paper.paperKey);
+    assert.deepEqual(
+      paperSessions.map((conversation) => conversation.metadata.id),
+      [second.metadata.id, first.metadata.id],
+    );
+    assert.strictEqual(first.metadata.label, "First session question");
+
+    await waitForTimestampTick();
+    const activated = await store.activatePaperConversation(first.metadata);
+    const latest = await store.getLatestPaperConversation(paper.paperKey);
+    assert.strictEqual(latest?.metadata.id, activated.metadata.id);
+
+    await store.archivePaperConversation(activated.metadata);
+    paperSessions = await store.listPaperConversations(paper.paperKey);
+    assert.deepEqual(
+      paperSessions.map((conversation) => conversation.metadata.id),
+      [second.metadata.id],
+    );
+    const otherSessions = await store.listPaperConversations(
+      otherPaper.paperKey,
+    );
+    assert.deepEqual(
+      otherSessions.map((conversation) => conversation.metadata.id),
+      [other.metadata.id],
+    );
+  });
 });
 
 function createPaper(
@@ -86,6 +127,10 @@ function createPaper(
     attachmentKey: `${parentItemKey}-pdf`,
     title,
   };
+}
+
+async function waitForTimestampTick(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 2));
 }
 
 function installFileMocks(): void {

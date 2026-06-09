@@ -127,6 +127,7 @@
 
 .zcp-sidebar-identity {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -161,13 +162,20 @@
 
 .zcp-sidebar-selected-title {
   margin-top: 2px;
-  max-width: 260px;
+  max-width: 220px;
   overflow: hidden;
   color: var(--zcp-muted);
   font-size: 11px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zcp-sidebar-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
 }
 
 .zcp-icon-button,
@@ -196,6 +204,118 @@
 .zcp-icon-button:hover,
 .zcp-context-add:hover {
   background: var(--zcp-panel-strong);
+}
+
+.zcp-icon-button:disabled {
+  opacity: 0.45;
+}
+
+.zcp-history-button::before {
+  display: block;
+  width: 14px;
+  height: 2px;
+  background: currentColor;
+  box-shadow:
+    0 5px 0 currentColor,
+    0 10px 0 currentColor;
+  content: "";
+}
+
+.zcp-session-popover {
+  position: absolute;
+  z-index: 4;
+  inset-block-start: 46px;
+  inset-inline: 10px;
+  max-height: min(360px, 58vh);
+  overflow: auto;
+  border: 1px solid var(--zcp-border);
+  border-radius: 8px;
+  background: Canvas;
+  box-shadow: 0 8px 22px color-mix(in srgb, CanvasText 18%, transparent);
+}
+
+.zcp-session-popover[hidden] {
+  display: none;
+}
+
+.zcp-session-popover-header {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--zcp-subtle-border);
+  color: var(--zcp-muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.zcp-session-empty {
+  padding: 12px 10px;
+  color: var(--zcp-muted);
+}
+
+.zcp-session-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.zcp-session-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.zcp-session-row[data-active] {
+  background: var(--zcp-panel);
+}
+
+.zcp-session-select,
+.zcp-session-archive {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+}
+
+.zcp-session-select {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 7px 8px;
+  text-align: start;
+}
+
+.zcp-session-select:hover,
+.zcp-session-archive:hover {
+  background: var(--zcp-panel-strong);
+}
+
+.zcp-session-label,
+.zcp-session-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zcp-session-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.zcp-session-meta {
+  margin-top: 2px;
+  color: var(--zcp-muted);
+  font-size: 11px;
+}
+
+.zcp-session-archive {
+  flex: 0 0 28px;
+  width: 28px;
+  color: var(--zcp-muted);
+  font-size: 14px;
 }
 
 .zcp-chat-log {

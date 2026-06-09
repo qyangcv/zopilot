@@ -4,7 +4,7 @@ Last updated: 2026-06-09
 
 ## Current status
 
-Step 6.1 paper chat 持久化主路径已实现。Step 6.2 多 session UI 未实现。
+Step 6.1 paper chat 持久化主路径已实现。Step 6.2 多 session UI 已实现。
 
 Step 6.1 当前完成的闭环：
 
@@ -157,14 +157,15 @@ unit/store/conversationStore.test.ts
 
 ## Step 6.2 next
 
-下一步是多 session UI，不再重新设计持久化底座。
+Step 6.2 已按最小实现完成，多 session UI 没有重新设计持久化底座。
 
-建议最小实现：
+当前实现：
 
 1. 给 `ConversationStore` 增加 `listPaperConversations(paperKey)`、`createPaperConversation(paper)` 的 public API。
 2. sidebar header 增加 `[history]` 和 `[+]`。
 3. `history` popover 只列当前 `paperKey` 下的 sessions。
 4. `+` 创建新 conversation 并切换。
 5. 归档/删除只改 metadata 的 `archived`。
+6. 点击 session 时更新 `updatedAt`，复用现有“最近 conversation”恢复规则。
 
 不要在 Step 6.2 引入 global/library chat、MCP history tool、Zotero notes sync 或复杂 index。

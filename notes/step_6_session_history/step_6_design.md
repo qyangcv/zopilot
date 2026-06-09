@@ -1,6 +1,6 @@
 # Step 6 session history design
 
-Step 6 的目标是把 Zotero Copilot 从“当前 DOM 上的一次性聊天”推进到 paper-scoped durable conversation。当前已完成 Step 6.1；Step 6.2 多 session UI 仍待做。
+Step 6 的目标是把 Zotero Copilot 从“当前 DOM 上的一次性聊天”推进到 paper-scoped durable conversation。当前已完成 Step 6.1 paper chat persistence 和 Step 6.2 多 session UI。
 
 ## 当前结论
 
@@ -121,7 +121,7 @@ v1 没有单独维护 `index.json`。`ConversationStore` 直接扫描当前 `pap
 - assistant 完成或出错后保存 assistant message，再重新从 store state 渲染。
 - tab/focus 切换时重新解析当前 reader；Codex 正在回答时不切换 conversation，避免覆盖当前 turn。
 
-## Step 6.2 待实现设计
+## Step 6.2 已实现设计
 
 Step 6.2 在当前持久化基础上增加同一 paper 的多 session UI。
 
@@ -141,6 +141,8 @@ Step 6.2 在当前持久化基础上增加同一 paper 的多 session UI。
 - 点击 session 切换 active conversation，并重新渲染历史。
 - 删除/归档只影响当前 `paperKey` 下的 session。
 - 重新打开 paper 时默认恢复最近 active session。
+
+当前实现保持 Step 6.1 的 KISS 存储策略，不新增 `index.json`。`ConversationStore` 扫描当前 `paperKey` 目录，按未归档 conversation 的 `updatedAt` 排序。点击 session 时会更新该 conversation 的 `updatedAt`，从而复用 Step 6.1 的“最近 conversation”恢复规则。
 
 ## 当前不做
 
@@ -174,4 +176,4 @@ addon/locale/zh-CN/addon.ftl
 typings/i10n.d.ts
 ```
 
-没有新增 `PaperSessionManager`、`conversationPaths.ts`、`conversationIndex.ts`、`threadSession.ts` 或 `conversationController.ts`。当前实现刻意保持 KISS，等 Step 6.2 真的需要拆分时再抽模块。
+没有新增 `PaperSessionManager`、`conversationPaths.ts`、`conversationIndex.ts`、`threadSession.ts` 或 `conversationController.ts`。当前实现刻意保持 KISS，等后续 session 数量、列表性能或交互复杂度真的需要时再抽模块。

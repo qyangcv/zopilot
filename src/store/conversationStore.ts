@@ -46,6 +46,57 @@ class ConversationStore {
     };
   }
 
+  async listPaperConversations(paperKey: string): Promise<Conversation[]> {
+    const metadata = await this.listPaperMetadata(paperKey);
+    const activeMetadata = metadata
+      .filter((item) => !item.archived)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return Promise.all(
+      activeMetadata.map(async (item) => ({
+        metadata: item,
+        messages: await this.readMessages(item),
+      })),
+    );
+  }
+
+  async createPaperConversation(paper: PaperIdentity): Promise<Conversation> {
+    const createdAt = new Date().toISOString();
+    const metadata: ConversationMetadata = {
+      ...paper,
+      id: createId("conv"),
+      scope: "paper",
+      label: defaultConversationLabel(createdAt),
+      createdAt,
+      updatedAt: createdAt,
+    };
+    await this.writeConversation(metadata, []);
+    return { metadata, messages: [] };
+  }
+
+  async activatePaperConversation(
+    metadata: ConversationMetadata,
+  ): Promise<Conversation> {
+    const nextMetadata = {
+      ...metadata,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeMetadata(nextMetadata);
+    return {
+      metadata: nextMetadata,
+      messages: await this.readMessages(nextMetadata),
+    };
+  }
+
+  async archivePaperConversation(
+    metadata: ConversationMetadata,
+  ): Promise<void> {
+    await this.writeMetadata({
+      ...metadata,
+      archived: true,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   async addMessage(
     metadata: ConversationMetadata,
     input: {
@@ -98,22 +149,6 @@ class ConversationStore {
     };
     await this.writeMetadata(nextMetadata);
     return nextMetadata;
-  }
-
-  private async createPaperConversation(
-    paper: PaperIdentity,
-  ): Promise<Conversation> {
-    const createdAt = new Date().toISOString();
-    const metadata: ConversationMetadata = {
-      ...paper,
-      id: createId("conv"),
-      scope: "paper",
-      label: defaultConversationLabel(createdAt),
-      createdAt,
-      updatedAt: createdAt,
-    };
-    await this.writeConversation(metadata, []);
-    return { metadata, messages: [] };
   }
 
   private refreshPaperSnapshot(

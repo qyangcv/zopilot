@@ -2,7 +2,7 @@ import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
 import { getCodexBridge } from "../../codex/bridge";
 import { buildPaperQuestionPrompt } from "../../codex/promptBuilder";
-import type { Conversation } from "../../shared/conversation";
+import type { Conversation, PaperIdentity } from "../../shared/conversation";
 import { createPaperIdentity } from "../../shared/conversation";
 import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
@@ -102,12 +102,16 @@ class SidebarController {
   private splitter?: HTMLElement;
   private shell?: XUL.Box;
   private selectedTitle?: HTMLElement;
+  private historyButton?: HTMLButtonElement;
+  private newSessionButton?: HTMLButtonElement;
+  private sessionPopover?: HTMLElement;
   private contextChipText?: HTMLElement;
   private chatLog?: HTMLElement;
   private composer?: HTMLFormElement;
   private textarea?: HTMLTextAreaElement;
   private sendButton?: HTMLButtonElement;
   private activeReader?: _ZoteroTypes.ReaderInstance;
+  private activePaper?: PaperIdentity;
   private activeConversation?: Conversation;
   private open = false;
   private busy = false;
@@ -131,6 +135,7 @@ class SidebarController {
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
+    this.bindSessionPopoverDismiss();
     this.refreshContext();
   }
 
@@ -160,6 +165,7 @@ class SidebarController {
       this.contextChipText.textContent = title;
       this.contextChipText.title = title;
     }
+    this.updateSessionControls();
   }
 
   private injectStylesheet(): void {
@@ -342,7 +348,9 @@ class SidebarController {
     }
     const paper = scope ? createPaperIdentity(scope) : null;
     if (!paper) {
+      this.activePaper = undefined;
       this.activeConversation = undefined;
+      this.hideSessionPopover();
       this.refreshContext(reader);
       this.renderUnavailable();
       return;
@@ -354,14 +362,18 @@ class SidebarController {
       if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
         return;
       }
+      this.activePaper = paper;
       this.activeConversation = conversation;
+      this.hideSessionPopover();
       this.refreshContext(reader);
       this.renderConversation(conversation);
     } catch (error) {
       if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
         return;
       }
+      this.activePaper = undefined;
       this.activeConversation = undefined;
+      this.hideSessionPopover();
       this.refreshContext(reader);
       this.renderStatusMessage(formatCodexError(error));
       this.setComposerEnabled(false);
@@ -417,13 +429,48 @@ class SidebarController {
     titleBlock.append(title, selectedTitle);
     identity.append(icon, titleBlock);
 
+    const actions = this.html("div", "zcp-sidebar-actions");
+    const historyButton = this.html(
+      "button",
+      "zcp-icon-button zcp-history-button",
+    ) as HTMLButtonElement;
+    historyButton.setAttribute("type", "button");
+    historyButton.setAttribute("aria-label", getString("sidebar-history"));
+    historyButton.setAttribute("aria-haspopup", "true");
+    historyButton.setAttribute("aria-expanded", "false");
+    historyButton.title = getString("sidebar-history");
+    historyButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.toggleSessionPopover();
+    });
+
+    const newSessionButton = this.html(
+      "button",
+      "zcp-icon-button zcp-new-session-button",
+    ) as HTMLButtonElement;
+    newSessionButton.setAttribute("type", "button");
+    newSessionButton.setAttribute("aria-label", getString("sidebar-new-chat"));
+    newSessionButton.title = getString("sidebar-new-chat");
+    newSessionButton.textContent = "+";
+    newSessionButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.createNewSession();
+    });
+
     const closeButton = this.html("button", "zcp-icon-button");
     closeButton.setAttribute("type", "button");
     closeButton.setAttribute("aria-label", getString("sidebar-close"));
     closeButton.title = getString("sidebar-close");
     closeButton.textContent = "x";
     closeButton.addEventListener("click", () => this.setOpen(false));
-    header.append(identity, closeButton);
+    actions.append(historyButton, newSessionButton, closeButton);
+    header.append(identity, actions);
+
+    const sessionPopover = this.html("div", "zcp-session-popover");
+    sessionPopover.setAttribute("hidden", "");
+    sessionPopover.addEventListener("click", (event) =>
+      event.stopPropagation(),
+    );
 
     const chatLog = this.html("main", "zcp-chat-log");
     chatLog.setAttribute("role", "log");
@@ -434,11 +481,15 @@ class SidebarController {
 
     const composer = this.createComposer();
 
-    aside.append(splitter, header, chatLog, composer);
+    aside.append(splitter, header, sessionPopover, chatLog, composer);
     this.splitter = splitter;
     this.selectedTitle = selectedTitle;
+    this.historyButton = historyButton;
+    this.newSessionButton = newSessionButton;
+    this.sessionPopover = sessionPopover;
     this.chatLog = chatLog;
     this.composer = composer;
+    this.updateSessionControls();
     return aside;
   }
 
@@ -597,6 +648,170 @@ class SidebarController {
     this.sendButton = sendButton;
     this.updateComposerDisabledState();
     return form;
+  }
+
+  private async toggleSessionPopover(): Promise<void> {
+    if (
+      !this.sessionPopover ||
+      !this.activePaper ||
+      this.busy ||
+      !this.composerEnabled
+    ) {
+      return;
+    }
+    if (!this.sessionPopover.hasAttribute("hidden")) {
+      this.hideSessionPopover();
+      return;
+    }
+    await this.showSessionPopover();
+  }
+
+  private async showSessionPopover(): Promise<void> {
+    if (!this.sessionPopover || !this.activePaper) {
+      return;
+    }
+    const paperKey = this.activePaper.paperKey;
+    const conversations =
+      await getConversationStore().listPaperConversations(paperKey);
+    if (
+      this.destroyed ||
+      !this.open ||
+      !this.sessionPopover ||
+      this.activePaper?.paperKey !== paperKey
+    ) {
+      return;
+    }
+    this.renderSessionPopover(conversations);
+  }
+
+  private hideSessionPopover(): void {
+    this.sessionPopover?.setAttribute("hidden", "");
+    this.historyButton?.setAttribute("aria-expanded", "false");
+  }
+
+  private renderSessionPopover(conversations: Conversation[]): void {
+    const popover = this.sessionPopover;
+    if (!popover) {
+      return;
+    }
+
+    popover.replaceChildren();
+    const header = this.html("div", "zcp-session-popover-header");
+    header.textContent = getString("sidebar-history");
+    popover.appendChild(header);
+
+    if (!conversations.length) {
+      const empty = this.html("div", "zcp-session-empty");
+      empty.textContent = getString("sidebar-no-sessions");
+      popover.appendChild(empty);
+    } else {
+      const list = this.html("div", "zcp-session-list");
+      for (const conversation of conversations) {
+        list.appendChild(this.createSessionRow(conversation));
+      }
+      popover.appendChild(list);
+    }
+
+    popover.removeAttribute("hidden");
+    this.historyButton?.setAttribute("aria-expanded", "true");
+  }
+
+  private createSessionRow(conversation: Conversation): HTMLElement {
+    const row = this.html("div", "zcp-session-row");
+    row.toggleAttribute(
+      "data-active",
+      this.activeConversation?.metadata.id === conversation.metadata.id,
+    );
+
+    const content = this.html("button", "zcp-session-select");
+    content.setAttribute("type", "button");
+    content.addEventListener("click", () => {
+      void this.switchSession(conversation);
+    });
+
+    const label = this.html("span", "zcp-session-label");
+    label.textContent = getSessionTitle(conversation);
+    label.title = label.textContent;
+    const meta = this.html("span", "zcp-session-meta");
+    meta.textContent = formatSessionMeta(conversation);
+    content.append(label, meta);
+
+    const archive = this.html("button", "zcp-session-archive");
+    archive.setAttribute("type", "button");
+    archive.setAttribute("aria-label", getString("sidebar-delete-session"));
+    archive.title = getString("sidebar-delete-session");
+    archive.textContent = "x";
+    archive.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.archiveSession(conversation);
+    });
+
+    row.append(content, archive);
+    return row;
+  }
+
+  private async createNewSession(): Promise<void> {
+    if (!this.activePaper || this.busy) {
+      return;
+    }
+    const conversation = await getConversationStore().createPaperConversation(
+      this.activePaper,
+    );
+    this.activeConversation = conversation;
+    this.hideSessionPopover();
+    this.refreshContext();
+    this.renderConversation(conversation);
+    this.textarea?.focus();
+  }
+
+  private async switchSession(conversation: Conversation): Promise<void> {
+    if (!this.activePaper || this.busy) {
+      return;
+    }
+    const active = await getConversationStore().activatePaperConversation(
+      conversation.metadata,
+    );
+    if (
+      this.destroyed ||
+      !this.open ||
+      this.activePaper.paperKey !== active.metadata.paperKey
+    ) {
+      return;
+    }
+    this.activeConversation = active;
+    this.hideSessionPopover();
+    this.refreshContext();
+    this.renderConversation(active);
+    this.textarea?.focus();
+  }
+
+  private async archiveSession(conversation: Conversation): Promise<void> {
+    if (!this.activePaper || this.busy) {
+      return;
+    }
+    const paper = this.activePaper;
+    await getConversationStore().archivePaperConversation(
+      conversation.metadata,
+    );
+    if (
+      this.destroyed ||
+      !this.open ||
+      this.activePaper?.paperKey !== paper.paperKey
+    ) {
+      return;
+    }
+
+    if (this.activeConversation?.metadata.id === conversation.metadata.id) {
+      const next =
+        (await getConversationStore().getLatestPaperConversation(
+          paper.paperKey,
+        )) || (await getConversationStore().createPaperConversation(paper));
+      this.activeConversation = next;
+      this.refreshContext();
+      this.renderConversation(next);
+    }
+
+    await this.showSessionPopover();
   }
 
   private createComposerPill(text: string): HTMLElement {
@@ -797,6 +1012,7 @@ class SidebarController {
     this.busy = busy;
     this.composer?.toggleAttribute("aria-busy", busy);
     this.updateComposerDisabledState();
+    this.updateSessionControls();
     if (this.sendButton) {
       this.sendButton.textContent = busy ? "..." : "↑";
     }
@@ -811,6 +1027,19 @@ class SidebarController {
     const disabled = this.busy || !this.composerEnabled;
     this.textarea?.toggleAttribute("disabled", disabled);
     this.sendButton?.toggleAttribute("disabled", disabled);
+  }
+
+  private updateSessionControls(): void {
+    const disabled = this.busy || !this.activePaper;
+    if (this.historyButton) {
+      this.historyButton.disabled = disabled;
+    }
+    if (this.newSessionButton) {
+      this.newSessionButton.disabled = disabled;
+    }
+    if (disabled) {
+      this.hideSessionPopover();
+    }
   }
 
   private scrollToBottom(): void {
@@ -851,7 +1080,9 @@ class SidebarController {
       this.attachPanel();
     } else {
       this.activeReader = undefined;
+      this.activePaper = undefined;
       this.activeConversation = undefined;
+      this.hideSessionPopover();
       this.setComposerEnabled(false);
       this.detachPanel();
     }
@@ -975,6 +1206,25 @@ class SidebarController {
     }
   }
 
+  private bindSessionPopoverDismiss(): void {
+    const dismiss = (event: Event) => {
+      const target = event.target as Node | null;
+      if (!target) {
+        this.hideSessionPopover();
+        return;
+      }
+      if (
+        this.sessionPopover?.contains(target) ||
+        this.historyButton?.contains(target)
+      ) {
+        return;
+      }
+      this.hideSessionPopover();
+    };
+    this.doc.addEventListener("click", dismiss);
+    this.listeners.push(() => this.doc.removeEventListener("click", dismiss));
+  }
+
   private getSelectedItemTitle(
     reader?: _ZoteroTypes.ReaderInstance,
     currentItem?: Zotero.Item,
@@ -1008,4 +1258,32 @@ function formatCodexError(error: unknown): string {
   return [getString("sidebar-codex-error"), "", "```", message, "```"].join(
     "\n",
   );
+}
+
+function getSessionTitle(conversation: Conversation): string {
+  const firstUserMessage = conversation.messages.find(
+    (message) => message.role === "user",
+  );
+  return truncateLabel(
+    firstUserMessage?.text ||
+      conversation.metadata.label ||
+      conversation.metadata.createdAt,
+    54,
+  );
+}
+
+function formatSessionMeta(conversation: Conversation): string {
+  const preview = conversation.metadata.latestPreview?.trim();
+  if (preview) {
+    return truncateLabel(preview, 72);
+  }
+  return new Date(conversation.metadata.createdAt).toLocaleString();
+}
+
+function truncateLabel(value: string, maxLength: number): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
 }
