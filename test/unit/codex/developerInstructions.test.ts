@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { buildCodexDeveloperInstructions } from "../../src/codex/developerInstructions.ts";
+import { buildCodexDeveloperInstructions } from "../../../src/codex/developerInstructions.ts";
 
 describe("buildCodexDeveloperInstructions", function () {
   it("keeps paper_read routing in developer instructions", function () {

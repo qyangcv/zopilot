@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { buildCodexAppServerArguments } from "../../src/codex/appServerConfig.ts";
+import { buildCodexAppServerArguments } from "../../../src/codex/appServerConfig.ts";
 
 describe("CodexBridge", function () {
   it("starts app-server with Zotero conflict isolation config", function () {

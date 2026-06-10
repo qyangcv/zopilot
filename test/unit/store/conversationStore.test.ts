@@ -11,8 +11,8 @@ import {
 import { existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { ConversationStore } from "../../src/store/conversationStore.ts";
-import type { PaperIdentity } from "../../src/shared/conversation.ts";
+import { ConversationStore } from "../../../src/store/conversationStore.ts";
+import type { PaperIdentity } from "../../../src/shared/conversation.ts";
 
 describe("ConversationStore", function () {
   let rootDir: string;

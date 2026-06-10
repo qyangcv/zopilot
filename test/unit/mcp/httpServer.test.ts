@@ -1,9 +1,9 @@
 import { assert } from "chai";
-import type { JsonValue } from "../../src/codex/types.ts";
-import type { PaperScope, PaperTextResult } from "../../src/zotero/types.ts";
-import { createMcpHttpHandler } from "../../src/mcp/httpServer.ts";
-import { McpToolRegistry } from "../../src/mcp/toolRegistry.ts";
-import { createPaperReadTool } from "../../src/mcp/tools/paperRead.ts";
+import type { JsonValue } from "../../../src/codex/types.ts";
+import type { PaperScope, PaperTextResult } from "../../../src/zotero/types.ts";
+import { createMcpHttpHandler } from "../../../src/mcp/httpServer.ts";
+import { McpToolRegistry } from "../../../src/mcp/toolRegistry.ts";
+import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
 
 const TOKEN = "test-token";
 

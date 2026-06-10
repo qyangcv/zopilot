@@ -1,11 +1,11 @@
 {
   "name": "zotero-copilot",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Zotero Copilot",
   "config": {
     "addonName": "Zotero Copilot",
-    "addonID": "zotero-copilot@yang.local",
+    "addonID": "zotero-copilot@qyangcv.github.io",
     "addonRef": "zotero-copilot",
     "addonInstance": "ZoteroCopilot",
     "prefsPrefix": "extensions.zotero.zotero-copilot"
@@ -27,7 +27,7 @@
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
-    "test:unit": "node --import ./test/register-ts-loader.mjs ./node_modules/mocha/bin/mocha \"unit/**/*.test.ts\"",
+    "test:unit": "node --import ./test/register-ts-loader.mjs ./node_modules/mocha/bin/mocha \"test/unit/**/*.test.ts\"",
     "update-deps": "npm update --save"
   },
   "dependencies": {

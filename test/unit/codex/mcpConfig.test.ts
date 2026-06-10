@@ -1,9 +1,9 @@
 import { assert } from "chai";
-import { buildCodexMcpServersConfig } from "../../src/codex/mcpConfig.ts";
+import { buildCodexMcpServersConfig } from "../../../src/codex/mcpConfig.ts";
 import {
   MCP_ENDPOINT_PATH,
   shutdownMcpHttpServer,
-} from "../../src/mcp/httpServer.ts";
+} from "../../../src/mcp/httpServer.ts";
 
 describe("Codex MCP config", function () {
   let originalFetch: typeof fetch;

@@ -1,7 +1,7 @@
 import { assert } from "chai";
-import type { PaperScope, PaperTextResult } from "../../src/zotero/types.ts";
-import { McpToolRegistry } from "../../src/mcp/toolRegistry.ts";
-import { createPaperReadTool } from "../../src/mcp/tools/paperRead.ts";
+import type { PaperScope, PaperTextResult } from "../../../src/zotero/types.ts";
+import { McpToolRegistry } from "../../../src/mcp/toolRegistry.ts";
+import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
 
 describe("McpToolRegistry", function () {
   it("lists only paper_read for Step 5.2", function () {
