@@ -2,7 +2,7 @@ import { config, version } from "../../package.json";
 import { buildCodexAppServerArguments } from "./appServerConfig";
 import { buildCodexDeveloperInstructions } from "./developerInstructions";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
-import { resolveCodexBinaryPath } from "./binaryPath";
+import { getUserHomeDirectory, resolveCodexBinaryPath } from "./binaryPath";
 import type {
   CodexAccountReadResult,
   CodexBridgeStatus,
@@ -126,7 +126,7 @@ class CodexBridge {
       arguments: buildCodexAppServerArguments(),
       environmentAppend: true,
       stderr: "pipe",
-      workdir: subprocess.getEnvironment().HOME,
+      workdir: getUserHomeDirectory(subprocess.getEnvironment()),
     });
 
     this.subprocess = subprocess;
@@ -657,7 +657,8 @@ class CodexBridge {
   }
 
   private getHomeCwd(): string | undefined {
-    return this.subprocess?.getEnvironment().HOME || undefined;
+    const environment = this.subprocess?.getEnvironment();
+    return environment ? getUserHomeDirectory(environment) : undefined;
   }
 
   private setTimer(callback: () => void, delay: number): number {

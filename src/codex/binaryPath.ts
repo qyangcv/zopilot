@@ -1,7 +1,9 @@
-import { getPref } from "../utils/prefs";
 import type { CodexSubprocessModule } from "./types";
+import { getPref } from "../utils/prefs";
 
-export { resolveCodexBinaryPath };
+export { getUserHomeDirectory, resolveCodexBinaryPath };
+
+type Environment = Record<string, string | undefined>;
 
 async function resolveCodexBinaryPath(
   subprocess: CodexSubprocessModule,
@@ -12,12 +14,26 @@ async function resolveCodexBinaryPath(
   }
 
   const environment = subprocess.getEnvironment();
-  const candidates = [
+  const home = getUserHomeDirectory(environment);
+  const candidates = uniqueCandidates([
     "codex",
-    joinPath(environment.HOME, ".local/bin/codex"),
+    "codex.cmd",
+    "codex.exe",
+    joinPath(home, ".local/bin/codex"),
+    joinPath(home, ".npm-global/bin/codex"),
+    joinPath(home, ".bun/bin/codex"),
+    joinPath(home, ".bun/bin/codex.cmd"),
+    joinPath(environment.APPDATA, "npm/codex.cmd"),
+    joinPath(environment.APPDATA, "npm/codex"),
+    joinPath(environment.LOCALAPPDATA, "pnpm/codex.cmd"),
+    joinPath(environment.LOCALAPPDATA, "pnpm/codex"),
+    joinPath(home, "AppData/Roaming/npm/codex.cmd"),
+    joinPath(home, "AppData/Roaming/npm/codex"),
+    joinPath(home, "AppData/Local/pnpm/codex.cmd"),
+    joinPath(home, "AppData/Local/pnpm/codex"),
     "/opt/homebrew/bin/codex",
     "/usr/local/bin/codex",
-  ];
+  ]);
 
   let lastError: unknown;
   for (const candidate of candidates) {
@@ -25,7 +41,7 @@ async function resolveCodexBinaryPath(
       continue;
     }
     try {
-      if (candidate.includes("/") && !(await IOUtils.exists(candidate))) {
+      if (isPathLike(candidate) && !(await IOUtils.exists(candidate))) {
         continue;
       }
       return await resolveCommand(subprocess, candidate);
@@ -37,7 +53,7 @@ async function resolveCodexBinaryPath(
   throw new Error(
     [
       "Unable to find the Codex CLI.",
-      "Set the codex.path preference to the full path from `command -v codex`.",
+      "Set the codex.path preference to the full path from `command -v codex`, `where codex`, or `where.exe codex`.",
       lastError instanceof Error ? lastError.message : "",
     ]
       .filter(Boolean)
@@ -49,14 +65,24 @@ async function resolveCommand(
   subprocess: CodexSubprocessModule,
   command: string,
 ): Promise<string> {
-  if (command.includes("/")) {
-    return expandHome(command, subprocess.getEnvironment().HOME);
+  if (isPathLike(command)) {
+    return expandHome(
+      command,
+      getUserHomeDirectory(subprocess.getEnvironment()),
+    );
   }
   return subprocess.pathSearch(command);
 }
 
+function getUserHomeDirectory(environment: Environment): string | undefined {
+  return environment.HOME || environment.USERPROFILE;
+}
+
 function expandHome(path: string, home?: string): string {
-  if (!path.startsWith("~/")) {
+  if (path === "~") {
+    return home || path;
+  }
+  if (!path.startsWith("~/") && !path.startsWith("~\\")) {
     return path;
   }
   if (!home) {
@@ -69,5 +95,22 @@ function joinPath(base: string | undefined, suffix: string): string | null {
   if (!base) {
     return null;
   }
-  return `${base.replace(/\/$/, "")}/${suffix.replace(/^\//, "")}`;
+  const separator = base.includes("\\") && !base.includes("/") ? "\\" : "/";
+  const normalizedSuffix =
+    separator === "\\" ? suffix.replace(/\//g, "\\") : suffix;
+  return `${base.replace(/[\\/]$/, "")}${separator}${normalizedSuffix.replace(
+    /^[\\/]/,
+    "",
+  )}`;
+}
+
+function isPathLike(command: string): boolean {
+  return /[\\/]/.test(command) || /^[A-Za-z]:/.test(command);
+}
+
+function uniqueCandidates(candidates: Array<string | null>): string[] {
+  return candidates.filter(
+    (candidate, index): candidate is string =>
+      Boolean(candidate) && candidates.indexOf(candidate) === index,
+  );
 }

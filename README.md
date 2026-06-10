@@ -4,6 +4,11 @@
 
 Zotero Copilot is a information-dense plugin that brings Codex into Zotero.
 
+## Requirements
+
+- Zotero 9.0.x
+- Codex CLI
+
 ## Gratitude
 
 Thanks to the following repos developing this project is possible:
