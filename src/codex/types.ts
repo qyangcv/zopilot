@@ -41,6 +41,7 @@ export type CodexSubprocessModule = {
     command: string;
     arguments?: string[];
     environmentAppend?: boolean;
+    stdout?: "ignore" | "pipe";
     stderr?: "ignore" | "stdout" | "pipe";
     workdir?: string;
   }): Promise<CodexSubprocessProcess>;

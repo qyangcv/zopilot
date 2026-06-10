@@ -4,9 +4,12 @@
 // @ts-nocheck
 export type FluentMessageId =
   | 'main-window-ready'
+  | 'pref-codex-cli-status'
+  | 'pref-codex-cli-status-logged-in'
   | 'pref-codex-path'
   | 'pref-codex-path-description'
   | 'pref-codex-timeout'
+  | 'pref-codex-timeout-unit'
   | 'pref-codex-title'
   | 'pref-help'
   | 'pref-status'
