@@ -1,3 +1,0 @@
-- markdown 渲染
-- model 输出时，可任意上下滑动
-- side window 交互：可选中、可复制粘贴、带时间戳
