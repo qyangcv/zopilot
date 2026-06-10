@@ -2,28 +2,39 @@
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
 </linkset>
 <html:style>
-  .zotero-copilot-pref-row { display: flex; align-items: center; gap: 12px;
-  margin-block: 2px; } .zotero-copilot-pref-row > label { min-width: 96px;
-  margin: 0; } .zotero-copilot-summary { margin: 0 0 12px; padding: 0; }
-  .zotero-copilot-pref-text { line-height: 1.2; margin-block: 0 6px; }
   .zotero-copilot-codex-section { margin: 0; padding: 0; }
   .zotero-copilot-codex-heading { margin: 0; } .zotero-copilot-section-title {
-  line-height: 1.2; margin-block: 0 10px; } .zotero-copilot-path-input { flex:
-  1; min-width: 320px; max-width: 720px; } .zotero-copilot-cli-status {
-  overflow-wrap: anywhere; } .zotero-copilot-cli-status-row { display: none; }
-  .zotero-copilot-timeout-input { width: 10em; } .zotero-copilot-timeout-unit {
-  margin-inline-start: 0; } .zotero-copilot-pref-control { margin-block: 0; }
+  line-height: 1.2; margin-block: 0 10px; } .zotero-copilot-pref-control {
+  margin-block: 0; } .zotero-copilot-pref-row { display: flex; align-items:
+  center; gap: 12px; margin-block: 4px; } .zotero-copilot-pref-label { width:
+  96px; min-width: 96px; margin: 0; } .zotero-copilot-path-input { box-sizing:
+  border-box; width: 360px; min-width: 360px; max-width: 360px; flex: 0 0 360px;
+  } .zotero-copilot-cli-test-button { white-space: nowrap; }
+  .zotero-copilot-cli-status { display: inline-flex; align-items: center; gap:
+  6px; min-width: 5em; overflow-wrap: anywhere; opacity: 0; transition: opacity
+  140ms ease; } .zotero-copilot-cli-status[data-status] { opacity: 1; }
+  .zotero-copilot-cli-status::before { content: ""; box-sizing: border-box;
+  display: inline-block; width: 14px; height: 14px; border: 2px solid
+  currentColor; border-radius: 50%; flex: 0 0 auto; }
+  .zotero-copilot-cli-status[data-status="checking"]::before {
+  border-block-start-color: transparent; animation: zotero-copilot-spin 800ms
+  linear infinite; } .zotero-copilot-cli-status[data-status="success"]::before {
+  border-width: 0 2px 2px 0; border-radius: 0; width: 7px; height: 12px;
+  transform: rotate(45deg); }
+  .zotero-copilot-cli-status[data-status="failed"]::before,
+  .zotero-copilot-cli-status[data-status="logged-out"]::before,
+  .zotero-copilot-cli-status[data-status="missing"]::before { border-color:
+  currentColor; } .zotero-copilot-timeout-input { box-sizing: border-box; width:
+  64px; min-width: 64px; max-width: 64px; flex: 0 0 64px; appearance: textfield;
+  -moz-appearance: textfield; }
+  .zotero-copilot-timeout-input::-webkit-inner-spin-button,
+  .zotero-copilot-timeout-input::-webkit-outer-spin-button { appearance: none;
+  margin: 0; } .zotero-copilot-timeout-unit { margin-inline-start: 0; }
   .zotero-copilot-pref-description { margin-block: 0 6px; margin-inline-start:
-  108px; line-height: 1.22; }
+  108px; line-height: 1.22; } .zotero-copilot-about { margin: 12px 0 0; padding:
+  0; } .zotero-copilot-pref-text { line-height: 1.2; margin-block: 0 6px; }
+  @keyframes zotero-copilot-spin { to { transform: rotate(360deg); } }
 </html:style>
-<groupbox class="zotero-copilot-summary">
-  <html:p class="zotero-copilot-pref-text" data-l10n-id="pref-status"></html:p>
-  <html:p
-    class="zotero-copilot-pref-text"
-    data-l10n-id="pref-help"
-    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
-  ></html:p>
-</groupbox>
 <groupbox class="zotero-copilot-codex-section">
   <label class="zotero-copilot-codex-heading"
     ><html:h2
@@ -31,25 +42,34 @@
       data-l10n-id="pref-codex-title"
     ></html:h2
   ></label>
-  <hbox
-    id="zotero-copilot-cli-status-row"
-    align="center"
-    class="zotero-copilot-pref-row zotero-copilot-cli-status-row"
-  >
-    <label data-l10n-id="pref-codex-cli-status"></label>
-    <html:span
-      id="zotero-copilot-cli-status-value"
-      class="zotero-copilot-cli-status"
-    ></html:span>
-  </hbox>
   <vbox class="zotero-copilot-pref-control">
     <hbox align="center" class="zotero-copilot-pref-row">
-      <label data-l10n-id="pref-codex-path"></label>
+      <html:label
+        class="zotero-copilot-pref-label"
+        data-l10n-id="pref-codex-path"
+      ></html:label>
       <html:input
+        id="zotero-copilot-codex-path-input"
         class="zotero-copilot-path-input"
         type="text"
         preference="extensions.zotero.zotero-copilot.codex.path"
+        style="
+          box-sizing: border-box;
+          width: 360px;
+          min-width: 360px;
+          max-width: 360px;
+          flex: 0 0 360px;
+        "
       />
+      <html:button
+        id="zotero-copilot-cli-test-button"
+        class="zotero-copilot-cli-test-button"
+        data-l10n-id="pref-codex-test"
+      ></html:button>
+      <html:span
+        id="zotero-copilot-cli-status-value"
+        class="zotero-copilot-cli-status"
+      ></html:span>
     </hbox>
     <html:p
       class="zotero-copilot-pref-description"
@@ -58,13 +78,25 @@
   </vbox>
   <vbox class="zotero-copilot-pref-control">
     <hbox align="center" class="zotero-copilot-pref-row">
-      <label data-l10n-id="pref-codex-timeout"></label>
+      <html:label
+        class="zotero-copilot-pref-label"
+        data-l10n-id="pref-codex-timeout"
+      ></html:label>
       <html:input
+        id="zotero-copilot-timeout-seconds"
         class="zotero-copilot-timeout-input"
         type="number"
-        min="1000"
-        step="1000"
-        preference="extensions.zotero.zotero-copilot.codex.timeoutMs"
+        min="1"
+        step="1"
+        style="
+          box-sizing: border-box;
+          width: 64px;
+          min-width: 64px;
+          max-width: 64px;
+          flex: 0 0 64px;
+          appearance: textfield;
+          -moz-appearance: textfield;
+        "
       />
       <html:span
         class="zotero-copilot-timeout-unit"
@@ -72,4 +104,11 @@
       ></html:span>
     </hbox>
   </vbox>
+</groupbox>
+<groupbox class="zotero-copilot-about">
+  <html:p
+    class="zotero-copilot-pref-text"
+    data-l10n-id="pref-help"
+    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
+  ></html:p>
 </groupbox>
