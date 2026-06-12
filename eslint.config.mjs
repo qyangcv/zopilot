@@ -5,7 +5,7 @@ import zotero from "@zotero-plugin/eslint-config";
 export default zotero({
   overrides: [
     {
-      files: ["**/*.ts"],
+      files: ["**/*.ts", "**/*.tsx"],
       rules: {
         // We disable this rule here because the template
         // contains some unused examples and variables

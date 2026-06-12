@@ -64,6 +64,8 @@
 }
 
 #zotero-copilot-sidebar-shell {
+  box-sizing: border-box;
+  flex: 0 0 auto;
   min-width: 300px;
   max-width: min(520px, 48vw);
   min-height: 0;
@@ -101,6 +103,13 @@
   color: CanvasText;
 }
 
+.zcp-react-root {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
 .zcp-sidebar *,
 .zcp-sidebar *::before,
 .zcp-sidebar *::after {
@@ -118,6 +127,16 @@
 }
 
 .zcp-sidebar-identity {
+  appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+  padding: 0;
+  text-align: start;
   display: flex;
   flex: 1 1 auto;
   align-items: center;
@@ -144,17 +163,27 @@
 }
 
 .zcp-sidebar-title-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
-.zcp-sidebar-title {
+.zcp-sidebar .zcp-sidebar-title {
+  display: block !important;
+  max-width: 100%;
+  overflow: hidden;
   font-weight: 600;
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.zcp-sidebar-selected-title {
+.zcp-sidebar .zcp-sidebar-selected-title {
+  display: block !important;
   margin-top: 2px;
-  max-width: 220px;
+  max-width: 100%;
   overflow: hidden;
   color: var(--zcp-muted);
   font-size: 11px;
@@ -172,7 +201,10 @@
 
 .zcp-icon-button,
 .zcp-context-add,
-.zcp-send-button {
+.zcp-send-button,
+.zcp-context-chip,
+.zcp-message-action,
+.zcp-inline-copy {
   appearance: none;
   -moz-appearance: none;
   display: inline-flex;
@@ -199,11 +231,18 @@
 }
 
 .zcp-icon-button:hover,
-.zcp-context-add:hover {
+.zcp-context-add:hover,
+.zcp-context-chip:hover,
+.zcp-message-action:hover,
+.zcp-inline-copy:hover {
   background: var(--zcp-panel-strong);
 }
 
-.zcp-icon-button:disabled {
+.zcp-icon-button:disabled,
+.zcp-context-add:disabled,
+.zcp-context-chip:disabled,
+.zcp-message-action:disabled,
+.zcp-send-button:disabled {
   opacity: 0.45;
 }
 
@@ -256,6 +295,109 @@
   transform: rotate(-45deg);
 }
 
+.zcp-copy-icon,
+.zcp-markdown-icon,
+.zcp-insert-icon,
+.zcp-retry-icon,
+.zcp-edit-icon,
+.zcp-resend-icon,
+.zcp-check-icon,
+.zcp-send-icon,
+.zcp-dots-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+  pointer-events: none;
+}
+
+.zcp-copy-icon {
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  box-shadow:
+    -3px 3px 0 -1px Canvas,
+    -3px 3px 0 0 currentColor;
+}
+
+.zcp-markdown-icon {
+  position: relative;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.zcp-markdown-icon::before {
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  content: "M";
+}
+
+.zcp-insert-icon {
+  background:
+    linear-gradient(currentColor, currentColor) 0 2px / 14px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 6px / 14px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 10px / 8px 1.5px no-repeat;
+}
+
+.zcp-retry-icon,
+.zcp-resend-icon {
+  border: 1.5px solid currentColor;
+  border-inline-start-color: transparent;
+  border-radius: 50%;
+}
+
+.zcp-edit-icon {
+  position: relative;
+}
+
+.zcp-edit-icon::before {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 1px;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  content: "";
+  transform: rotate(-35deg);
+}
+
+.zcp-check-icon {
+  position: relative;
+}
+
+.zcp-check-icon::before {
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 2px;
+  width: 9px;
+  height: 5px;
+  border-block-end: 2px solid currentColor;
+  border-inline-start: 2px solid currentColor;
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.zcp-send-icon {
+  background:
+    linear-gradient(currentColor, currentColor) center 2px / 2px 11px no-repeat,
+    linear-gradient(currentColor, currentColor) 3px 2px / 8px 2px no-repeat;
+  transform: rotate(45deg);
+}
+
+.zcp-dots-icon {
+  background:
+    radial-gradient(circle, currentColor 2px, transparent 2.5px) 1px center /
+      4px 4px no-repeat,
+    radial-gradient(circle, currentColor 2px, transparent 2.5px) center / 4px
+      4px no-repeat,
+    radial-gradient(circle, currentColor 2px, transparent 2.5px) 9px center /
+      4px 4px no-repeat;
+}
+
 .zcp-session-popover {
   position: absolute;
   z-index: 4;
@@ -274,6 +416,55 @@
 
 .zcp-session-popover[hidden] {
   display: none;
+}
+
+.zcp-context-popover {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: 46px;
+  inset-inline: 10px;
+  max-height: min(360px, 58vh);
+  overflow: auto;
+  border: 1px solid var(--zcp-border);
+  border-radius: 8px;
+  background-color: var(--zcp-popover);
+  color: CanvasText;
+  box-shadow: 0 8px 22px color-mix(in srgb, CanvasText 18%, transparent);
+  font: menu;
+  font-size: 12px;
+}
+
+.zcp-context-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px 6px 10px;
+  border-bottom: 1px solid var(--zcp-subtle-border);
+  color: var(--zcp-muted-strong);
+  font-weight: 600;
+}
+
+.zcp-context-details {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 9px 10px 11px;
+}
+
+.zcp-context-details div {
+  min-width: 0;
+}
+
+.zcp-context-details dt {
+  margin: 0 0 2px;
+  color: var(--zcp-muted);
+  font-size: 11px;
+}
+
+.zcp-context-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .zcp-session-popover-header {
@@ -383,6 +574,7 @@
   display: flex;
   gap: 8px;
   min-width: 0;
+  user-select: text;
 }
 
 .zcp-message-assistant {
@@ -394,6 +586,22 @@
   height: 17px;
   margin-top: 2px;
   color: var(--zcp-accent);
+}
+
+.zcp-message-stack,
+.zcp-message-user-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.zcp-message-stack {
+  max-width: 100%;
+}
+
+.zcp-message-user-stack {
+  align-items: flex-end;
+  max-width: min(82%, 420px);
 }
 
 .zcp-message-body {
@@ -461,6 +669,26 @@
   white-space: pre-wrap;
 }
 
+.zcp-code-block {
+  position: relative;
+  margin: 0 0 8px;
+}
+
+.zcp-code-block pre {
+  margin: 0;
+  padding-inline-end: 34px;
+}
+
+.zcp-inline-copy {
+  position: absolute;
+  inset-block-start: 5px;
+  inset-inline-end: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--zcp-muted-strong);
+}
+
 .zcp-message-body table {
   width: 100%;
   border-collapse: collapse;
@@ -485,12 +713,35 @@
 }
 
 .zcp-message-bubble {
-  max-width: min(82%, 420px);
+  max-width: 100%;
   overflow-wrap: anywhere;
   border-radius: 8px;
   background: var(--zcp-panel-strong);
   padding: 7px 9px;
   color: CanvasText;
+}
+
+.zcp-message-actions {
+  display: inline-flex;
+  gap: 1px;
+  margin-block-start: 3px;
+  color: var(--zcp-muted);
+  opacity: 0;
+}
+
+.zcp-message:focus-within .zcp-message-actions,
+.zcp-message:hover .zcp-message-actions {
+  opacity: 1;
+}
+
+.zcp-message-action {
+  width: 24px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.zcp-message-action[data-active] {
+  color: var(--zcp-accent);
 }
 
 .zcp-composer {
