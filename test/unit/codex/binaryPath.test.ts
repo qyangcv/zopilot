@@ -10,70 +10,52 @@ describe("Codex binary path resolution", function () {
 
   beforeEach(function () {
     existingPaths = new Set();
-    installPrefMock("");
     installIoMock((path) => existingPaths.has(path));
   });
 
   afterEach(function () {
-    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
     delete (globalThis as unknown as { IOUtils?: unknown }).IOUtils;
   });
 
-  it("searches common Windows npm shim locations when PATH is not enough", async function () {
-    const appData = "C:\\Users\\Ada\\AppData\\Roaming";
-    const codexPath = `${appData}\\npm\\codex.cmd`;
-    existingPaths.add(codexPath);
+  it("returns the Apple Silicon Homebrew Codex path when present", async function () {
+    existingPaths.add("/opt/homebrew/bin/codex");
 
-    const resolved = await resolveCodexBinaryPath(
-      createSubprocess({
-        environment: {
-          APPDATA: appData,
-          USERPROFILE: "C:\\Users\\Ada",
-        },
-        pathSearch: async () => {
-          throw new Error("not in PATH");
-        },
-      }),
-    );
+    const resolved = await resolveCodexBinaryPath(createSubprocess());
 
-    assert.equal(resolved, codexPath);
+    assert.equal(resolved, "/opt/homebrew/bin/codex");
   });
 
-  it("treats configured Windows absolute paths as executable paths", async function () {
-    const configuredPath = "C:\\Tools\\OpenAI\\codex.cmd";
-    installPrefMock(configuredPath);
+  it("falls back to the Intel Homebrew and npm global Codex path", async function () {
+    existingPaths.add("/usr/local/bin/codex");
 
-    const resolved = await resolveCodexBinaryPath(
-      createSubprocess({
-        environment: {
-          USERPROFILE: "C:\\Users\\Ada",
-        },
-        pathSearch: async () => {
-          throw new Error("pathSearch should not be called");
-        },
-      }),
-    );
+    const resolved = await resolveCodexBinaryPath(createSubprocess());
 
-    assert.equal(resolved, configuredPath);
+    assert.equal(resolved, "/usr/local/bin/codex");
   });
 
-  it("uses USERPROFILE as the user home when HOME is absent", function () {
+  it("throws when neither supported macOS default Codex path exists", async function () {
+    try {
+      await resolveCodexBinaryPath(createSubprocess());
+      assert.fail("Expected resolveCodexBinaryPath to throw");
+    } catch (error) {
+      assert.instanceOf(error, Error);
+      assert.match((error as Error).message, /Unable to find the Codex CLI/);
+    }
+  });
+
+  it("returns HOME as the user home directory", function () {
     assert.equal(
       getUserHomeDirectory({
-        USERPROFILE: "C:\\Users\\Ada",
+        HOME: "/Users/ada",
       }),
-      "C:\\Users\\Ada",
+      "/Users/ada",
     );
   });
-});
 
-function installPrefMock(value: string): void {
-  (globalThis as unknown as { Zotero: unknown }).Zotero = {
-    Prefs: {
-      get: () => value,
-    },
-  };
-}
+  it("returns undefined when HOME is absent", function () {
+    assert.isUndefined(getUserHomeDirectory({}));
+  });
+});
 
 function installIoMock(exists: (path: string) => boolean): void {
   (
@@ -83,15 +65,11 @@ function installIoMock(exists: (path: string) => boolean): void {
   };
 }
 
-function createSubprocess(options: {
-  environment: Record<string, string>;
-  pathSearch: (command: string) => Promise<string>;
-}): CodexSubprocessModule {
+function createSubprocess(): CodexSubprocessModule {
   return {
     call: async () => {
       throw new Error("call should not be used by this test");
     },
-    getEnvironment: () => options.environment,
-    pathSearch: options.pathSearch,
+    getEnvironment: () => ({}),
   };
 }

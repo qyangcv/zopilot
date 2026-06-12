@@ -1,29 +1,19 @@
-/* global ChromeUtils, IOUtils, Zotero, clearTimeout, document, setTimeout */
+/* global ChromeUtils, IOUtils, clearTimeout, document, setTimeout */
 
 (() => {
-  const PREFS_PREFIX = "extensions.zotero.zotero-copilot";
   const L10N_PREFIX = "__addonRef__";
   const COMMAND_TIMEOUT_MS = 5000;
   const MAX_INIT_ATTEMPTS = 20;
 
-  let pathInput;
-  let testButton;
   let statusValue;
-  let timeoutInput;
-  let testId = 0;
   let initAttempts = 0;
 
   init();
 
   function init() {
-    pathInput = document.querySelector(
-      'input[preference="extensions.zotero.zotero-copilot.codex.path"]',
-    );
-    testButton = document.getElementById("zotero-copilot-cli-test-button");
-    statusValue = document.getElementById("zotero-copilot-cli-status-value");
-    timeoutInput = document.getElementById("zotero-copilot-timeout-seconds");
+    statusValue = document.getElementById("zotero-copilot-codex-status-value");
 
-    if (!pathInput || !testButton || !statusValue || !timeoutInput) {
+    if (!statusValue) {
       initAttempts += 1;
       if (initAttempts <= MAX_INIT_ATTEMPTS) {
         setTimeout(init, 50);
@@ -31,122 +21,33 @@
       return;
     }
 
-    applyFixedControlSizes();
-    initTimeoutInput();
-    testButton.addEventListener("click", () => {
-      void testCodexCli();
-    });
-    pathInput.addEventListener("input", clearStatus);
-
-    void detectCodexPath();
+    setStatus("missing", "pref-codex-status-missing");
+    void detectCodexStatus();
   }
 
-  function applyFixedControlSizes() {
-    setFixedWidth(pathInput, 360);
-    setFixedWidth(timeoutInput, 64);
-    timeoutInput.style.setProperty("appearance", "textfield", "important");
-    timeoutInput.style.setProperty("-moz-appearance", "textfield", "important");
-  }
-
-  function setFixedWidth(element, width) {
-    const value = `${width}px`;
-    element.style.setProperty("box-sizing", "border-box", "important");
-    element.style.setProperty("width", value, "important");
-    element.style.setProperty("min-width", value, "important");
-    element.style.setProperty("max-width", value, "important");
-    element.style.setProperty("flex", `0 0 ${value}`, "important");
-  }
-
-  function initTimeoutInput() {
-    const timeoutMs = Number(
-      Zotero.Prefs.get(`${PREFS_PREFIX}.codex.timeoutMs`, true),
-    );
-    timeoutInput.value = String(Math.max(1, Math.round(timeoutMs / 1000)));
-    timeoutInput.addEventListener("change", saveTimeoutSeconds);
-    timeoutInput.addEventListener("input", saveTimeoutSeconds);
-  }
-
-  function saveTimeoutSeconds() {
-    const seconds = Math.max(1, Number(timeoutInput.value) || 1);
-    Zotero.Prefs.set(`${PREFS_PREFIX}.codex.timeoutMs`, seconds * 1000, true);
-  }
-
-  async function detectCodexPath() {
-    const currentTestId = ++testId;
-    setStatus("checking", "pref-codex-cli-status-detecting");
-
+  async function detectCodexStatus() {
     try {
       const subprocess = getSubprocess();
-      const command = await resolveCodexBinaryPath(subprocess, "");
-      if (currentTestId !== testId) {
-        return;
-      }
-      if (!getPathInputValue()) {
-        pathInput.value = command;
-      }
-      clearStatus();
-    } catch {
-      if (currentTestId === testId) {
-        setStatus("missing", "pref-codex-cli-status-missing");
-      }
-    }
-  }
-
-  async function testCodexCli() {
-    const currentTestId = ++testId;
-    let commandResolved = false;
-    testButton.disabled = true;
-    setStatus("checking", "pref-codex-cli-status-testing");
-
-    try {
-      const subprocess = getSubprocess();
-      const command = await resolveCodexBinaryPath(
-        subprocess,
-        getPathInputValue(),
-      );
-      commandResolved = true;
-      if (currentTestId !== testId) {
-        return;
-      }
-      if (!getPathInputValue()) {
-        pathInput.value = command;
-      }
+      const command = await resolveCodexBinaryPath();
 
       const appServer = await runCommand(subprocess, command, [
         "app-server",
         "--help",
       ]);
-      if (currentTestId !== testId) {
-        return;
-      }
       if (appServer.exitCode !== 0) {
-        setStatus("failed", "pref-codex-cli-status-failed");
+        setStatus("missing", "pref-codex-status-missing");
         return;
       }
 
       const login = await readCodexLoginStatus(subprocess, command);
-      if (currentTestId !== testId) {
-        return;
-      }
       setStatus(
-        login.loggedIn ? "success" : "logged-out",
+        login.loggedIn ? "connected" : "missing",
         login.loggedIn
-          ? "pref-codex-cli-status-success"
-          : "pref-codex-cli-status-logged-out",
+          ? "pref-codex-status-connected"
+          : "pref-codex-status-missing",
       );
     } catch {
-      if (currentTestId === testId) {
-        setStatus(
-          commandResolved ? "failed" : "missing",
-          commandResolved
-            ? "pref-codex-cli-status-failed"
-            : "pref-codex-cli-status-missing",
-        );
-      }
-    } finally {
-      if (currentTestId === testId) {
-        testButton.disabled = false;
-      }
+      setStatus("missing", "pref-codex-status-missing");
     }
   }
 
@@ -207,59 +108,15 @@
     }
   }
 
-  async function resolveCodexBinaryPath(subprocess, configuredPath) {
-    const command = String(configuredPath || "").trim();
-    if (command) {
-      return resolveCommand(subprocess, command);
-    }
-
-    const environment = subprocess.getEnvironment();
-    const home = getUserHomeDirectory(environment);
-    const candidates = uniqueCandidates([
-      "codex",
-      "codex.cmd",
-      "codex.exe",
-      joinPath(home, ".local/bin/codex"),
-      joinPath(home, ".npm-global/bin/codex"),
-      joinPath(home, ".bun/bin/codex"),
-      joinPath(home, ".bun/bin/codex.cmd"),
-      joinPath(environment.APPDATA, "npm/codex.cmd"),
-      joinPath(environment.APPDATA, "npm/codex"),
-      joinPath(environment.LOCALAPPDATA, "pnpm/codex.cmd"),
-      joinPath(environment.LOCALAPPDATA, "pnpm/codex"),
-      joinPath(home, "AppData/Roaming/npm/codex.cmd"),
-      joinPath(home, "AppData/Roaming/npm/codex"),
-      joinPath(home, "AppData/Local/pnpm/codex.cmd"),
-      joinPath(home, "AppData/Local/pnpm/codex"),
-      "/opt/homebrew/bin/codex",
-      "/usr/local/bin/codex",
-    ]);
-
+  async function resolveCodexBinaryPath() {
+    const candidates = ["/opt/homebrew/bin/codex", "/usr/local/bin/codex"];
     for (const candidate of candidates) {
-      if (!candidate) {
-        continue;
-      }
-      try {
-        if (isPathLike(candidate) && !(await IOUtils.exists(candidate))) {
-          continue;
-        }
-        return await resolveCommand(subprocess, candidate);
-      } catch {
-        // Continue through the remaining common install locations.
+      if (await IOUtils.exists(candidate)) {
+        return candidate;
       }
     }
 
     throw new Error("Unable to find the Codex CLI.");
-  }
-
-  async function resolveCommand(subprocess, command) {
-    if (isPathLike(command)) {
-      return expandHome(
-        command,
-        getUserHomeDirectory(subprocess.getEnvironment()),
-      );
-    }
-    return subprocess.pathSearch(command);
   }
 
   function setStatus(status, l10nId) {
@@ -273,34 +130,15 @@
     }
   }
 
-  function clearStatus() {
-    statusValue.textContent = "";
-    statusValue.removeAttribute("data-status");
-    statusValue.removeAttribute("data-l10n-id");
-    statusValue.removeAttribute("data-l10n-args");
-  }
-
   function fallbackStatusText(l10nId) {
     switch (l10nId) {
-      case "pref-codex-cli-status-detecting":
-        return "正在检测";
-      case "pref-codex-cli-status-testing":
-        return "正在测试";
-      case "pref-codex-cli-status-missing":
-        return "未检测到 Codex";
-      case "pref-codex-cli-status-logged-out":
-        return "Codex 未登录";
-      case "pref-codex-cli-status-failed":
-        return "Codex 连接失败";
-      case "pref-codex-cli-status-success":
-        return "成功";
+      case "pref-codex-status-connected":
+        return "检测到且连接成功";
+      case "pref-codex-status-missing":
+        return "未检测到";
       default:
         return "";
     }
-  }
-
-  function getPathInputValue() {
-    return String(pathInput.value || "").trim();
   }
 
   function getSubprocess() {
@@ -310,43 +148,6 @@
   }
 
   function getUserHomeDirectory(environment) {
-    return environment.HOME || environment.USERPROFILE;
-  }
-
-  function expandHome(path, home) {
-    if (path === "~") {
-      return home || path;
-    }
-    if (!path.startsWith("~/") && !path.startsWith("~\\")) {
-      return path;
-    }
-    if (!home) {
-      return path;
-    }
-    return joinPath(home, path.slice(2)) || path;
-  }
-
-  function joinPath(base, suffix) {
-    if (!base) {
-      return null;
-    }
-    const separator = base.includes("\\") && !base.includes("/") ? "\\" : "/";
-    const normalizedSuffix =
-      separator === "\\" ? suffix.replace(/\//g, "\\") : suffix;
-    return `${base.replace(/[\\/]$/, "")}${separator}${normalizedSuffix.replace(
-      /^[\\/]/,
-      "",
-    )}`;
-  }
-
-  function isPathLike(command) {
-    return /[\\/]/.test(command) || /^[A-Za-z]:/.test(command);
-  }
-
-  function uniqueCandidates(candidates) {
-    return candidates.filter(
-      (candidate, index) =>
-        Boolean(candidate) && candidates.indexOf(candidate) === index,
-    );
+    return environment.HOME;
   }
 })();

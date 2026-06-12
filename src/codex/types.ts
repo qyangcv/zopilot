@@ -46,10 +46,6 @@ export type CodexSubprocessModule = {
     workdir?: string;
   }): Promise<CodexSubprocessProcess>;
   getEnvironment(): Record<string, string>;
-  pathSearch(
-    command: string,
-    environment?: Record<string, string>,
-  ): Promise<string>;
 };
 
 export type CodexSubprocessProcess = {
