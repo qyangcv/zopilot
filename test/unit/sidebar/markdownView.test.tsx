@@ -1,5 +1,9 @@
 import { assert } from "chai";
 import { renderToStaticMarkup } from "react-dom/server";
+import {
+  getCodeLanguage,
+  highlightCodeWithShiki,
+} from "../../../src/modules/sidebar/app/codeHighlighting.ts";
 import { MarkdownView } from "../../../src/modules/sidebar/app/MarkdownView.tsx";
 
 function renderMarkdown(markdown: string): string {
@@ -57,17 +61,48 @@ describe("MarkdownView", function () {
     assert.include(html, "very-long-cell");
   });
 
-  it("renders fenced code with copy controls, labels, and highlight classes", function () {
+  it("renders fenced code with floating copy controls and Shiki output", function () {
     const html = renderMarkdown(
       ["```typescript", "const answer: number = 42;", "```"].join("\n"),
     );
 
     assert.include(html, 'class="zcp-code-block"');
-    assert.include(html, 'class="zcp-code-language"');
-    assert.include(html, ">typescript<");
+    assert.include(html, 'data-language="typescript"');
+    assert.notInclude(html, 'class="zcp-code-language"');
     assert.include(html, 'aria-label="Copy code"');
-    assert.include(html, 'class="hljs language-typescript"');
-    assert.include(html, "hljs-keyword");
+    assert.include(html, 'class="zcp-code-copy zcp-inline-copy"');
+    assert.include(html, 'class="zcp-code-content"');
+    assert.include(html, "shiki-themes github-light github-dark");
+    assert.include(html, "--shiki-dark");
+    assert.include(html, ">const</span>");
+    assert.include(html, " answer</span>");
+    assert.include(html, " 42</span>");
+  });
+
+  it("normalizes code fence language aliases", function () {
+    assert.strictEqual(getCodeLanguage("language-py"), "python");
+    assert.strictEqual(getCodeLanguage("language-jsx"), "jsx");
+    assert.strictEqual(getCodeLanguage("language-tsx"), "tsx");
+    assert.strictEqual(getCodeLanguage("language-zsh"), "bash");
+    assert.strictEqual(getCodeLanguage("language-tex"), "latex");
+  });
+
+  it("highlights supported code blocks with Shiki dual themes", async function () {
+    const html = await highlightCodeWithShiki(
+      ["def answer(value):", "    return value + 42"].join("\n"),
+      "python",
+    );
+
+    assert.isString(html);
+    assert.include(html ?? "", "shiki-themes github-light github-dark");
+    assert.include(html ?? "", "--shiki-dark");
+    assert.include(html ?? "", "def");
+  });
+
+  it("falls back for unsupported code block languages", async function () {
+    const html = await highlightCodeWithShiki("plain", "made-up-language");
+
+    assert.isUndefined(html);
   });
 
   it("renders inline code, links, and autolinks", function () {

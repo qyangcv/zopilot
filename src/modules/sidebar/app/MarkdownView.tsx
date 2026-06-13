@@ -3,16 +3,11 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import hljs from "highlight.js/lib/core";
-import bash from "highlight.js/lib/languages/bash";
-import css from "highlight.js/lib/languages/css";
-import javascript from "highlight.js/lib/languages/javascript";
-import json from "highlight.js/lib/languages/json";
-import latex from "highlight.js/lib/languages/latex";
-import markdownLanguage from "highlight.js/lib/languages/markdown";
-import python from "highlight.js/lib/languages/python";
-import typescript from "highlight.js/lib/languages/typescript";
-import xml from "highlight.js/lib/languages/xml";
+import {
+  escapeHtml,
+  getCodeLanguage,
+  highlightCodeWithShiki,
+} from "./codeHighlighting";
 
 type MarkdownViewProps = {
   markdown: string;
@@ -20,22 +15,6 @@ type MarkdownViewProps = {
 };
 
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
-
-const LANGUAGE_ALIASES = new Map([
-  ["js", "javascript"],
-  ["jsx", "javascript"],
-  ["ts", "typescript"],
-  ["tsx", "typescript"],
-  ["py", "python"],
-  ["sh", "bash"],
-  ["shell", "bash"],
-  ["zsh", "bash"],
-  ["html", "xml"],
-  ["md", "markdown"],
-  ["tex", "latex"],
-]);
-
-registerHighlightLanguages();
 
 export function MarkdownView({
   markdown,
@@ -202,63 +181,43 @@ function CodeBlock({
   text: string;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
-  const highlighted = highlightCode(text, language);
+  const fallback = useMemo(() => escapeHtml(text), [text]);
+  const highlighted = useMemo(
+    () => highlightCodeWithShiki(text, language),
+    [language, text],
+  );
 
   return (
-    <div className="zcp-code-block">
-      <div className="zcp-code-header">
-        <span className="zcp-code-language">{language}</span>
-        <button
-          aria-label="Copy code"
-          className="zcp-inline-copy"
-          onClick={() => {
-            void copyText(text).then(() => {
-              setCopied(true);
-              globalThis.setTimeout(() => setCopied(false), 900);
-            });
-          }}
-          title="Copy code"
-          type="button"
-        >
-          <span className={copied ? "zcp-check-icon" : "zcp-copy-icon"} />
-        </button>
-      </div>
-      <pre>
-        <code
-          className={`hljs language-${language}`}
+    <div className="zcp-code-block" data-language={language}>
+      <button
+        aria-label="Copy code"
+        className="zcp-code-copy zcp-inline-copy"
+        onClick={() => {
+          void copyText(text).then(() => {
+            setCopied(true);
+            globalThis.setTimeout(() => setCopied(false), 900);
+          });
+        }}
+        title="Copy code"
+        type="button"
+      >
+        <span className={copied ? "zcp-check-icon" : "zcp-copy-icon"} />
+      </button>
+      {highlighted ? (
+        <div
+          className="zcp-code-content"
           dangerouslySetInnerHTML={{ __html: highlighted }}
         />
-      </pre>
+      ) : (
+        <pre className="zcp-code-plain">
+          <code
+            className={`language-${language}`}
+            dangerouslySetInnerHTML={{ __html: fallback }}
+          />
+        </pre>
+      )}
     </div>
   );
-}
-
-function registerHighlightLanguages(): void {
-  hljs.registerLanguage("javascript", javascript);
-  hljs.registerLanguage("typescript", typescript);
-  hljs.registerLanguage("python", python);
-  hljs.registerLanguage("bash", bash);
-  hljs.registerLanguage("json", json);
-  hljs.registerLanguage("xml", xml);
-  hljs.registerLanguage("css", css);
-  hljs.registerLanguage("markdown", markdownLanguage);
-  hljs.registerLanguage("latex", latex);
-}
-
-function getCodeLanguage(className?: string): string | undefined {
-  const match = /(?:^|\s)language-([\w-]+)/u.exec(className ?? "");
-  if (!match) {
-    return undefined;
-  }
-  const rawLanguage = match[1].toLowerCase();
-  return LANGUAGE_ALIASES.get(rawLanguage) ?? rawLanguage;
-}
-
-function highlightCode(text: string, language: string): string {
-  if (!hljs.getLanguage(language)) {
-    return escapeHtml(text);
-  }
-  return hljs.highlight(text, { language, ignoreIllegals: true }).value;
 }
 
 function isInternalUrl(url: string): boolean {
@@ -275,15 +234,6 @@ function isSafeExternalUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 async function copyText(text: string): Promise<void> {
