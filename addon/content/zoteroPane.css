@@ -605,6 +605,7 @@
 }
 
 .zcp-message-stack {
+  flex: 1 1 auto;
   max-width: 100%;
 }
 
@@ -909,6 +910,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  inline-size: 100%;
   min-height: 24px;
   margin-block-start: 3px;
   color: var(--zcp-muted);
@@ -925,6 +927,7 @@
 
 .zcp-message-time {
   flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 
 .zcp-message-action {
