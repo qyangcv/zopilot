@@ -7,6 +7,7 @@ import { createPaperIdentity } from "../../shared/conversation";
 import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
+import { getSelectedPDFReader, isPDFReader } from "./activeReader";
 import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
   SidebarContextView,
@@ -200,8 +201,10 @@ class SidebarController {
 
   private ensureMountedSurfaces(): void {
     this.removeMainWindowToolbarToggleButton();
-    if (this.open) {
+    if (this.open && getSelectedPDFReader(this.win)) {
       this.attachPanel();
+    } else {
+      this.detachPanel();
     }
     this.updateToggleButtons();
   }
@@ -249,6 +252,7 @@ class SidebarController {
   ): void {
     if (
       this.destroyed ||
+      !isPDFReader(reader) ||
       !doc ||
       doc.getElementById(READER_TOOLBAR_BUTTON_ID)
     ) {
@@ -322,10 +326,18 @@ class SidebarController {
   }
 
   private openCopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
-    this.activeReader = reader;
+    const pdfReader = isPDFReader(reader)
+      ? reader
+      : getSelectedPDFReader(this.win);
+    if (!pdfReader) {
+      this.setOpen(false);
+      return;
+    }
+
+    this.activeReader = pdfReader;
     this.ensureMountedSurfaces();
     this.setOpen(true);
-    void this.loadActiveConversation(reader);
+    void this.loadActiveConversation(pdfReader);
   }
 
   private prewarmCodexBridge(): void {
@@ -1135,6 +1147,9 @@ class SidebarController {
   }
 
   private attachPanel(): void {
+    if (!getSelectedPDFReader(this.win)) {
+      return;
+    }
     this.mountPanel();
     const host = this.getSidebarHost();
     if (!host || !this.shell || this.shell.isConnected) {
@@ -1196,12 +1211,7 @@ class SidebarController {
     const itemTree = this.doc.getElementById("zotero-items-tree");
     const refreshSoon = () => {
       this.win.setTimeout(() => {
-        this.activeReader = undefined;
-        if (this.open) {
-          void this.loadActiveConversation();
-        } else {
-          this.refreshContext();
-        }
+        this.syncWithSelectedPDFReader();
       }, 0);
     };
 
@@ -1222,15 +1232,14 @@ class SidebarController {
     const refreshLayoutSoon = () => {
       this.win.setTimeout(() => {
         this.ensureMountedSurfaces();
-        this.refreshContext();
+        if (!this.open) {
+          this.refreshContext();
+        }
       }, 0);
     };
     const reloadConversationSoon = () => {
       this.win.setTimeout(() => {
-        if (this.open) {
-          this.activeReader = undefined;
-          void this.loadActiveConversation();
-        }
+        this.syncWithSelectedPDFReader();
       }, 0);
     };
 
@@ -1255,6 +1264,28 @@ class SidebarController {
         tabContainer.removeEventListener("TabSelect", reloadConversationSoon);
       });
     }
+  }
+
+  private syncWithSelectedPDFReader(): void {
+    const selectedReader = getSelectedPDFReader(this.win);
+    if (!selectedReader) {
+      if (this.open) {
+        this.setOpen(false);
+      } else {
+        this.activeReader = undefined;
+        this.refreshContext();
+        this.updateToggleButtons();
+      }
+      return;
+    }
+
+    this.activeReader = selectedReader;
+    if (this.open) {
+      void this.loadActiveConversation(selectedReader);
+    } else {
+      this.refreshContext(selectedReader);
+    }
+    this.updateToggleButtons();
   }
 
   private bindSessionPopoverDismiss(): void {
