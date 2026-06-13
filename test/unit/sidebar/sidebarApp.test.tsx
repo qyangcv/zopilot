@@ -36,7 +36,30 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zcp-message-footer");
   });
 
-  it("renders completed assistant footer with three actions and Beijing time", function () {
+  it("hides the assistant footer for welcome messages without a completion time", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "welcome",
+              role: "assistant",
+              text: "Ask Any Question.",
+              status: "complete",
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.notInclude(html, "zcp-message-footer");
+    assert.notInclude(html, "zotero-copilot-sidebar-copy-text");
+    assert.notInclude(html, "zotero-copilot-sidebar-insert-composer");
+    assert.notInclude(html, "zotero-copilot-sidebar-retry-turn");
+  });
+
+  it("renders completed model responses with three actions and Beijing time", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}

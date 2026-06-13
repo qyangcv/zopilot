@@ -332,7 +332,8 @@ function Message({
     isAssistant &&
     message.status === "complete" &&
     !message.transient &&
-    !message.running;
+    !message.running &&
+    Boolean(message.completedAt);
   const canRetry = isCompleteAssistant && lastUserText;
   const completedAt = message.completedAt;
 
@@ -420,6 +421,9 @@ function AssistantFooter({
       </div>
     );
   }
+  if (!completedAt) {
+    return null;
+  }
   return (
     <div className="zcp-message-footer">
       <div className="zcp-message-actions">
@@ -441,9 +445,7 @@ function AssistantFooter({
           onClick={onRetry}
         />
       </div>
-      {completedAt ? (
-        <time className="zcp-message-time">{completedAt}</time>
-      ) : null}
+      <time className="zcp-message-time">{completedAt}</time>
     </div>
   );
 }
