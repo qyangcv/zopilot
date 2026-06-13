@@ -6,6 +6,7 @@ import { getUserHomeDirectory, resolveCodexBinaryPath } from "./binaryPath";
 import type {
   CodexAccountReadResult,
   CodexBridgeStatus,
+  CodexModelInfo,
   CodexPromptOptions,
   CodexPromptResult,
   CodexSubprocessModule,
@@ -32,7 +33,9 @@ type ActiveTurn = {
   onDelta?: (delta: string, fullText: string) => void;
   onNotice?: (notice: string) => void;
   onToolActivity?: () => void;
+  onTurnStarted?: (threadId: string, turnId: string) => void;
   timer: number;
+  conversationId: string;
   threadId: string;
   turnId?: string;
 };
@@ -47,12 +50,10 @@ class CodexBridge {
   private stdoutBuffer = "";
   private stderrBuffer = "";
   private startPromise?: Promise<void>;
-  private threadPromise?: Promise<string>;
+  private threadPromises = new Map<string, Promise<string>>();
+  private conversationThreads = new Map<string, string>();
   private initialized = false;
-  private activeConversationId?: string;
-  private activeThreadId?: string;
-  private activeTurn?: ActiveTurn;
-  private promptQueue: Promise<void> = Promise.resolve();
+  private activeTurns = new Map<string, ActiveTurn>();
   private status: CodexBridgeStatus = "idle";
 
   getStatus(): CodexBridgeStatus {
@@ -78,9 +79,8 @@ class CodexBridge {
 
   async stop(): Promise<void> {
     this.initialized = false;
-    this.activeConversationId = undefined;
-    this.activeThreadId = undefined;
-    this.threadPromise = undefined;
+    this.threadPromises.clear();
+    this.conversationThreads.clear();
     this.rejectAll(new Error("Codex app-server stopped."));
     const proc = this.process;
     this.process = undefined;
@@ -106,16 +106,25 @@ class CodexBridge {
     await this.start();
   }
 
+  async listModels(): Promise<CodexModelInfo[]> {
+    await this.start();
+    const result = await this.request("model/list", {
+      limit: 100,
+      includeHidden: false,
+    });
+    return parseModelList(result);
+  }
+
+  async interruptTurn(threadId: string, turnId: string): Promise<void> {
+    await this.start();
+    await this.request("turn/interrupt", { threadId, turnId }, 10000);
+  }
+
   sendPrompt(
     prompt: string,
     options: CodexPromptOptions,
   ): Promise<CodexPromptResult> {
-    const queued = this.promptQueue.then(() => this.runPrompt(prompt, options));
-    this.promptQueue = queued.then(
-      () => undefined,
-      () => undefined,
-    );
-    return queued;
+    return this.runPrompt(prompt, options);
   }
 
   private async startProcess(): Promise<void> {
@@ -161,18 +170,21 @@ class CodexBridge {
     conversation: ConversationMetadata,
   ): Promise<string> {
     await this.start();
-    if (this.activeConversationId === conversation.id && this.activeThreadId) {
-      return this.activeThreadId;
+    const cachedThreadId = this.conversationThreads.get(conversation.id);
+    if (cachedThreadId) {
+      return cachedThreadId;
     }
-    if (this.threadPromise) {
-      return this.threadPromise;
+    const existing = this.threadPromises.get(conversation.id);
+    if (existing) {
+      return existing;
     }
 
-    this.threadPromise = this.openConversationThread(conversation);
+    const promise = this.openConversationThread(conversation);
+    this.threadPromises.set(conversation.id, promise);
     try {
-      return await this.threadPromise;
+      return await promise;
     } finally {
-      this.threadPromise = undefined;
+      this.threadPromises.delete(conversation.id);
     }
   }
 
@@ -205,8 +217,7 @@ class CodexBridge {
     if (!id) {
       throw new Error("Codex app-server did not return a thread id.");
     }
-    this.activeConversationId = conversation.id;
-    this.activeThreadId = id;
+    this.conversationThreads.set(conversation.id, id);
     this.logMcpServerStatus();
     return id;
   }
@@ -224,8 +235,7 @@ class CodexBridge {
     if (!id) {
       throw new Error("Codex app-server did not resume a thread id.");
     }
-    this.activeConversationId = conversation.id;
-    this.activeThreadId = id;
+    this.conversationThreads.set(conversation.id, id);
     this.logMcpServerStatus();
     return id;
   }
@@ -291,20 +301,23 @@ class CodexBridge {
 
     const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
       const timer = this.setTimer(() => {
-        this.activeTurn = undefined;
+        this.deleteActiveTurn(threadId);
         this.status = "error";
         reject(new Error("Codex request timed out."));
       }, this.getTimeoutMs());
-      this.activeTurn = {
+      const activeTurn: ActiveTurn = {
         fullText: "",
         resolve,
         reject,
         onDelta: options.onDelta,
         onNotice: options.onNotice,
         onToolActivity: options.onToolActivity,
+        onTurnStarted: options.onTurnStarted,
         timer,
+        conversationId: options.conversation.id,
         threadId,
       };
+      this.activeTurns.set(getTurnKey({ threadId }), activeTurn);
     });
 
     try {
@@ -322,21 +335,31 @@ class CodexBridge {
       if (cwd) {
         params.cwd = cwd;
       }
+      if (options.model) {
+        params.model = options.model;
+      }
+      if (options.effort) {
+        params.reasoningEffort = options.effort;
+        params.effort = options.effort;
+      }
 
       const result = (await this.request(
         "turn/start",
         params,
         this.getTimeoutMs(),
       )) as { turn?: { id?: string } };
-      if (this.activeTurn && result?.turn?.id) {
-        this.activeTurn.turnId = result.turn.id;
+      const activeTurn = this.findActiveTurn(threadId);
+      if (activeTurn && result?.turn?.id) {
+        this.assignTurnId(activeTurn, result.turn.id);
       }
       const completed = await turnPromise;
-      this.status = "ready";
+      if (!this.activeTurns.size) {
+        this.status = "ready";
+      }
       return completed;
     } catch (error) {
-      this.clearActiveTurn(error);
-      this.status = "error";
+      this.rejectActiveTurn(threadId, undefined, error);
+      this.status = this.activeTurns.size ? "running" : "error";
       throw error;
     }
   }
@@ -497,17 +520,19 @@ class CodexBridge {
     if (!("method" in message)) {
       return;
     }
-    const activeTurn = this.activeTurn;
     switch (message.method) {
       case "turn/started": {
         const turnId = getNestedString(message.params, ["turn", "id"]);
+        const threadId = getNotificationThreadId(message.params);
+        const activeTurn = this.findActiveTurn(threadId, turnId);
         if (activeTurn && turnId) {
-          activeTurn.turnId = turnId;
+          this.assignTurnId(activeTurn, turnId);
         }
         break;
       }
       case "item/agentMessage/delta": {
         const delta = getNestedString(message.params, ["delta"]);
+        const activeTurn = this.findActiveTurnForNotification(message.params);
         if (activeTurn && delta) {
           activeTurn.fullText += delta;
           activeTurn.onDelta?.(delta, activeTurn.fullText);
@@ -520,19 +545,29 @@ class CodexBridge {
       }
       case "error": {
         const errorText = formatServerError(message.params);
+        const activeTurn = this.findActiveTurnForNotification(message.params);
         if (getNestedBoolean(message.params, ["willRetry"])) {
           activeTurn?.onNotice?.(errorText);
           ztoolkit.log("codex app-server retrying", errorText);
           break;
         }
-        this.clearActiveTurn(new Error(errorText));
-        this.status = "error";
+        if (activeTurn) {
+          this.rejectActiveTurn(
+            activeTurn.threadId,
+            activeTurn.turnId,
+            new Error(errorText),
+          );
+        } else {
+          this.clearActiveTurn(new Error(errorText));
+        }
+        this.status = this.activeTurns.size ? "running" : "error";
         break;
       }
       case "warning": {
         const warning =
           getNestedString(message.params, ["message"]) ||
           "Codex app-server warning.";
+        const activeTurn = this.findActiveTurnForNotification(message.params);
         activeTurn?.onNotice?.(warning);
         ztoolkit.log("codex app-server warning", warning);
         break;
@@ -545,6 +580,7 @@ class CodexBridge {
         break;
       }
       case "item/mcpToolCall/progress": {
+        const activeTurn = this.findActiveTurnForNotification(message.params);
         activeTurn?.onToolActivity?.();
         ztoolkit.log(
           "codex mcp tool progress",
@@ -555,6 +591,7 @@ class CodexBridge {
       case "item/started":
       case "item/completed": {
         if (includesText(message.params, "mcpToolCall")) {
+          const activeTurn = this.findActiveTurnForNotification(message.params);
           activeTurn?.onToolActivity?.();
           ztoolkit.log(
             `codex mcp tool item ${message.method}`,
@@ -582,16 +619,16 @@ class CodexBridge {
   }
 
   private completeActiveTurn(params: JsonValue | undefined): void {
-    const activeTurn = this.activeTurn;
+    const activeTurn = this.findActiveTurnForNotification(params);
     if (!activeTurn) {
       return;
     }
     const status = getNestedString(params, ["turn", "status"]);
-    this.activeTurn = undefined;
+    this.deleteActiveTurn(activeTurn.threadId, activeTurn.turnId);
     this.clearTimer(activeTurn.timer);
-    if (status && status !== "completed") {
+    if (status && status !== "completed" && status !== "interrupted") {
       activeTurn.reject(new Error(`Codex turn ${status}.`));
-      this.status = "error";
+      this.status = this.activeTurns.size ? "running" : "error";
       return;
     }
     activeTurn.resolve({
@@ -601,15 +638,31 @@ class CodexBridge {
         getNestedString(params, ["turn", "id"]) ||
         undefined,
       text: activeTurn.fullText.trim(),
+      status: status === "interrupted" ? "interrupted" : "completed",
     });
+    if (!this.activeTurns.size) {
+      this.status = "ready";
+    }
   }
 
   private clearActiveTurn(error: unknown): void {
-    const activeTurn = this.activeTurn;
+    for (const activeTurn of this.activeTurns.values()) {
+      this.clearTimer(activeTurn.timer);
+      activeTurn.reject(toError(error));
+    }
+    this.activeTurns.clear();
+  }
+
+  private rejectActiveTurn(
+    threadId: string,
+    turnId: string | undefined,
+    error: unknown,
+  ): void {
+    const activeTurn = this.findActiveTurn(threadId, turnId);
     if (!activeTurn) {
       return;
     }
-    this.activeTurn = undefined;
+    this.deleteActiveTurn(activeTurn.threadId, activeTurn.turnId);
     this.clearTimer(activeTurn.timer);
     activeTurn.reject(toError(error));
   }
@@ -621,8 +674,8 @@ class CodexBridge {
       }
       this.process = undefined;
       this.initialized = false;
-      this.activeConversationId = undefined;
-      this.activeThreadId = undefined;
+      this.threadPromises.clear();
+      this.conversationThreads.clear();
       this.status = "error";
       this.rejectAll(new Error(`Codex app-server exited (${exitCode}).`));
     });
@@ -635,6 +688,64 @@ class CodexBridge {
     }
     this.pendingRequests.clear();
     this.clearActiveTurn(error);
+  }
+
+  private assignTurnId(activeTurn: ActiveTurn, turnId: string): void {
+    if (activeTurn.turnId === turnId) {
+      return;
+    }
+    this.deleteActiveTurn(activeTurn.threadId, activeTurn.turnId);
+    activeTurn.turnId = turnId;
+    this.activeTurns.set(getTurnKey(activeTurn), activeTurn);
+    activeTurn.onTurnStarted?.(activeTurn.threadId, turnId);
+  }
+
+  private findActiveTurnForNotification(
+    params: JsonValue | undefined,
+  ): ActiveTurn | undefined {
+    return this.findActiveTurn(
+      getNotificationThreadId(params),
+      getNotificationTurnId(params),
+    );
+  }
+
+  private findActiveTurn(
+    threadId?: string,
+    turnId?: string,
+  ): ActiveTurn | undefined {
+    if (threadId && turnId) {
+      const exact = this.activeTurns.get(getTurnKey({ threadId, turnId }));
+      if (exact) {
+        return exact;
+      }
+    }
+    if (threadId) {
+      const pending = this.activeTurns.get(getTurnKey({ threadId }));
+      if (pending) {
+        return pending;
+      }
+      for (const activeTurn of this.activeTurns.values()) {
+        if (activeTurn.threadId === threadId) {
+          return activeTurn;
+        }
+      }
+    }
+    if (turnId) {
+      for (const activeTurn of this.activeTurns.values()) {
+        if (activeTurn.turnId === turnId) {
+          return activeTurn;
+        }
+      }
+    }
+    if (this.activeTurns.size === 1) {
+      return Array.from(this.activeTurns.values())[0];
+    }
+    return undefined;
+  }
+
+  private deleteActiveTurn(threadId: string, turnId?: string): void {
+    this.activeTurns.delete(getTurnKey({ threadId, turnId }));
+    this.activeTurns.delete(getTurnKey({ threadId }));
   }
 
   private getSubprocess(): CodexSubprocessModule {
@@ -689,6 +800,112 @@ function getNestedString(
 ): string | undefined {
   const current = getNestedValue(value, path);
   return typeof current === "string" ? current : undefined;
+}
+
+function getNotificationThreadId(
+  value: JsonValue | undefined,
+): string | undefined {
+  return (
+    getNestedString(value, ["thread", "id"]) ||
+    getNestedString(value, ["threadId"]) ||
+    getNestedString(value, ["thread_id"]) ||
+    getNestedString(value, ["turn", "threadId"]) ||
+    getNestedString(value, ["turn", "thread_id"]) ||
+    getNestedString(value, ["item", "threadId"]) ||
+    getNestedString(value, ["item", "thread_id"])
+  );
+}
+
+function getNotificationTurnId(
+  value: JsonValue | undefined,
+): string | undefined {
+  return (
+    getNestedString(value, ["turn", "id"]) ||
+    getNestedString(value, ["turnId"]) ||
+    getNestedString(value, ["turn_id"]) ||
+    getNestedString(value, ["item", "turnId"]) ||
+    getNestedString(value, ["item", "turn_id"])
+  );
+}
+
+function getTurnKey(value: { threadId: string; turnId?: string }): string {
+  return value.turnId
+    ? `${value.threadId}\u0000${value.turnId}`
+    : `${value.threadId}\u0000`;
+}
+
+function parseModelList(value: JsonValue | undefined): CodexModelInfo[] {
+  const modelsValue = Array.isArray(value)
+    ? value
+    : value && typeof value === "object" && !Array.isArray(value)
+      ? value.data || value.models
+      : undefined;
+  if (!Array.isArray(modelsValue)) {
+    return [];
+  }
+  return modelsValue
+    .map((item) => parseModelInfo(item))
+    .filter((item): item is CodexModelInfo => Boolean(item));
+}
+
+function parseModelInfo(value: JsonValue): CodexModelInfo | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const slug =
+    stringProperty(value, "slug") ||
+    stringProperty(value, "id") ||
+    stringProperty(value, "model");
+  if (!slug) {
+    return null;
+  }
+  return {
+    slug,
+    displayName:
+      stringProperty(value, "displayName") ||
+      stringProperty(value, "display_name") ||
+      stringProperty(value, "name") ||
+      slug,
+    defaultReasoningEffort:
+      stringProperty(value, "defaultReasoningEffort") ||
+      stringProperty(value, "default_reasoning_level"),
+    supportedReasoningEfforts:
+      arrayOfStringsProperty(value, "supportedReasoningEfforts") ||
+      arrayOfStringsProperty(value, "supported_reasoning_levels") ||
+      [],
+  };
+}
+
+function stringProperty(
+  value: { [key: string]: JsonValue },
+  key: string,
+): string | undefined {
+  const property = value[key];
+  return typeof property === "string" ? property : undefined;
+}
+
+function arrayOfStringsProperty(
+  value: { [key: string]: JsonValue },
+  key: string,
+): string[] | undefined {
+  const property = value[key];
+  if (!Array.isArray(property)) {
+    return undefined;
+  }
+  return property
+    .map((item) => {
+      if (typeof item === "string") {
+        return item;
+      }
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        return (
+          stringProperty(item, "reasoningEffort") ||
+          stringProperty(item, "effort")
+        );
+      }
+      return undefined;
+    })
+    .filter((item): item is string => typeof item === "string");
 }
 
 function getNestedBoolean(

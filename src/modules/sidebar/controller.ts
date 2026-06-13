@@ -11,6 +11,7 @@ import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
   SidebarContextView,
   SidebarMessageView,
+  SidebarModelView,
   SidebarSessionView,
   SidebarState,
 } from "./app/types";
@@ -30,7 +31,12 @@ const DEFAULT_CONTEXT_PANE_WIDTH = 357;
 const MAX_REASONABLE_NATIVE_PANE_WIDTH = 900;
 const ZOTERO_PANE_PERSIST_PREF = "pane.persist";
 const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
-const STREAMING_MESSAGE_ID = "zcp-streaming-assistant";
+const DEFAULT_MODEL: SidebarModelView = {
+  slug: "gpt-5.5",
+  displayName: "GPT-5.5",
+  supportedReasoningEfforts: ["medium"],
+  defaultReasoningEffort: "medium",
+};
 
 export {
   cleanupPersistedSidebarPaneState,
@@ -44,6 +50,18 @@ type PromptDebugWindow = Window & {
   // Development-only snapshot for inspecting the full prompt in Zotero's console.
   __zcpLastPrompt?: string;
   __zcpReactHostStatus?: string;
+};
+
+type RunningTurn = {
+  conversationId: string;
+  conversation: Conversation;
+  assistantOutput: string;
+  model?: string;
+  reasoningEffort?: string;
+  threadId?: string;
+  turnId?: string;
+  interrupting: boolean;
+  interrupted: boolean;
 };
 
 function cleanupPersistedSidebarPaneState(): void {
@@ -112,12 +130,12 @@ class SidebarController {
   private activePaper?: PaperIdentity;
   private activeConversation?: Conversation;
   private open = false;
-  private busy = false;
   private composerEnabled = false;
   private destroyed = false;
   private prewarmPromise?: Promise<void>;
   private contextLoadId = 0;
   private viewState: SidebarState;
+  private readonly runningTurns = new Map<string, RunningTurn>();
   private readonly listeners: Array<() => void> = [];
   private readonly readerToolbarButtons = new Set<Element>();
   private readonly readerToolbarButtonReaders = new WeakMap<
@@ -142,6 +160,7 @@ class SidebarController {
     this.bindLayoutRefresh();
     this.bindSessionPopoverDismiss();
     this.refreshContext();
+    void this.loadModels();
   }
 
   destroy(): void {
@@ -323,7 +342,7 @@ class SidebarController {
   private async loadActiveConversation(
     reader?: _ZoteroTypes.ReaderInstance,
   ): Promise<void> {
-    if (!this.open || this.destroyed || this.busy) {
+    if (!this.open || this.destroyed) {
       return;
     }
 
@@ -543,7 +562,7 @@ class SidebarController {
   }
 
   private async toggleSessionPopover(): Promise<void> {
-    if (!this.activePaper || this.busy || !this.composerEnabled) {
+    if (!this.activePaper || !this.composerEnabled) {
       return;
     }
     if (this.viewState.sessionsOpen) {
@@ -583,7 +602,7 @@ class SidebarController {
   }
 
   private async createNewSession(): Promise<void> {
-    if (!this.activePaper || this.busy) {
+    if (!this.activePaper) {
       return;
     }
     const conversation = await getConversationStore().createPaperConversation(
@@ -597,7 +616,7 @@ class SidebarController {
   }
 
   private async switchSession(conversation: Conversation): Promise<void> {
-    if (!this.activePaper || this.busy) {
+    if (!this.activePaper) {
       return;
     }
     const active = await getConversationStore().activatePaperConversation(
@@ -618,10 +637,14 @@ class SidebarController {
   }
 
   private async archiveSession(conversation: Conversation): Promise<void> {
-    if (!this.activePaper || this.busy) {
+    if (!this.activePaper) {
       return;
     }
     const paper = this.activePaper;
+    const running = this.runningTurns.get(conversation.metadata.id);
+    if (running) {
+      this.interruptRunningTurn(running);
+    }
     await getConversationStore().archivePaperConversation(
       conversation.metadata,
     );
@@ -652,7 +675,7 @@ class SidebarController {
 
   private async submitPromptAsync(value: string): Promise<void> {
     const promptText = value.trim();
-    if (!promptText || this.busy) {
+    if (!promptText) {
       return;
     }
 
@@ -660,6 +683,9 @@ class SidebarController {
       this.activeConversation || (await this.reloadConversationForSubmit());
     if (!conversation) {
       this.renderUnavailable();
+      return;
+    }
+    if (this.runningTurns.has(conversation.metadata.id)) {
       return;
     }
 
@@ -672,46 +698,71 @@ class SidebarController {
     );
     this.activeConversation = conversation;
     this.renderConversation(conversation);
-    this.appendStreamingAssistant(getString("sidebar-codex-starting"));
+    const runningTurn: RunningTurn = {
+      conversationId: conversation.metadata.id,
+      conversation,
+      assistantOutput: "",
+      model: this.viewState.selectedModel,
+      reasoningEffort: this.viewState.selectedReasoningEffort,
+      interrupting: false,
+      interrupted: false,
+    };
+    this.runningTurns.set(conversation.metadata.id, runningTurn);
+    this.renderConversation(conversation);
     this.refreshContext();
+    this.updateRunningState();
 
-    this.setBusy(true);
     try {
       let hasAssistantText = false;
       const bridge = getCodexBridge();
       const prompt = buildPaperQuestionPrompt(promptText);
-      let assistantOutput = "";
       let pendingToolBoundary = false;
       this.storePromptDebugSnapshot(prompt);
       const result = await bridge.sendPrompt(prompt, {
         conversation: conversation.metadata,
+        model: runningTurn.model,
+        effort: runningTurn.reasoningEffort,
+        onTurnStarted: (threadId, turnId) => {
+          runningTurn.threadId = threadId;
+          runningTurn.turnId = turnId;
+          if (runningTurn.interrupting) {
+            this.interruptRunningTurn(runningTurn);
+          }
+        },
         onDelta: (delta, fullText) => {
+          if (runningTurn.interrupted) {
+            return;
+          }
           hasAssistantText = Boolean(fullText);
-          if (pendingToolBoundary && assistantOutput.trim() && delta.trim()) {
-            assistantOutput += CODEX_TOOL_OUTPUT_SEPARATOR;
+          if (
+            pendingToolBoundary &&
+            runningTurn.assistantOutput.trim() &&
+            delta.trim()
+          ) {
+            runningTurn.assistantOutput += CODEX_TOOL_OUTPUT_SEPARATOR;
             pendingToolBoundary = false;
           }
-          assistantOutput += delta;
-          this.updateStreamingAssistant(
-            assistantOutput || getString("sidebar-codex-starting"),
-          );
+          runningTurn.assistantOutput += delta;
+          this.refreshRunningTurnView(runningTurn);
         },
         onToolActivity: () => {
-          if (assistantOutput.trim()) {
+          if (runningTurn.assistantOutput.trim()) {
             pendingToolBoundary = true;
           }
         },
         onNotice: (notice) => {
-          if (!hasAssistantText) {
-            this.updateStreamingAssistant(notice);
+          if (!hasAssistantText && !runningTurn.interrupted) {
+            runningTurn.assistantOutput = notice;
+            this.refreshRunningTurnView(runningTurn);
           }
         },
       });
+      runningTurn.threadId = result.threadId;
+      runningTurn.turnId = result.turnId;
       const finalText =
-        assistantOutput ||
+        runningTurn.assistantOutput ||
         result.text ||
         getString("sidebar-codex-empty-response");
-      this.updateStreamingAssistant(finalText);
       const metadata = await getConversationStore().updateCodexThreadId(
         conversation.metadata,
         result.threadId,
@@ -719,26 +770,36 @@ class SidebarController {
       conversation = await getConversationStore().addMessage(metadata, {
         role: "assistant",
         text: finalText,
+        status:
+          result.status === "interrupted" || runningTurn.interrupted
+            ? "interrupted"
+            : "complete",
+        completedAt: new Date().toISOString(),
         codexThreadId: result.threadId,
         codexTurnId: result.turnId,
+        model: runningTurn.model,
+        reasoningEffort: runningTurn.reasoningEffort,
       });
-      this.activeConversation = conversation;
-      this.renderConversation(conversation);
+      this.finishRunningTurn(runningTurn, conversation);
     } catch (error) {
       const errorText = formatCodexError(error);
-      this.updateStreamingAssistant(errorText);
+      const text = runningTurn.interrupted
+        ? runningTurn.assistantOutput || getString("sidebar-status-interrupted")
+        : errorText;
       conversation = await getConversationStore().addMessage(
         conversation.metadata,
         {
           role: "assistant",
-          text: errorText,
-          status: "error",
+          text,
+          status: runningTurn.interrupted ? "interrupted" : "error",
+          completedAt: new Date().toISOString(),
+          model: runningTurn.model,
+          reasoningEffort: runningTurn.reasoningEffort,
         },
       );
-      this.activeConversation = conversation;
-      this.renderConversation(conversation);
+      this.finishRunningTurn(runningTurn, conversation);
     } finally {
-      this.setBusy(false);
+      this.updateRunningState();
     }
   }
 
@@ -747,8 +808,159 @@ class SidebarController {
     return this.activeConversation || null;
   }
 
+  private refreshRunningTurnView(runningTurn: RunningTurn): void {
+    if (this.activeConversation?.metadata.id !== runningTurn.conversationId) {
+      return;
+    }
+    this.renderConversation(runningTurn.conversation);
+  }
+
+  private finishRunningTurn(
+    runningTurn: RunningTurn,
+    conversation: Conversation,
+  ): void {
+    this.runningTurns.delete(runningTurn.conversationId);
+    if (this.activeConversation?.metadata.id === runningTurn.conversationId) {
+      this.activeConversation = conversation;
+      this.renderConversation(conversation);
+    }
+    if (this.viewState.sessionsOpen) {
+      void this.showSessionPopover();
+    }
+  }
+
+  private interruptActiveTurn(): void {
+    const conversationId = this.activeConversation?.metadata.id;
+    const runningTurn = conversationId
+      ? this.runningTurns.get(conversationId)
+      : undefined;
+    if (!runningTurn) {
+      return;
+    }
+    this.interruptRunningTurn(runningTurn);
+  }
+
+  private interruptRunningTurn(runningTurn: RunningTurn): void {
+    runningTurn.interrupting = true;
+    runningTurn.interrupted = true;
+    this.refreshRunningTurnView(runningTurn);
+    this.updateRunningState();
+    const { threadId, turnId } = runningTurn;
+    if (!threadId || !turnId) {
+      return;
+    }
+    void getCodexBridge()
+      .interruptTurn(threadId, turnId)
+      .catch((error) => {
+        ztoolkit.log("codex turn/interrupt failed", String(error));
+      });
+  }
+
+  private async loadModels(): Promise<void> {
+    this.updateViewState({ modelLoading: true });
+    try {
+      const models = await getCodexBridge().listModels();
+      this.applyModels(models.length ? models : [DEFAULT_MODEL]);
+    } catch (error) {
+      ztoolkit.log("codex model/list failed", String(error));
+      this.applyModels([DEFAULT_MODEL]);
+    } finally {
+      this.updateViewState({ modelLoading: false });
+    }
+  }
+
+  private applyModels(models: SidebarModelView[]): void {
+    const preferredModel = String(getPref("codex.model") || "");
+    const selectedModel = models.some((model) => model.slug === preferredModel)
+      ? preferredModel
+      : models[0]?.slug || DEFAULT_MODEL.slug;
+    this.updateModelSelection(models, selectedModel);
+  }
+
+  private selectModel(model: string): void {
+    if (!this.viewState.models.some((item) => item.slug === model)) {
+      return;
+    }
+    setPref("codex.model", model);
+    this.updateModelSelection(this.viewState.models, model);
+  }
+
+  private selectReasoningEffort(effort: string): void {
+    const efforts = this.getReasoningEffortsForModel(
+      this.viewState.selectedModel,
+      this.viewState.models,
+    );
+    if (!efforts.includes(effort)) {
+      return;
+    }
+    const saved = this.readSavedReasoningEfforts();
+    saved[this.viewState.selectedModel] = effort;
+    setPref("codex.reasoningEfforts", JSON.stringify(saved));
+    this.updateViewState({ selectedReasoningEffort: effort });
+  }
+
+  private updateModelSelection(
+    models: SidebarModelView[],
+    selectedModel: string,
+  ): void {
+    const efforts = this.getReasoningEffortsForModel(selectedModel, models);
+    const savedEffort = this.readSavedReasoningEfforts()[selectedModel];
+    const defaultEffort = models.find(
+      (item) => item.slug === selectedModel,
+    )?.defaultReasoningEffort;
+    const selectedReasoningEffort = efforts.includes(savedEffort)
+      ? savedEffort
+      : defaultEffort && efforts.includes(defaultEffort)
+        ? defaultEffort
+        : efforts[0];
+    this.updateViewState({
+      models,
+      selectedModel,
+      availableReasoningEfforts: efforts,
+      selectedReasoningEffort,
+    });
+  }
+
+  private getReasoningEffortsForModel(
+    model: string,
+    models: SidebarModelView[],
+  ): string[] {
+    return (
+      models.find((item) => item.slug === model)?.supportedReasoningEfforts ||
+      []
+    );
+  }
+
+  private readSavedReasoningEfforts(): Record<string, string> {
+    const raw = String(getPref("codex.reasoningEfforts") || "{}");
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return {};
+      }
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[0] === "string" && typeof entry[1] === "string",
+        ),
+      );
+    } catch {
+      return {};
+    }
+  }
+
+  private updateRunningState(): void {
+    const conversationId = this.activeConversation?.metadata.id;
+    const runningTurn = conversationId
+      ? this.runningTurns.get(conversationId)
+      : undefined;
+    this.updateViewState({
+      busy: Boolean(runningTurn),
+    });
+  }
+
   private renderConversation(conversation: Conversation): void {
-    const messages = conversation.messages.length
+    let messages = conversation.messages.length
       ? conversation.messages.map(toMessageView)
       : [
           {
@@ -758,8 +970,33 @@ class SidebarController {
             status: "complete" as const,
           },
         ];
+    const runningTurn = this.runningTurns.get(conversation.metadata.id);
+    if (runningTurn) {
+      messages = [
+        ...messages.filter(
+          (message) =>
+            message.id !== getStreamingMessageId(conversation.metadata.id),
+        ),
+        {
+          id: getStreamingMessageId(conversation.metadata.id),
+          role: "assistant" as const,
+          text:
+            runningTurn.assistantOutput || getString("sidebar-codex-starting"),
+          status: runningTurn.interrupted
+            ? ("interrupted" as const)
+            : ("complete" as const),
+          transient: true,
+          running: !runningTurn.interrupted,
+          model: runningTurn.model,
+          reasoningEffort: runningTurn.reasoningEffort,
+        },
+      ];
+    }
     this.setComposerEnabled(true);
-    this.updateViewState({ messages });
+    this.updateViewState({
+      messages,
+      busy: Boolean(runningTurn),
+    });
   }
 
   private renderUnavailable(): void {
@@ -769,6 +1006,7 @@ class SidebarController {
 
   private renderStatusMessage(markdown: string): void {
     this.updateViewState({
+      busy: false,
       messages: [
         {
           id: `zcp-status-${this.contextLoadId}`,
@@ -778,41 +1016,6 @@ class SidebarController {
           transient: true,
         },
       ],
-    });
-  }
-
-  private appendStreamingAssistant(markdown: string): void {
-    this.updateViewState({
-      messages: [
-        ...this.viewState.messages.filter(
-          (message) => message.id !== STREAMING_MESSAGE_ID,
-        ),
-        {
-          id: STREAMING_MESSAGE_ID,
-          role: "assistant",
-          text: markdown,
-          status: "complete",
-          transient: true,
-        },
-      ],
-    });
-  }
-
-  private updateStreamingAssistant(markdown: string): void {
-    if (
-      !this.viewState.messages.some(
-        (message) => message.id === STREAMING_MESSAGE_ID,
-      )
-    ) {
-      this.appendStreamingAssistant(markdown);
-      return;
-    }
-    this.updateViewState({
-      messages: this.viewState.messages.map((message) =>
-        message.id === STREAMING_MESSAGE_ID
-          ? { ...message, text: markdown }
-          : message,
-      ),
     });
   }
 
@@ -876,24 +1079,13 @@ class SidebarController {
     mount.replaceChildren(aside);
   }
 
-  private setBusy(busy: boolean): void {
-    this.busy = busy;
-    this.updateViewState({
-      busy,
-      sessionsOpen: busy ? false : this.viewState.sessionsOpen,
-      sessions: busy ? [] : this.viewState.sessions,
-    });
-    this.updateSessionControls();
-  }
-
   private setComposerEnabled(enabled: boolean): void {
     this.composerEnabled = enabled;
     this.updateViewState({ composerEnabled: enabled });
   }
 
   private updateSessionControls(): void {
-    const disabled = this.busy || !this.activePaper;
-    if (disabled) {
+    if (!this.activePaper) {
       this.hideSessionPopover();
     } else if (this.viewState.sessionsOpen) {
       this.updateViewState({
@@ -927,6 +1119,7 @@ class SidebarController {
       this.activeConversation = undefined;
       this.hideSessionPopover();
       this.setComposerEnabled(false);
+      this.updateViewState({ busy: false });
       this.detachPanel();
     }
     this.updateToggleButtons();
@@ -1152,7 +1345,10 @@ class SidebarController {
         void this.createNewSession();
       },
       hideSessions: () => this.hideSessionPopover(),
+      interruptActiveTurn: () => this.interruptActiveTurn(),
       openExternalLink: (url) => this.openExternalLink(url),
+      selectModel: (model) => this.selectModel(model),
+      selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
       startResize: (event) => this.startResize(event),
       submitPrompt: (text) => this.submitPrompt(text),
       switchSession: (conversation) => {
@@ -1181,6 +1377,11 @@ function createInitialSidebarState(label: string): SidebarState {
     sessionsOpen: false,
     composerEnabled: false,
     busy: false,
+    models: [DEFAULT_MODEL],
+    selectedModel: DEFAULT_MODEL.slug,
+    selectedReasoningEffort: "medium",
+    availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,
+    modelLoading: false,
     focusToken: 0,
   };
 }
@@ -1205,7 +1406,36 @@ function toMessageView(
     role: message.role,
     text: message.text,
     status: message.status,
+    completedAt: formatBeijingTimestamp(
+      message.completedAt || message.createdAt,
+    ),
+    model: message.model,
+    reasoningEffort: message.reasoningEffort,
   };
+}
+
+function getStreamingMessageId(conversationId: string): string {
+  return `zcp-streaming-assistant-${conversationId}`;
+}
+
+function formatBeijingTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return (
+    [
+      beijing.getUTCFullYear(),
+      pad2(beijing.getUTCMonth() + 1),
+      pad2(beijing.getUTCDate()),
+    ].join("-") +
+    ` ${pad2(beijing.getUTCHours())}:${pad2(beijing.getUTCMinutes())}`
+  );
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
 }
 
 function formatCodexError(error: unknown): string {

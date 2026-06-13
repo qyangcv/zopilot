@@ -111,6 +111,34 @@ describe("ConversationStore", function () {
       [other.metadata.id],
     );
   });
+
+  it("persists assistant completion metadata and interrupted status", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const store = new ConversationStore(rootDir);
+    let conversation = await store.createPaperConversation(paper);
+
+    conversation = await store.addMessage(conversation.metadata, {
+      role: "assistant",
+      text: "Partial answer",
+      status: "interrupted",
+      completedAt: "2026-06-13T07:30:00.000Z",
+      codexThreadId: "thread-a",
+      codexTurnId: "turn-a",
+      model: "gpt-5.5",
+      reasoningEffort: "medium",
+    });
+
+    const reloaded = await new ConversationStore(
+      rootDir,
+    ).getLatestPaperConversation(paper.paperKey);
+    assert.strictEqual(reloaded?.messages[0]?.status, "interrupted");
+    assert.strictEqual(
+      reloaded?.messages[0]?.completedAt,
+      "2026-06-13T07:30:00.000Z",
+    );
+    assert.strictEqual(reloaded?.messages[0]?.model, "gpt-5.5");
+    assert.strictEqual(reloaded?.messages[0]?.reasoningEffort, "medium");
+  });
 });
 
 function createPaper(

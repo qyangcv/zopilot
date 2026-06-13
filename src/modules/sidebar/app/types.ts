@@ -4,8 +4,19 @@ export type SidebarMessageView = {
   id: string;
   role: "user" | "assistant";
   text: string;
-  status?: "complete" | "error";
+  status?: "complete" | "error" | "interrupted";
+  completedAt?: string;
+  model?: string;
+  reasoningEffort?: string;
   transient?: boolean;
+  running?: boolean;
+};
+
+export type SidebarModelView = {
+  slug: string;
+  displayName: string;
+  supportedReasoningEfforts: string[];
+  defaultReasoningEffort?: string;
 };
 
 export type SidebarContextView = {
@@ -32,6 +43,11 @@ export type SidebarState = {
   sessionsOpen: boolean;
   composerEnabled: boolean;
   busy: boolean;
+  models: SidebarModelView[];
+  selectedModel: string;
+  selectedReasoningEffort?: string;
+  availableReasoningEfforts: string[];
+  modelLoading: boolean;
   focusToken: number;
 };
 
@@ -41,8 +57,11 @@ export type SidebarActions = {
   createNewSession: () => void;
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
+  selectModel: (model: string) => void;
+  selectReasoningEffort: (effort: string) => void;
   startResize: (event: PointerEvent) => void;
   submitPrompt: (text: string) => void;
+  interruptActiveTurn: () => void;
   switchSession: (conversation: Conversation) => void;
   toggleSessions: () => void;
 };

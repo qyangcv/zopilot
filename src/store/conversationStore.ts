@@ -105,6 +105,9 @@ class ConversationStore {
       status?: ConversationMessageStatus;
       codexThreadId?: string;
       codexTurnId?: string;
+      completedAt?: string;
+      model?: string;
+      reasoningEffort?: string;
     },
   ): Promise<Conversation> {
     const messages = await this.readMessages(metadata);
@@ -115,9 +118,12 @@ class ConversationStore {
       role: input.role,
       text: input.text,
       createdAt,
+      completedAt: input.completedAt,
       codexThreadId: input.codexThreadId,
       codexTurnId: input.codexTurnId,
       status: input.status || "complete",
+      model: input.model,
+      reasoningEffort: input.reasoningEffort,
     };
     messages.push(message);
 
@@ -332,6 +338,8 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     (item.role === "user" || item.role === "assistant") &&
     typeof item.text === "string" &&
     typeof item.createdAt === "string" &&
-    (item.status === "complete" || item.status === "error")
+    (item.status === "complete" ||
+      item.status === "error" ||
+      item.status === "interrupted")
   );
 }

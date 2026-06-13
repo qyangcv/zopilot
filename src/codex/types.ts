@@ -82,13 +82,24 @@ export type CodexPromptResult = {
   threadId: string;
   turnId?: string;
   text: string;
+  status: "completed" | "interrupted";
 };
 
 export type CodexPromptOptions = {
   conversation: ConversationMetadata;
+  model?: string;
+  effort?: string | null;
   onDelta?: (delta: string, fullText: string) => void;
   onNotice?: (notice: string) => void;
   onToolActivity?: () => void;
+  onTurnStarted?: (threadId: string, turnId: string) => void;
+};
+
+export type CodexModelInfo = {
+  slug: string;
+  displayName: string;
+  supportedReasoningEfforts: string[];
+  defaultReasoningEffort?: string;
 };
 
 export type CodexBridgeStatus =

@@ -305,7 +305,8 @@
 .zcp-resend-icon,
 .zcp-check-icon,
 .zcp-send-icon,
-.zcp-dots-icon {
+.zcp-dots-icon,
+.zcp-stop-icon {
   display: block;
   width: 14px;
   height: 14px;
@@ -398,6 +399,12 @@
       4px no-repeat,
     radial-gradient(circle, currentColor 2px, transparent 2.5px) 9px center /
       4px 4px no-repeat;
+}
+
+.zcp-stop-icon {
+  border-radius: 3px;
+  background: currentColor;
+  transform: scale(0.72);
 }
 
 .zcp-session-popover {
@@ -894,14 +901,30 @@
 .zcp-message-actions {
   display: inline-flex;
   gap: 1px;
-  margin-block-start: 3px;
   color: var(--zcp-muted);
-  opacity: 0;
 }
 
-.zcp-message:focus-within .zcp-message-actions,
-.zcp-message:hover .zcp-message-actions {
-  opacity: 1;
+.zcp-message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+  margin-block-start: 3px;
+  color: var(--zcp-muted);
+}
+
+.zcp-message-time,
+.zcp-message-status {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zcp-message-time {
+  flex: 0 0 auto;
 }
 
 .zcp-message-action {
@@ -1022,6 +1045,31 @@
 .zcp-composer-pill + .zcp-composer-pill {
   border-inline-start: 1px solid var(--zcp-border);
   padding-inline-start: 7px;
+}
+
+.zcp-composer-select {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(180px, 48vw);
+  border: 0;
+  border-radius: 5px;
+  appearance: none;
+  -moz-appearance: none;
+  background: transparent;
+  color: var(--zcp-muted-strong);
+  font: menu;
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 2px 14px 2px 4px;
+  text-overflow: ellipsis;
+}
+
+.zcp-composer-select:hover {
+  background: var(--zcp-panel-strong);
+}
+
+.zcp-composer-select:disabled {
+  opacity: 0.6;
 }
 
 .zcp-send-button {

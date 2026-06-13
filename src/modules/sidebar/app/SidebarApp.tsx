@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import { getString } from "../../../utils/locale";
 import { MarkdownView } from "./MarkdownView";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
@@ -14,6 +21,7 @@ export function SidebarApp({
   const [contextOpen, setContextOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const logRef = useRef<HTMLElement | null>(null);
+  const autoScrollRef = useRef(true);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastUserMessage = useMemo(
@@ -21,10 +29,16 @@ export function SidebarApp({
       [...state.messages].reverse().find((message) => message.role === "user"),
     [state.messages],
   );
+  const selectedModelLabel =
+    state.models.find((model) => model.slug === state.selectedModel)
+      ?.displayName || state.selectedModel;
+  const selectedEffortLabel = state.selectedReasoningEffort
+    ? formatEffortLabel(state.selectedReasoningEffort)
+    : "";
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const log = logRef.current;
-    if (log) {
+    if (log && autoScrollRef.current) {
       log.scrollTop = log.scrollHeight;
     }
   }, [state.messages]);
@@ -66,12 +80,9 @@ export function SidebarApp({
     setDraft("");
   };
 
-  const copyMessage = (
-    message: SidebarMessageView,
-    mode: "text" | "markdown",
-  ) => {
+  const copyMessage = (message: SidebarMessageView) => {
     void copyText(message.text).then(() => {
-      setCopiedId(`${message.id}-${mode}`);
+      setCopiedId(`${message.id}-text`);
       globalThis.setTimeout(() => setCopiedId(null), 900);
     });
   };
@@ -118,7 +129,7 @@ export function SidebarApp({
             aria-haspopup="true"
             aria-label={getString("sidebar-history")}
             className="zcp-icon-button zcp-history-button"
-            disabled={state.busy || !state.context.paperKey}
+            disabled={!state.context.paperKey}
             onClick={(event) => {
               event.stopPropagation();
               actions.toggleSessions();
@@ -131,7 +142,7 @@ export function SidebarApp({
           <button
             aria-label={getString("sidebar-new-chat")}
             className="zcp-icon-button zcp-new-session-button"
-            disabled={state.busy || !state.context.paperKey}
+            disabled={!state.context.paperKey}
             onClick={(event) => {
               event.stopPropagation();
               actions.createNewSession();
@@ -165,7 +176,15 @@ export function SidebarApp({
       {state.sessionsOpen ? (
         <SessionPopover actions={actions} sessions={state.sessions} />
       ) : null}
-      <main aria-live="polite" className="zcp-chat-log" ref={logRef} role="log">
+      <main
+        aria-live="polite"
+        className="zcp-chat-log"
+        onScroll={(event) => {
+          autoScrollRef.current = isNearScrollBottom(event.currentTarget);
+        }}
+        ref={logRef}
+        role="log"
+      >
         {state.messages.map((message) => (
           <Message
             busy={state.busy}
@@ -221,7 +240,7 @@ export function SidebarApp({
         </div>
         <textarea
           className="zcp-composer-input"
-          disabled={state.busy || !state.composerEnabled}
+          disabled={!state.composerEnabled}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onInput={(event) => resizeTextarea(event.currentTarget)}
           onKeyDown={(event) => {
@@ -237,21 +256,65 @@ export function SidebarApp({
         />
         <div className="zcp-composer-footer">
           <div className="zcp-composer-meta">
-            <span className="zcp-composer-pill">
-              {getString("sidebar-model-name")}
-            </span>
-            <span className="zcp-composer-pill">
-              {getString("sidebar-reasoning-depth")}
-            </span>
+            <select
+              aria-label={getString("sidebar-model-name")}
+              className="zcp-composer-select"
+              disabled={!state.models.length}
+              onChange={(event) =>
+                actions.selectModel(event.currentTarget.value)
+              }
+              style={{
+                inlineSize: getComposerSelectInlineSize(selectedModelLabel),
+              }}
+              title={getString("sidebar-model-name")}
+              value={state.selectedModel}
+            >
+              {state.models.map((model) => (
+                <option key={model.slug} value={model.slug}>
+                  {model.displayName}
+                </option>
+              ))}
+            </select>
+            {state.availableReasoningEfforts.length ? (
+              <select
+                aria-label={getString("sidebar-reasoning-depth")}
+                className="zcp-composer-select"
+                onChange={(event) =>
+                  actions.selectReasoningEffort(event.currentTarget.value)
+                }
+                style={{
+                  inlineSize: getComposerSelectInlineSize(selectedEffortLabel),
+                }}
+                title={getString("sidebar-reasoning-depth")}
+                value={state.selectedReasoningEffort || ""}
+              >
+                {state.availableReasoningEfforts.map((effort) => (
+                  <option key={effort} value={effort}>
+                    {formatEffortLabel(effort)}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
           <button
-            aria-label={getString("sidebar-send")}
+            aria-label={
+              state.busy ? getString("sidebar-stop") : getString("sidebar-send")
+            }
             className="zcp-send-button"
-            disabled={state.busy || !state.composerEnabled || !draft.trim()}
-            title={getString("sidebar-send")}
-            type="submit"
+            disabled={!state.composerEnabled || (!state.busy && !draft.trim())}
+            onClick={(event) => {
+              if (!state.busy) {
+                return;
+              }
+              event.preventDefault();
+              actions.interruptActiveTurn();
+            }}
+            title={
+              state.busy ? getString("sidebar-stop") : getString("sidebar-send")
+            }
+            type={state.busy ? "button" : "submit"}
           >
-            <span className={state.busy ? "zcp-dots-icon" : "zcp-send-icon"} />
+            <span className={state.busy ? "zcp-stop-icon" : "zcp-send-icon"} />
           </button>
         </div>
       </form>
@@ -273,13 +336,19 @@ function Message({
   copiedId: string | null;
   lastUserText?: string;
   message: SidebarMessageView;
-  onCopy: (message: SidebarMessageView, mode: "text" | "markdown") => void;
+  onCopy: (message: SidebarMessageView) => void;
   onInsert: (text: string) => void;
   onOpenLink: (url: string) => void;
   onSubmit: (text: string) => void;
 }): ReactElement {
   const isAssistant = message.role === "assistant";
-  const canRetry = isAssistant && lastUserText && !message.transient;
+  const isCompleteAssistant =
+    isAssistant &&
+    message.status === "complete" &&
+    !message.transient &&
+    !message.running;
+  const canRetry = isCompleteAssistant && lastUserText;
+  const completedAt = message.completedAt;
 
   return (
     <article
@@ -297,55 +366,99 @@ function Message({
         ) : (
           <div className="zcp-message-bubble">{message.text}</div>
         )}
-        <div className="zcp-message-actions">
-          <IconAction
-            active={copiedId === `${message.id}-text`}
-            icon="copy"
-            label={getString("sidebar-copy-text")}
-            onClick={() => onCopy(message, "text")}
+        {isAssistant ? (
+          <AssistantFooter
+            canRetry={Boolean(canRetry)}
+            completedAt={completedAt}
+            copied={copiedId === `${message.id}-text`}
+            message={message}
+            onCopy={() => onCopy(message)}
+            onInsert={() => onInsert(message.text)}
+            onRetry={() => {
+              if (lastUserText) {
+                onSubmit(lastUserText);
+              }
+            }}
           />
-          {isAssistant ? (
-            <>
-              <IconAction
-                active={copiedId === `${message.id}-markdown`}
-                icon="markdown"
-                label={getString("sidebar-copy-markdown")}
-                onClick={() => onCopy(message, "markdown")}
-              />
-              <IconAction
-                icon="insert"
-                label={getString("sidebar-insert-composer")}
-                onClick={() => onInsert(message.text)}
-              />
-              <IconAction
-                disabled={busy || !canRetry}
-                icon="retry"
-                label={getString("sidebar-retry-turn")}
-                onClick={() => {
-                  if (lastUserText) {
-                    onSubmit(lastUserText);
-                  }
-                }}
-              />
-            </>
-          ) : (
-            <>
-              <IconAction
-                icon="edit"
-                label={getString("sidebar-edit-composer")}
-                onClick={() => onInsert(message.text)}
-              />
-              <IconAction
-                disabled={busy}
-                icon="resend"
-                label={getString("sidebar-resend")}
-                onClick={() => onSubmit(message.text)}
-              />
-            </>
-          )}
-        </div>
+        ) : (
+          <div className="zcp-message-actions">
+            <IconAction
+              icon="edit"
+              label={getString("sidebar-edit-composer")}
+              onClick={() => onInsert(message.text)}
+            />
+            <IconAction
+              disabled={busy}
+              icon="resend"
+              label={getString("sidebar-resend")}
+              onClick={() => onSubmit(message.text)}
+            />
+          </div>
+        )}
       </div>
     </article>
+  );
+}
+
+function AssistantFooter({
+  canRetry,
+  completedAt,
+  copied,
+  message,
+  onCopy,
+  onInsert,
+  onRetry,
+}: {
+  canRetry: boolean;
+  completedAt?: string;
+  copied: boolean;
+  message: SidebarMessageView;
+  onCopy: () => void;
+  onInsert: () => void;
+  onRetry: () => void;
+}): ReactElement | null {
+  if (message.running || message.transient) {
+    return null;
+  }
+  if (message.status !== "complete") {
+    return (
+      <div className="zcp-message-footer">
+        <span className="zcp-message-status">
+          {message.status === "interrupted"
+            ? getString("sidebar-status-interrupted")
+            : getString("sidebar-status-error")}
+        </span>
+        {completedAt ? (
+          <time className="zcp-message-time">{completedAt}</time>
+        ) : null}
+      </div>
+    );
+  }
+  return (
+    <div className="zcp-message-footer">
+      <div className="zcp-message-actions">
+        <IconAction
+          active={copied}
+          icon="copy"
+          label={getString("sidebar-copy-text")}
+          onClick={onCopy}
+        />
+        <IconAction
+          icon="insert"
+          label={getString("sidebar-insert-composer")}
+          onClick={onInsert}
+        />
+        <IconAction
+          disabled={!canRetry}
+          icon="retry"
+          label={getString("sidebar-retry-turn")}
+          onClick={onRetry}
+        />
+      </div>
+      {completedAt ? (
+        <time className="zcp-message-time">{completedAt}</time>
+      ) : null}
+    </div>
   );
 }
 
@@ -500,6 +613,25 @@ function resizeTextarea(textarea: HTMLTextAreaElement | null): void {
   textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
   textarea.style.overflowY =
     textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+}
+
+function isNearScrollBottom(element: HTMLElement): boolean {
+  const distanceFromBottom =
+    element.scrollHeight - element.scrollTop - element.clientHeight;
+  return distanceFromBottom <= 32;
+}
+
+function formatEffortLabel(effort: string): string {
+  return effort.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase());
+}
+
+function getComposerSelectInlineSize(label: string): string {
+  const characterCount = Array.from(label || "").length;
+  return `${clampNumber(characterCount + 2, 5, 24)}ch`;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 async function copyText(text: string): Promise<void> {
