@@ -1,238 +1,93 @@
-import { useMemo, useState, type ReactElement } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import rehypeKatex from "rehype-katex";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import {
-  escapeHtml,
-  getCodeLanguage,
-  highlightCodeWithShiki,
-} from "./codeHighlighting";
+  useCallback,
+  useMemo,
+  type MouseEvent,
+  type ReactElement,
+} from "react";
 import { copyText } from "./clipboard";
+import { isInternalUrl, renderMarkdownToHtml } from "./markdownRenderer";
 
 type MarkdownViewProps = {
   markdown: string;
   onOpenLink: (url: string) => void;
 };
 
-const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
-
 export function MarkdownView({
   markdown,
   onOpenLink,
 }: MarkdownViewProps): ReactElement {
-  const components = useMemo(
-    () => createMarkdownComponents(onOpenLink),
+  const html = useMemo(() => renderMarkdownToHtml(markdown), [markdown]);
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      const target = event.target;
+      if (!hasClosest(target)) {
+        return;
+      }
+
+      const copyButton = target.closest("button[data-zcp-copy-code]");
+      if (copyButton && event.currentTarget.contains(copyButton)) {
+        event.preventDefault();
+        void copyText(
+          decodeCopyPayload(
+            copyButton.getAttribute("data-zcp-copy-code") ?? undefined,
+          ),
+        ).then(() => showCopiedState(copyButton));
+        return;
+      }
+
+      const anchor = target.closest("a[href]");
+      if (!anchor || !event.currentTarget.contains(anchor)) {
+        return;
+      }
+
+      const href = anchor.getAttribute("href");
+      if (!href || isInternalUrl(href)) {
+        return;
+      }
+
+      event.preventDefault();
+      onOpenLink(href);
+    },
     [onOpenLink],
   );
 
   return (
-    <ReactMarkdown
-      components={components}
-      rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
-      remarkPlugins={[remarkGfm, remarkMath]}
-      skipHtml
-      urlTransform={(url) =>
-        isInternalUrl(url) || isSafeExternalUrl(url) ? url : ""
-      }
-    >
-      {markdown}
-    </ReactMarkdown>
+    <div
+      className="zcp-markdown-rendered"
+      dangerouslySetInnerHTML={{ __html: html }}
+      onClick={handleClick}
+    />
   );
 }
 
-function createMarkdownComponents(
-  onOpenLink: (url: string) => void,
-): Components {
-  return {
-    a({ children, href }) {
-      if (!href) {
-        return <span className="zcp-unsafe-link">{children}</span>;
-      }
-      if (isInternalUrl(href)) {
-        return <a href={href}>{children}</a>;
-      }
-      if (!isSafeExternalUrl(href)) {
-        return <span className="zcp-unsafe-link">{children}</span>;
-      }
-      return (
-        <a
-          href={href}
-          onClick={(event) => {
-            event.preventDefault();
-            onOpenLink(href);
-          }}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {children}
-        </a>
-      );
-    },
-    blockquote({ children }) {
-      return <blockquote>{children}</blockquote>;
-    },
-    code({ children, className }) {
-      const text = String(children).replace(/\n$/u, "");
-      const language = getCodeLanguage(className);
-      if (!language) {
-        return <code>{children}</code>;
-      }
-      return <CodeBlock language={language} text={text} />;
-    },
-    h1({ children }) {
-      return (
-        <h2 className="zcp-markdown-heading zcp-markdown-heading-1">
-          {children}
-        </h2>
-      );
-    },
-    h2({ children }) {
-      return (
-        <h3 className="zcp-markdown-heading zcp-markdown-heading-2">
-          {children}
-        </h3>
-      );
-    },
-    h3({ children }) {
-      return (
-        <h4 className="zcp-markdown-heading zcp-markdown-heading-3">
-          {children}
-        </h4>
-      );
-    },
-    h4({ children }) {
-      return (
-        <h5 className="zcp-markdown-heading zcp-markdown-heading-4">
-          {children}
-        </h5>
-      );
-    },
-    h5({ children }) {
-      return (
-        <h6 className="zcp-markdown-heading zcp-markdown-heading-5">
-          {children}
-        </h6>
-      );
-    },
-    h6({ children }) {
-      return (
-        <h6 className="zcp-markdown-heading zcp-markdown-heading-6">
-          {children}
-        </h6>
-      );
-    },
-    img({ alt, src }) {
-      const label = alt?.trim() ? alt : "image";
-      if (!src || !isSafeExternalUrl(src)) {
-        return (
-          <span className="zcp-markdown-image">
-            <span className="zcp-markdown-image-label">{label}</span>
-          </span>
-        );
-      }
-      return (
-        <span className="zcp-markdown-image">
-          <span className="zcp-markdown-image-label">{label}</span>{" "}
-          <a
-            href={src}
-            onClick={(event) => {
-              event.preventDefault();
-              onOpenLink(src);
-            }}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            {src}
-          </a>
-        </span>
-      );
-    },
-    input({ checked, type }) {
-      if (type !== "checkbox") {
-        return <input checked={checked} readOnly type={type} />;
-      }
-      return (
-        <input
-          checked={Boolean(checked)}
-          className="zcp-task-checkbox"
-          readOnly
-          type="checkbox"
-        />
-      );
-    },
-    pre({ children }) {
-      return <>{children}</>;
-    },
-    table({ children }) {
-      return (
-        <div className="zcp-table-scroll">
-          <table>{children}</table>
-        </div>
-      );
-    },
-  };
-}
-
-function CodeBlock({
-  language,
-  text,
-}: {
-  language: string;
-  text: string;
-}): ReactElement {
-  const [copied, setCopied] = useState(false);
-  const fallback = useMemo(() => escapeHtml(text), [text]);
-  const highlighted = useMemo(
-    () => highlightCodeWithShiki(text, language),
-    [language, text],
-  );
-
+function hasClosest(target: EventTarget | null): target is Element {
   return (
-    <div className="zcp-code-block" data-language={language}>
-      <button
-        aria-label="Copy code"
-        className="zcp-code-copy zcp-inline-copy"
-        onClick={() => {
-          void copyText(text).then(() => {
-            setCopied(true);
-            globalThis.setTimeout(() => setCopied(false), 900);
-          });
-        }}
-        title="Copy code"
-        type="button"
-      >
-        <span className={copied ? "zcp-check-icon" : "zcp-copy-icon"} />
-      </button>
-      {highlighted ? (
-        <div
-          className="zcp-code-content"
-          dangerouslySetInnerHTML={{ __html: highlighted }}
-        />
-      ) : (
-        <pre className="zcp-code-plain">
-          <code
-            className={`language-${language}`}
-            dangerouslySetInnerHTML={{ __html: fallback }}
-          />
-        </pre>
-      )}
-    </div>
+    typeof target === "object" &&
+    target !== null &&
+    "closest" in target &&
+    typeof target.closest === "function"
   );
 }
 
-function isInternalUrl(url: string): boolean {
-  return url.startsWith("#");
-}
-
-function isSafeExternalUrl(url: string): boolean {
-  if (!/^[A-Za-z][\w+.-]*:/u.test(url)) {
-    return false;
+function decodeCopyPayload(encoded: string | undefined): string {
+  if (!encoded) {
+    return "";
   }
   try {
-    const parsed = new URL(url);
-    return SAFE_PROTOCOLS.has(parsed.protocol);
+    return decodeURIComponent(encoded);
   } catch {
-    return false;
+    return "";
   }
+}
+
+function showCopiedState(button: Element): void {
+  const icon = button.querySelector("span");
+  if (!icon) {
+    return;
+  }
+
+  icon.className = "zcp-check-icon";
+  globalThis.setTimeout(() => {
+    icon.className = "zcp-copy-icon";
+  }, 900);
 }

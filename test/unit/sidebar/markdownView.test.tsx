@@ -31,7 +31,7 @@ describe("MarkdownView", function () {
     assert.include(html, "<em>italic</em>");
     assert.include(html, "<del>deleted</del>");
     assert.include(html, "<blockquote>");
-    assert.include(html, "<hr/>");
+    assert.include(html, "<hr");
   });
 
   it("renders nested lists and read-only GFM task list checkboxes", function () {
@@ -43,7 +43,7 @@ describe("MarkdownView", function () {
     assert.include(html, "<ul>");
     assert.include(html, "Nested");
     assert.include(html, 'type="checkbox"');
-    assert.include(html, 'readOnly=""');
+    assert.include(html, 'disabled="disabled"');
     assert.include(html, 'class="zcp-task-checkbox"');
   });
 
@@ -115,7 +115,7 @@ describe("MarkdownView", function () {
     assert.include(html, 'href="https://example.com"');
   });
 
-  it("renders inline and block math with KaTeX", function () {
+  it("renders dollar-delimited inline and block math with KaTeX", function () {
     const html = renderMarkdown(
       ["Inline $x^2$.", "", "$$", "y = mx + b", "$$"].join("\n"),
     );
@@ -126,13 +126,50 @@ describe("MarkdownView", function () {
     assert.include(html, "y");
   });
 
+  it("renders bracket-delimited math with KaTeX", function () {
+    const html = renderMarkdown(
+      ["Inline \\(x^2\\).", "", "\\[", "y = mx + b", "\\]"].join("\n"),
+    );
+
+    assert.include(html, "katex");
+    assert.include(html, "katex-display");
+    assert.include(html, "x");
+    assert.include(html, "y");
+  });
+
+  it("renders mixed inline math delimiter styles", function () {
+    const html = renderMarkdown("Inline $a$ and \\(b\\).");
+
+    assert.include(html, "katex");
+    assert.include(html, "a");
+    assert.include(html, "b");
+  });
+
+  it("renders math fences with KaTeX", function () {
+    const html = renderMarkdown(["```math", "y = mx + b", "```"].join("\n"));
+
+    assert.include(html, "katex");
+    assert.include(html, "katex-display");
+    assert.include(html, "y");
+  });
+
+  it("does not render math delimiters inside code", function () {
+    const html = renderMarkdown(
+      ["Inline `$x^2$`.", "", "```text", "$$y = mx + b$$", "```"].join("\n"),
+    );
+
+    assert.notInclude(html, "katex");
+    assert.include(html, "<code>$x^2$</code>");
+    assert.include(html, "$$y = mx + b$$");
+  });
+
   it("renders GFM footnotes", function () {
     const html = renderMarkdown(
       ["A footnote.[^a]", "", "[^a]: Footnote body"].join("\n"),
     );
 
-    assert.include(html, 'data-footnotes="true"');
-    assert.include(html, 'href="#user-content-fn-a"');
+    assert.include(html, 'class="footnotes"');
+    assert.include(html, 'href="#footnote1"');
     assert.include(html, "Footnote body");
   });
 
