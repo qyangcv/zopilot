@@ -140,6 +140,7 @@ class SidebarController {
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
+    this.bindSessionPopoverDismiss();
     this.refreshContext();
   }
 
@@ -413,6 +414,7 @@ class SidebarController {
       this.storeReactHostStatus("ready");
     } catch (error) {
       this.storeReactHostStatus(`error: ${formatUnknownError(error)}`);
+      this.renderReactHostFallback(error);
       ztoolkit.log("failed to mount Zotero Copilot React sidebar", error);
     } finally {
       this.reactHostLoading = false;
@@ -824,6 +826,56 @@ class SidebarController {
     debugWin.__zcpReactHostStatus = status;
   }
 
+  private renderReactHostFallback(error: unknown): void {
+    const mount = this.appMount;
+    if (!mount || this.destroyed) {
+      return;
+    }
+
+    const aside = this.html("aside", "zcp-sidebar");
+    aside.setAttribute("role", "complementary");
+    aside.setAttribute("aria-label", getString("sidebar-title"));
+
+    const header = this.html("header", "zcp-sidebar-header");
+    const identity = this.html("div", "zcp-sidebar-identity");
+    const icon = this.html("span", "zcp-sidebar-icon");
+    const titleBlock = this.html("div", "zcp-sidebar-title-block");
+    const title = this.html("span", "zcp-sidebar-title");
+    title.textContent = getString("sidebar-title");
+    const selectedTitle = this.html("span", "zcp-sidebar-selected-title");
+    selectedTitle.textContent = getString("sidebar-codex-error");
+    titleBlock.append(title, selectedTitle);
+    identity.append(icon, titleBlock);
+
+    const closeButton = this.html("button", "zcp-icon-button");
+    closeButton.setAttribute("type", "button");
+    closeButton.setAttribute("aria-label", getString("sidebar-close"));
+    closeButton.title = getString("sidebar-close");
+    closeButton.addEventListener("click", () => this.setOpen(false));
+    closeButton.appendChild(
+      this.html("span", "zcp-action-icon zcp-close-icon"),
+    );
+
+    const actions = this.html("div", "zcp-sidebar-actions");
+    actions.appendChild(closeButton);
+    header.append(identity, actions);
+
+    const log = this.html("main", "zcp-chat-log");
+    log.setAttribute("role", "log");
+    log.setAttribute("aria-live", "polite");
+    const row = this.html("article", "zcp-message zcp-message-assistant");
+    row.appendChild(this.html("div", "zcp-message-avatar"));
+    const body = this.html("div", "zcp-message-body");
+    const message = this.html("p");
+    message.textContent = formatCodexError(error);
+    body.appendChild(message);
+    row.appendChild(body);
+    log.appendChild(row);
+
+    aside.append(header, log);
+    mount.replaceChildren(aside);
+  }
+
   private setBusy(busy: boolean): void {
     this.busy = busy;
     this.updateViewState({
@@ -1012,11 +1064,34 @@ class SidebarController {
     }
   }
 
+  private bindSessionPopoverDismiss(): void {
+    const dismiss = (event: Event) => {
+      if (!this.viewState.sessionsOpen) {
+        return;
+      }
+      const target = event.target as Node | null;
+      if (target && this.shell?.contains(target)) {
+        return;
+      }
+      this.hideSessionPopover();
+    };
+    this.doc.addEventListener("click", dismiss);
+    this.listeners.push(() => this.doc.removeEventListener("click", dismiss));
+  }
+
   private getSelectedItemTitle(
     reader?: _ZoteroTypes.ReaderInstance,
     currentItem?: Zotero.Item,
   ): string {
     return getSelectedItemTitle(this.win, reader, currentItem);
+  }
+
+  private html(tagName: string, className?: string): HTMLElement {
+    const element = this.doc.createElementNS(HTML_NS, tagName) as HTMLElement;
+    if (className) {
+      element.className = className;
+    }
+    return element;
   }
 
   private getDisplayTitle(
