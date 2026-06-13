@@ -1,7 +1,7 @@
 import type { PaperScope } from "../zotero/types";
 
-export type ConversationMessageRole = "user" | "assistant";
-export type ConversationMessageStatus = "complete" | "error" | "interrupted";
+type ConversationMessageStatus = "complete" | "error" | "interrupted";
+type ConversationMessageRole = "user" | "assistant";
 
 export type PaperIdentity = {
   paperKey: string;
@@ -20,7 +20,6 @@ export type ConversationMetadata = PaperIdentity & {
   createdAt: string;
   updatedAt: string;
   codexThreadId?: string;
-  codexSessionId?: string;
   latestPreview?: string;
   archived?: boolean;
 };

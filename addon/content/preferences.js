@@ -3,22 +3,15 @@
 (() => {
   const L10N_PREFIX = "__addonRef__";
   const COMMAND_TIMEOUT_MS = 5000;
-  const MAX_INIT_ATTEMPTS = 20;
 
   let statusValue;
-  let initAttempts = 0;
 
   init();
 
   function init() {
     statusValue = document.getElementById("zotero-copilot-codex-status-value");
-
     if (!statusValue) {
-      initAttempts += 1;
-      if (initAttempts <= MAX_INIT_ATTEMPTS) {
-        setTimeout(init, 50);
-      }
-      return;
+      throw new Error("Zotero Copilot preference status element is missing.");
     }
 
     setStatus("missing", "pref-codex-status-missing");
@@ -39,12 +32,10 @@
         return;
       }
 
-      const login = await readCodexLoginStatus(subprocess, command);
+      const loggedIn = await readCodexLoginStatus(subprocess, command);
       setStatus(
-        login.loggedIn ? "connected" : "missing",
-        login.loggedIn
-          ? "pref-codex-status-connected"
-          : "pref-codex-status-missing",
+        loggedIn ? "connected" : "missing",
+        loggedIn ? "pref-codex-status-connected" : "pref-codex-status-missing",
       );
     } catch {
       setStatus("missing", "pref-codex-status-missing");
@@ -59,9 +50,7 @@
       /not logged in|not authenticated|not signed in|unauthenticated/i.test(
         output,
       );
-    return {
-      loggedIn: result.exitCode === 0 && authenticated && !unauthenticated,
-    };
+    return result.exitCode === 0 && authenticated && !unauthenticated;
   }
 
   async function runCommand(subprocess, command, args) {
@@ -71,7 +60,7 @@
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
-      workdir: getUserHomeDirectory(subprocess.getEnvironment()),
+      workdir: subprocess.getEnvironment().HOME,
     });
 
     let timer;
@@ -121,7 +110,7 @@
 
   function setStatus(status, l10nId) {
     statusValue.dataset.status = status;
-    statusValue.textContent = fallbackStatusText(l10nId);
+    statusValue.textContent = "";
     if (document.l10n?.setAttributes) {
       document.l10n.setAttributes(statusValue, `${L10N_PREFIX}-${l10nId}`);
       void document.l10n
@@ -130,24 +119,9 @@
     }
   }
 
-  function fallbackStatusText(l10nId) {
-    switch (l10nId) {
-      case "pref-codex-status-connected":
-        return "检测到且连接成功";
-      case "pref-codex-status-missing":
-        return "未检测到";
-      default:
-        return "";
-    }
-  }
-
   function getSubprocess() {
     return ChromeUtils.importESModule(
       "resource://gre/modules/Subprocess.sys.mjs",
     ).Subprocess;
-  }
-
-  function getUserHomeDirectory(environment) {
-    return environment.HOME;
   }
 })();

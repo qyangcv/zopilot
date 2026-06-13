@@ -7,7 +7,6 @@
 declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
-      "enabled": boolean;
       "codex.timeoutMs": number;
       "codex.model": string;
       "codex.reasoningEfforts": string;

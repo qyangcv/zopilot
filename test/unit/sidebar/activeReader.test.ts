@@ -3,7 +3,7 @@ import {
   getSelectedPDFReader,
   getSelectedReader,
   isPDFReader,
-} from "../../../src/modules/sidebar/activeReader.ts";
+} from "../../../src/zotero/reader.ts";
 
 type MockReader = {
   itemID?: number;
@@ -21,7 +21,7 @@ type MockWindow = Window & {
 const PDF_READER = createReader("pdf-tab", "pdf");
 const EPUB_READER = createReader("epub-tab", "epub");
 
-describe("sidebar active reader helpers", function () {
+describe("Zotero reader helpers", function () {
   afterEach(function () {
     delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
   });

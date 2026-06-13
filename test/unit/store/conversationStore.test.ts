@@ -14,9 +14,9 @@ import { tmpdir } from "os";
 import { ConversationStore } from "../../../src/store/conversationStore.ts";
 import type { PaperIdentity } from "../../../src/shared/conversation.ts";
 
-describe("ConversationStore", function () {
-  let rootDir: string;
+let rootDir: string;
 
+describe("ConversationStore", function () {
   beforeEach(async function () {
     rootDir = await mkdtemp(join(tmpdir(), "zcp-conversations-"));
     installFileMocks();
@@ -115,9 +115,9 @@ describe("ConversationStore", function () {
   it("persists assistant completion metadata and interrupted status", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const store = new ConversationStore(rootDir);
-    let conversation = await store.createPaperConversation(paper);
+    const conversation = await store.createPaperConversation(paper);
 
-    conversation = await store.addMessage(conversation.metadata, {
+    await store.addMessage(conversation.metadata, {
       role: "assistant",
       text: "Partial answer",
       status: "interrupted",
@@ -139,6 +139,38 @@ describe("ConversationStore", function () {
     assert.strictEqual(reloaded?.messages[0]?.model, "gpt-5.5");
     assert.strictEqual(reloaded?.messages[0]?.reasoningEffort, "medium");
   });
+
+  it("fails loudly on invalid conversation metadata", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const store = new ConversationStore(rootDir);
+    await store.createPaperConversation(paper);
+    const { metadataPath } = await getConversationFilePaths(paper.paperKey);
+
+    await writeFile(metadataPath, JSON.stringify({ id: "broken" }), "utf8");
+
+    await assertRejects(
+      () => store.getLatestPaperConversation(paper.paperKey),
+      "Invalid Zotero Copilot conversation metadata",
+    );
+  });
+
+  it("fails loudly on invalid conversation messages", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const store = new ConversationStore(rootDir);
+    const conversation = await store.createPaperConversation(paper);
+    await store.addMessage(conversation.metadata, {
+      role: "user",
+      text: "Question",
+    });
+    const { messagesPath } = await getConversationFilePaths(paper.paperKey);
+
+    await writeFile(messagesPath, JSON.stringify({ id: "broken" }), "utf8");
+
+    await assertRejects(
+      () => store.getLatestPaperConversation(paper.paperKey),
+      "Invalid Zotero Copilot conversation message",
+    );
+  });
 });
 
 function createPaper(
@@ -159,6 +191,43 @@ function createPaper(
 
 async function waitForTimestampTick(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 2));
+}
+
+async function getConversationFilePaths(paperKey: string): Promise<{
+  metadataPath: string;
+  messagesPath: string;
+}> {
+  const dir = join(rootDir, "papers", encodePathSegment(paperKey));
+  const files = await readdir(dir);
+  const metadataPath = files.find((file) => file.endsWith(".json"));
+  const messagesPath = files.find((file) => file.endsWith(".jsonl"));
+  if (!metadataPath || !messagesPath) {
+    throw new Error("Conversation test fixture is incomplete.");
+  }
+  return {
+    metadataPath: join(dir, metadataPath),
+    messagesPath: join(dir, messagesPath),
+  };
+}
+
+async function assertRejects(
+  action: () => Promise<unknown>,
+  expectedMessage: string,
+): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    assert.include(String(error), expectedMessage);
+    return;
+  }
+  assert.fail("Expected action to reject.");
+}
+
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 function installFileMocks(): void {

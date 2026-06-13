@@ -5,11 +5,10 @@ import {
   createJsonRpcResult,
   getJsonRpcId,
   isJsonObject,
-  type JsonObject,
-  type McpHttpRequest,
-  type McpHttpResponse,
+  type McpTool,
+  type McpToolCallResult,
 } from "./protocol";
-import { McpToolRegistry, createDefaultMcpToolRegistry } from "./toolRegistry";
+import { createPaperReadTool } from "./tools/paperRead";
 
 export {
   MCP_ENDPOINT_PATH,
@@ -17,7 +16,6 @@ export {
   shutdownMcpHttpServer,
   startMcpHttpServer,
 };
-export type { McpHttpHandler, McpHttpServerInfo };
 
 const MCP_ENDPOINT_PATH = "/zotero-copilot/mcp";
 const DEFAULT_ZOTERO_HTTP_PORT = 23119;
@@ -29,18 +27,24 @@ type McpHttpServerInfo = {
   name: string;
   url: string;
   token: string;
-  path: string;
-  port: number;
 };
 
 type McpHttpHandlerOptions = {
   token: string;
-  registry: McpToolRegistry;
+  paperReadTool: McpTool;
   logger?: (message: string, details?: JsonValue) => void;
 };
 
-type McpHttpHandler = {
-  handle(request: McpHttpRequest): Promise<McpHttpResponse>;
+type McpHttpRequest = {
+  method: string;
+  headers: Record<string, string>;
+  data: unknown;
+};
+
+type McpHttpResponse = {
+  status: number;
+  headers: Record<string, string>;
+  body?: string;
 };
 
 let serverInfo: McpHttpServerInfo | undefined;
@@ -57,14 +61,10 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
     name: SERVER_NAME,
     url: `http://127.0.0.1:${port}${MCP_ENDPOINT_PATH}`,
     token,
-    path: MCP_ENDPOINT_PATH,
-    port,
   };
   const handler = createMcpHttpHandler({
     token,
-    registry: createDefaultMcpToolRegistry({
-      logger: logMcp,
-    }),
+    paperReadTool: createPaperReadTool({ logger: logMcp }),
     logger: logMcp,
   });
 
@@ -77,26 +77,13 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
   ): Promise<[number, Record<string, string>, string] | number> => {
     const response = await handler.handle({
       method: request.method,
-      pathname: request.pathname,
       headers: request.headers,
       data: request.data,
     });
     if (!response.body) {
-      return [
-        response.status,
-        response.headers || {
-          "Content-Type": "application/json",
-        },
-        "",
-      ];
+      return [response.status, response.headers, ""];
     }
-    return [
-      response.status,
-      response.headers || {
-        "Content-Type": "application/json",
-      },
-      response.body,
-    ];
+    return [response.status, response.headers, response.body];
   };
 
   class ZoteroCopilotMcpEndpoint {
@@ -111,16 +98,9 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
 
   logMcp("mcp.http.start", {
     url: info.url,
-    path: info.path,
-    port: info.port,
+    path: MCP_ENDPOINT_PATH,
+    port,
     endpoint: "Zotero.Server.Endpoints",
-  });
-
-  void runMcpHttpSmokeCheck(info).catch((error) => {
-    logMcp("mcp.http.smoke.error", {
-      error: String(error),
-      url: info.url,
-    });
   });
 
   return info;
@@ -134,13 +114,13 @@ function shutdownMcpHttpServer(): void {
   if (serverInfo) {
     logMcp("mcp.http.stop", {
       url: serverInfo.url,
-      path: serverInfo.path,
+      path: MCP_ENDPOINT_PATH,
     });
   }
   serverInfo = undefined;
 }
 
-function createMcpHttpHandler(options: McpHttpHandlerOptions): McpHttpHandler {
+function createMcpHttpHandler(options: McpHttpHandlerOptions) {
   return {
     async handle(request: McpHttpRequest): Promise<McpHttpResponse> {
       const startedAt = Date.now();
@@ -181,7 +161,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions): McpHttpHandler {
       for (const message of messages) {
         const response = await handleJsonRpcMessage(
           message,
-          options.registry,
+          options.paperReadTool,
           options.logger,
           startedAt,
         );
@@ -213,7 +193,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions): McpHttpHandler {
 
 async function handleJsonRpcMessage(
   message: unknown,
-  registry: McpToolRegistry,
+  paperReadTool: McpTool,
   logger: McpHttpHandlerOptions["logger"],
   requestStartedAt: number,
 ): Promise<JsonValue | undefined> {
@@ -258,12 +238,12 @@ async function handleJsonRpcMessage(
         return createJsonRpcResult(id, {});
       case "tools/list":
         return createJsonRpcResult(id, {
-          tools: registry.listTools(),
+          tools: [paperReadTool.definition],
         });
       case "tools/call":
         return createJsonRpcResult(
           id,
-          await callToolFromJsonRpc(message.params, registry, logger),
+          await callToolFromJsonRpc(message.params, paperReadTool, logger),
         );
       default:
         return createJsonRpcError(
@@ -285,9 +265,9 @@ async function handleJsonRpcMessage(
 
 async function callToolFromJsonRpc(
   params: JsonValue | undefined,
-  registry: McpToolRegistry,
+  paperReadTool: McpTool,
   logger: McpHttpHandlerOptions["logger"],
-): Promise<JsonValue> {
+): Promise<McpToolCallResult> {
   if (!isJsonObject(params)) {
     throw new Error("tools/call params must be an object.");
   }
@@ -300,13 +280,16 @@ async function callToolFromJsonRpc(
   logger?.("mcp.tool.call.start", {
     name,
   });
-  const result = await registry.callTool(name, params.arguments);
+  if (name !== paperReadTool.definition.name) {
+    throw new Error(`Unknown MCP tool: ${name}`);
+  }
+  const result = await paperReadTool.call(params.arguments);
   logger?.("mcp.tool.call.finish", {
     name,
     isError: Boolean(result.isError),
     durationMs: Date.now() - startedAt,
   });
-  return result as unknown as JsonValue;
+  return result;
 }
 
 function validateRequestSecurity(
@@ -348,7 +331,7 @@ function isAllowedOrigin(origin: string): boolean {
       parsed.protocol === "http:" &&
       (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost")
     );
-  } catch (_error) {
+  } catch {
     return false;
   }
 }
@@ -416,106 +399,11 @@ function getZoteroHttpPort(): number {
 }
 
 function createSessionToken(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
+  const randomUUID = globalThis.crypto?.randomUUID;
+  if (!randomUUID) {
+    throw new Error("Web Crypto randomUUID is unavailable.");
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-async function runMcpHttpSmokeCheck(info: McpHttpServerInfo): Promise<void> {
-  const headers = {
-    Authorization: `Bearer ${info.token}`,
-    "Content-Type": "application/json",
-  };
-  const initialize = await postMcpSmokeRequest(info.url, headers, {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: {
-        name: "zotero-copilot-smoke",
-        version: SERVER_VERSION,
-      },
-    },
-  });
-  const tools = await postMcpSmokeRequest(info.url, headers, {
-    jsonrpc: "2.0",
-    id: 2,
-    method: "tools/list",
-  });
-  const call = await postMcpSmokeRequest(info.url, headers, {
-    jsonrpc: "2.0",
-    id: 3,
-    method: "tools/call",
-    params: {
-      name: "paper_read",
-      arguments: {
-        question: "smoke check",
-      },
-    },
-  });
-
-  logMcp("mcp.http.smoke.ok", {
-    initialize: summarizeSmokeResponse(initialize),
-    tools: summarizeSmokeResponse(tools),
-    call: summarizeSmokeResponse(call),
-  });
-}
-
-async function postMcpSmokeRequest(
-  url: string,
-  headers: Record<string, string>,
-  body: JsonObject,
-): Promise<JsonValue> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${text}`);
-  }
-  return text ? (JSON.parse(text) as JsonValue) : null;
-}
-
-function summarizeSmokeResponse(response: JsonValue): JsonValue {
-  if (!isJsonObject(response)) {
-    return response;
-  }
-  if (response.error) {
-    return {
-      error: response.error,
-    };
-  }
-  const result = isJsonObject(response.result) ? response.result : undefined;
-  if (!result) {
-    return {
-      ok: true,
-    };
-  }
-  if (Array.isArray(result.tools)) {
-    return {
-      tools: result.tools
-        .filter(isJsonObject)
-        .map((tool) => tool.name)
-        .filter((name) => typeof name === "string"),
-    };
-  }
-  if (Array.isArray(result.content)) {
-    return {
-      isError: result.isError === true,
-      contentTypes: result.content
-        .filter(isJsonObject)
-        .map((content) => content.type)
-        .filter((type) => typeof type === "string"),
-    };
-  }
-  return {
-    ok: true,
-  };
+  return randomUUID.call(globalThis.crypto);
 }
 
 function logMcp(message: string, details?: JsonValue): void {

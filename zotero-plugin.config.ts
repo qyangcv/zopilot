@@ -40,9 +40,8 @@ export default defineConfig({
   },
 
   test: {
+    entries: ["test/scaffold"],
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
+    watch: false,
   },
-
-  // If you need to see a more detailed log, uncomment the following line:
-  // logLevel: "trace",
 });

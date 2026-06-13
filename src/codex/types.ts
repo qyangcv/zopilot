@@ -8,76 +8,6 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-export type JsonRpcId = number;
-
-export type JsonRpcRequest = {
-  id: JsonRpcId;
-  method: string;
-  params?: JsonValue;
-};
-
-export type JsonRpcNotification = {
-  method: string;
-  params?: JsonValue;
-};
-
-export type JsonRpcResponse = {
-  id: JsonRpcId;
-  result?: JsonValue;
-  error?: {
-    code?: number;
-    message?: string;
-    data?: JsonValue;
-  };
-};
-
-export type JsonRpcMessage =
-  | JsonRpcRequest
-  | JsonRpcNotification
-  | JsonRpcResponse;
-
-export type CodexSubprocessModule = {
-  call(options: {
-    command: string;
-    arguments?: string[];
-    environmentAppend?: boolean;
-    stdout?: "ignore" | "pipe";
-    stderr?: "ignore" | "stdout" | "pipe";
-    workdir?: string;
-  }): Promise<CodexSubprocessProcess>;
-  getEnvironment(): Record<string, string>;
-};
-
-export type CodexSubprocessProcess = {
-  stdin: {
-    write(buffer: string): Promise<unknown>;
-    close(force?: boolean): Promise<unknown>;
-  };
-  stdout: {
-    readString(length?: number | null): Promise<string>;
-  };
-  stderr?: {
-    readString(length?: number | null): Promise<string>;
-  };
-  wait(): Promise<{ exitCode: number }>;
-  kill(timeout?: number): Promise<{ exitCode: number }>;
-};
-
-export type CodexAccount =
-  | {
-      type: "chatgpt";
-      email?: string;
-      planType?: string;
-    }
-  | {
-      type: "apiKey" | "amazonBedrock";
-    };
-
-export type CodexAccountReadResult = {
-  account: CodexAccount | null;
-  requiresOpenaiAuth: boolean;
-};
-
 export type CodexPromptResult = {
   threadId: string;
   turnId?: string;
@@ -89,7 +19,7 @@ export type CodexPromptOptions = {
   conversation: ConversationMetadata;
   model?: string;
   effort?: string | null;
-  onDelta?: (delta: string, fullText: string) => void;
+  onDelta?: (delta: string) => void;
   onNotice?: (notice: string) => void;
   onToolActivity?: () => void;
   onTurnStarted?: (threadId: string, turnId: string) => void;
@@ -101,10 +31,3 @@ export type CodexModelInfo = {
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
 };
-
-export type CodexBridgeStatus =
-  | "idle"
-  | "starting"
-  | "ready"
-  | "running"
-  | "error";

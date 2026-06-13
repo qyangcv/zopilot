@@ -1,7 +1,6 @@
 import type {
   Conversation,
   ConversationMessage,
-  ConversationMessageStatus,
   ConversationMetadata,
   PaperIdentity,
 } from "../shared/conversation";
@@ -102,7 +101,7 @@ class ConversationStore {
     input: {
       role: ConversationMessage["role"];
       text: string;
-      status?: ConversationMessageStatus;
+      status?: ConversationMessage["status"];
       codexThreadId?: string;
       codexTurnId?: string;
       completedAt?: string;
@@ -182,7 +181,7 @@ class ConversationStore {
     if (!(await IOUtils.exists(dir))) {
       return [];
     }
-    const children = await IOUtils.getChildren(dir).catch(() => []);
+    const children = await IOUtils.getChildren(dir);
     const metadataFiles = children.filter((path) => path.endsWith(".json"));
     const metadata = await Promise.all(
       metadataFiles.map((path) => this.readMetadata(path)),
@@ -192,38 +191,27 @@ class ConversationStore {
     );
   }
 
-  private async readMetadata(
-    path: string,
-  ): Promise<ConversationMetadata | null> {
-    try {
-      const raw = (await IOUtils.readJSON(path)) as unknown;
-      if (!isConversationMetadata(raw)) {
-        return null;
-      }
-      return raw;
-    } catch {
-      return null;
+  private async readMetadata(path: string): Promise<ConversationMetadata> {
+    const raw = (await IOUtils.readJSON(path)) as unknown;
+    if (!isConversationMetadata(raw)) {
+      throw new Error(`Invalid Zotero Copilot conversation metadata: ${path}`);
     }
+    return raw;
   }
 
   private async readMessages(
     metadata: ConversationMetadata,
   ): Promise<ConversationMessage[]> {
     const path = this.getMessagesPath(metadata);
-    if (!(await IOUtils.exists(path))) {
+    const text = await IOUtils.readUTF8(path);
+    if (!text.trim()) {
       return [];
     }
-    try {
-      const text = await IOUtils.readUTF8(path);
-      return text
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as unknown)
-        .filter(isConversationMessage);
-    } catch {
-      return [];
-    }
+    return text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => parseConversationMessage(line, path));
   }
 
   private async writeConversation(
@@ -342,4 +330,15 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
       item.status === "error" ||
       item.status === "interrupted")
   );
+}
+
+function parseConversationMessage(
+  line: string,
+  path: string,
+): ConversationMessage {
+  const raw = JSON.parse(line) as unknown;
+  if (!isConversationMessage(raw)) {
+    throw new Error(`Invalid Zotero Copilot conversation message: ${path}`);
+  }
+  return raw;
 }

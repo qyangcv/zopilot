@@ -7,6 +7,7 @@ import {
   type ReactElement,
 } from "react";
 import { getString } from "../../../utils/locale";
+import { copyText } from "./clipboard";
 import { MarkdownView } from "./MarkdownView";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
 
@@ -22,7 +23,6 @@ export function SidebarApp({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const logRef = useRef<HTMLElement | null>(null);
   const autoScrollRef = useRef(true);
-  const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastUserMessage = useMemo(
     () =>
@@ -46,20 +46,6 @@ export function SidebarApp({
   useEffect(() => {
     textareaRef.current?.focus();
   }, [state.focusToken]);
-
-  useEffect(() => {
-    const handle = resizeHandleRef.current;
-    if (!handle) {
-      return undefined;
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      actions.startResize(event);
-    };
-    handle.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      handle.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [actions]);
 
   useEffect(() => {
     resizeTextarea(textareaRef.current);
@@ -103,7 +89,7 @@ export function SidebarApp({
         aria-hidden="true"
         className="zcp-resize-handle"
         id="zotero-copilot-sidebar-splitter"
-        ref={resizeHandleRef}
+        onPointerDown={(event) => actions.startResize(event.nativeEvent)}
       />
       <header className="zcp-sidebar-header">
         <button
@@ -632,30 +618,4 @@ function getComposerSelectInlineSize(label: string): string {
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-async function copyText(text: string): Promise<void> {
-  const nav = (globalThis as typeof globalThis & { navigator?: Navigator })
-    .navigator;
-  if (nav?.clipboard?.writeText) {
-    await nav.clipboard.writeText(text);
-    return;
-  }
-  const doc = getDocument();
-  if (!doc?.body) {
-    return;
-  }
-  const textarea = doc.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "true");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  doc.body.append(textarea);
-  textarea.select();
-  doc.execCommand("copy");
-  textarea.remove();
-}
-
-function getDocument(): Document | undefined {
-  return (globalThis as typeof globalThis & { document?: Document }).document;
 }

@@ -6,8 +6,6 @@ export type SidebarMessageView = {
   text: string;
   status?: "complete" | "error" | "interrupted";
   completedAt?: string;
-  model?: string;
-  reasoningEffort?: string;
   transient?: boolean;
   running?: boolean;
 };
@@ -27,7 +25,7 @@ export type SidebarContextView = {
   attachmentKey?: string;
 };
 
-export type SidebarSessionView = {
+type SidebarSessionView = {
   id: string;
   title: string;
   meta: string;
@@ -47,7 +45,6 @@ export type SidebarState = {
   selectedModel: string;
   selectedReasoningEffort?: string;
   availableReasoningEfforts: string[];
-  modelLoading: boolean;
   focusToken: number;
 };
 

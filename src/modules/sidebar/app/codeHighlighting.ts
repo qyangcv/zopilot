@@ -51,20 +51,16 @@ export function getCodeLanguage(className?: string): string | undefined {
   return normalizeCodeLanguage(match[1]);
 }
 
-export function normalizeCodeLanguage(language: string): string {
+function normalizeCodeLanguage(language: string): string {
   const rawLanguage = language.toLowerCase();
   return LANGUAGE_ALIASES.get(rawLanguage) ?? rawLanguage;
-}
-
-export function isHighlightLanguageSupported(language: string): boolean {
-  return SUPPORTED_LANGUAGES.has(language);
 }
 
 export function highlightCodeWithShiki(
   text: string,
   language: string,
 ): string | undefined {
-  if (!isHighlightLanguageSupported(language)) {
+  if (!SUPPORTED_LANGUAGES.has(language)) {
     return undefined;
   }
 
@@ -77,8 +73,7 @@ export function highlightCodeWithShiki(
       },
       defaultColor: "light",
     });
-  } catch (error) {
-    logHighlightError(language, error);
+  } catch {
     return undefined;
   }
 }
@@ -112,15 +107,4 @@ function getHighlighter(): ReturnType<typeof createHighlighterCoreSync> {
     engine: createJavaScriptRegexEngine({ target: "ES2018", forgiving: true }),
   });
   return highlighter;
-}
-
-function logHighlightError(language: string, error: unknown): void {
-  const message =
-    error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  const text = `[Zotero Copilot] Shiki failed to highlight ${language}: ${message}`;
-  const root = globalThis as typeof globalThis & {
-    Zotero?: { debug?: (message: string) => void };
-  };
-  root.Zotero?.debug?.(text);
-  console.error(text);
 }

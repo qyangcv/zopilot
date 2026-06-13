@@ -5,27 +5,47 @@ import {
   shutdownMcpHttpServer,
 } from "../../../src/mcp/httpServer.ts";
 
+type McpServerConfig = {
+  url: string;
+  enabled_tools: string[];
+  http_headers: {
+    Authorization: string;
+  };
+  startup_timeout_sec: number;
+  tool_timeout_sec: number;
+};
+
+type ZoteroServerMock = {
+  Prefs: {
+    get(name: string): number | undefined;
+  };
+  Server: {
+    Endpoint: new () => object;
+    Endpoints: Record<string, unknown>;
+  };
+};
+
+type TestGlobals = {
+  Zotero?: ZoteroServerMock;
+  ztoolkit?: {
+    log: () => void;
+  };
+};
+
 describe("Codex MCP config", function () {
-  let originalFetch: typeof fetch;
-
-  before(function () {
-    originalFetch = globalThis.fetch;
-  });
-
   beforeEach(function () {
     installRuntimeMocks();
   });
 
   afterEach(function () {
     shutdownMcpHttpServer();
-    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
-    delete (globalThis as unknown as { ztoolkit?: unknown }).ztoolkit;
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch;
+    delete getTestGlobals().Zotero;
+    delete getTestGlobals().ztoolkit;
   });
 
   it("builds a thread/start mcp_servers config for paper_read", async function () {
     const config = await buildCodexMcpServersConfig();
-    const server = config["zotero-copilot"] as any;
+    const server = config["zotero-copilot"] as unknown as McpServerConfig;
 
     assert.equal(server.url, `http://127.0.0.1:23124${MCP_ENDPOINT_PATH}`);
     assert.deepEqual(server.enabled_tools, ["paper_read"]);
@@ -33,14 +53,15 @@ describe("Codex MCP config", function () {
     assert.equal(server.startup_timeout_sec, 10);
     assert.equal(server.tool_timeout_sec, 60);
     assert.property(
-      (globalThis as any).Zotero.Server.Endpoints as object,
+      getTestGlobals().Zotero?.Server.Endpoints || {},
       MCP_ENDPOINT_PATH,
     );
   });
 });
 
 function installRuntimeMocks(): void {
-  (globalThis as any).Zotero = {
+  const testGlobals = getTestGlobals();
+  testGlobals.Zotero = {
     Prefs: {
       get: (name: string) => (name === "httpServer.port" ? 23124 : undefined),
     },
@@ -49,18 +70,11 @@ function installRuntimeMocks(): void {
       Endpoints: {},
     },
   };
-  (globalThis as any).ztoolkit = {
+  testGlobals.ztoolkit = {
     log: () => undefined,
   };
-  (globalThis as unknown as { fetch: typeof fetch }).fetch = async () =>
-    ({
-      ok: true,
-      status: 200,
-      text: async () =>
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          result: {},
-        }),
-    }) as Response;
+}
+
+function getTestGlobals(): TestGlobals {
+  return globalThis as unknown as TestGlobals;
 }

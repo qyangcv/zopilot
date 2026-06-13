@@ -1,60 +1,34 @@
 import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
 import { getCodexBridge } from "../../codex/bridge";
-import { buildPaperQuestionPrompt } from "../../codex/promptBuilder";
 import type { Conversation, PaperIdentity } from "../../shared/conversation";
 import { createPaperIdentity } from "../../shared/conversation";
 import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
-import { getSelectedPDFReader, isPDFReader } from "./activeReader";
+import { getSelectedPDFReader, isPDFReader } from "../../zotero/reader";
 import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
   SidebarContextView,
-  SidebarMessageView,
   SidebarModelView,
-  SidebarSessionView,
   SidebarState,
 } from "./app/types";
-import {
-  HTML_NS,
-  READER_TOOLBAR_BUTTON_ID,
-  SIDEBAR_ID,
-  STYLE_URI,
-} from "./constants";
-import { createReaderToolbarButton } from "./readerToolbar";
+import { HTML_NS, SIDEBAR_ID, STYLE_URI } from "./constants";
+import { ReaderToolbarController } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
+import {
+  DEFAULT_MODEL,
+  createConversationMessages,
+  createInitialSidebarState,
+  createSessionView,
+} from "./viewModel";
 
 const controllers = new WeakMap<Window, SidebarController>();
-const LEGACY_TOOLBAR_TOGGLE_BUTTON_ID = "zotero-copilot-sidebar-toolbar-toggle";
 const DEFAULT_SIDEBAR_WIDTH = 372;
-const DEFAULT_CONTEXT_PANE_WIDTH = 357;
-const MAX_REASONABLE_NATIVE_PANE_WIDTH = 900;
-const ZOTERO_PANE_PERSIST_PREF = "pane.persist";
 const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
-const DEFAULT_MODEL: SidebarModelView = {
-  slug: "gpt-5.5",
-  displayName: "GPT-5.5",
-  supportedReasoningEfforts: ["medium"],
-  defaultReasoningEffort: "medium",
-};
-
-export {
-  cleanupPersistedSidebarPaneState,
-  registerSidebar,
-  unregisterSidebar,
-  unregisterAllSidebars,
-};
-
-type PanePersistState = Record<string, Record<string, string>>;
-type PromptDebugWindow = Window & {
-  // Development-only snapshot for inspecting the full prompt in Zotero's console.
-  __zcpLastPrompt?: string;
-  __zcpReactHostStatus?: string;
-};
+export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
 
 type RunningTurn = {
-  conversationId: string;
   conversation: Conversation;
   assistantOutput: string;
   model?: string;
@@ -64,36 +38,6 @@ type RunningTurn = {
   interrupting: boolean;
   interrupted: boolean;
 };
-
-function cleanupPersistedSidebarPaneState(): void {
-  const rawPersist = Zotero.Prefs.get(ZOTERO_PANE_PERSIST_PREF);
-  if (typeof rawPersist !== "string" || !rawPersist) {
-    return;
-  }
-
-  try {
-    const persist = JSON.parse(rawPersist) as PanePersistState;
-    if (!Object.prototype.hasOwnProperty.call(persist, SIDEBAR_ID)) {
-      return;
-    }
-
-    delete persist[SIDEBAR_ID];
-
-    const contextPane = persist["zotero-context-pane"];
-    const contextWidth = Number(contextPane?.width);
-    if (contextPane && contextWidth > MAX_REASONABLE_NATIVE_PANE_WIDTH) {
-      contextPane.width = String(DEFAULT_CONTEXT_PANE_WIDTH);
-    }
-
-    Zotero.Prefs.set(ZOTERO_PANE_PERSIST_PREF, JSON.stringify(persist));
-  } catch (error) {
-    Zotero.debug(
-      `[${config.addonName}] failed to clean persisted sidebar pane state: ${String(
-        error,
-      )}`,
-    );
-  }
-}
 
 function registerSidebar(win: _ZoteroTypes.MainWindow): void {
   const existing = controllers.get(win);
@@ -131,31 +75,30 @@ class SidebarController {
   private activePaper?: PaperIdentity;
   private activeConversation?: Conversation;
   private open = false;
-  private composerEnabled = false;
   private destroyed = false;
   private prewarmPromise?: Promise<void>;
   private contextLoadId = 0;
   private viewState: SidebarState;
+  private readonly readerToolbar: ReaderToolbarController;
   private readonly runningTurns = new Map<string, RunningTurn>();
   private readonly listeners: Array<() => void> = [];
-  private readonly readerToolbarButtons = new Set<Element>();
-  private readonly readerToolbarButtonReaders = new WeakMap<
-    Element,
-    _ZoteroTypes.ReaderInstance
-  >();
-  private readonly readerToolbarHandler: _ZoteroTypes.Reader.EventHandler<"renderToolbar"> =
-    (event) => this.renderReaderToolbarButton(event);
 
   constructor(win: Window) {
     this.win = win;
     this.doc = win.document;
-    const label = this.getSelectedItemTitle();
+    const label = getSelectedItemTitle(this.win);
     this.viewState = createInitialSidebarState(label);
+    this.readerToolbar = new ReaderToolbarController({
+      pluginID: config.addonID,
+      isDestroyed: () => this.destroyed,
+      isOpenForReader: (reader) => this.open && this.isCurrentReader(reader),
+      onToggle: (reader) => this.toggle(reader),
+    });
   }
 
   mount(): void {
     this.injectStylesheet();
-    this.registerReaderToolbarButtons();
+    this.readerToolbar.mount();
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
@@ -171,16 +114,12 @@ class SidebarController {
     this.reactHost = undefined;
     this.appMount = undefined;
     this.styleNode?.remove();
-    this.removeMainWindowToolbarToggleButton();
-    this.removeReaderToolbarButtons();
+    this.readerToolbar.destroy();
     this.shell?.remove();
   }
 
-  refreshContext(
-    reader?: _ZoteroTypes.ReaderInstance,
-    item?: Zotero.Item,
-  ): void {
-    const title = this.getDisplayTitle(reader || this.activeReader, item);
+  refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
+    const title = this.getDisplayTitle(reader || this.activeReader);
     this.updateViewState({
       title,
       context: this.getContextView(title),
@@ -200,129 +139,12 @@ class SidebarController {
   }
 
   private ensureMountedSurfaces(): void {
-    this.removeMainWindowToolbarToggleButton();
     if (this.open && getSelectedPDFReader(this.win)) {
       this.attachPanel();
     } else {
-      this.detachPanel();
+      this.shell?.remove();
     }
-    this.updateToggleButtons();
-  }
-
-  private registerReaderToolbarButtons(): void {
-    Zotero.Reader.registerEventListener(
-      "renderToolbar",
-      this.readerToolbarHandler,
-      config.addonID,
-    );
-    this.listeners.push(() => {
-      this.unregisterReaderToolbarButtons();
-    });
-    this.mountOpenReaderToolbarButtons();
-  }
-
-  private removeMainWindowToolbarToggleButton(): void {
-    this.doc.getElementById(LEGACY_TOOLBAR_TOGGLE_BUTTON_ID)?.remove();
-  }
-
-  private renderReaderToolbarButton(
-    event: _ZoteroTypes.Reader.EventParams<"renderToolbar">,
-  ): void {
-    this.mountReaderToolbarButton(event.reader, event.doc, event.append);
-  }
-
-  private mountOpenReaderToolbarButtons(): void {
-    const readers = (
-      Zotero.Reader as unknown as { _readers?: _ZoteroTypes.ReaderInstance[] }
-    )._readers;
-    readers?.forEach((reader) => {
-      void reader._initPromise?.then(() => {
-        if (this.destroyed) {
-          return;
-        }
-        this.mountReaderToolbarButton(reader);
-      });
-    });
-  }
-
-  private mountReaderToolbarButton(
-    reader: _ZoteroTypes.ReaderInstance,
-    doc = reader._iframeWindow?.document,
-    append?: (button: HTMLButtonElement) => void,
-  ): void {
-    if (
-      this.destroyed ||
-      !isPDFReader(reader) ||
-      !doc ||
-      doc.getElementById(READER_TOOLBAR_BUTTON_ID)
-    ) {
-      return;
-    }
-
-    const toolbar = append ? undefined : this.getReaderToolbar(doc);
-    if (!append && !toolbar) {
-      return;
-    }
-
-    const button = createReaderToolbarButton(doc, this.open, () =>
-      this.toggle(reader),
-    );
-
-    this.readerToolbarButtons.add(button);
-    this.readerToolbarButtonReaders.set(button, reader);
-    doc.defaultView?.addEventListener(
-      "unload",
-      () => this.readerToolbarButtons.delete(button),
-      { once: true },
-    );
-    this.updateReaderToolbarButton(button);
-    if (append) {
-      append(button);
-    } else {
-      toolbar?.append(button);
-    }
-    this.positionReaderToolbarButton(doc, button);
-  }
-
-  private getReaderToolbar(doc?: Document): Element | undefined {
-    return (
-      doc?.querySelector(".toolbar .end") ||
-      doc?.querySelector(".toolbar") ||
-      undefined
-    );
-  }
-
-  private positionReaderToolbarButton(
-    doc: Document,
-    button: HTMLButtonElement,
-  ): void {
-    const anchor =
-      doc.querySelector(".toolbar .end .context-pane-toggle") ||
-      doc.querySelector(".toolbar .end .find");
-    anchor?.parentNode?.insertBefore(button, anchor.nextSibling);
-  }
-
-  private unregisterReaderToolbarButtons(): void {
-    const unregisterByPluginID = (
-      Zotero.Reader as unknown as {
-        _unregisterEventListenerByPluginID?: (pluginID: string) => void;
-      }
-    )._unregisterEventListenerByPluginID;
-    unregisterByPluginID?.call(Zotero.Reader, config.addonID);
-  }
-
-  private removeReaderToolbarButtons(): void {
-    this.readerToolbarButtons.forEach((button) => button.remove());
-    this.readerToolbarButtons.clear();
-
-    const readers = (
-      Zotero.Reader as unknown as { _readers?: _ZoteroTypes.ReaderInstance[] }
-    )._readers;
-    readers?.forEach((reader) => {
-      reader._iframeWindow?.document
-        ?.getElementById(READER_TOOLBAR_BUTTON_ID)
-        ?.remove();
-    });
+    this.readerToolbar.refresh();
   }
 
   private openCopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
@@ -335,7 +157,6 @@ class SidebarController {
     }
 
     this.activeReader = pdfReader;
-    this.ensureMountedSurfaces();
     this.setOpen(true);
     void this.loadActiveConversation(pdfReader);
   }
@@ -372,7 +193,8 @@ class SidebarController {
       this.activeConversation = undefined;
       this.hideSessionPopover();
       this.refreshContext(reader);
-      this.renderUnavailable();
+      this.renderStatusMessage(getString("sidebar-unavailable-message"));
+      this.updateViewState({ composerEnabled: false });
       return;
     }
 
@@ -396,7 +218,7 @@ class SidebarController {
       this.hideSessionPopover();
       this.refreshContext(reader);
       this.renderStatusMessage(formatCodexError(error));
-      this.setComposerEnabled(false);
+      this.updateViewState({ composerEnabled: false });
     }
   }
 
@@ -422,38 +244,26 @@ class SidebarController {
 
     const mountNode = this.appMount;
     this.reactHostLoading = true;
-    this.storeReactHostStatus("loading");
     void this.createReactHost(mountNode);
   }
 
   private async createReactHost(mountNode: HTMLElement): Promise<void> {
     try {
       if (this.destroyed || this.appMount !== mountNode) {
-        this.storeReactHostStatus("stale");
         return;
       }
-      this.storeReactHostStatus("creating");
       const reactHost = await createSidebarReactHost(mountNode);
       if (this.destroyed || this.appMount !== mountNode) {
         reactHost.unmount();
-        this.storeReactHostStatus("stale");
         return;
       }
       this.reactHost = reactHost;
-      this.storeReactHostStatus("rendering");
       this.renderApp();
-      this.storeReactHostStatus("ready");
     } catch (error) {
-      this.storeReactHostStatus(`error: ${formatUnknownError(error)}`);
-      this.renderReactHostFallback(error);
       ztoolkit.log("failed to mount Zotero Copilot React sidebar", error);
     } finally {
       this.reactHostLoading = false;
     }
-  }
-
-  private getSidebarHost(): Element | null {
-    return this.doc.getElementById("tabs-deck")?.parentElement || null;
   }
 
   private createShell(): XUL.Box {
@@ -574,7 +384,7 @@ class SidebarController {
   }
 
   private async toggleSessionPopover(): Promise<void> {
-    if (!this.activePaper || !this.composerEnabled) {
+    if (!this.activePaper || !this.viewState.composerEnabled) {
       return;
     }
     if (this.viewState.sessionsOpen) {
@@ -600,7 +410,7 @@ class SidebarController {
     }
     this.updateViewState({
       sessions: conversations.map((conversation) =>
-        this.createSessionView(conversation),
+        createSessionView(conversation, this.activeConversation?.metadata.id),
       ),
       sessionsOpen: true,
     });
@@ -681,20 +491,20 @@ class SidebarController {
     await this.showSessionPopover();
   }
 
-  private submitPrompt(value: string): void {
-    void this.submitPromptAsync(value);
-  }
-
   private async submitPromptAsync(value: string): Promise<void> {
     const promptText = value.trim();
     if (!promptText) {
       return;
     }
 
-    let conversation =
-      this.activeConversation || (await this.reloadConversationForSubmit());
+    let conversation = this.activeConversation;
     if (!conversation) {
-      this.renderUnavailable();
+      await this.loadActiveConversation(this.activeReader);
+      conversation = this.activeConversation;
+    }
+    if (!conversation) {
+      this.renderStatusMessage(getString("sidebar-unavailable-message"));
+      this.updateViewState({ composerEnabled: false });
       return;
     }
     if (this.runningTurns.has(conversation.metadata.id)) {
@@ -709,9 +519,7 @@ class SidebarController {
       },
     );
     this.activeConversation = conversation;
-    this.renderConversation(conversation);
     const runningTurn: RunningTurn = {
-      conversationId: conversation.metadata.id,
       conversation,
       assistantOutput: "",
       model: this.viewState.selectedModel,
@@ -722,15 +530,11 @@ class SidebarController {
     this.runningTurns.set(conversation.metadata.id, runningTurn);
     this.renderConversation(conversation);
     this.refreshContext();
-    this.updateRunningState();
 
     try {
-      let hasAssistantText = false;
       const bridge = getCodexBridge();
-      const prompt = buildPaperQuestionPrompt(promptText);
       let pendingToolBoundary = false;
-      this.storePromptDebugSnapshot(prompt);
-      const result = await bridge.sendPrompt(prompt, {
+      const result = await bridge.sendPrompt(promptText, {
         conversation: conversation.metadata,
         model: runningTurn.model,
         effort: runningTurn.reasoningEffort,
@@ -741,11 +545,10 @@ class SidebarController {
             this.interruptRunningTurn(runningTurn);
           }
         },
-        onDelta: (delta, fullText) => {
+        onDelta: (delta) => {
           if (runningTurn.interrupted) {
             return;
           }
-          hasAssistantText = Boolean(fullText);
           if (
             pendingToolBoundary &&
             runningTurn.assistantOutput.trim() &&
@@ -763,7 +566,7 @@ class SidebarController {
           }
         },
         onNotice: (notice) => {
-          if (!hasAssistantText && !runningTurn.interrupted) {
+          if (!runningTurn.assistantOutput && !runningTurn.interrupted) {
             runningTurn.assistantOutput = notice;
             this.refreshRunningTurnView(runningTurn);
           }
@@ -815,13 +618,11 @@ class SidebarController {
     }
   }
 
-  private async reloadConversationForSubmit(): Promise<Conversation | null> {
-    await this.loadActiveConversation(this.activeReader);
-    return this.activeConversation || null;
-  }
-
   private refreshRunningTurnView(runningTurn: RunningTurn): void {
-    if (this.activeConversation?.metadata.id !== runningTurn.conversationId) {
+    if (
+      this.activeConversation?.metadata.id !==
+      runningTurn.conversation.metadata.id
+    ) {
       return;
     }
     this.renderConversation(runningTurn.conversation);
@@ -831,8 +632,9 @@ class SidebarController {
     runningTurn: RunningTurn,
     conversation: Conversation,
   ): void {
-    this.runningTurns.delete(runningTurn.conversationId);
-    if (this.activeConversation?.metadata.id === runningTurn.conversationId) {
+    const conversationId = runningTurn.conversation.metadata.id;
+    this.runningTurns.delete(conversationId);
+    if (this.activeConversation?.metadata.id === conversationId) {
       this.activeConversation = conversation;
       this.renderConversation(conversation);
     }
@@ -869,24 +671,20 @@ class SidebarController {
   }
 
   private async loadModels(): Promise<void> {
-    this.updateViewState({ modelLoading: true });
     try {
       const models = await getCodexBridge().listModels();
-      this.applyModels(models.length ? models : [DEFAULT_MODEL]);
+      const availableModels = models.length ? models : [DEFAULT_MODEL];
+      const preferredModel = String(getPref("codex.model") || "");
+      const selectedModel = availableModels.some(
+        (model) => model.slug === preferredModel,
+      )
+        ? preferredModel
+        : availableModels[0]?.slug || DEFAULT_MODEL.slug;
+      this.updateModelSelection(availableModels, selectedModel);
     } catch (error) {
       ztoolkit.log("codex model/list failed", String(error));
-      this.applyModels([DEFAULT_MODEL]);
-    } finally {
-      this.updateViewState({ modelLoading: false });
+      this.updateModelSelection([DEFAULT_MODEL], DEFAULT_MODEL.slug);
     }
-  }
-
-  private applyModels(models: SidebarModelView[]): void {
-    const preferredModel = String(getPref("codex.model") || "");
-    const selectedModel = models.some((model) => model.slug === preferredModel)
-      ? preferredModel
-      : models[0]?.slug || DEFAULT_MODEL.slug;
-    this.updateModelSelection(models, selectedModel);
   }
 
   private selectModel(model: string): void {
@@ -972,48 +770,21 @@ class SidebarController {
   }
 
   private renderConversation(conversation: Conversation): void {
-    let messages = conversation.messages.length
-      ? conversation.messages.map(toMessageView)
-      : [
-          {
-            id: "zcp-welcome-message",
-            role: "assistant" as const,
-            text: getString("sidebar-welcome-message"),
-            status: "complete" as const,
-          },
-        ];
     const runningTurn = this.runningTurns.get(conversation.metadata.id);
-    if (runningTurn) {
-      messages = [
-        ...messages.filter(
-          (message) =>
-            message.id !== getStreamingMessageId(conversation.metadata.id),
-        ),
-        {
-          id: getStreamingMessageId(conversation.metadata.id),
-          role: "assistant" as const,
-          text:
-            runningTurn.assistantOutput || getString("sidebar-codex-starting"),
-          status: runningTurn.interrupted
-            ? ("interrupted" as const)
-            : ("complete" as const),
-          transient: true,
-          running: !runningTurn.interrupted,
-          model: runningTurn.model,
-          reasoningEffort: runningTurn.reasoningEffort,
-        },
-      ];
-    }
-    this.setComposerEnabled(true);
     this.updateViewState({
-      messages,
+      composerEnabled: true,
+      messages: createConversationMessages(
+        conversation,
+        runningTurn
+          ? {
+              text: runningTurn.assistantOutput,
+              interrupted: runningTurn.interrupted,
+              running: !runningTurn.interrupted,
+            }
+          : undefined,
+      ),
       busy: Boolean(runningTurn),
     });
-  }
-
-  private renderUnavailable(): void {
-    this.renderStatusMessage(getString("sidebar-unavailable-message"));
-    this.setComposerEnabled(false);
   }
 
   private renderStatusMessage(markdown: string): void {
@@ -1031,78 +802,16 @@ class SidebarController {
     });
   }
 
-  private storePromptDebugSnapshot(prompt: string): void {
-    const debugWin = this.win as PromptDebugWindow;
-    debugWin.__zcpLastPrompt = prompt;
-  }
-
-  private storeReactHostStatus(status: string): void {
-    const debugWin = this.win as PromptDebugWindow;
-    debugWin.__zcpReactHostStatus = status;
-  }
-
-  private renderReactHostFallback(error: unknown): void {
-    const mount = this.appMount;
-    if (!mount || this.destroyed) {
-      return;
-    }
-
-    const aside = this.html("aside", "zcp-sidebar");
-    aside.setAttribute("role", "complementary");
-    aside.setAttribute("aria-label", getString("sidebar-title"));
-
-    const header = this.html("header", "zcp-sidebar-header");
-    const identity = this.html("div", "zcp-sidebar-identity");
-    const icon = this.html("span", "zcp-sidebar-icon");
-    const titleBlock = this.html("div", "zcp-sidebar-title-block");
-    const title = this.html("span", "zcp-sidebar-title");
-    title.textContent = getString("sidebar-title");
-    const selectedTitle = this.html("span", "zcp-sidebar-selected-title");
-    selectedTitle.textContent = getString("sidebar-codex-error");
-    titleBlock.append(title, selectedTitle);
-    identity.append(icon, titleBlock);
-
-    const closeButton = this.html("button", "zcp-icon-button");
-    closeButton.setAttribute("type", "button");
-    closeButton.setAttribute("aria-label", getString("sidebar-close"));
-    closeButton.title = getString("sidebar-close");
-    closeButton.addEventListener("click", () => this.setOpen(false));
-    closeButton.appendChild(
-      this.html("span", "zcp-action-icon zcp-close-icon"),
-    );
-
-    const actions = this.html("div", "zcp-sidebar-actions");
-    actions.appendChild(closeButton);
-    header.append(identity, actions);
-
-    const log = this.html("main", "zcp-chat-log");
-    log.setAttribute("role", "log");
-    log.setAttribute("aria-live", "polite");
-    const row = this.html("article", "zcp-message zcp-message-assistant");
-    row.appendChild(this.html("div", "zcp-message-avatar"));
-    const body = this.html("div", "zcp-message-body");
-    const message = this.html("p");
-    message.textContent = formatCodexError(error);
-    body.appendChild(message);
-    row.appendChild(body);
-    log.appendChild(row);
-
-    aside.append(header, log);
-    mount.replaceChildren(aside);
-  }
-
-  private setComposerEnabled(enabled: boolean): void {
-    this.composerEnabled = enabled;
-    this.updateViewState({ composerEnabled: enabled });
-  }
-
   private updateSessionControls(): void {
     if (!this.activePaper) {
       this.hideSessionPopover();
     } else if (this.viewState.sessionsOpen) {
       this.updateViewState({
         sessions: this.viewState.sessions.map((session) =>
-          this.createSessionView(session.conversation),
+          createSessionView(
+            session.conversation,
+            this.activeConversation?.metadata.id,
+          ),
         ),
       });
     }
@@ -1130,13 +839,14 @@ class SidebarController {
       this.activePaper = undefined;
       this.activeConversation = undefined;
       this.hideSessionPopover();
-      this.setComposerEnabled(false);
-      this.updateViewState({ busy: false });
-      this.detachPanel();
+      this.updateViewState({ busy: false, composerEnabled: false });
+      this.shell?.remove();
     }
-    this.updateToggleButtons();
+    this.readerToolbar.refresh();
     this.refreshContext();
-    this.notifyLayoutChanged();
+    this.win.requestAnimationFrame(() => {
+      this.win.dispatchEvent(new this.win.Event("resize"));
+    });
 
     if (open) {
       if (!wasOpen) {
@@ -1151,48 +861,17 @@ class SidebarController {
       return;
     }
     this.mountPanel();
-    const host = this.getSidebarHost();
+    const host = this.doc.getElementById("tabs-deck")?.parentElement;
     if (!host || !this.shell || this.shell.isConnected) {
       return;
     }
     host.append(this.shell);
   }
 
-  private detachPanel(): void {
-    this.shell?.remove();
-  }
-
-  private notifyLayoutChanged(): void {
-    this.win.requestAnimationFrame(() => {
-      this.win.dispatchEvent(new this.win.Event("resize"));
-    });
-  }
-
   private focusComposer(): void {
     this.win.requestAnimationFrame(() => {
       this.updateViewState({ focusToken: this.viewState.focusToken + 1 });
     });
-  }
-
-  private updateToggleButtons(): void {
-    for (const button of this.readerToolbarButtons) {
-      const reader = this.readerToolbarButtonReaders.get(button);
-      const active = this.open && (!reader || this.isCurrentReader(reader));
-      button?.setAttribute("checked", String(active));
-      button?.setAttribute("aria-pressed", String(active));
-      if (button) {
-        this.updateReaderToolbarButton(button);
-      }
-    }
-  }
-
-  private updateReaderToolbarButton(button: Element): void {
-    if (!button.classList.contains("zcp-reader-toolbar-button")) {
-      return;
-    }
-    const reader = this.readerToolbarButtonReaders.get(button);
-    const active = this.open && (!reader || this.isCurrentReader(reader));
-    button.toggleAttribute("data-active", active);
   }
 
   private isCurrentReader(reader: _ZoteroTypes.ReaderInstance): boolean {
@@ -1274,7 +953,7 @@ class SidebarController {
       } else {
         this.activeReader = undefined;
         this.refreshContext();
-        this.updateToggleButtons();
+        this.readerToolbar.refresh();
       }
       return;
     }
@@ -1285,7 +964,7 @@ class SidebarController {
     } else {
       this.refreshContext(selectedReader);
     }
-    this.updateToggleButtons();
+    this.readerToolbar.refresh();
   }
 
   private bindSessionPopoverDismiss(): void {
@@ -1303,29 +982,11 @@ class SidebarController {
     this.listeners.push(() => this.doc.removeEventListener("click", dismiss));
   }
 
-  private getSelectedItemTitle(
-    reader?: _ZoteroTypes.ReaderInstance,
-    currentItem?: Zotero.Item,
-  ): string {
-    return getSelectedItemTitle(this.win, reader, currentItem);
-  }
-
-  private html(tagName: string, className?: string): HTMLElement {
-    const element = this.doc.createElementNS(HTML_NS, tagName) as HTMLElement;
-    if (className) {
-      element.className = className;
-    }
-    return element;
-  }
-
-  private getDisplayTitle(
-    reader?: _ZoteroTypes.ReaderInstance,
-    item?: Zotero.Item,
-  ): string {
+  private getDisplayTitle(reader?: _ZoteroTypes.ReaderInstance): string {
     if (this.activeConversation) {
       return `${this.activeConversation.metadata.title} / ${this.activeConversation.metadata.label}`;
     }
-    return this.getSelectedItemTitle(reader, item);
+    return getSelectedItemTitle(this.win, reader);
   }
 
   private getContextView(label: string): SidebarContextView {
@@ -1339,23 +1000,6 @@ class SidebarController {
       parentItemKey: this.activePaper.parentItemKey,
       attachmentKey: this.activePaper.attachmentKey,
     };
-  }
-
-  private createSessionView(conversation: Conversation): SidebarSessionView {
-    return {
-      id: conversation.metadata.id,
-      title: getSessionTitle(conversation),
-      meta: formatSessionMeta(conversation),
-      active: this.activeConversation?.metadata.id === conversation.metadata.id,
-      conversation,
-    };
-  }
-
-  private openExternalLink(url: string): void {
-    if (!isSafeExternalURL(url, this.win)) {
-      return;
-    }
-    Zotero.launchURL(url);
   }
 
   private updateViewState(patch: Partial<SidebarState>): void {
@@ -1377,11 +1021,17 @@ class SidebarController {
       },
       hideSessions: () => this.hideSessionPopover(),
       interruptActiveTurn: () => this.interruptActiveTurn(),
-      openExternalLink: (url) => this.openExternalLink(url),
+      openExternalLink: (url) => {
+        if (isSafeExternalURL(url, this.win)) {
+          Zotero.launchURL(url);
+        }
+      },
       selectModel: (model) => this.selectModel(model),
       selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
       startResize: (event) => this.startResize(event),
-      submitPrompt: (text) => this.submitPrompt(text),
+      submitPrompt: (text) => {
+        void this.submitPromptAsync(text);
+      },
       switchSession: (conversation) => {
         void this.switchSession(conversation);
       },
@@ -1390,31 +1040,6 @@ class SidebarController {
       },
     });
   }
-}
-
-function createInitialSidebarState(label: string): SidebarState {
-  return {
-    title: label,
-    context: { label },
-    messages: [
-      {
-        id: "zcp-welcome-message",
-        role: "assistant",
-        text: getString("sidebar-welcome-message"),
-        status: "complete",
-      },
-    ],
-    sessions: [],
-    sessionsOpen: false,
-    composerEnabled: false,
-    busy: false,
-    models: [DEFAULT_MODEL],
-    selectedModel: DEFAULT_MODEL.slug,
-    selectedReasoningEffort: "medium",
-    availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,
-    modelLoading: false,
-    focusToken: 0,
-  };
 }
 
 function hasStylesheet(doc: Document, uri: string): boolean {
@@ -1429,90 +1054,11 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function toMessageView(
-  message: Conversation["messages"][number],
-): SidebarMessageView {
-  return {
-    id: message.id,
-    role: message.role,
-    text: message.text,
-    status: message.status,
-    completedAt: formatBeijingTimestamp(
-      message.completedAt || message.createdAt,
-    ),
-    model: message.model,
-    reasoningEffort: message.reasoningEffort,
-  };
-}
-
-function getStreamingMessageId(conversationId: string): string {
-  return `zcp-streaming-assistant-${conversationId}`;
-}
-
-function formatBeijingTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
-  return (
-    [
-      beijing.getUTCFullYear(),
-      pad2(beijing.getUTCMonth() + 1),
-      pad2(beijing.getUTCDate()),
-    ].join("-") +
-    ` ${pad2(beijing.getUTCHours())}:${pad2(beijing.getUTCMinutes())}`
-  );
-}
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
 function formatCodexError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return [getString("sidebar-codex-error"), "", "```", message, "```"].join(
     "\n",
   );
-}
-
-function formatUnknownError(error: unknown): string {
-  if (error instanceof Error) {
-    return [
-      error.name,
-      error.message,
-      error.stack ? `\n${error.stack}` : "",
-    ].join(": ");
-  }
-  return String(error);
-}
-
-function getSessionTitle(conversation: Conversation): string {
-  const firstUserMessage = conversation.messages.find(
-    (message) => message.role === "user",
-  );
-  return truncateLabel(
-    firstUserMessage?.text ||
-      conversation.metadata.label ||
-      conversation.metadata.createdAt,
-    54,
-  );
-}
-
-function formatSessionMeta(conversation: Conversation): string {
-  const preview = conversation.metadata.latestPreview?.trim();
-  if (preview) {
-    return truncateLabel(preview, 72);
-  }
-  return new Date(conversation.metadata.createdAt).toLocaleString();
-}
-
-function truncateLabel(value: string, maxLength: number): string {
-  const text = value.replace(/\s+/g, " ").trim();
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
 function isSafeExternalURL(url: string, win: Window): boolean {

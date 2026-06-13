@@ -1,9 +1,23 @@
 import { assert } from "chai";
 import { buildCodexAppServerArguments } from "../../../src/codex/appServerConfig.ts";
 import { CodexBridge } from "../../../src/codex/bridge.ts";
+import { shutdownMcpHttpServer } from "../../../src/mcp/httpServer.ts";
 import type { ConversationMetadata } from "../../../src/shared/conversation.ts";
 
 describe("CodexBridge", function () {
+  beforeEach(function () {
+    installMcpMocks();
+    (globalThis as unknown as { ztoolkit: { log: () => void } }).ztoolkit = {
+      log: () => undefined,
+    };
+  });
+
+  afterEach(function () {
+    shutdownMcpHttpServer();
+    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
+    delete (globalThis as unknown as { ztoolkit?: unknown }).ztoolkit;
+  });
+
   it("starts app-server with Zotero conflict isolation config", function () {
     const args = buildCodexAppServerArguments();
 
@@ -93,6 +107,66 @@ describe("CodexBridge", function () {
     assert.deepInclude(await promise, {
       threadId: "thread-conv-a",
       turnId: "turn-a",
+      text: "Answer",
+      status: "completed",
+    });
+  });
+
+  it("opens new Codex threads with paper_read developer instructions", async function () {
+    const bridge = createBridgeHarness();
+    const conversation = createConversation("conv-new");
+    const promise = bridge.instance.sendPrompt("Question", {
+      conversation,
+    });
+    await bridge.flush();
+
+    const threadStart = bridge.requests[0];
+    assert.strictEqual(threadStart.method, "thread/start");
+    assert.strictEqual(threadStart.params.ephemeral, false);
+    assert.include(
+      String(threadStart.params.developerInstructions),
+      "paper_read",
+    );
+    const mcpServer = (
+      threadStart.params.config as {
+        mcp_servers: {
+          "zotero-copilot": {
+            url: string;
+            http_headers: { Authorization: string };
+            enabled_tools: string[];
+            startup_timeout_sec: number;
+            tool_timeout_sec: number;
+          };
+        };
+      }
+    ).mcp_servers["zotero-copilot"];
+    assert.equal(mcpServer.url, "http://127.0.0.1:23124/zotero-copilot/mcp");
+    assert.match(mcpServer.http_headers.Authorization, /^Bearer /);
+    assert.deepEqual(mcpServer.enabled_tools, ["paper_read"]);
+    assert.equal(mcpServer.startup_timeout_sec, 10);
+    assert.equal(mcpServer.tool_timeout_sec, 60);
+
+    bridge.respond(threadStart.id, { thread: { id: "thread-new" } });
+    await bridge.flush();
+
+    const turnStart = bridge.requests.find(
+      (request) => request.method === "turn/start",
+    );
+    assert.isDefined(turnStart);
+    bridge.respond(turnStart!.id, { turn: { id: "turn-new" } });
+    bridge.notify("item/agentMessage/delta", {
+      threadId: "thread-new",
+      turnId: "turn-new",
+      delta: "Answer",
+    });
+    bridge.notify("turn/completed", {
+      threadId: "thread-new",
+      turn: { id: "turn-new", status: "completed" },
+    });
+
+    assert.deepInclude(await promise, {
+      threadId: "thread-new",
+      turnId: "turn-new",
       text: "Answer",
       status: "completed",
     });
@@ -214,6 +288,17 @@ function createBridgeHarness(): {
         conversationId,
         `thread-${conversationId}`,
       );
+    },
+  };
+}
+
+function installMcpMocks(): void {
+  (globalThis as unknown as { Zotero: unknown }).Zotero = {
+    Prefs: {
+      get: (name: string) => (name === "httpServer.port" ? 23124 : undefined),
+    },
+    Server: {
+      Endpoints: {},
     },
   };
 }

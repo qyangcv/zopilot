@@ -5,12 +5,7 @@ export { getSelectedItemTitle };
 function getSelectedItemTitle(
   win: Window,
   reader?: _ZoteroTypes.ReaderInstance,
-  currentItem?: Zotero.Item,
 ): string {
-  if (currentItem) {
-    return getItemTitle(currentItem);
-  }
-
   if (reader?.itemID) {
     const item = Zotero.Items.get(reader.itemID);
     const title =
@@ -32,10 +27,9 @@ function getSelectedItemTitle(
 }
 
 function getSelectedItems(win: Window): Zotero.Item[] {
-  const pane = (win as any).ZoteroPane || (win as any).ZoteroPane_Local;
-  return (
-    pane?.getSelectedItems?.() || pane?.itemsView?.getSelectedItems?.() || []
-  );
+  const pane = (win as Window & { ZoteroPane?: _ZoteroTypes.ZoteroPane })
+    .ZoteroPane;
+  return pane?.getSelectedItems?.() || [];
 }
 
 function getItemTitle(item?: Zotero.Item): string {

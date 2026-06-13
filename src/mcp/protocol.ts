@@ -7,39 +7,18 @@ export {
   getJsonRpcId,
   isJsonObject,
 };
-export type {
-  JsonObject,
-  McpContent,
-  McpHttpRequest,
-  McpHttpResponse,
-  McpTool,
-  McpToolCallResult,
-  McpToolDefinition,
-};
+export type { McpTool, McpToolCallResult };
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 
 type JsonObject = { [key: string]: JsonValue };
 
-type McpHttpRequest = {
-  method: string;
-  pathname: string;
-  headers: Record<string, string>;
-  data: unknown;
-};
-
-type McpHttpResponse = {
-  status: number;
-  headers?: Record<string, string>;
-  body?: string;
-};
-
-type McpContent = {
+type McpContent = JsonObject & {
   type: "text";
   text: string;
 };
 
-type McpToolDefinition = {
+type McpToolDefinition = JsonObject & {
   name: string;
   title?: string;
   description: string;
@@ -47,7 +26,7 @@ type McpToolDefinition = {
   annotations?: JsonObject;
 };
 
-type McpToolCallResult = {
+type McpToolCallResult = JsonObject & {
   content: McpContent[];
   structuredContent?: JsonValue;
   isError?: boolean;
@@ -71,26 +50,18 @@ function createJsonRpcError(
   id: JsonValue,
   code: number,
   message: string,
-  data?: JsonValue,
 ): JsonObject {
-  const error: JsonObject = {
-    code,
-    message,
-  };
-  if (data !== undefined) {
-    error.data = data;
-  }
   return {
     jsonrpc: "2.0",
     id,
-    error,
+    error: {
+      code,
+      message,
+    },
   };
 }
 
-function getJsonRpcId(message: unknown): JsonValue {
-  if (!isJsonObject(message)) {
-    return null;
-  }
+function getJsonRpcId(message: JsonObject): JsonValue {
   const id = message.id;
   return typeof id === "string" || typeof id === "number" || id === null
     ? id

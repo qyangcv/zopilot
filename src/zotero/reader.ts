@@ -1,7 +1,11 @@
-export { getSelectedPDFReader, getSelectedReader, isPDFReader };
+export { getOpenReaders, getSelectedPDFReader, getSelectedReader, isPDFReader };
 
 type ReaderWindow = Window & {
   Zotero_Tabs?: _ZoteroTypes.Zotero_Tabs;
+};
+
+type ReaderRegistry = typeof Zotero.Reader & {
+  _readers?: _ZoteroTypes.ReaderInstance[];
 };
 
 function getSelectedPDFReader(
@@ -25,12 +29,13 @@ function getSelectedReader(
     return reader;
   }
 
-  const readers = (
-    Zotero.Reader as unknown as { _readers?: _ZoteroTypes.ReaderInstance[] }
-  )._readers;
-  return readers?.find((candidate) => {
+  return getOpenReaders().find((candidate) => {
     return candidate.tabID === tabID && candidate.itemID;
   });
+}
+
+function getOpenReaders(): _ZoteroTypes.ReaderInstance[] {
+  return (Zotero.Reader as ReaderRegistry)._readers || [];
 }
 
 function isPDFReader(

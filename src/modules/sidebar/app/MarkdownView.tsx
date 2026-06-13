@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement, type ReactNode } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -8,6 +8,7 @@ import {
   getCodeLanguage,
   highlightCodeWithShiki,
 } from "./codeHighlighting";
+import { copyText } from "./clipboard";
 
 type MarkdownViewProps = {
   markdown: string;
@@ -234,30 +235,4 @@ function isSafeExternalUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-async function copyText(text: string): Promise<void> {
-  const nav = (globalThis as typeof globalThis & { navigator?: Navigator })
-    .navigator;
-  if (nav?.clipboard?.writeText) {
-    await nav.clipboard.writeText(text);
-    return;
-  }
-  const doc = getDocument();
-  if (!doc?.body) {
-    return;
-  }
-  const textarea = doc.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "true");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  doc.body.append(textarea);
-  textarea.select();
-  doc.execCommand("copy");
-  textarea.remove();
-}
-
-function getDocument(): Document | undefined {
-  return (globalThis as typeof globalThis & { document?: Document }).document;
 }

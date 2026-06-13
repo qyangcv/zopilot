@@ -1,9 +1,11 @@
-import type { JsonObject } from "../mcp/protocol";
+import type { JsonValue } from "./types";
 import { startMcpHttpServer } from "../mcp/httpServer";
 
 export { buildCodexMcpServersConfig };
 
-async function buildCodexMcpServersConfig(): Promise<JsonObject> {
+async function buildCodexMcpServersConfig(): Promise<
+  Record<string, JsonValue>
+> {
   const server = await startMcpHttpServer();
   return {
     [server.name]: {

@@ -1,5 +1,3 @@
-startup-begin = 插件加载中
-startup-finish = Zotero Copilot 已就绪
 prefs-title = Zotero Copilot
 sidebar-title = Zotero Copilot
 sidebar-toggle-tooltip = 打开或关闭 Zotero Copilot 侧边栏
@@ -28,7 +26,6 @@ sidebar-codex-starting = 正在启动本机 Codex...
 sidebar-codex-empty-response = Codex 已完成本轮请求，但没有返回最终文本。
 sidebar-codex-error = Codex 连接失败。
 sidebar-copy-text = 复制文本
-sidebar-copy-markdown = 复制 Markdown
 sidebar-insert-composer = 插入输入框
 sidebar-retry-turn = 重试上一轮
 sidebar-edit-composer = 编辑到输入框

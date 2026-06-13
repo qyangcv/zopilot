@@ -34,7 +34,6 @@ describe("SidebarApp", function () {
     assert.include(html, 'aria-label="zotero-copilot-sidebar-stop"');
     assert.include(html, 'class="zcp-stop-icon"');
     assert.notInclude(html, "zcp-message-footer");
-    assert.notInclude(html, "zotero-copilot-sidebar-copy-markdown");
   });
 
   it("renders completed assistant footer with three actions and Beijing time", function () {
@@ -59,7 +58,6 @@ describe("SidebarApp", function () {
     assert.include(html, "zotero-copilot-sidebar-insert-composer");
     assert.include(html, "zotero-copilot-sidebar-retry-turn");
     assert.include(html, "2026-06-13 15:30");
-    assert.notInclude(html, "zotero-copilot-sidebar-copy-markdown");
   });
 
   it("sizes model and effort selectors from the selected labels", function () {
@@ -116,7 +114,6 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
     availableReasoningEfforts: ["medium"],
-    modelLoading: false,
     focusToken: 0,
     ...patch,
   };

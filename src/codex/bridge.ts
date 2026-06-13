@@ -2,40 +2,83 @@ import { config, version } from "../../package.json";
 import { buildCodexAppServerArguments } from "./appServerConfig";
 import { buildCodexDeveloperInstructions } from "./developerInstructions";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
-import { getUserHomeDirectory, resolveCodexBinaryPath } from "./binaryPath";
+import { resolveCodexBinaryPath } from "./binaryPath";
 import type {
-  CodexAccountReadResult,
-  CodexBridgeStatus,
   CodexModelInfo,
   CodexPromptOptions,
   CodexPromptResult,
-  CodexSubprocessModule,
-  CodexSubprocessProcess,
-  JsonRpcMessage,
-  JsonRpcRequest,
-  JsonRpcResponse,
   JsonValue,
 } from "./types";
 import { getPref } from "../utils/prefs";
 import type { ConversationMetadata } from "../shared/conversation";
 
+type CodexSubprocessModule = {
+  call(options: {
+    command: string;
+    arguments?: string[];
+    environmentAppend?: boolean;
+    stdout?: "ignore" | "pipe";
+    stderr?: "ignore" | "stdout" | "pipe";
+    workdir?: string;
+  }): Promise<CodexSubprocessProcess>;
+  getEnvironment(): Record<string, string>;
+};
+
+type CodexSubprocessProcess = {
+  stdin: {
+    write(buffer: string): Promise<unknown>;
+    close(force?: boolean): Promise<unknown>;
+  };
+  stdout: {
+    readString(length?: number | null): Promise<string>;
+  };
+  stderr?: {
+    readString(length?: number | null): Promise<string>;
+  };
+  wait(): Promise<{ exitCode: number }>;
+  kill(timeout?: number): Promise<{ exitCode: number }>;
+};
+
+type JsonRpcRequest = {
+  id: number;
+  method: string;
+  params?: JsonValue;
+};
+
+type JsonRpcResponse = {
+  id: number;
+  result?: JsonValue;
+  error?: {
+    code?: number;
+    message?: string;
+    data?: JsonValue;
+  };
+};
+
+type JsonRpcMessage =
+  | JsonRpcRequest
+  | JsonRpcResponse
+  | {
+      method: string;
+      params?: JsonValue;
+    };
+
 type PendingRequest = {
   method: string;
   resolve: (result: JsonValue | undefined) => void;
   reject: (error: Error) => void;
-  timer: number;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 type ActiveTurn = {
   fullText: string;
   resolve: (result: CodexPromptResult) => void;
   reject: (error: Error) => void;
-  onDelta?: (delta: string, fullText: string) => void;
+  onDelta?: (delta: string) => void;
   onNotice?: (notice: string) => void;
   onToolActivity?: () => void;
   onTurnStarted?: (threadId: string, turnId: string) => void;
-  timer: number;
-  conversationId: string;
+  timer: ReturnType<typeof setTimeout>;
   threadId: string;
   turnId?: string;
 };
@@ -54,11 +97,6 @@ class CodexBridge {
   private conversationThreads = new Map<string, string>();
   private initialized = false;
   private activeTurns = new Map<string, ActiveTurn>();
-  private status: CodexBridgeStatus = "idle";
-
-  getStatus(): CodexBridgeStatus {
-    return this.status;
-  }
 
   async start(): Promise<void> {
     if (this.initialized && this.process) {
@@ -68,7 +106,6 @@ class CodexBridge {
       return this.startPromise;
     }
 
-    this.status = "starting";
     this.startPromise = this.startProcess();
     try {
       await this.startPromise;
@@ -85,21 +122,10 @@ class CodexBridge {
     const proc = this.process;
     this.process = undefined;
     if (!proc) {
-      this.status = "idle";
       return;
     }
-    try {
-      await proc.stdin.close().catch(() => undefined);
-      await proc.kill(500).catch(() => undefined);
-    } finally {
-      this.status = "idle";
-    }
-  }
-
-  async readAccount(): Promise<CodexAccountReadResult> {
-    await this.start();
-    const result = await this.request("account/read", {});
-    return result as CodexAccountReadResult;
+    await proc.stdin.close().catch(() => undefined);
+    await proc.kill(500).catch(() => undefined);
   }
 
   async prewarm(): Promise<void> {
@@ -120,22 +146,80 @@ class CodexBridge {
     await this.request("turn/interrupt", { threadId, turnId }, 10000);
   }
 
-  sendPrompt(
+  async sendPrompt(
     prompt: string,
     options: CodexPromptOptions,
   ): Promise<CodexPromptResult> {
-    return this.runPrompt(prompt, options);
+    const threadId = await this.ensureThread(options.conversation);
+
+    const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.deleteActiveTurn(threadId);
+        reject(new Error("Codex request timed out."));
+      }, this.getTimeoutMs());
+      const activeTurn: ActiveTurn = {
+        fullText: "",
+        resolve,
+        reject,
+        onDelta: options.onDelta,
+        onNotice: options.onNotice,
+        onToolActivity: options.onToolActivity,
+        onTurnStarted: options.onTurnStarted,
+        timer,
+        threadId,
+      };
+      this.activeTurns.set(getTurnKey({ threadId }), activeTurn);
+    });
+
+    try {
+      const params: { [key: string]: JsonValue } = {
+        threadId,
+        input: [
+          {
+            type: "text",
+            text: prompt,
+            text_elements: [],
+          },
+        ],
+      };
+      const cwd = this.subprocess?.getEnvironment().HOME;
+      if (cwd) {
+        params.cwd = cwd;
+      }
+      if (options.model) {
+        params.model = options.model;
+      }
+      if (options.effort) {
+        params.reasoningEffort = options.effort;
+        params.effort = options.effort;
+      }
+
+      const result = (await this.request(
+        "turn/start",
+        params,
+        this.getTimeoutMs(),
+      )) as { turn?: { id?: string } };
+      const activeTurn = this.findActiveTurn(threadId);
+      if (activeTurn && result?.turn?.id) {
+        this.assignTurnId(activeTurn, result.turn.id);
+      }
+      return turnPromise;
+    } catch (error) {
+      this.rejectActiveTurn(threadId, undefined, error);
+      throw error;
+    }
   }
 
   private async startProcess(): Promise<void> {
     const subprocess = this.getSubprocess();
-    const command = await resolveCodexBinaryPath(subprocess);
+    const command = await resolveCodexBinaryPath();
     const proc = await subprocess.call({
       command,
       arguments: buildCodexAppServerArguments(),
       environmentAppend: true,
+      stdout: "pipe",
       stderr: "pipe",
-      workdir: getUserHomeDirectory(subprocess.getEnvironment()),
+      workdir: subprocess.getEnvironment().HOME,
     });
 
     this.subprocess = subprocess;
@@ -157,11 +241,9 @@ class CodexBridge {
       });
       await this.notify("initialized");
       this.initialized = true;
-      this.status = "ready";
     } catch (error) {
       this.process = undefined;
       await proc.kill(500).catch(() => undefined);
-      this.status = "error";
       throw error;
     }
   }
@@ -193,7 +275,12 @@ class CodexBridge {
   ): Promise<string> {
     if (conversation.codexThreadId) {
       try {
-        return await this.resumeThread(conversation);
+        return await this.openThread(
+          "thread/resume",
+          { threadId: conversation.codexThreadId },
+          conversation,
+          conversation.codexThreadId,
+        );
       } catch (error) {
         ztoolkit.log(
           "codex thread/resume failed; starting replacement thread",
@@ -201,167 +288,40 @@ class CodexBridge {
         );
       }
     }
-    return this.createThread(conversation);
+    return this.openThread("thread/start", { ephemeral: false }, conversation);
   }
 
-  private async createThread(
+  private async openThread(
+    method: "thread/start" | "thread/resume",
+    extraParams: { [key: string]: JsonValue },
     conversation: ConversationMetadata,
+    fallbackThreadId?: string,
   ): Promise<string> {
-    const result = (await this.callThreadMethod(
-      "thread/start",
-      this.buildThreadParams({ ephemeral: false }),
-    )) as {
-      thread?: { id?: string };
-    };
-    const id = result?.thread?.id;
-    if (!id) {
-      throw new Error("Codex app-server did not return a thread id.");
-    }
-    this.conversationThreads.set(conversation.id, id);
-    this.logMcpServerStatus();
-    return id;
-  }
-
-  private async resumeThread(
-    conversation: ConversationMetadata,
-  ): Promise<string> {
-    const result = (await this.callThreadMethod(
-      "thread/resume",
-      this.buildThreadParams({ threadId: conversation.codexThreadId || "" }),
-    )) as {
-      thread?: { id?: string };
-    };
-    const id = result?.thread?.id || conversation.codexThreadId;
-    if (!id) {
-      throw new Error("Codex app-server did not resume a thread id.");
-    }
-    this.conversationThreads.set(conversation.id, id);
-    this.logMcpServerStatus();
-    return id;
-  }
-
-  private buildThreadParams(extra: { [key: string]: JsonValue }): {
-    [key: string]: JsonValue;
-  } {
-    const cwd = this.getHomeCwd();
+    const cwd = this.subprocess?.getEnvironment().HOME;
+    const mcpServers = await buildCodexMcpServersConfig();
     const params: { [key: string]: JsonValue } = {
-      ...extra,
+      ...extraParams,
+      developerInstructions: buildCodexDeveloperInstructions(),
+      config: {
+        mcp_servers: mcpServers,
+      },
     };
     if (cwd) {
       params.cwd = cwd;
     }
-    params.developerInstructions = buildCodexDeveloperInstructions();
-    return params;
-  }
-
-  private async addMcpConfig(params: {
-    [key: string]: JsonValue;
-  }): Promise<{ [key: string]: JsonValue }> {
-    const mcpServers = await buildCodexMcpServersConfig().catch((error) => {
-      ztoolkit.log("codex mcp config unavailable", String(error));
-      return undefined;
-    });
-    if (mcpServers) {
-      params.config = {
-        mcp_servers: mcpServers,
-      };
-      ztoolkit.log("codex thread/start mcp config injected", {
-        servers: Object.keys(mcpServers),
-      });
-    }
-    return params;
-  }
-
-  private async callThreadMethod(
-    method: "thread/start" | "thread/resume",
-    params: { [key: string]: JsonValue },
-  ): Promise<JsonValue | undefined> {
-    const fullParams = await this.addMcpConfig(params);
-    try {
-      return await this.request(method, fullParams);
-    } catch (error) {
-      if (!isDeveloperInstructionsUnsupportedError(error)) {
-        throw error;
-      }
-      const fallbackParams = { ...fullParams };
-      delete fallbackParams.developerInstructions;
-      ztoolkit.log(
-        `${method} developerInstructions unsupported; retrying without visible fallback`,
-      );
-      return this.request(method, fallbackParams);
-    }
-  }
-
-  private async runPrompt(
-    prompt: string,
-    options: CodexPromptOptions,
-  ): Promise<CodexPromptResult> {
-    const threadId = await this.ensureThread(options.conversation);
-    this.status = "running";
-
-    const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
-      const timer = this.setTimer(() => {
-        this.deleteActiveTurn(threadId);
-        this.status = "error";
-        reject(new Error("Codex request timed out."));
-      }, this.getTimeoutMs());
-      const activeTurn: ActiveTurn = {
-        fullText: "",
-        resolve,
-        reject,
-        onDelta: options.onDelta,
-        onNotice: options.onNotice,
-        onToolActivity: options.onToolActivity,
-        onTurnStarted: options.onTurnStarted,
-        timer,
-        conversationId: options.conversation.id,
-        threadId,
-      };
-      this.activeTurns.set(getTurnKey({ threadId }), activeTurn);
+    ztoolkit.log(`codex ${method} mcp config injected`, {
+      servers: Object.keys(mcpServers),
     });
 
-    try {
-      const params: { [key: string]: JsonValue } = {
-        threadId,
-        input: [
-          {
-            type: "text",
-            text: prompt,
-            text_elements: [],
-          },
-        ],
-      };
-      const cwd = this.getHomeCwd();
-      if (cwd) {
-        params.cwd = cwd;
-      }
-      if (options.model) {
-        params.model = options.model;
-      }
-      if (options.effort) {
-        params.reasoningEffort = options.effort;
-        params.effort = options.effort;
-      }
-
-      const result = (await this.request(
-        "turn/start",
-        params,
-        this.getTimeoutMs(),
-      )) as { turn?: { id?: string } };
-      const activeTurn = this.findActiveTurn(threadId);
-      if (activeTurn && result?.turn?.id) {
-        this.assignTurnId(activeTurn, result.turn.id);
-      }
-      const completed = await turnPromise;
-      if (!this.activeTurns.size) {
-        this.status = "ready";
-      }
-      return completed;
-    } catch (error) {
-      this.rejectActiveTurn(threadId, undefined, error);
-      this.status = this.activeTurns.size ? "running" : "error";
-      throw error;
+    const result = (await this.request(method, params)) as {
+      thread?: { id?: string };
+    };
+    const threadId = result?.thread?.id || fallbackThreadId;
+    if (!threadId) {
+      throw new Error(`Codex app-server did not return a ${method} thread id.`);
     }
+    this.conversationThreads.set(conversation.id, threadId);
+    return threadId;
   }
 
   private async request(
@@ -373,12 +333,11 @@ class CodexBridge {
     if (!proc) {
       throw new Error("Codex app-server is not running.");
     }
-    const id = this.nextRequestId;
-    this.nextRequestId += 1;
+    const id = this.nextRequestId++;
     const message = { id, method, params };
 
     const promise = new Promise<JsonValue | undefined>((resolve, reject) => {
-      const timer = this.setTimer(() => {
+      const timer = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`Codex request timed out: ${method}`));
       }, timeoutMs);
@@ -396,7 +355,7 @@ class CodexBridge {
       const pending = this.pendingRequests.get(id);
       if (pending) {
         this.pendingRequests.delete(id);
-        this.clearTimer(pending.timer);
+        clearTimeout(pending.timer);
       }
       throw error;
     }
@@ -492,7 +451,7 @@ class CodexBridge {
       return;
     }
     this.pendingRequests.delete(message.id);
-    this.clearTimer(pending.timer);
+    clearTimeout(pending.timer);
     if (message.error) {
       pending.reject(
         new Error(
@@ -535,7 +494,7 @@ class CodexBridge {
         const activeTurn = this.findActiveTurnForNotification(message.params);
         if (activeTurn && delta) {
           activeTurn.fullText += delta;
-          activeTurn.onDelta?.(delta, activeTurn.fullText);
+          activeTurn.onDelta?.(delta);
         }
         break;
       }
@@ -560,7 +519,6 @@ class CodexBridge {
         } else {
           this.clearActiveTurn(new Error(errorText));
         }
-        this.status = this.activeTurns.size ? "running" : "error";
         break;
       }
       case "warning": {
@@ -605,19 +563,6 @@ class CodexBridge {
     }
   }
 
-  private logMcpServerStatus(): void {
-    void this.request("mcpServerStatus/list", {}, 10000)
-      .then((result) => {
-        ztoolkit.log(
-          "codex mcp server status list",
-          summarizeJsonForLog(result),
-        );
-      })
-      .catch((error) => {
-        ztoolkit.log("codex mcp server status list failed", String(error));
-      });
-  }
-
   private completeActiveTurn(params: JsonValue | undefined): void {
     const activeTurn = this.findActiveTurnForNotification(params);
     if (!activeTurn) {
@@ -625,10 +570,9 @@ class CodexBridge {
     }
     const status = getNestedString(params, ["turn", "status"]);
     this.deleteActiveTurn(activeTurn.threadId, activeTurn.turnId);
-    this.clearTimer(activeTurn.timer);
+    clearTimeout(activeTurn.timer);
     if (status && status !== "completed" && status !== "interrupted") {
       activeTurn.reject(new Error(`Codex turn ${status}.`));
-      this.status = this.activeTurns.size ? "running" : "error";
       return;
     }
     activeTurn.resolve({
@@ -640,14 +584,11 @@ class CodexBridge {
       text: activeTurn.fullText.trim(),
       status: status === "interrupted" ? "interrupted" : "completed",
     });
-    if (!this.activeTurns.size) {
-      this.status = "ready";
-    }
   }
 
   private clearActiveTurn(error: unknown): void {
     for (const activeTurn of this.activeTurns.values()) {
-      this.clearTimer(activeTurn.timer);
+      clearTimeout(activeTurn.timer);
       activeTurn.reject(toError(error));
     }
     this.activeTurns.clear();
@@ -663,7 +604,7 @@ class CodexBridge {
       return;
     }
     this.deleteActiveTurn(activeTurn.threadId, activeTurn.turnId);
-    this.clearTimer(activeTurn.timer);
+    clearTimeout(activeTurn.timer);
     activeTurn.reject(toError(error));
   }
 
@@ -676,14 +617,13 @@ class CodexBridge {
       this.initialized = false;
       this.threadPromises.clear();
       this.conversationThreads.clear();
-      this.status = "error";
       this.rejectAll(new Error(`Codex app-server exited (${exitCode}).`));
     });
   }
 
   private rejectAll(error: Error): void {
     for (const pending of this.pendingRequests.values()) {
-      this.clearTimer(pending.timer);
+      clearTimeout(pending.timer);
       pending.reject(error);
     }
     this.pendingRequests.clear();
@@ -737,9 +677,6 @@ class CodexBridge {
         }
       }
     }
-    if (this.activeTurns.size === 1) {
-      return Array.from(this.activeTurns.values())[0];
-    }
     return undefined;
   }
 
@@ -765,19 +702,6 @@ class CodexBridge {
       return 180000;
     }
     return value;
-  }
-
-  private getHomeCwd(): string | undefined {
-    const environment = this.subprocess?.getEnvironment();
-    return environment ? getUserHomeDirectory(environment) : undefined;
-  }
-
-  private setTimer(callback: () => void, delay: number): number {
-    return setTimeout(callback, delay) as unknown as number;
-  }
-
-  private clearTimer(timer: number): void {
-    clearTimeout(timer);
   }
 }
 
@@ -808,11 +732,8 @@ function getNotificationThreadId(
   return (
     getNestedString(value, ["thread", "id"]) ||
     getNestedString(value, ["threadId"]) ||
-    getNestedString(value, ["thread_id"]) ||
     getNestedString(value, ["turn", "threadId"]) ||
-    getNestedString(value, ["turn", "thread_id"]) ||
-    getNestedString(value, ["item", "threadId"]) ||
-    getNestedString(value, ["item", "thread_id"])
+    getNestedString(value, ["item", "threadId"])
   );
 }
 
@@ -822,9 +743,7 @@ function getNotificationTurnId(
   return (
     getNestedString(value, ["turn", "id"]) ||
     getNestedString(value, ["turnId"]) ||
-    getNestedString(value, ["turn_id"]) ||
-    getNestedString(value, ["item", "turnId"]) ||
-    getNestedString(value, ["item", "turn_id"])
+    getNestedString(value, ["item", "turnId"])
   );
 }
 
@@ -943,14 +862,6 @@ function formatServerError(params: JsonValue | undefined): string {
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
-}
-
-function isDeveloperInstructionsUnsupportedError(error: unknown): boolean {
-  const message = String(error instanceof Error ? error.message : error);
-  return (
-    message.includes("developerInstructions") &&
-    /(unsupported|unknown|unrecognized|invalid)/i.test(message)
-  );
 }
 
 function summarizeJsonForLog(

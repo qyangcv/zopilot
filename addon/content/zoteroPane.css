@@ -298,14 +298,12 @@
 }
 
 .zcp-copy-icon,
-.zcp-markdown-icon,
 .zcp-insert-icon,
 .zcp-retry-icon,
 .zcp-edit-icon,
 .zcp-resend-icon,
 .zcp-check-icon,
 .zcp-send-icon,
-.zcp-dots-icon,
 .zcp-stop-icon {
   display: block;
   width: 14px;
@@ -320,22 +318,6 @@
   box-shadow:
     -3px 3px 0 -1px Canvas,
     -3px 3px 0 0 currentColor;
-}
-
-.zcp-markdown-icon {
-  position: relative;
-  border: 1.5px solid currentColor;
-  border-radius: 2px;
-}
-
-.zcp-markdown-icon::before {
-  position: absolute;
-  inset-block-start: 3px;
-  inset-inline-start: 3px;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1;
-  content: "M";
 }
 
 .zcp-insert-icon {
@@ -389,16 +371,6 @@
     linear-gradient(currentColor, currentColor) center 2px / 2px 11px no-repeat,
     linear-gradient(currentColor, currentColor) 3px 2px / 8px 2px no-repeat;
   transform: rotate(45deg);
-}
-
-.zcp-dots-icon {
-  background:
-    radial-gradient(circle, currentColor 2px, transparent 2.5px) 1px center /
-      4px 4px no-repeat,
-    radial-gradient(circle, currentColor 2px, transparent 2.5px) center / 4px
-      4px no-repeat,
-    radial-gradient(circle, currentColor 2px, transparent 2.5px) 9px center /
-      4px 4px no-repeat;
 }
 
 .zcp-stop-icon {
@@ -1033,21 +1005,6 @@
   gap: 6px;
   min-width: 0;
   overflow: hidden;
-}
-
-.zcp-composer-pill {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--zcp-muted-strong);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zcp-composer-pill + .zcp-composer-pill {
-  border-inline-start: 1px solid var(--zcp-border);
-  padding-inline-start: 7px;
 }
 
 .zcp-composer-select {

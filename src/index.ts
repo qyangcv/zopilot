@@ -1,26 +1,17 @@
 import "./utils/consoleShim";
-import { BasicTool } from "zotero-plugin-toolkit";
 import Addon from "./addon";
 import { config } from "../package.json";
 
-const basicTool = new BasicTool();
+type ZoteroPluginRegistry = typeof Zotero & Record<string, unknown>;
 
-// @ts-expect-error - Plugin instance is not typed
-if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
+const zotero = Zotero as ZoteroPluginRegistry;
+
+if (!zotero[config.addonInstance]) {
   _globalThis.addon = new Addon();
-  defineGlobal("ztoolkit", () => {
-    return _globalThis.addon.data.ztoolkit;
-  });
-  // @ts-expect-error - Plugin instance is not typed
-  Zotero[config.addonInstance] = addon;
-}
-
-function defineGlobal(name: Parameters<BasicTool["getGlobal"]>[0]): void;
-function defineGlobal(name: string, getter: () => any): void;
-function defineGlobal(name: string, getter?: () => any) {
-  Object.defineProperty(_globalThis, name, {
+  Object.defineProperty(_globalThis, "ztoolkit", {
     get() {
-      return getter ? getter() : basicTool.getGlobal(name);
+      return _globalThis.addon.data.ztoolkit;
     },
   });
+  zotero[config.addonInstance] = addon;
 }

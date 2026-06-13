@@ -1,17 +1,11 @@
-import type { CodexSubprocessModule } from "./types";
-
-export { getUserHomeDirectory, resolveCodexBinaryPath };
-
-type Environment = Record<string, string | undefined>;
+export { resolveCodexBinaryPath };
 
 const CODEX_BINARY_CANDIDATES = [
   "/opt/homebrew/bin/codex",
   "/usr/local/bin/codex",
 ] as const;
 
-async function resolveCodexBinaryPath(
-  _subprocess: CodexSubprocessModule,
-): Promise<string> {
+async function resolveCodexBinaryPath(): Promise<string> {
   for (const candidate of CODEX_BINARY_CANDIDATES) {
     if (await IOUtils.exists(candidate)) {
       return candidate;
@@ -26,8 +20,4 @@ async function resolveCodexBinaryPath(
       .filter(Boolean)
       .join(" "),
   );
-}
-
-function getUserHomeDirectory(environment: Environment): string | undefined {
-  return environment.HOME;
 }

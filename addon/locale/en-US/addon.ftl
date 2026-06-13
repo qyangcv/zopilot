@@ -1,5 +1,3 @@
-startup-begin = Addon is loading
-startup-finish = Zotero Copilot is ready
 prefs-title = Zotero Copilot
 sidebar-title = Zotero Copilot
 sidebar-toggle-tooltip = Toggle Zotero Copilot sidebar
@@ -28,7 +26,6 @@ sidebar-codex-starting = Starting local Codex...
 sidebar-codex-empty-response = Codex completed the turn without a final text response.
 sidebar-codex-error = Codex connection failed.
 sidebar-copy-text = Copy text
-sidebar-copy-markdown = Copy markdown
 sidebar-insert-composer = Insert into composer
 sidebar-retry-turn = Retry last turn
 sidebar-edit-composer = Edit in composer

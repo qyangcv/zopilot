@@ -1,4 +1,3 @@
-pref-title = Zotero Copilot
 pref-copilot-title = Connection
 pref-codex-status = Codex Status
 pref-codex-status-missing = Not detected

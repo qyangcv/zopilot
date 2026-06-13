@@ -3,12 +3,10 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
-  | 'main-window-ready'
   | 'pref-codex-status'
   | 'pref-codex-status-connected'
   | 'pref-codex-status-missing'
   | 'pref-copilot-title'
-  | 'pref-title'
   | 'prefs-title'
   | 'sidebar-add-context'
   | 'sidebar-attachment-key'
@@ -17,7 +15,6 @@ export type FluentMessageId =
   | 'sidebar-codex-error'
   | 'sidebar-codex-starting'
   | 'sidebar-context-details'
-  | 'sidebar-copy-markdown'
   | 'sidebar-copy-text'
   | 'sidebar-current-context'
   | 'sidebar-delete-session'
@@ -45,6 +42,4 @@ export type FluentMessageId =
   | 'sidebar-unavailable-context'
   | 'sidebar-unavailable-message'
   | 'sidebar-untitled-item'
-  | 'sidebar-welcome-message'
-  | 'startup-begin'
-  | 'startup-finish';
+  | 'sidebar-welcome-message';

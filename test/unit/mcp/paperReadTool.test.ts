@@ -1,50 +1,27 @@
 import { assert } from "chai";
-import type { PaperScope, PaperTextResult } from "../../../src/zotero/types.ts";
-import { McpToolRegistry } from "../../../src/mcp/toolRegistry.ts";
+import type { PaperScope } from "../../../src/zotero/types.ts";
 import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
 
-describe("McpToolRegistry", function () {
-  it("lists only paper_read for Step 5.2", function () {
-    const registry = createRegistry();
+describe("paper_read MCP tool", function () {
+  it("exposes only the paper_read definition for Step 5.2", function () {
+    const tool = createTool();
 
-    const tools = registry.listTools();
-
-    assert.deepEqual(
-      tools.map((tool) => tool.name),
-      ["paper_read"],
-    );
-    assert.isTrue(tools[0].annotations?.readOnlyHint);
-  });
-
-  it("rejects unknown tools", async function () {
-    const registry = createRegistry();
-
-    try {
-      await registry.callTool("paper_search", {});
-      assert.fail("Expected unknown tool to fail");
-    } catch (error) {
-      assert.include(String(error), "Unknown MCP tool: paper_search");
-    }
+    assert.equal(tool.definition.name, "paper_read");
+    assert.isTrue(tool.definition.annotations?.readOnlyHint);
   });
 
   it("calls paper_read and returns Zotero full-text evidence snippets", async function () {
-    const registry = createRegistry(
+    const tool = createTool(
       {
         attachmentItemID: 10,
         attachmentKey: "PDF",
         libraryID: 1,
         parentItemID: 20,
-        readerItemID: 10,
-        readerType: "pdf",
-        source: "reader",
-        warnings: [],
       },
-      createTextResult(
-        "The paper introduces a retrieval augmented method for reading PDFs. Evaluation details are elsewhere. The method uses lexical chunk ranking.",
-      ),
+      "The paper introduces a retrieval augmented method for reading PDFs. Evaluation details are elsewhere. The method uses lexical chunk ranking.",
     );
 
-    const result = await registry.callTool("paper_read", {
+    const result = await tool.call({
       question: "What is the retrieval method?",
     });
 
@@ -61,23 +38,17 @@ describe("McpToolRegistry", function () {
   });
 
   it("returns no_text when the current reader PDF has no Zotero full-text", async function () {
-    const registry = createRegistry(
+    const tool = createTool(
       {
         attachmentItemID: 10,
         attachmentKey: "PDF",
         libraryID: 1,
         parentItemID: 20,
-        readerItemID: 10,
-        readerType: "pdf",
-        source: "reader",
-        warnings: [],
       },
-      createTextResult("", "empty", [
-        "Attachment text is empty. The PDF may be unindexed or scanned.",
-      ]),
+      "",
     );
 
-    const result = await registry.callTool("paper_read", {
+    const result = await tool.call({
       question: "What is the method?",
     });
 
@@ -90,9 +61,9 @@ describe("McpToolRegistry", function () {
   });
 
   it("returns no_active_reader when paper_read has no PDF reader scope", async function () {
-    const registry = createRegistry(null);
+    const tool = createTool(null);
 
-    const result = await registry.callTool("paper_read", {
+    const result = await tool.call({
       question: "What is the method?",
     });
 
@@ -105,18 +76,14 @@ describe("McpToolRegistry", function () {
   });
 
   it("calls paper_read without returning local attachment paths", async function () {
-    const registry = createRegistry({
+    const tool = createTool({
       attachmentItemID: 10,
       attachmentKey: "PDF",
       libraryID: 1,
       parentItemID: 20,
-      readerItemID: 10,
-      readerType: "pdf",
-      source: "reader",
-      warnings: [],
     });
 
-    const result = await registry.callTool("paper_read", {
+    const result = await tool.call({
       question: "What is the method?",
     });
 
@@ -127,10 +94,10 @@ describe("McpToolRegistry", function () {
   });
 
   it("rejects unsupported paper_read input fields", async function () {
-    const registry = createRegistry(null);
+    const tool = createTool(null);
 
     try {
-      await registry.callTool("paper_read", {
+      await tool.call({
         itemId: 1,
       });
       assert.fail("Expected invalid input to fail");
@@ -143,30 +110,12 @@ describe("McpToolRegistry", function () {
   });
 });
 
-function createRegistry(
+function createTool(
   scope: PaperScope | null = null,
-  text = createTextResult("The method uses lexical retrieval."),
-): McpToolRegistry {
-  const registry = new McpToolRegistry();
-  registry.register(
-    createPaperReadTool({
-      resolveActivePaper: async () => scope,
-      readPaperText: async () => text,
-    }),
-  );
-  return registry;
-}
-
-function createTextResult(
-  text: string,
-  status: PaperTextResult["status"] = "indexed",
-  warnings: string[] = [],
-): PaperTextResult {
-  return {
-    status,
-    text,
-    length: text.length,
-    indexedState: 1,
-    warnings,
-  };
+  text = "The method uses lexical retrieval.",
+) {
+  return createPaperReadTool({
+    resolveActivePaper: async () => scope,
+    readPaperText: async () => text,
+  });
 }
