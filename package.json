@@ -52,7 +52,7 @@
     "@types/sanitize-html": "^2.16.1",
     "@zotero-plugin/eslint-config": "^0.6.7",
     "chai": "^6.2.1",
-    "eslint": "^9.39.2",
+    "eslint": "^10.5.0",
     "mocha": "^11.7.5",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
