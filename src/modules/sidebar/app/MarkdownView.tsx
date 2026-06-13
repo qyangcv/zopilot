@@ -1,274 +1,289 @@
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useMemo, useState, type ReactElement, type ReactNode } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import css from "highlight.js/lib/languages/css";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import latex from "highlight.js/lib/languages/latex";
+import markdownLanguage from "highlight.js/lib/languages/markdown";
+import python from "highlight.js/lib/languages/python";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
 
 type MarkdownViewProps = {
   markdown: string;
   onOpenLink: (url: string) => void;
 };
 
-type Block =
-  | { type: "code"; content: string }
-  | { type: "math"; content: string }
-  | { type: "table"; header: string[]; rows: string[][] }
-  | { type: "ul" | "ol"; items: string[] }
-  | { type: "p"; content: string };
+const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
+
+const LANGUAGE_ALIASES = new Map([
+  ["js", "javascript"],
+  ["jsx", "javascript"],
+  ["ts", "typescript"],
+  ["tsx", "typescript"],
+  ["py", "python"],
+  ["sh", "bash"],
+  ["shell", "bash"],
+  ["zsh", "bash"],
+  ["html", "xml"],
+  ["md", "markdown"],
+  ["tex", "latex"],
+]);
+
+registerHighlightLanguages();
 
 export function MarkdownView({
   markdown,
   onOpenLink,
 }: MarkdownViewProps): ReactElement {
-  const blocks = parseMarkdown(markdown);
+  const components = useMemo(
+    () => createMarkdownComponents(onOpenLink),
+    [onOpenLink],
+  );
+
   return (
-    <>
-      {blocks.map((block, index) => (
-        <MarkdownBlock
-          block={block}
-          key={`${block.type}-${index}`}
-          onOpenLink={onOpenLink}
-        />
-      ))}
-    </>
+    <ReactMarkdown
+      components={components}
+      rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      skipHtml
+      urlTransform={(url) =>
+        isInternalUrl(url) || isSafeExternalUrl(url) ? url : ""
+      }
+    >
+      {markdown}
+    </ReactMarkdown>
   );
 }
 
-function MarkdownBlock({
-  block,
-  onOpenLink,
-}: {
-  block: Block;
-  onOpenLink: (url: string) => void;
-}): ReactElement {
-  switch (block.type) {
-    case "code":
-      return <CodeBlock text={block.content} />;
-    case "math":
-      return <div className="zcp-math-block">{block.content}</div>;
-    case "table":
+function createMarkdownComponents(
+  onOpenLink: (url: string) => void,
+): Components {
+  return {
+    a({ children, href }) {
+      if (!href) {
+        return <span className="zcp-unsafe-link">{children}</span>;
+      }
+      if (isInternalUrl(href)) {
+        return <a href={href}>{children}</a>;
+      }
+      if (!isSafeExternalUrl(href)) {
+        return <span className="zcp-unsafe-link">{children}</span>;
+      }
       return (
-        <table>
-          <thead>
-            <tr>
-              {block.header.map((cell, index) => (
-                <th key={index}>{renderInline(cell, onOpenLink)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {block.rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                {row.map((cell, cellIndex) => (
-                  <td key={cellIndex}>{renderInline(cell, onOpenLink)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <a
+          href={href}
+          onClick={(event) => {
+            event.preventDefault();
+            onOpenLink(href);
+          }}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {children}
+        </a>
       );
-    case "ul":
+    },
+    blockquote({ children }) {
+      return <blockquote>{children}</blockquote>;
+    },
+    code({ children, className }) {
+      const text = String(children).replace(/\n$/u, "");
+      const language = getCodeLanguage(className);
+      if (!language) {
+        return <code>{children}</code>;
+      }
+      return <CodeBlock language={language} text={text} />;
+    },
+    h1({ children }) {
       return (
-        <ul>
-          {block.items.map((item, index) => (
-            <li key={index}>{renderInline(item, onOpenLink)}</li>
-          ))}
-        </ul>
+        <h2 className="zcp-markdown-heading zcp-markdown-heading-1">
+          {children}
+        </h2>
       );
-    case "ol":
+    },
+    h2({ children }) {
       return (
-        <ol>
-          {block.items.map((item, index) => (
-            <li key={index}>{renderInline(item, onOpenLink)}</li>
-          ))}
-        </ol>
+        <h3 className="zcp-markdown-heading zcp-markdown-heading-2">
+          {children}
+        </h3>
       );
-    case "p":
-      return <p>{renderInline(block.content, onOpenLink)}</p>;
-  }
+    },
+    h3({ children }) {
+      return (
+        <h4 className="zcp-markdown-heading zcp-markdown-heading-3">
+          {children}
+        </h4>
+      );
+    },
+    h4({ children }) {
+      return (
+        <h5 className="zcp-markdown-heading zcp-markdown-heading-4">
+          {children}
+        </h5>
+      );
+    },
+    h5({ children }) {
+      return (
+        <h6 className="zcp-markdown-heading zcp-markdown-heading-5">
+          {children}
+        </h6>
+      );
+    },
+    h6({ children }) {
+      return (
+        <h6 className="zcp-markdown-heading zcp-markdown-heading-6">
+          {children}
+        </h6>
+      );
+    },
+    img({ alt, src }) {
+      const label = alt?.trim() ? alt : "image";
+      if (!src || !isSafeExternalUrl(src)) {
+        return (
+          <span className="zcp-markdown-image">
+            <span className="zcp-markdown-image-label">{label}</span>
+          </span>
+        );
+      }
+      return (
+        <span className="zcp-markdown-image">
+          <span className="zcp-markdown-image-label">{label}</span>{" "}
+          <a
+            href={src}
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenLink(src);
+            }}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {src}
+          </a>
+        </span>
+      );
+    },
+    input({ checked, type }) {
+      if (type !== "checkbox") {
+        return <input checked={checked} readOnly type={type} />;
+      }
+      return (
+        <input
+          checked={Boolean(checked)}
+          className="zcp-task-checkbox"
+          readOnly
+          type="checkbox"
+        />
+      );
+    },
+    pre({ children }) {
+      return <>{children}</>;
+    },
+    table({ children }) {
+      return (
+        <div className="zcp-table-scroll">
+          <table>{children}</table>
+        </div>
+      );
+    },
+  };
 }
 
-function CodeBlock({ text }: { text: string }): ReactElement {
+function CodeBlock({
+  language,
+  text,
+}: {
+  language: string;
+  text: string;
+}): ReactElement {
   const [copied, setCopied] = useState(false);
+  const highlighted = highlightCode(text, language);
 
   return (
     <div className="zcp-code-block">
-      <button
-        aria-label="Copy code"
-        className="zcp-inline-copy"
-        onClick={() => {
-          void copyText(text).then(() => {
-            setCopied(true);
-            globalThis.setTimeout(() => setCopied(false), 900);
-          });
-        }}
-        title="Copy code"
-        type="button"
-      >
-        <span className={copied ? "zcp-check-icon" : "zcp-copy-icon"} />
-      </button>
+      <div className="zcp-code-header">
+        <span className="zcp-code-language">{language}</span>
+        <button
+          aria-label="Copy code"
+          className="zcp-inline-copy"
+          onClick={() => {
+            void copyText(text).then(() => {
+              setCopied(true);
+              globalThis.setTimeout(() => setCopied(false), 900);
+            });
+          }}
+          title="Copy code"
+          type="button"
+        >
+          <span className={copied ? "zcp-check-icon" : "zcp-copy-icon"} />
+        </button>
+      </div>
       <pre>
-        <code>{text}</code>
+        <code
+          className={`hljs language-${language}`}
+          dangerouslySetInnerHTML={{ __html: highlighted }}
+        />
       </pre>
     </div>
   );
 }
 
-function parseMarkdown(markdown: string): Block[] {
-  const lines = markdown.trim().split(/\r?\n/);
-  const blocks: Block[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-    if (!line.trim()) {
-      index += 1;
-      continue;
-    }
-
-    if (line.startsWith("```")) {
-      const codeLines: string[] = [];
-      index += 1;
-      while (index < lines.length && !lines[index].startsWith("```")) {
-        codeLines.push(lines[index]);
-        index += 1;
-      }
-      index += 1;
-      blocks.push({ type: "code", content: codeLines.join("\n") });
-      continue;
-    }
-
-    if (line.startsWith("$$")) {
-      const mathLines: string[] = [];
-      index += 1;
-      while (index < lines.length && !lines[index].startsWith("$$")) {
-        mathLines.push(lines[index]);
-        index += 1;
-      }
-      index += 1;
-      blocks.push({ type: "math", content: mathLines.join("\n") });
-      continue;
-    }
-
-    if (isTableStart(lines, index)) {
-      const header = splitTableRow(lines[index]);
-      const rows: string[][] = [];
-      index += 2;
-      while (index < lines.length && /^\s*\|.+\|\s*$/.test(lines[index])) {
-        rows.push(splitTableRow(lines[index]));
-        index += 1;
-      }
-      blocks.push({ type: "table", header, rows });
-      continue;
-    }
-
-    if (/^\s*[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*[-*]\s+/, ""));
-        index += 1;
-      }
-      blocks.push({ type: "ul", items });
-      continue;
-    }
-
-    if (/^\s*\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*\d+\.\s+/, ""));
-        index += 1;
-      }
-      blocks.push({ type: "ol", items });
-      continue;
-    }
-
-    blocks.push({ type: "p", content: line });
-    index += 1;
-  }
-
-  return blocks.length ? blocks : [{ type: "p", content: "" }];
+function registerHighlightLanguages(): void {
+  hljs.registerLanguage("javascript", javascript);
+  hljs.registerLanguage("typescript", typescript);
+  hljs.registerLanguage("python", python);
+  hljs.registerLanguage("bash", bash);
+  hljs.registerLanguage("json", json);
+  hljs.registerLanguage("xml", xml);
+  hljs.registerLanguage("css", css);
+  hljs.registerLanguage("markdown", markdownLanguage);
+  hljs.registerLanguage("latex", latex);
 }
 
-function renderInline(
-  text: string,
-  onOpenLink: (url: string) => void,
-): ReactNode[] {
-  const tokenPattern =
-    /(\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\$[^$]+\$|\\\([^)]+\\\))/g;
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-
-  for (const match of text.matchAll(tokenPattern)) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-    nodes.push(createInlineNode(match[0], nodes.length, onOpenLink));
-    lastIndex = match.index + match[0].length;
+function getCodeLanguage(className?: string): string | undefined {
+  const match = /(?:^|\s)language-([\w-]+)/u.exec(className ?? "");
+  if (!match) {
+    return undefined;
   }
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-  return nodes;
+  const rawLanguage = match[1].toLowerCase();
+  return LANGUAGE_ALIASES.get(rawLanguage) ?? rawLanguage;
 }
 
-function createInlineNode(
-  token: string,
-  key: number,
-  onOpenLink: (url: string) => void,
-): ReactNode {
-  if (token.startsWith("[")) {
-    const match = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (match) {
-      return (
-        <a
-          href={match[2]}
-          key={key}
-          onClick={(event) => {
-            event.preventDefault();
-            onOpenLink(match[2]);
-          }}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {match[1]}
-        </a>
-      );
-    }
+function highlightCode(text: string, language: string): string {
+  if (!hljs.getLanguage(language)) {
+    return escapeHtml(text);
   }
-  if (token.startsWith("`")) {
-    return <code key={key}>{token.slice(1, -1)}</code>;
-  }
-  if (token.startsWith("**")) {
-    return <strong key={key}>{token.slice(2, -2)}</strong>;
-  }
-  if (token.startsWith("$")) {
-    return (
-      <span className="zcp-math-inline" key={key}>
-        {token.slice(1, -1)}
-      </span>
-    );
-  }
-  if (token.startsWith("\\(")) {
-    return (
-      <span className="zcp-math-inline" key={key}>
-        {token.slice(2, -2)}
-      </span>
-    );
-  }
-  return token;
+  return hljs.highlight(text, { language, ignoreIllegals: true }).value;
 }
 
-function isTableStart(lines: string[], index: number): boolean {
-  return (
-    /^\s*\|.+\|\s*$/.test(lines[index]) &&
-    index + 1 < lines.length &&
-    /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
-  );
+function isInternalUrl(url: string): boolean {
+  return url.startsWith("#");
 }
 
-function splitTableRow(line: string): string[] {
-  return line
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
+function isSafeExternalUrl(url: string): boolean {
+  if (!/^[A-Za-z][\w+.-]*:/u.test(url)) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    return SAFE_PROTOCOLS.has(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 async function copyText(text: string): Promise<void> {

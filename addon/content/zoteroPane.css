@@ -1,3 +1,5 @@
+@import url("vendor/katex/katex.min.css");
+
 .zcp-reader-toolbar-button {
   align-items: center;
   appearance: none;
@@ -610,21 +612,54 @@
   color: CanvasText;
 }
 
+.zcp-message-body > * {
+  max-width: 100%;
+}
+
+.zcp-message-body .zcp-markdown-heading {
+  margin: 0 0 6px;
+  font-weight: 650;
+  line-height: 1.28;
+}
+
+.zcp-message-body .zcp-markdown-heading:not(:first-child) {
+  margin-top: 10px;
+}
+
+.zcp-message-body .zcp-markdown-heading-1 {
+  font-size: 15px;
+}
+
+.zcp-message-body .zcp-markdown-heading-2 {
+  font-size: 14px;
+}
+
+.zcp-message-body .zcp-markdown-heading-3,
+.zcp-message-body .zcp-markdown-heading-4,
+.zcp-message-body .zcp-markdown-heading-5,
+.zcp-message-body .zcp-markdown-heading-6 {
+  font-size: 13px;
+}
+
 .zcp-message-body p,
 .zcp-message-body ul,
 .zcp-message-body ol,
-.zcp-message-body pre,
-.zcp-message-body table,
-.zcp-message-body .zcp-math-block {
+.zcp-message-body blockquote,
+.zcp-message-body hr,
+.zcp-message-body .zcp-code-block,
+.zcp-message-body .zcp-table-scroll,
+.zcp-message-body .katex-display {
   margin: 0 0 8px;
 }
 
 .zcp-message-body p:last-child,
 .zcp-message-body ul:last-child,
 .zcp-message-body ol:last-child,
-.zcp-message-body pre:last-child,
-.zcp-message-body table:last-child,
-.zcp-message-body .zcp-math-block:last-child {
+.zcp-message-body blockquote:last-child,
+.zcp-message-body hr:last-child,
+.zcp-message-body .zcp-code-block:last-child,
+.zcp-message-body .zcp-table-scroll:last-child,
+.zcp-message-body .katex-display:last-child {
   margin-bottom: 0;
 }
 
@@ -633,64 +668,150 @@
   padding-inline-start: 18px;
 }
 
+.zcp-message-body .contains-task-list {
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.zcp-message-body .task-list-item {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.zcp-task-checkbox {
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+}
+
 .zcp-message-body li + li {
   margin-top: 3px;
+}
+
+.zcp-message-body blockquote {
+  border-inline-start: 3px solid var(--zcp-border);
+  color: var(--zcp-muted-strong);
+  padding: 2px 0 2px 9px;
+}
+
+.zcp-message-body hr {
+  border: 0;
+  border-block-start: 1px solid var(--zcp-subtle-border);
 }
 
 .zcp-message-body a {
   color: LinkText;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .zcp-message-body a:hover {
   text-decoration: underline;
 }
 
-.zcp-message-body code,
-.zcp-message-body pre,
-.zcp-math-inline,
-.zcp-math-block {
+.zcp-unsafe-link {
+  color: var(--zcp-muted-strong);
+}
+
+.zcp-message-body code {
   border: 1px solid var(--zcp-subtle-border);
   border-radius: 5px;
   background: var(--zcp-panel);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-.zcp-message-body code,
-.zcp-math-inline {
+.zcp-message-body code {
   padding: 1px 4px;
   font-size: 0.92em;
 }
 
-.zcp-message-body pre,
-.zcp-math-block {
+.zcp-message-body pre {
+  margin: 0;
+  border: 1px solid var(--zcp-subtle-border);
+  border-radius: 5px;
+  background: var(--zcp-panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow: auto;
   padding: 8px;
-  white-space: pre-wrap;
+  white-space: pre;
 }
 
 .zcp-code-block {
   position: relative;
-  margin: 0 0 8px;
+  overflow: hidden;
+  border: 1px solid var(--zcp-subtle-border);
+  border-radius: 6px;
+  background: var(--zcp-panel);
+}
+
+.zcp-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  border-block-end: 1px solid var(--zcp-subtle-border);
+  padding: 3px 5px 3px 8px;
+}
+
+.zcp-code-language {
+  color: var(--zcp-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .zcp-code-block pre {
-  margin: 0;
-  padding-inline-end: 34px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .zcp-inline-copy {
-  position: absolute;
-  inset-block-start: 5px;
-  inset-inline-end: 5px;
   width: 24px;
   height: 24px;
   border-radius: 5px;
   color: var(--zcp-muted-strong);
 }
 
+.zcp-code-block code.hljs {
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.zcp-message-body .hljs-keyword,
+.zcp-message-body .hljs-selector-tag,
+.zcp-message-body .hljs-title.function_ {
+  color: color-mix(in srgb, LinkText 82%, CanvasText);
+}
+
+.zcp-message-body .hljs-string,
+.zcp-message-body .hljs-attr,
+.zcp-message-body .hljs-meta .hljs-string {
+  color: color-mix(in srgb, AccentColor 72%, CanvasText);
+}
+
+.zcp-message-body .hljs-number,
+.zcp-message-body .hljs-literal {
+  color: color-mix(in srgb, Mark 65%, CanvasText);
+}
+
+.zcp-message-body .hljs-comment,
+.zcp-message-body .hljs-quote {
+  color: var(--zcp-muted);
+  font-style: italic;
+}
+
+.zcp-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .zcp-message-body table {
-  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
 }
@@ -706,6 +827,34 @@
 .zcp-message-body th {
   background: var(--zcp-panel);
   font-weight: 600;
+}
+
+.zcp-markdown-image {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--zcp-muted-strong);
+}
+
+.zcp-markdown-image-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.zcp-message-body .katex {
+  font-size: 1.06em;
+}
+
+.zcp-message-body .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+
+.zcp-message-body .katex-display > .katex {
+  text-align: start;
 }
 
 .zcp-message-user {

@@ -2,6 +2,7 @@
 build
 logs
 node_modules
+addon/content/vendor/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml

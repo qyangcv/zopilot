@@ -7,7 +7,7 @@ export function resolve(specifier, context, defaultResolve) {
   if (
     context.parentURL?.startsWith("file:") &&
     specifier.startsWith(".") &&
-    !specifier.match(/\.[cm]?[jt]s$/u)
+    !specifier.match(/\.[cm]?[jt]sx?$/u)
   ) {
     const parentPath = fileURLToPath(context.parentURL);
     const tsPath = resolvePath(dirname(parentPath), `${specifier}.ts`);
@@ -15,6 +15,13 @@ export function resolve(specifier, context, defaultResolve) {
       return {
         shortCircuit: true,
         url: pathToFileURL(tsPath).href,
+      };
+    }
+    const tsxPath = resolvePath(dirname(parentPath), `${specifier}.tsx`);
+    if (existsSync(tsxPath)) {
+      return {
+        shortCircuit: true,
+        url: pathToFileURL(tsxPath).href,
       };
     }
   }
@@ -42,14 +49,16 @@ export function load(url, context, defaultLoad) {
     };
   }
 
-  if (!url.endsWith(".ts")) {
+  if (!url.endsWith(".ts") && !url.endsWith(".tsx")) {
     return defaultLoad(url, context, defaultLoad);
   }
 
   const source = readFileSync(fileURLToPath(url), "utf8");
+  const loader = url.endsWith(".tsx") ? "tsx" : "ts";
   const result = transformSync(source, {
     format: "esm",
-    loader: "ts",
+    jsx: "automatic",
+    loader,
     sourcemap: "inline",
     target: "es2022",
   });

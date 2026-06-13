@@ -1,4 +1,3 @@
-import { SidebarApp } from "./SidebarApp";
 import type { SidebarActions, SidebarState } from "./types";
 
 export { createSidebarReactHost };
@@ -14,7 +13,10 @@ async function createSidebarReactHost(
 ): Promise<SidebarReactHost> {
   const installGlobals = () => installReactDomGlobals(mountNode);
   installGlobals();
-  const { createRoot } = await import("react-dom/client");
+  const [{ createRoot }, { SidebarApp }] = await Promise.all([
+    import("react-dom/client"),
+    import("./SidebarApp"),
+  ]);
   installGlobals();
   const root = createRoot(mountNode);
   return {

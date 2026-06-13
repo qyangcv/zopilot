@@ -27,12 +27,18 @@
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
-    "test:unit": "node --import ./test/register-ts-loader.mjs ./node_modules/mocha/bin/mocha \"test/unit/**/*.test.ts\"",
+    "test:unit": "node --import ./test/register-ts-loader.mjs ./node_modules/mocha/bin/mocha \"test/unit/**/*.test.ts\" \"test/unit/**/*.test.tsx\"",
     "update-deps": "npm update --save"
   },
   "dependencies": {
+    "highlight.js": "^11.11.1",
+    "katex": "^0.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "zotero-plugin-toolkit": "^5.1.0-beta.13"
   },
   "devDependencies": {
