@@ -24,12 +24,12 @@ export function MarkdownView({
         return;
       }
 
-      const copyButton = target.closest("button[data-zcp-copy-code]");
+      const copyButton = target.closest("button[data-zp-copy-code]");
       if (copyButton && event.currentTarget.contains(copyButton)) {
         event.preventDefault();
         void copyText(
           decodeCopyPayload(
-            copyButton.getAttribute("data-zcp-copy-code") ?? undefined,
+            copyButton.getAttribute("data-zp-copy-code") ?? undefined,
           ),
         ).then(() => showCopiedState(copyButton));
         return;
@@ -53,7 +53,7 @@ export function MarkdownView({
 
   return (
     <div
-      className="zcp-markdown-rendered"
+      className="zp-markdown-rendered"
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={handleClick}
     />
@@ -86,8 +86,8 @@ function showCopiedState(button: Element): void {
     return;
   }
 
-  icon.className = "zcp-check-icon";
+  icon.className = "zp-check-icon";
   globalThis.setTimeout(() => {
-    icon.className = "zcp-copy-icon";
+    icon.className = "zp-copy-icon";
   }, 900);
 }

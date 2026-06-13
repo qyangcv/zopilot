@@ -18,7 +18,7 @@ describe("sidebar view model", function () {
     assert.isFalse(state.composerEnabled);
     assert.deepEqual(
       state.messages.map((message) => message.id),
-      ["zcp-welcome-message"],
+      ["zp-welcome-message"],
     );
   });
 
@@ -31,7 +31,7 @@ describe("sidebar view model", function () {
 
     assert.deepEqual(
       messages.map((message) => message.id),
-      ["msg-user", "msg-assistant", "zcp-streaming-assistant-conv-a"],
+      ["msg-user", "msg-assistant", "zp-streaming-assistant-conv-a"],
     );
     assert.equal(messages[1].completedAt, "2026-06-13 15:30");
     assert.deepInclude(messages[2], {

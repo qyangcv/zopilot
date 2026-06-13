@@ -1,6 +1,6 @@
-prefs-title = Zotero Copilot
-sidebar-title = Zotero Copilot
-sidebar-toggle-tooltip = Toggle Zotero Copilot sidebar
+prefs-title = Zopilot
+sidebar-title = Zopilot
+sidebar-toggle-tooltip = Toggle Zopilot sidebar
 sidebar-close = Close sidebar
 sidebar-history = Conversation history
 sidebar-new-chat = New chat

@@ -76,7 +76,7 @@ export function SidebarApp({
   return (
     <aside
       aria-label={getString("sidebar-title")}
-      className="zcp-sidebar"
+      className="zp-sidebar"
       onClick={() => {
         if (state.sessionsOpen) {
           actions.hideSessions();
@@ -87,13 +87,13 @@ export function SidebarApp({
     >
       <div
         aria-hidden="true"
-        className="zcp-resize-handle"
-        id="zotero-copilot-sidebar-splitter"
+        className="zp-resize-handle"
+        id="zopilot-sidebar-splitter"
         onPointerDown={(event) => actions.startResize(event.nativeEvent)}
       />
-      <header className="zcp-sidebar-header">
+      <header className="zp-sidebar-header">
         <button
-          className="zcp-sidebar-identity"
+          className="zp-sidebar-identity"
           onClick={(event) => {
             event.stopPropagation();
             setContextOpen((open) => !open);
@@ -101,20 +101,20 @@ export function SidebarApp({
           title={state.title}
           type="button"
         >
-          <span className="zcp-sidebar-icon" />
-          <span className="zcp-sidebar-title-block">
-            <span className="zcp-sidebar-title">
+          <span className="zp-sidebar-icon" />
+          <span className="zp-sidebar-title-block">
+            <span className="zp-sidebar-title">
               {getString("sidebar-title")}
             </span>
-            <span className="zcp-sidebar-selected-title">{state.title}</span>
+            <span className="zp-sidebar-selected-title">{state.title}</span>
           </span>
         </button>
-        <div className="zcp-sidebar-actions">
+        <div className="zp-sidebar-actions">
           <button
             aria-expanded={state.sessionsOpen}
             aria-haspopup="true"
             aria-label={getString("sidebar-history")}
-            className="zcp-icon-button zcp-history-button"
+            className="zp-icon-button zp-history-button"
             disabled={!state.context.paperKey}
             onClick={(event) => {
               event.stopPropagation();
@@ -123,11 +123,11 @@ export function SidebarApp({
             title={getString("sidebar-history")}
             type="button"
           >
-            <span className="zcp-history-icon" />
+            <span className="zp-history-icon" />
           </button>
           <button
             aria-label={getString("sidebar-new-chat")}
-            className="zcp-icon-button zcp-new-session-button"
+            className="zp-icon-button zp-new-session-button"
             disabled={!state.context.paperKey}
             onClick={(event) => {
               event.stopPropagation();
@@ -136,16 +136,16 @@ export function SidebarApp({
             title={getString("sidebar-new-chat")}
             type="button"
           >
-            <span className="zcp-action-icon zcp-plus-icon" />
+            <span className="zp-action-icon zp-plus-icon" />
           </button>
           <button
             aria-label={getString("sidebar-close")}
-            className="zcp-icon-button"
+            className="zp-icon-button"
             onClick={actions.close}
             title={getString("sidebar-close")}
             type="button"
           >
-            <span className="zcp-action-icon zcp-close-icon" />
+            <span className="zp-action-icon zp-close-icon" />
           </button>
         </div>
       </header>
@@ -164,7 +164,7 @@ export function SidebarApp({
       ) : null}
       <main
         aria-live="polite"
-        className="zcp-chat-log"
+        className="zp-chat-log"
         onScroll={(event) => {
           autoScrollRef.current = isNearScrollBottom(event.currentTarget);
         }}
@@ -190,16 +190,16 @@ export function SidebarApp({
       </main>
       <form
         aria-busy={state.busy}
-        className="zcp-composer"
+        className="zp-composer"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
         }}
       >
-        <div className="zcp-context-row">
+        <div className="zp-context-row">
           <button
             aria-label={getString("sidebar-add-context")}
-            className="zcp-context-add"
+            className="zp-context-add"
             disabled={!state.context.paperKey}
             onClick={(event) => {
               event.stopPropagation();
@@ -208,10 +208,10 @@ export function SidebarApp({
             title={getString("sidebar-add-context")}
             type="button"
           >
-            <span className="zcp-action-icon zcp-plus-icon" />
+            <span className="zp-action-icon zp-plus-icon" />
           </button>
           <button
-            className="zcp-context-chip"
+            className="zp-context-chip"
             disabled={!state.context.paperKey}
             onClick={(event) => {
               event.stopPropagation();
@@ -220,12 +220,12 @@ export function SidebarApp({
             title={state.context.label}
             type="button"
           >
-            <span className="zcp-context-chip-icon" />
-            <span className="zcp-context-chip-text">{state.context.label}</span>
+            <span className="zp-context-chip-icon" />
+            <span className="zp-context-chip-text">{state.context.label}</span>
           </button>
         </div>
         <textarea
-          className="zcp-composer-input"
+          className="zp-composer-input"
           disabled={!state.composerEnabled}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onInput={(event) => resizeTextarea(event.currentTarget)}
@@ -240,11 +240,11 @@ export function SidebarApp({
           rows={1}
           value={draft}
         />
-        <div className="zcp-composer-footer">
-          <div className="zcp-composer-meta">
+        <div className="zp-composer-footer">
+          <div className="zp-composer-meta">
             <select
               aria-label={getString("sidebar-model-name")}
-              className="zcp-composer-select"
+              className="zp-composer-select"
               disabled={!state.models.length}
               onChange={(event) =>
                 actions.selectModel(event.currentTarget.value)
@@ -264,7 +264,7 @@ export function SidebarApp({
             {state.availableReasoningEfforts.length ? (
               <select
                 aria-label={getString("sidebar-reasoning-depth")}
-                className="zcp-composer-select"
+                className="zp-composer-select"
                 onChange={(event) =>
                   actions.selectReasoningEffort(event.currentTarget.value)
                 }
@@ -286,7 +286,7 @@ export function SidebarApp({
             aria-label={
               state.busy ? getString("sidebar-stop") : getString("sidebar-send")
             }
-            className="zcp-send-button"
+            className="zp-send-button"
             disabled={!state.composerEnabled || (!state.busy && !draft.trim())}
             onClick={(event) => {
               if (!state.busy) {
@@ -300,7 +300,7 @@ export function SidebarApp({
             }
             type={state.busy ? "button" : "submit"}
           >
-            <span className={state.busy ? "zcp-stop-icon" : "zcp-send-icon"} />
+            <span className={state.busy ? "zp-stop-icon" : "zp-send-icon"} />
           </button>
         </div>
       </form>
@@ -339,19 +339,19 @@ function Message({
 
   return (
     <article
-      className={`zcp-message zcp-message-${message.role}`}
+      className={`zp-message zp-message-${message.role}`}
       data-status={message.status}
     >
-      {isAssistant ? <div className="zcp-message-avatar" /> : null}
+      {isAssistant ? <div className="zp-message-avatar" /> : null}
       <div
-        className={isAssistant ? "zcp-message-stack" : "zcp-message-user-stack"}
+        className={isAssistant ? "zp-message-stack" : "zp-message-user-stack"}
       >
         {isAssistant ? (
-          <div className="zcp-message-body">
+          <div className="zp-message-body">
             <MarkdownView markdown={message.text} onOpenLink={onOpenLink} />
           </div>
         ) : (
-          <div className="zcp-message-bubble">{message.text}</div>
+          <div className="zp-message-bubble">{message.text}</div>
         )}
         {isAssistant ? (
           <AssistantFooter
@@ -368,7 +368,7 @@ function Message({
             }}
           />
         ) : (
-          <div className="zcp-message-actions">
+          <div className="zp-message-actions">
             <IconAction
               icon="edit"
               label={getString("sidebar-edit-composer")}
@@ -409,14 +409,14 @@ function AssistantFooter({
   }
   if (message.status !== "complete") {
     return (
-      <div className="zcp-message-footer">
-        <span className="zcp-message-status">
+      <div className="zp-message-footer">
+        <span className="zp-message-status">
           {message.status === "interrupted"
             ? getString("sidebar-status-interrupted")
             : getString("sidebar-status-error")}
         </span>
         {completedAt ? (
-          <time className="zcp-message-time">{completedAt}</time>
+          <time className="zp-message-time">{completedAt}</time>
         ) : null}
       </div>
     );
@@ -425,8 +425,8 @@ function AssistantFooter({
     return null;
   }
   return (
-    <div className="zcp-message-footer">
-      <div className="zcp-message-actions">
+    <div className="zp-message-footer">
+      <div className="zp-message-actions">
         <IconAction
           active={copied}
           icon="copy"
@@ -445,7 +445,7 @@ function AssistantFooter({
           onClick={onRetry}
         />
       </div>
-      <time className="zcp-message-time">{completedAt}</time>
+      <time className="zp-message-time">{completedAt}</time>
     </div>
   );
 }
@@ -466,14 +466,14 @@ function IconAction({
   return (
     <button
       aria-label={label}
-      className="zcp-message-action"
+      className="zp-message-action"
       data-active={active || undefined}
       disabled={disabled}
       onClick={onClick}
       title={label}
       type="button"
     >
-      <span className={`zcp-${active ? "check" : icon}-icon`} />
+      <span className={`zp-${active ? "check" : icon}-icon`} />
     </button>
   );
 }
@@ -487,43 +487,43 @@ function SessionPopover({
 }): ReactElement {
   return (
     <div
-      className="zcp-session-popover"
+      className="zp-session-popover"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="zcp-session-popover-header">
+      <div className="zp-session-popover-header">
         {getString("sidebar-history")}
       </div>
       {sessions.length ? (
-        <div className="zcp-session-list">
+        <div className="zp-session-list">
           {sessions.map((session) => (
             <div
-              className="zcp-session-row"
+              className="zp-session-row"
               data-active={session.active || undefined}
               key={session.id}
             >
               <button
-                className="zcp-session-select"
+                className="zp-session-select"
                 onClick={() => actions.switchSession(session.conversation)}
                 title={session.title}
                 type="button"
               >
-                <span className="zcp-session-label">{session.title}</span>
-                <span className="zcp-session-meta">{session.meta}</span>
+                <span className="zp-session-label">{session.title}</span>
+                <span className="zp-session-meta">{session.meta}</span>
               </button>
               <button
                 aria-label={getString("sidebar-delete-session")}
-                className="zcp-session-archive"
+                className="zp-session-archive"
                 onClick={() => actions.archiveSession(session.conversation)}
                 title={getString("sidebar-delete-session")}
                 type="button"
               >
-                <span className="zcp-action-icon zcp-close-icon" />
+                <span className="zp-action-icon zp-close-icon" />
               </button>
             </div>
           ))}
         </div>
       ) : (
-        <div className="zcp-session-empty">
+        <div className="zp-session-empty">
           {getString("sidebar-no-sessions")}
         </div>
       )}
@@ -548,22 +548,22 @@ function ContextPopover({
 }): ReactElement {
   return (
     <div
-      className="zcp-context-popover"
+      className="zp-context-popover"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="zcp-context-popover-header">
+      <div className="zp-context-popover-header">
         <span>{getString("sidebar-context-details")}</span>
         <button
           aria-label={getString("sidebar-close")}
-          className="zcp-message-action"
+          className="zp-message-action"
           onClick={onClose}
           title={getString("sidebar-close")}
           type="button"
         >
-          <span className="zcp-close-icon" />
+          <span className="zp-close-icon" />
         </button>
       </div>
-      <dl className="zcp-context-details">
+      <dl className="zp-context-details">
         <div>
           <dt>{getString("sidebar-current-context")}</dt>
           <dd>{paperTitle || label}</dd>
@@ -594,7 +594,7 @@ function resizeTextarea(textarea: HTMLTextAreaElement | null): void {
     return;
   }
   const hostHeight =
-    textarea.closest("#zotero-copilot-sidebar-shell")?.clientHeight || 680;
+    textarea.closest("#zopilot-sidebar-shell")?.clientHeight || 680;
   const maxHeight = Math.max(140, Math.floor(hostHeight * 0.42));
   textarea.style.height = "auto";
   textarea.style.maxHeight = `${maxHeight}px`;

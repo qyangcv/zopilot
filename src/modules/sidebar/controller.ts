@@ -147,7 +147,7 @@ class SidebarController {
     this.readerToolbar.refresh();
   }
 
-  private openCopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
+  private openZopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
     const pdfReader = isPDFReader(reader)
       ? reader
       : getSelectedPDFReader(this.win);
@@ -232,7 +232,7 @@ class SidebarController {
 
     this.shell = this.createShell();
     this.appMount = this.doc.createElementNS(HTML_NS, "div") as HTMLElement;
-    this.appMount.className = "zcp-react-root";
+    this.appMount.className = "zp-react-root";
     this.shell.appendChild(this.appMount);
     void this.ensureReactHost();
   }
@@ -260,7 +260,7 @@ class SidebarController {
       this.reactHost = reactHost;
       this.renderApp();
     } catch (error) {
-      ztoolkit.log("failed to mount Zotero Copilot React sidebar", error);
+      ztoolkit.log("failed to mount Zopilot React sidebar", error);
     } finally {
       this.reactHostLoading = false;
     }
@@ -792,7 +792,7 @@ class SidebarController {
       busy: false,
       messages: [
         {
-          id: `zcp-status-${this.contextLoadId}`,
+          id: `zp-status-${this.contextLoadId}`,
           role: "assistant",
           text: markdown,
           status: "complete",
@@ -820,12 +820,12 @@ class SidebarController {
   private toggle(reader?: _ZoteroTypes.ReaderInstance): void {
     if (this.open) {
       if (reader && !this.isCurrentReader(reader)) {
-        this.openCopilotPane(reader);
+        this.openZopilotPane(reader);
         return;
       }
       this.setOpen(false);
     } else {
-      this.openCopilotPane(reader);
+      this.openZopilotPane(reader);
     }
   }
 

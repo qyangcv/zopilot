@@ -36,7 +36,7 @@ function createMarkdownIt(): MarkdownIt {
   md.validateLink = () => true;
   installRendererRules(md);
   md.use(tasklist, {
-    checkboxClass: "zcp-task-checkbox",
+    checkboxClass: "zp-task-checkbox",
     containerClass: "contains-task-list",
     disabled: true,
     itemClass: "task-list-item",
@@ -85,13 +85,13 @@ function installRendererRules(md: MarkdownIt): void {
   md.renderer.rules.link_close = renderLinkClose;
   md.renderer.rules.s_open = () => "<del>";
   md.renderer.rules.s_close = () => "</del>";
-  md.renderer.rules.table_open = () => '<div class="zcp-table-scroll"><table>';
+  md.renderer.rules.table_open = () => '<div class="zp-table-scroll"><table>';
   md.renderer.rules.table_close = () => "</table></div>";
 }
 
 const renderHeadingOpen: RenderRule = function renderHeadingOpen(tokens, idx) {
   const level = getHeadingLevel(tokens[idx].tag);
-  return `<h${Math.min(level + 1, 6)} class="zcp-markdown-heading zcp-markdown-heading-${level}">`;
+  return `<h${Math.min(level + 1, 6)} class="zp-markdown-heading zp-markdown-heading-${level}">`;
 };
 
 const renderHeadingClose: RenderRule = function renderHeadingClose(
@@ -110,16 +110,16 @@ const renderImage: RenderRule = function renderImage(tokens, idx) {
 
   if (!isSafeExternalUrl(src)) {
     return [
-      '<span class="zcp-markdown-image">',
-      `<span class="zcp-markdown-image-label">${escapedLabel}</span>`,
+      '<span class="zp-markdown-image">',
+      `<span class="zp-markdown-image-label">${escapedLabel}</span>`,
       "</span>",
     ].join("");
   }
 
   const escapedSrc = escapeHtml(src);
   return [
-    '<span class="zcp-markdown-image">',
-    `<span class="zcp-markdown-image-label">${escapedLabel}</span> `,
+    '<span class="zp-markdown-image">',
+    `<span class="zp-markdown-image-label">${escapedLabel}</span> `,
     `<a href="${escapedSrc}" rel="noopener noreferrer" target="_blank">${escapedSrc}</a>`,
     "</span>",
   ].join("");
@@ -138,7 +138,7 @@ const renderLinkOpen: RenderRule = function renderLinkOpen(
   renderEnv.unsafeLinkStack.push(!isSafe);
 
   if (!isSafe) {
-    return '<span class="zcp-unsafe-link">';
+    return '<span class="zp-unsafe-link">';
   }
 
   const escapedHref = escapeHtml(href);
@@ -178,15 +178,15 @@ function renderCodeBlock({
   const escapedLanguage = escapeHtml(language);
   const copyPayload = escapeHtml(encodeURIComponent(text));
   const content = highlighted
-    ? `<div class="zcp-code-content">${highlighted}</div>`
-    : `<pre class="zcp-code-plain"><code class="language-${escapedLanguage}">${escapeHtml(
+    ? `<div class="zp-code-content">${highlighted}</div>`
+    : `<pre class="zp-code-plain"><code class="language-${escapedLanguage}">${escapeHtml(
         text,
       )}</code></pre>`;
 
   return [
-    `<div class="zcp-code-block" data-language="${escapedLanguage}">`,
-    `<button aria-label="Copy code" class="zcp-code-copy zcp-inline-copy" data-zcp-copy-code="${copyPayload}" title="Copy code" type="button">`,
-    '<span class="zcp-copy-icon"></span>',
+    `<div class="zp-code-block" data-language="${escapedLanguage}">`,
+    `<button aria-label="Copy code" class="zp-code-copy zp-inline-copy" data-zp-copy-code="${copyPayload}" title="Copy code" type="button">`,
+    '<span class="zp-copy-icon"></span>',
     "</button>",
     content,
     "</div>",
@@ -234,7 +234,7 @@ function sanitizeMarkdownHtml(html: string): string {
       ],
       a: ["class", "href", "id", "rel", "target", "title"],
       annotation: ["encoding"],
-      button: ["aria-label", "class", "data-zcp-copy-code", "title", "type"],
+      button: ["aria-label", "class", "data-zp-copy-code", "title", "type"],
       input: ["checked", "class", "disabled", "readonly", "type"],
       path: ["d"],
       span: ["aria-hidden", "class", "style"],

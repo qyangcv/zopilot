@@ -18,7 +18,7 @@ let rootDir: string;
 
 describe("ConversationStore", function () {
   beforeEach(async function () {
-    rootDir = await mkdtemp(join(tmpdir(), "zcp-conversations-"));
+    rootDir = await mkdtemp(join(tmpdir(), "zp-conversations-"));
     installFileMocks();
   });
 
@@ -150,7 +150,7 @@ describe("ConversationStore", function () {
 
     await assertRejects(
       () => store.getLatestPaperConversation(paper.paperKey),
-      "Invalid Zotero Copilot conversation metadata",
+      "Invalid Zopilot conversation metadata",
     );
   });
 
@@ -168,7 +168,7 @@ describe("ConversationStore", function () {
 
     await assertRejects(
       () => store.getLatestPaperConversation(paper.paperKey),
-      "Invalid Zotero Copilot conversation message",
+      "Invalid Zopilot conversation message",
     );
   });
 });

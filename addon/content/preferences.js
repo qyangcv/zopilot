@@ -9,9 +9,9 @@
   init();
 
   function init() {
-    statusValue = document.getElementById("zotero-copilot-codex-status-value");
+    statusValue = document.getElementById("zopilot-codex-status-value");
     if (!statusValue) {
-      throw new Error("Zotero Copilot preference status element is missing.");
+      throw new Error("Zopilot preference status element is missing.");
     }
 
     setStatus("missing", "pref-codex-status-missing");

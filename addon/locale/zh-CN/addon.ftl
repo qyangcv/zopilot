@@ -1,6 +1,6 @@
-prefs-title = Zotero Copilot
-sidebar-title = Zotero Copilot
-sidebar-toggle-tooltip = 打开或关闭 Zotero Copilot 侧边栏
+prefs-title = Zopilot
+sidebar-title = Zopilot
+sidebar-toggle-tooltip = 打开或关闭 Zopilot 侧边栏
 sidebar-close = 关闭侧边栏
 sidebar-history = 会话历史
 sidebar-new-chat = 新建会话

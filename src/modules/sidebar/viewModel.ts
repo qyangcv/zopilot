@@ -32,7 +32,7 @@ function createInitialSidebarState(label: string): SidebarState {
     context: { label },
     messages: [
       {
-        id: "zcp-welcome-message",
+        id: "zp-welcome-message",
         role: "assistant",
         text: getString("sidebar-welcome-message"),
         status: "complete",
@@ -58,7 +58,7 @@ function createConversationMessages(
     ? conversation.messages.map(toMessageView)
     : [
         {
-          id: "zcp-welcome-message",
+          id: "zp-welcome-message",
           role: "assistant" as const,
           text: getString("sidebar-welcome-message"),
           status: "complete" as const,
@@ -113,7 +113,7 @@ function toMessageView(
 }
 
 function getStreamingMessageId(conversationId: string): string {
-  return `zcp-streaming-assistant-${conversationId}`;
+  return `zp-streaming-assistant-${conversationId}`;
 }
 
 function getSessionTitle(conversation: Conversation): string {

@@ -231,7 +231,7 @@ class CodexBridge {
     try {
       await this.request("initialize", {
         clientInfo: {
-          name: "zotero_copilot",
+          name: "zopilot",
           title: config.addonName,
           version,
         },
@@ -469,7 +469,7 @@ class CodexBridge {
       id: message.id,
       error: {
         code: -32601,
-        message: `Zotero Copilot does not support app-server request: ${method}`,
+        message: `Zopilot does not support app-server request: ${method}`,
       },
     };
     void this.process?.stdin.write(`${JSON.stringify(response)}\n`);

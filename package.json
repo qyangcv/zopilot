@@ -1,24 +1,24 @@
 {
-  "name": "zotero-copilot",
+  "name": "zopilot",
   "type": "module",
   "version": "0.1.1",
-  "description": "Zotero Copilot",
+  "description": "Zopilot",
   "config": {
-    "addonName": "Zotero Copilot",
-    "addonID": "zotero-copilot@qyangcv.github.io",
-    "addonRef": "zotero-copilot",
-    "addonInstance": "ZoteroCopilot",
-    "prefsPrefix": "extensions.zotero.zotero-copilot"
+    "addonName": "Zopilot",
+    "addonID": "zopilot@qyangcv.github.io",
+    "addonRef": "zopilot",
+    "addonInstance": "Zopilot",
+    "prefsPrefix": "extensions.zotero.zopilot"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qyangcv/zotero-copilot.git"
+    "url": "git+https://github.com/qyangcv/zopilot.git"
   },
   "author": "quan yang <qyang@bupt.edu.cn>",
   "bugs": {
-    "url": "https://github.com/qyangcv/zotero-copilot/issues"
+    "url": "https://github.com/qyangcv/zopilot/issues"
   },
-  "homepage": "https://github.com/qyangcv/zotero-copilot#readme",
+  "homepage": "https://github.com/qyangcv/zopilot#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "zotero-plugin serve",

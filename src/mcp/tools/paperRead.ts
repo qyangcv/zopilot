@@ -111,8 +111,8 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           isError:
             output.status === "no_active_reader" || output.status === "no_text",
           _meta: {
-            "zoteroCopilot.mcp.step": "5.2",
-            "zoteroCopilot.mcp.durationMs": Date.now() - startedAt,
+            "zopilot.mcp.step": "5.2",
+            "zopilot.mcp.durationMs": Date.now() - startedAt,
           },
         };
       } catch (error) {
@@ -125,8 +125,8 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           content: [{ type: "text", text: message }],
           isError: true,
           _meta: {
-            "zoteroCopilot.mcp.step": "5.2",
-            "zoteroCopilot.mcp.durationMs": Date.now() - startedAt,
+            "zopilot.mcp.step": "5.2",
+            "zopilot.mcp.durationMs": Date.now() - startedAt,
           },
         };
       }

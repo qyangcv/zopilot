@@ -2,33 +2,32 @@
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
 </linkset>
 <html:style>
-  .zotero-copilot-pref-section { margin: 0; padding: 0; }
-  .zotero-copilot-pref-heading { margin: 0; } .zotero-copilot-pref-title {
-  line-height: 1.2; margin-block: 0 10px; } .zotero-copilot-status-row {
-  display: flex; align-items: center; gap: 12px; margin-block: 4px; }
-  .zotero-copilot-status-label { width: 96px; min-width: 96px; margin: 0; }
-  .zotero-copilot-status-value { display: inline-flex; align-items: center; gap:
-  6px; min-width: 10em; line-height: 1.2; } .zotero-copilot-status-value::before
-  { content: ""; box-sizing: border-box; display: inline-block; width: 10px;
-  height: 10px; border-radius: 50%; flex: 0 0 auto; background: #c9342f; }
-  .zotero-copilot-status-value[data-status="connected"]::before { background:
-  #2f8f46; }
+  .zopilot-pref-section { margin: 0; padding: 0; } .zopilot-pref-heading {
+  margin: 0; } .zopilot-pref-title { line-height: 1.2; margin-block: 0 10px; }
+  .zopilot-status-row { display: flex; align-items: center; gap: 12px;
+  margin-block: 4px; } .zopilot-status-label { width: 96px; min-width: 96px;
+  margin: 0; } .zopilot-status-value { display: inline-flex; align-items:
+  center; gap: 6px; min-width: 10em; line-height: 1.2; }
+  .zopilot-status-value::before { content: ""; box-sizing: border-box; display:
+  inline-block; width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto;
+  background: #c9342f; } .zopilot-status-value[data-status="connected"]::before
+  { background: #2f8f46; }
 </html:style>
-<groupbox class="zotero-copilot-pref-section">
-  <label class="zotero-copilot-pref-heading"
+<groupbox class="zopilot-pref-section">
+  <label class="zopilot-pref-heading"
     ><html:h2
-      class="zotero-copilot-pref-title"
-      data-l10n-id="pref-copilot-title"
+      class="zopilot-pref-title"
+      data-l10n-id="pref-zopilot-title"
     ></html:h2
   ></label>
-  <hbox align="center" class="zotero-copilot-status-row">
+  <hbox align="center" class="zopilot-status-row">
     <html:label
-      class="zotero-copilot-status-label"
+      class="zopilot-status-label"
       data-l10n-id="pref-codex-status"
     ></html:label>
     <html:span
-      id="zotero-copilot-codex-status-value"
-      class="zotero-copilot-status-value"
+      id="zopilot-codex-status-value"
+      class="zopilot-status-value"
       data-status="missing"
       data-l10n-id="pref-codex-status-missing"
     ></html:span>

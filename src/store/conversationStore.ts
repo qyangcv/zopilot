@@ -194,7 +194,7 @@ class ConversationStore {
   private async readMetadata(path: string): Promise<ConversationMetadata> {
     const raw = (await IOUtils.readJSON(path)) as unknown;
     if (!isConversationMetadata(raw)) {
-      throw new Error(`Invalid Zotero Copilot conversation metadata: ${path}`);
+      throw new Error(`Invalid Zopilot conversation metadata: ${path}`);
     }
     return raw;
   }
@@ -282,7 +282,7 @@ function getConversationStore(): ConversationStore {
 function getDefaultRootDir(): string {
   return PathUtils.join(
     Zotero.getProfileDirectory().path,
-    "zotero-copilot",
+    "zopilot",
     "conversations",
   );
 }
@@ -338,7 +338,7 @@ function parseConversationMessage(
 ): ConversationMessage {
   const raw = JSON.parse(line) as unknown;
   if (!isConversationMessage(raw)) {
-    throw new Error(`Invalid Zotero Copilot conversation message: ${path}`);
+    throw new Error(`Invalid Zopilot conversation message: ${path}`);
   }
   return raw;
 }

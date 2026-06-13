@@ -6,7 +6,7 @@ export type FluentMessageId =
   | 'pref-codex-status'
   | 'pref-codex-status-connected'
   | 'pref-codex-status-missing'
-  | 'pref-copilot-title'
+  | 'pref-zopilot-title'
   | 'prefs-title'
   | 'sidebar-add-context'
   | 'sidebar-attachment-key'

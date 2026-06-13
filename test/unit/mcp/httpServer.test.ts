@@ -72,7 +72,7 @@ describe("MCP HTTP handler", function () {
     assert.equal(initialize.status, 200);
     assert.equal(
       readResult<InitializeResult>(initialize).serverInfo.name,
-      "zotero-copilot",
+      "zopilot",
     );
     assert.deepEqual(
       readResult<ToolsListResult>(tools).tools.map((tool) => tool.name),

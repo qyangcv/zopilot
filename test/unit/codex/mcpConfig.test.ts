@@ -45,7 +45,7 @@ describe("Codex MCP config", function () {
 
   it("builds a thread/start mcp_servers config for paper_read", async function () {
     const config = await buildCodexMcpServersConfig();
-    const server = config["zotero-copilot"] as unknown as McpServerConfig;
+    const server = config["zopilot"] as unknown as McpServerConfig;
 
     assert.equal(server.url, `http://127.0.0.1:23124${MCP_ENDPOINT_PATH}`);
     assert.deepEqual(server.enabled_tools, ["paper_read"]);

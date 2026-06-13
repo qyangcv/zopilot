@@ -130,7 +130,7 @@ describe("CodexBridge", function () {
     const mcpServer = (
       threadStart.params.config as {
         mcp_servers: {
-          "zotero-copilot": {
+          zopilot: {
             url: string;
             http_headers: { Authorization: string };
             enabled_tools: string[];
@@ -139,8 +139,8 @@ describe("CodexBridge", function () {
           };
         };
       }
-    ).mcp_servers["zotero-copilot"];
-    assert.equal(mcpServer.url, "http://127.0.0.1:23124/zotero-copilot/mcp");
+    ).mcp_servers["zopilot"];
+    assert.equal(mcpServer.url, "http://127.0.0.1:23124/zopilot/mcp");
     assert.match(mcpServer.http_headers.Authorization, /^Bearer /);
     assert.deepEqual(mcpServer.enabled_tools, ["paper_read"]);
     assert.equal(mcpServer.startup_timeout_sec, 10);

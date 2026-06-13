@@ -126,7 +126,7 @@ function createReaderToolbarButton(
 
   const button = doc.createElement("button");
   button.id = READER_TOOLBAR_BUTTON_ID;
-  button.className = "zcp-reader-toolbar-button";
+  button.className = "zp-reader-toolbar-button";
   button.type = "button";
   button.title = getString("sidebar-toggle-tooltip");
   button.setAttribute("aria-label", getString("sidebar-toggle-tooltip"));

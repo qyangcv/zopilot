@@ -26,7 +26,7 @@ describe("MarkdownView", function () {
       ].join("\n"),
     );
 
-    assert.include(html, 'class="zcp-markdown-heading zcp-markdown-heading-1"');
+    assert.include(html, 'class="zp-markdown-heading zp-markdown-heading-1"');
     assert.include(html, "<strong>bold</strong>");
     assert.include(html, "<em>italic</em>");
     assert.include(html, "<del>deleted</del>");
@@ -44,7 +44,7 @@ describe("MarkdownView", function () {
     assert.include(html, "Nested");
     assert.include(html, 'type="checkbox"');
     assert.include(html, 'disabled="disabled"');
-    assert.include(html, 'class="zcp-task-checkbox"');
+    assert.include(html, 'class="zp-task-checkbox"');
   });
 
   it("wraps GFM tables in a horizontal scroll container", function () {
@@ -56,7 +56,7 @@ describe("MarkdownView", function () {
       ].join("\n"),
     );
 
-    assert.include(html, 'class="zcp-table-scroll"');
+    assert.include(html, 'class="zp-table-scroll"');
     assert.include(html, "<table>");
     assert.include(html, "very-long-cell");
   });
@@ -66,12 +66,12 @@ describe("MarkdownView", function () {
       ["```typescript", "const answer: number = 42;", "```"].join("\n"),
     );
 
-    assert.include(html, 'class="zcp-code-block"');
+    assert.include(html, 'class="zp-code-block"');
     assert.include(html, 'data-language="typescript"');
-    assert.notInclude(html, 'class="zcp-code-language"');
+    assert.notInclude(html, 'class="zp-code-language"');
     assert.include(html, 'aria-label="Copy code"');
-    assert.include(html, 'class="zcp-code-copy zcp-inline-copy"');
-    assert.include(html, 'class="zcp-code-content"');
+    assert.include(html, 'class="zp-code-copy zp-inline-copy"');
+    assert.include(html, 'class="zp-code-content"');
     assert.include(html, "shiki-themes github-light github-dark");
     assert.include(html, "--shiki-dark");
     assert.include(html, ">const</span>");
@@ -185,7 +185,7 @@ describe("MarkdownView", function () {
     const html = renderMarkdown("[bad](javascript:alert(1))");
 
     assert.notInclude(html, 'href="javascript:alert(1)"');
-    assert.include(html, 'class="zcp-unsafe-link"');
+    assert.include(html, 'class="zp-unsafe-link"');
     assert.include(html, "bad");
   });
 
@@ -193,7 +193,7 @@ describe("MarkdownView", function () {
     const html = renderMarkdown("![Preview](https://example.com/image.png)");
 
     assert.notInclude(html, "<img");
-    assert.include(html, 'class="zcp-markdown-image"');
+    assert.include(html, 'class="zp-markdown-image"');
     assert.include(html, "Preview");
     assert.include(html, 'href="https://example.com/image.png"');
   });

@@ -31,9 +31,9 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.include(html, 'aria-label="zotero-copilot-sidebar-stop"');
-    assert.include(html, 'class="zcp-stop-icon"');
-    assert.notInclude(html, "zcp-message-footer");
+    assert.include(html, 'aria-label="zopilot-sidebar-stop"');
+    assert.include(html, 'class="zp-stop-icon"');
+    assert.notInclude(html, "zp-message-footer");
   });
 
   it("hides the assistant footer for welcome messages without a completion time", function () {
@@ -53,10 +53,10 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.notInclude(html, "zcp-message-footer");
-    assert.notInclude(html, "zotero-copilot-sidebar-copy-text");
-    assert.notInclude(html, "zotero-copilot-sidebar-insert-composer");
-    assert.notInclude(html, "zotero-copilot-sidebar-retry-turn");
+    assert.notInclude(html, "zp-message-footer");
+    assert.notInclude(html, "zopilot-sidebar-copy-text");
+    assert.notInclude(html, "zopilot-sidebar-insert-composer");
+    assert.notInclude(html, "zopilot-sidebar-retry-turn");
   });
 
   it("renders completed model responses with three actions and Beijing time", function () {
@@ -77,9 +77,9 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.include(html, "zotero-copilot-sidebar-copy-text");
-    assert.include(html, "zotero-copilot-sidebar-insert-composer");
-    assert.include(html, "zotero-copilot-sidebar-retry-turn");
+    assert.include(html, "zopilot-sidebar-copy-text");
+    assert.include(html, "zopilot-sidebar-insert-composer");
+    assert.include(html, "zopilot-sidebar-retry-turn");
     assert.include(html, "2026-06-13 15:30");
   });
 

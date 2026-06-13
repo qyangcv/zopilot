@@ -17,10 +17,10 @@ export {
   startMcpHttpServer,
 };
 
-const MCP_ENDPOINT_PATH = "/zotero-copilot/mcp";
+const MCP_ENDPOINT_PATH = "/zopilot/mcp";
 const DEFAULT_ZOTERO_HTTP_PORT = 23119;
-const SERVER_NAME = "zotero-copilot";
-const SERVER_TITLE = "Zotero Copilot";
+const SERVER_NAME = "zopilot";
+const SERVER_TITLE = "Zopilot";
 const SERVER_VERSION = "0.0.0";
 
 type McpHttpServerInfo = {
@@ -86,13 +86,13 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
     return [response.status, response.headers, response.body];
   };
 
-  class ZoteroCopilotMcpEndpoint {
+  class ZopilotMcpEndpoint {
     supportedMethods: Array<"POST"> = ["POST"];
     supportedDataTypes = ["application/json"];
     init = endpointHandler;
   }
 
-  Zotero.Server.Endpoints[MCP_ENDPOINT_PATH] = ZoteroCopilotMcpEndpoint;
+  Zotero.Server.Endpoints[MCP_ENDPOINT_PATH] = ZopilotMcpEndpoint;
   serverInfo = info;
   endpointRegistered = true;
 

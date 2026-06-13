@@ -25,7 +25,7 @@ async function onStartup(): Promise<void> {
   Zotero.getMainWindows().forEach((win) => onMainWindowLoad(win));
 
   await startMcpHttpServer().catch((error) => {
-    ztoolkit.log("failed to start zotero copilot mcp server", String(error));
+    ztoolkit.log("failed to start zopilot mcp server", String(error));
   });
 
   addon.data.initialized = true;
