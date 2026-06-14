@@ -14,6 +14,8 @@ export type FluentMessageId =
   | 'sidebar-codex-empty-response'
   | 'sidebar-codex-error'
   | 'sidebar-codex-starting'
+  | 'sidebar-codex-status-checking'
+  | 'sidebar-codex-status-disconnected'
   | 'sidebar-context-details'
   | 'sidebar-copy-text'
   | 'sidebar-current-context'

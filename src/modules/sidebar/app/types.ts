@@ -45,6 +45,7 @@ export type SidebarState = {
   selectedModel: string;
   selectedReasoningEffort?: string;
   availableReasoningEfforts: string[];
+  codexStatus: "checking" | "connected" | "disconnected";
   focusToken: number;
 };
 

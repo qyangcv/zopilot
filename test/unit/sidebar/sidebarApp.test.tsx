@@ -112,6 +112,35 @@ describe("SidebarApp", function () {
     assert.include(html, "inline-size:9ch");
     assert.include(html, "inline-size:6ch");
   });
+
+  it("shows a non-blocking Codex CLI status while checking", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          codexStatus: "checking",
+        })}
+      />,
+    );
+
+    assert.include(html, "zopilot-sidebar-codex-status-checking");
+    assert.include(html, 'class="zp-codex-status"');
+  });
+
+  it("hides the Codex CLI status after a successful connection", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          codexStatus: "connected",
+        })}
+      />,
+    );
+
+    assert.notInclude(html, "zopilot-sidebar-codex-status-checking");
+    assert.notInclude(html, "zopilot-sidebar-codex-status-disconnected");
+    assert.notInclude(html, "zp-codex-status");
+  });
 });
 
 function createState(patch: Partial<SidebarState> = {}): SidebarState {
@@ -137,6 +166,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
     availableReasoningEfforts: ["medium"],
+    codexStatus: "connected",
     focusToken: 0,
     ...patch,
   };

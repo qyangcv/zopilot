@@ -1006,6 +1006,35 @@
   overflow: hidden;
 }
 
+.zp-codex-status {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-codex-status::before {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: color-mix(in srgb, CanvasText 36%, transparent);
+  content: "";
+}
+
+.zp-codex-status[data-status="disconnected"]::before {
+  background: #c9342f;
+}
+
 .zp-composer-select {
   flex: 0 1 auto;
   min-width: 0;

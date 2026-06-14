@@ -76,7 +76,7 @@ class SidebarController {
   private activeConversation?: Conversation;
   private open = false;
   private destroyed = false;
-  private prewarmPromise?: Promise<void>;
+  private modelLoadPromise?: Promise<void>;
   private contextLoadId = 0;
   private viewState: SidebarState;
   private readonly readerToolbar: ReaderToolbarController;
@@ -104,7 +104,6 @@ class SidebarController {
     this.bindLayoutRefresh();
     this.bindSessionPopoverDismiss();
     this.refreshContext();
-    void this.loadModels();
   }
 
   destroy(): void {
@@ -161,15 +160,12 @@ class SidebarController {
     void this.loadActiveConversation(pdfReader);
   }
 
-  private prewarmCodexBridge(): void {
-    this.prewarmPromise ??= getCodexBridge()
-      .prewarm()
-      .catch((error) => {
-        ztoolkit.log("codex prewarm failed", String(error));
-      })
-      .finally(() => {
-        this.prewarmPromise = undefined;
-      });
+  private queueCodexStatusCheck(): void {
+    this.win.setTimeout(() => {
+      if (!this.destroyed) {
+        void this.loadModels();
+      }
+    }, 0);
   }
 
   private async loadActiveConversation(
@@ -574,6 +570,7 @@ class SidebarController {
       });
       runningTurn.threadId = result.threadId;
       runningTurn.turnId = result.turnId;
+      this.updateViewState({ codexStatus: "connected" });
       const finalText =
         runningTurn.assistantOutput ||
         result.text ||
@@ -597,6 +594,7 @@ class SidebarController {
       });
       this.finishRunningTurn(runningTurn, conversation);
     } catch (error) {
+      this.updateViewState({ codexStatus: "disconnected" });
       const errorText = formatCodexError(error);
       const text = runningTurn.interrupted
         ? runningTurn.assistantOutput || getString("sidebar-status-interrupted")
@@ -671,8 +669,22 @@ class SidebarController {
   }
 
   private async loadModels(): Promise<void> {
+    if (this.modelLoadPromise) {
+      return this.modelLoadPromise;
+    }
+    this.modelLoadPromise = this.loadModelsOnce().finally(() => {
+      this.modelLoadPromise = undefined;
+    });
+    return this.modelLoadPromise;
+  }
+
+  private async loadModelsOnce(): Promise<void> {
+    this.updateViewState({ codexStatus: "checking" });
     try {
       const models = await getCodexBridge().listModels();
+      if (this.destroyed) {
+        return;
+      }
       const availableModels = models.length ? models : [DEFAULT_MODEL];
       const preferredModel = String(getPref("codex.model") || "");
       const selectedModel = availableModels.some(
@@ -681,9 +693,14 @@ class SidebarController {
         ? preferredModel
         : availableModels[0]?.slug || DEFAULT_MODEL.slug;
       this.updateModelSelection(availableModels, selectedModel);
+      this.updateViewState({ codexStatus: "connected" });
     } catch (error) {
       ztoolkit.log("codex model/list failed", String(error));
+      if (this.destroyed) {
+        return;
+      }
       this.updateModelSelection([DEFAULT_MODEL], DEFAULT_MODEL.slug);
+      this.updateViewState({ codexStatus: "disconnected" });
     }
   }
 
@@ -850,7 +867,7 @@ class SidebarController {
 
     if (open) {
       if (!wasOpen) {
-        this.prewarmCodexBridge();
+        this.queueCodexStatusCheck();
       }
       this.focusComposer();
     }

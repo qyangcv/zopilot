@@ -74,6 +74,7 @@
     const proc = await subprocess.call({
       command,
       arguments: args,
+      environment: buildCodexSubprocessEnvironment(subprocess.getEnvironment()),
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
@@ -101,6 +102,25 @@
     const result = await Promise.race([completed, timeout]);
     clearTimeout(timer);
     return result;
+  }
+
+  function buildCodexSubprocessEnvironment(baseEnvironment) {
+    return {
+      PATH: mergePath(
+        ["/opt/homebrew/bin", "/usr/local/bin"],
+        baseEnvironment.PATH,
+      ),
+    };
+  }
+
+  function mergePath(prefix, currentPath) {
+    const entries = [...prefix];
+    for (const entry of currentPath ? currentPath.split(":") : []) {
+      if (entry && !entries.includes(entry)) {
+        entries.push(entry);
+      }
+    }
+    return entries.join(":");
   }
 
   async function readStream(stream) {

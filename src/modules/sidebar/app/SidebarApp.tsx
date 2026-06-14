@@ -242,6 +242,13 @@ export function SidebarApp({
         />
         <div className="zp-composer-footer">
           <div className="zp-composer-meta">
+            {state.codexStatus !== "connected" ? (
+              <span className="zp-codex-status" data-status={state.codexStatus}>
+                {state.codexStatus === "checking"
+                  ? getString("sidebar-codex-status-checking")
+                  : getString("sidebar-codex-status-disconnected")}
+              </span>
+            ) : null}
             <select
               aria-label={getString("sidebar-model-name")}
               className="zp-composer-select"

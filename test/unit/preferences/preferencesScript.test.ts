@@ -49,9 +49,93 @@ describe("preferences.js", function () {
     assert.equal(statusElement.textContent, "");
     assert.equal(l10nId, "__addonRef__-pref-codex-status-missing");
   });
+
+  it("runs Codex status checks with a GUI-safe PATH", async function () {
+    const script = readFileSync("addon/content/preferences.js", "utf8");
+    const calls: Array<{
+      arguments?: string[];
+      environment?: { PATH: string };
+    }> = [];
+    const statusElement: StatusElement = { dataset: {}, textContent: "stale" };
+
+    const subprocess = {
+      call: async (options: {
+        arguments?: string[];
+        environment?: { PATH: string };
+      }) => {
+        calls.push(options);
+        let stdoutRead = false;
+        const stdout =
+          options.arguments?.join(" ") === "login status" ? "Logged in" : "";
+        return {
+          kill: async () => ({ exitCode: 0 }),
+          wait: async () => ({ exitCode: 0 }),
+          stdout: {
+            readString: async () => {
+              if (stdoutRead) {
+                return "";
+              }
+              stdoutRead = true;
+              return stdout;
+            },
+          },
+          stderr: {
+            readString: async () => "",
+          },
+        };
+      },
+      getEnvironment: () => ({
+        HOME: "/Users/test",
+        PATH: "/usr/bin:/custom/bin",
+      }),
+    };
+
+    const context = vm.createContext({
+      ChromeUtils: {
+        importESModule() {
+          return { Subprocess: subprocess };
+        },
+      },
+      IOUtils: {
+        exists: async (path: string) => path === "/opt/homebrew/bin/codex",
+      },
+      clearTimeout,
+      document: {
+        getElementById(id: string) {
+          return id === "zopilot-codex-status-value" ? statusElement : null;
+        },
+        l10n: {
+          setAttributes: () => undefined,
+          translateElements: async () => undefined,
+        },
+      },
+      setTimeout,
+    });
+
+    assert.doesNotThrow(() => vm.runInContext(script, context));
+    await waitFor(() => calls.length === 2);
+
+    assert.deepEqual(calls[0].arguments, ["app-server", "--help"]);
+    assert.deepEqual(calls[1].arguments, ["login", "status"]);
+    assert.equal(
+      calls[0].environment?.PATH,
+      "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/custom/bin",
+    );
+    assert.equal(statusElement.dataset.status, "connected");
+  });
 });
 
 type StatusElement = {
   dataset: Record<string, string>;
   textContent: string;
 };
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (!predicate()) {
+    if (Date.now() > deadline) {
+      throw new Error("Timed out waiting for condition");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}

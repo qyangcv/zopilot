@@ -15,6 +15,7 @@ describe("sidebar view model", function () {
     const state = createInitialSidebarState("Paper");
 
     assert.equal(state.title, "Paper");
+    assert.equal(state.codexStatus, "checking");
     assert.isFalse(state.composerEnabled);
     assert.deepEqual(
       state.messages.map((message) => message.id),

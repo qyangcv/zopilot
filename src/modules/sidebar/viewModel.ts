@@ -46,6 +46,7 @@ function createInitialSidebarState(label: string): SidebarState {
     selectedModel: DEFAULT_MODEL.slug,
     selectedReasoningEffort: "medium",
     availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,
+    codexStatus: "checking",
     focusToken: 0,
   };
 }

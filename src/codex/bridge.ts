@@ -3,6 +3,7 @@ import { buildCodexAppServerArguments } from "./appServerConfig";
 import { buildCodexDeveloperInstructions } from "./developerInstructions";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
 import { resolveCodexBinaryPath } from "./binaryPath";
+import { buildCodexSubprocessEnvironment } from "./subprocessEnvironment";
 import type {
   CodexModelInfo,
   CodexPromptOptions,
@@ -16,6 +17,7 @@ type CodexSubprocessModule = {
   call(options: {
     command: string;
     arguments?: string[];
+    environment?: Record<string, string>;
     environmentAppend?: boolean;
     stdout?: "ignore" | "pipe";
     stderr?: "ignore" | "stdout" | "pipe";
@@ -216,6 +218,7 @@ class CodexBridge {
     const proc = await subprocess.call({
       command,
       arguments: buildCodexAppServerArguments(),
+      environment: buildCodexSubprocessEnvironment(subprocess.getEnvironment()),
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
