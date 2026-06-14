@@ -3,17 +3,34 @@
 (() => {
   const L10N_PREFIX = "__addonRef__";
   const COMMAND_TIMEOUT_MS = 5000;
+  const MAX_INIT_ATTEMPTS = 50;
 
   let statusValue;
+  let initAttempts = 0;
+  let initialized = false;
 
-  init();
+  // Zotero loads pane scripts before inserting the XHTML fragment.
+  scheduleInit();
 
-  function init() {
-    statusValue = document.getElementById("zopilot-codex-status-value");
-    if (!statusValue) {
-      throw new Error("Zopilot preference status element is missing.");
+  function scheduleInit() {
+    setTimeout(initWhenReady, 0);
+  }
+
+  function initWhenReady() {
+    if (initialized) {
+      return;
     }
 
+    statusValue = document.getElementById("zopilot-codex-status-value");
+    if (!statusValue) {
+      initAttempts += 1;
+      if (initAttempts < MAX_INIT_ATTEMPTS) {
+        scheduleInit();
+      }
+      return;
+    }
+
+    initialized = true;
     setStatus("missing", "pref-codex-status-missing");
     void detectCodexStatus();
   }
