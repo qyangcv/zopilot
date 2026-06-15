@@ -8,11 +8,14 @@ Zopilot is a information-dense plugin that brings Codex into Zotero.
 
 - MacOS
 - Zotero 9.0.x
-- Codex CLI
+- Codex CLI (signed in with your account)
 
 ## Gratitude
 
-Thanks to the following repos developing this project is possible:
+Thanks to the following projects that make Zopilot possible:
 
 - [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template): An awesome plugin template for Zotero.
 - [llm-for-zotero](https://github.com/yilewang/llm-for-zotero): Inspired the creation of this plugin.
+- [markdown-it](https://github.com/markdown-it/markdown-it): The Markdown parser used to render Codex responses.
+- [mdit-plugins](https://github.com/mdit-plugins/mdit-plugins): Markdown-it extensions used for task lists, footnotes, and TeX blocks.
+- [Shiki](https://github.com/shikijs/shiki): Syntax highlighting for code blocks in Codex responses.
