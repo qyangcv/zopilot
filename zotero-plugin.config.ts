@@ -39,6 +39,16 @@ export default defineConfig({
     ],
   },
 
+  release: {
+    github: {
+      releaseNote: (ctx) =>
+        ctx.release.changelog.replace(
+          /^(#{3,4})\s+(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?|\uFE0F|\u200D)+\s+/gmu,
+          "$1 ",
+        ),
+    },
+  },
+
   test: {
     entries: ["test/scaffold"],
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
