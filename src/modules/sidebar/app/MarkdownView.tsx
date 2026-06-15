@@ -8,15 +8,22 @@ import { copyText } from "./clipboard";
 import { isInternalUrl, renderMarkdownToHtml } from "./markdownRenderer";
 
 type MarkdownViewProps = {
+  className?: string;
   markdown: string;
   onOpenLink: (url: string) => void;
+  unwrapSingleParagraph?: boolean;
 };
 
 export function MarkdownView({
+  className,
   markdown,
   onOpenLink,
+  unwrapSingleParagraph = false,
 }: MarkdownViewProps): ReactElement {
-  const html = useMemo(() => renderMarkdownToHtml(markdown), [markdown]);
+  const html = useMemo(
+    () => renderMarkdownToHtml(markdown, { unwrapSingleParagraph }),
+    [markdown, unwrapSingleParagraph],
+  );
   const handleClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       const target = event.target;
@@ -53,7 +60,7 @@ export function MarkdownView({
 
   return (
     <div
-      className="zp-markdown-rendered"
+      className={["zp-markdown-rendered", className].filter(Boolean).join(" ")}
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={handleClick}
     />

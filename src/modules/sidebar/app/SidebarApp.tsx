@@ -315,7 +315,7 @@ export function SidebarApp({
   );
 }
 
-function Message({
+export function Message({
   busy,
   copiedId,
   lastUserText,
@@ -355,10 +355,19 @@ function Message({
       >
         {isAssistant ? (
           <div className="zp-message-body">
-            <MarkdownView markdown={message.text} onOpenLink={onOpenLink} />
+            <MarkdownView
+              className="zp-message-markdown"
+              markdown={message.text}
+              onOpenLink={onOpenLink}
+            />
           </div>
         ) : (
-          <div className="zp-message-bubble">{message.text}</div>
+          <MarkdownView
+            className="zp-message-bubble zp-message-markdown"
+            markdown={message.text}
+            onOpenLink={onOpenLink}
+            unwrapSingleParagraph
+          />
         )}
         {isAssistant ? (
           <AssistantFooter

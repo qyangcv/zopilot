@@ -583,74 +583,75 @@
   max-width: min(82%, 420px);
 }
 
-.zp-message-body {
+.zp-message-body,
+.zp-message-markdown {
   min-width: 0;
   max-width: 100%;
   color: CanvasText;
 }
 
-.zp-message-body > * {
+.zp-message-markdown > * {
   max-width: 100%;
 }
 
-.zp-message-body .zp-markdown-heading {
+.zp-message-markdown .zp-markdown-heading {
   margin: 0 0 6px;
   font-weight: 650;
   line-height: 1.28;
 }
 
-.zp-message-body .zp-markdown-heading:not(:first-child) {
+.zp-message-markdown .zp-markdown-heading:not(:first-child) {
   margin-top: 10px;
 }
 
-.zp-message-body .zp-markdown-heading-1 {
+.zp-message-markdown .zp-markdown-heading-1 {
   font-size: 15px;
 }
 
-.zp-message-body .zp-markdown-heading-2 {
+.zp-message-markdown .zp-markdown-heading-2 {
   font-size: 14px;
 }
 
-.zp-message-body .zp-markdown-heading-3,
-.zp-message-body .zp-markdown-heading-4,
-.zp-message-body .zp-markdown-heading-5,
-.zp-message-body .zp-markdown-heading-6 {
+.zp-message-markdown .zp-markdown-heading-3,
+.zp-message-markdown .zp-markdown-heading-4,
+.zp-message-markdown .zp-markdown-heading-5,
+.zp-message-markdown .zp-markdown-heading-6 {
   font-size: 13px;
 }
 
-.zp-message-body p,
-.zp-message-body ul,
-.zp-message-body ol,
-.zp-message-body blockquote,
-.zp-message-body hr,
-.zp-message-body .zp-code-block,
-.zp-message-body .zp-table-scroll,
-.zp-message-body .katex-display {
+.zp-message-markdown p,
+.zp-message-markdown ul,
+.zp-message-markdown ol,
+.zp-message-markdown blockquote,
+.zp-message-markdown hr,
+.zp-message-markdown .zp-code-block,
+.zp-message-markdown .zp-table-scroll,
+.zp-message-markdown .katex-display {
   margin: 0 0 8px;
 }
 
-.zp-message-body p:last-child,
-.zp-message-body ul:last-child,
-.zp-message-body ol:last-child,
-.zp-message-body blockquote:last-child,
-.zp-message-body hr:last-child,
-.zp-message-body .zp-code-block:last-child,
-.zp-message-body .zp-table-scroll:last-child,
-.zp-message-body .katex-display:last-child {
+.zp-message-markdown p:last-child,
+.zp-message-markdown ul:last-child,
+.zp-message-markdown ol:last-child,
+.zp-message-markdown blockquote:last-child,
+.zp-message-markdown hr:last-child,
+.zp-message-markdown .zp-code-block:last-child,
+.zp-message-markdown .zp-table-scroll:last-child,
+.zp-message-markdown .katex-display:last-child {
   margin-bottom: 0;
 }
 
-.zp-message-body ul,
-.zp-message-body ol {
+.zp-message-markdown ul,
+.zp-message-markdown ol {
   padding-inline-start: 18px;
 }
 
-.zp-message-body .contains-task-list {
+.zp-message-markdown .contains-task-list {
   padding-inline-start: 0;
   list-style: none;
 }
 
-.zp-message-body .task-list-item {
+.zp-message-markdown .task-list-item {
   display: flex;
   gap: 6px;
   align-items: flex-start;
@@ -661,28 +662,28 @@
   margin: 2px 0 0;
 }
 
-.zp-message-body li + li {
+.zp-message-markdown li + li {
   margin-top: 3px;
 }
 
-.zp-message-body blockquote {
+.zp-message-markdown blockquote {
   border-inline-start: 3px solid var(--zp-border);
   color: var(--zp-muted-strong);
   padding: 2px 0 2px 9px;
 }
 
-.zp-message-body hr {
+.zp-message-markdown hr {
   border: 0;
   border-block-start: 1px solid var(--zp-subtle-border);
 }
 
-.zp-message-body a {
+.zp-message-markdown a {
   color: LinkText;
   text-decoration: none;
   overflow-wrap: anywhere;
 }
 
-.zp-message-body a:hover {
+.zp-message-markdown a:hover {
   text-decoration: underline;
 }
 
@@ -690,19 +691,19 @@
   color: var(--zp-muted-strong);
 }
 
-.zp-message-body code {
+.zp-message-markdown code {
   border: 1px solid var(--zp-subtle-border);
   border-radius: 5px;
   background: var(--zp-panel);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-.zp-message-body code {
+.zp-message-markdown code {
   padding: 1px 4px;
   font-size: 0.92em;
 }
 
-.zp-message-body pre {
+.zp-message-markdown pre {
   margin: 0;
   border: 1px solid var(--zp-subtle-border);
   border-radius: 5px;
@@ -808,21 +809,21 @@
   overflow-x: auto;
 }
 
-.zp-message-body table {
+.zp-message-markdown table {
   min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
 }
 
-.zp-message-body th,
-.zp-message-body td {
+.zp-message-markdown th,
+.zp-message-markdown td {
   border: 1px solid var(--zp-subtle-border);
   padding: 5px 6px;
   text-align: start;
   vertical-align: top;
 }
 
-.zp-message-body th {
+.zp-message-markdown th {
   background: var(--zp-panel);
   font-weight: 600;
 }
@@ -840,18 +841,18 @@
   font-size: 12px;
 }
 
-.zp-message-body .katex {
+.zp-message-markdown .katex {
   font-size: 1.06em;
 }
 
-.zp-message-body .katex-display {
+.zp-message-markdown .katex-display {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   padding: 4px 0;
 }
 
-.zp-message-body .katex-display > .katex {
+.zp-message-markdown .katex-display > .katex {
   text-align: start;
 }
 

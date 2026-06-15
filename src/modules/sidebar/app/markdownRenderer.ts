@@ -15,11 +15,27 @@ type MarkdownRenderEnv = {
   unsafeLinkStack?: boolean[];
 };
 
+type MarkdownRenderOptions = {
+  unwrapSingleParagraph?: boolean;
+};
+
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
 
-export function renderMarkdownToHtml(markdown: string): string {
+export function renderMarkdownToHtml(
+  markdown: string,
+  options: MarkdownRenderOptions = {},
+): string {
   const unsafeLinkStack: boolean[] = [];
-  const html = markdownIt.render(markdown, { unsafeLinkStack });
+  const env: MarkdownRenderEnv = { unsafeLinkStack };
+  const tokens = markdownIt.parse(markdown, env);
+  const html =
+    options.unwrapSingleParagraph && isSingleParagraph(tokens)
+      ? markdownIt.renderer.renderInline(
+          tokens[1].children ?? [],
+          markdownIt.options,
+          env,
+        )
+      : markdownIt.renderer.render(tokens, markdownIt.options, env);
   return sanitizeMarkdownHtml(html);
 }
 
@@ -51,6 +67,15 @@ function createMarkdownIt(): MarkdownIt {
   });
 
   return md;
+}
+
+function isSingleParagraph(tokens: ReturnType<MarkdownIt["parse"]>): boolean {
+  return (
+    tokens.length === 3 &&
+    tokens[0].type === "paragraph_open" &&
+    tokens[1].type === "inline" &&
+    tokens[2].type === "paragraph_close"
+  );
 }
 
 function installRendererRules(md: MarkdownIt): void {

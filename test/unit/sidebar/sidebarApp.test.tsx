@@ -1,6 +1,10 @@
 import { assert } from "chai";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SidebarApp } from "../../../src/modules/sidebar/app/SidebarApp.tsx";
+import {
+  Message,
+  SidebarApp,
+} from "../../../src/modules/sidebar/app/SidebarApp.tsx";
 import type {
   SidebarActions,
   SidebarState,
@@ -34,6 +38,89 @@ describe("SidebarApp", function () {
     assert.include(html, 'aria-label="zopilot-sidebar-stop"');
     assert.include(html, 'class="zp-stop-icon"');
     assert.notInclude(html, "zp-message-footer");
+  });
+
+  it("renders sent user messages with the shared Markdown view", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "user-markdown",
+              role: "user",
+              text: [
+                "**bold**",
+                "",
+                "- item",
+                "",
+                "```typescript",
+                "const answer = 42;",
+                "```",
+              ].join("\n"),
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(
+      html,
+      'class="zp-markdown-rendered zp-message-bubble zp-message-markdown"',
+    );
+    assert.include(html, "<strong>bold</strong>");
+    assert.include(html, "<li>item</li>");
+    assert.include(html, 'class="zp-code-block"');
+    assert.notInclude(html, "**bold**");
+  });
+
+  it("keeps single-paragraph user bubbles compact", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "single-user-markdown",
+              role: "user",
+              text: "**bold** text",
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(
+      html,
+      'class="zp-markdown-rendered zp-message-bubble zp-message-markdown"',
+    );
+    assert.include(html, "<strong>bold</strong> text");
+    assert.notInclude(html, "<p>");
+  });
+
+  it("keeps edit and resend actions bound to raw user text", function () {
+    const rawText = "**raw** [link](https://example.com)";
+    const inserted: string[] = [];
+    const submitted: string[] = [];
+    const element = Message({
+      busy: false,
+      copiedId: null,
+      message: {
+        id: "raw-user",
+        role: "user",
+        text: rawText,
+      },
+      onCopy: () => undefined,
+      onInsert: (text) => inserted.push(text),
+      onOpenLink: () => undefined,
+      onSubmit: (text) => submitted.push(text),
+    });
+
+    getIconAction(element, "edit").onClick();
+    getIconAction(element, "resend").onClick();
+
+    assert.deepEqual(inserted, [rawText]);
+    assert.deepEqual(submitted, [rawText]);
   });
 
   it("hides the assistant footer for welcome messages without a completion time", function () {
@@ -215,4 +302,48 @@ function installLocaleMock(): void {
       },
     },
   };
+}
+
+type IconActionProps = {
+  icon: string;
+  onClick: () => void;
+};
+
+function getIconAction(node: ReactNode, icon: string): IconActionProps {
+  const element = findElement(node, (candidate) => {
+    const props = getProps(candidate);
+    return props.icon === icon && typeof props.onClick === "function";
+  });
+
+  assert.isDefined(element, `Expected ${icon} action`);
+  return getProps(element) as IconActionProps;
+}
+
+function findElement(
+  node: ReactNode,
+  predicate: (element: ReactElement) => boolean,
+): ReactElement | undefined {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElement(child, predicate);
+      if (found) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+
+  if (!isValidElement(node)) {
+    return undefined;
+  }
+
+  if (predicate(node)) {
+    return node;
+  }
+
+  return findElement(getProps(node).children as ReactNode, predicate);
+}
+
+function getProps(element: ReactElement): Record<string, unknown> {
+  return element.props as Record<string, unknown>;
 }
