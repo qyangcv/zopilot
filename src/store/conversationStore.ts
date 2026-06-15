@@ -10,6 +10,12 @@ export { ConversationStore, getConversationStore };
 
 const logger = createLogger("store.conversation");
 
+type ZoteroWithProfile = typeof Zotero & {
+  Profile: {
+    readonly dir: string;
+  };
+};
+
 class ConversationStore {
   private readonly rootDir: string;
 
@@ -351,7 +357,7 @@ function getConversationStore(): ConversationStore {
 
 function getDefaultRootDir(): string {
   return PathUtils.join(
-    Zotero.getProfileDirectory().path,
+    (Zotero as ZoteroWithProfile).Profile.dir,
     "zopilot",
     "conversations",
   );

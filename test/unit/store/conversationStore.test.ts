@@ -16,6 +16,7 @@ import type { PaperIdentity } from "../../../src/shared/conversation.ts";
 
 let rootDir: string;
 const originalConsole = globalThis.console;
+const originalZotero = globalThis.Zotero;
 
 describe("ConversationStore", function () {
   beforeEach(async function () {
@@ -30,6 +31,7 @@ describe("ConversationStore", function () {
 
   afterEach(async function () {
     globalThis.console = originalConsole;
+    restoreZoteroMock();
     await rm(rootDir, { recursive: true, force: true });
   });
 
@@ -178,6 +180,37 @@ describe("ConversationStore", function () {
       "Invalid Zopilot conversation message",
     );
   });
+
+  it("uses Zotero.Profile.dir for the default conversation root", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const profileDir = join(rootDir, "profile");
+    let deprecatedProfileDirectoryCalled = false;
+    installZoteroProfileMock(profileDir, () => {
+      deprecatedProfileDirectoryCalled = true;
+      throw new Error("Deprecated getProfileDirectory should not be called.");
+    });
+    const store = new ConversationStore();
+
+    await store.createPaperConversation(paper);
+
+    const paperDir = join(
+      profileDir,
+      "zopilot",
+      "conversations",
+      "papers",
+      encodePathSegment(paper.paperKey),
+    );
+    const files = await readdir(paperDir);
+    assert.isFalse(deprecatedProfileDirectoryCalled);
+    assert.lengthOf(
+      files.filter((file) => file.endsWith(".json")),
+      1,
+    );
+    assert.lengthOf(
+      files.filter((file) => file.endsWith(".jsonl")),
+      1,
+    );
+  });
 });
 
 function createPaper(
@@ -264,4 +297,24 @@ function installFileMocks(): void {
   ).PathUtils = {
     join,
   } as typeof PathUtils;
+}
+
+function installZoteroProfileMock(
+  profileDir: string,
+  getProfileDirectory: () => never,
+): void {
+  (globalThis as unknown as { Zotero: unknown }).Zotero = {
+    Profile: {
+      dir: profileDir,
+    },
+    getProfileDirectory,
+  };
+}
+
+function restoreZoteroMock(): void {
+  if (originalZotero === undefined) {
+    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
+    return;
+  }
+  globalThis.Zotero = originalZotero;
 }
