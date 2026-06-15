@@ -67,8 +67,6 @@
 #zopilot-sidebar-shell {
   box-sizing: border-box;
   flex: 0 0 auto;
-  min-width: 300px;
-  max-width: min(520px, 48vw);
   min-height: 0;
   position: relative;
   background: Canvas;
@@ -1075,11 +1073,6 @@
 }
 
 @media (max-width: 860px) {
-  #zopilot-sidebar-shell {
-    min-width: 280px;
-    max-width: 58vw;
-  }
-
   .zp-sidebar-selected-title {
     max-width: 210px;
   }

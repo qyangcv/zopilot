@@ -26,9 +26,19 @@ import {
 
 const controllers = new WeakMap<Window, SidebarController>();
 const DEFAULT_SIDEBAR_WIDTH = 372;
+const COMPACT_VIEWPORT_WIDTH = 860;
+const DEFAULT_COLLAPSE_THRESHOLD = 300;
+const COMPACT_COLLAPSE_THRESHOLD = 280;
 const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
 const logger = createLogger("sidebar.controller");
-export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
+export {
+  registerSidebar,
+  unregisterSidebar,
+  unregisterAllSidebars,
+  getSidebarCollapseThreshold,
+  getInitialSidebarWidth,
+  resolveSidebarResizeWidth,
+};
 
 type RunningTurn = {
   conversation: Conversation;
@@ -301,6 +311,21 @@ class SidebarController {
       // active pointer capture target. Real mouse drags still take this path.
     }
 
+    const cleanupResize = () => {
+      shell.removeAttribute("data-resizing");
+      this.win.removeEventListener("pointermove", onPointerMove, true);
+      this.win.removeEventListener("pointerup", stopResize, true);
+      this.win.removeEventListener("pointercancel", stopResize, true);
+    };
+
+    const releasePointerCapture = () => {
+      try {
+        splitter.releasePointerCapture?.(event.pointerId);
+      } catch {
+        // Ignore stale synthetic pointer ids during verification.
+      }
+    };
+
     const onPointerMove = (moveEvent: PointerEvent) => {
       if (moveEvent.pointerId !== event.pointerId) {
         return;
@@ -310,7 +335,11 @@ class SidebarController {
       const delta = isRtl
         ? moveEvent.clientX - startX
         : startX - moveEvent.clientX;
-      this.setShellWidth(startWidth + delta);
+      const resized = this.setShellWidth(startWidth + delta);
+      if (!resized) {
+        releasePointerCapture();
+        cleanupResize();
+      }
     };
 
     const stopResize = (endEvent: PointerEvent) => {
@@ -319,16 +348,9 @@ class SidebarController {
       }
       endEvent.preventDefault();
       endEvent.stopPropagation();
-      try {
-        splitter.releasePointerCapture?.(event.pointerId);
-      } catch {
-        // Ignore stale synthetic pointer ids during verification.
-      }
+      releasePointerCapture();
       this.persistShellWidth();
-      shell.removeAttribute("data-resizing");
-      this.win.removeEventListener("pointermove", onPointerMove, true);
-      this.win.removeEventListener("pointerup", stopResize, true);
-      this.win.removeEventListener("pointercancel", stopResize, true);
+      cleanupResize();
     };
 
     this.win.addEventListener("pointermove", onPointerMove, true);
@@ -344,41 +366,42 @@ class SidebarController {
     return Math.round(width);
   }
 
-  private setShellWidth(width: number): void {
+  private setShellWidth(width: number): boolean {
     if (!this.shell) {
-      return;
+      return false;
     }
-    const { min, max } = this.getShellWidthBounds();
-    const nextWidth = clamp(Math.round(width), min, max);
-    this.shell.setAttribute("width", String(nextWidth));
-    this.shell.style.width = `${nextWidth}px`;
-    this.shell.style.flexBasis = `${nextWidth}px`;
+    const decision = resolveSidebarResizeWidth(width, this.getViewportWidth());
+    if (decision.action === "close") {
+      this.setOpen(false);
+      return false;
+    }
+    this.shell.setAttribute("width", String(decision.width));
+    this.shell.style.width = `${decision.width}px`;
+    this.shell.style.flexBasis = `${decision.width}px`;
+    return true;
   }
 
   private persistShellWidth(): void {
-    const { min, max } = this.getShellWidthBounds();
-    setPref("sidebar.width", clamp(this.getShellWidth(), min, max));
+    const width = this.getShellWidth();
+    if (width <= this.getCollapseThreshold()) {
+      return;
+    }
+    setPref("sidebar.width", width);
   }
 
   private getInitialShellWidth(): number {
-    const storedWidth = Number(getPref("sidebar.width"));
-    const { min, max } = this.getShellWidthBounds();
-    return clamp(
-      Number.isFinite(storedWidth) ? storedWidth : DEFAULT_SIDEBAR_WIDTH,
-      min,
-      max,
+    return getInitialSidebarWidth(
+      getPref("sidebar.width"),
+      this.getViewportWidth(),
     );
   }
 
-  private getShellWidthBounds(): { min: number; max: number } {
-    const viewportWidth =
-      this.doc.documentElement?.clientWidth || this.win.innerWidth || 1024;
-    const min = viewportWidth <= 860 ? 280 : 300;
-    const maxByViewport =
-      viewportWidth <= 860
-        ? Math.floor(viewportWidth * 0.58)
-        : Math.floor(Math.min(520, viewportWidth * 0.48));
-    return { min, max: Math.max(min, maxByViewport) };
+  private getCollapseThreshold(): number {
+    return getSidebarCollapseThreshold(this.getViewportWidth());
+  }
+
+  private getViewportWidth(): number {
+    return this.doc.documentElement?.clientWidth || this.win.innerWidth || 1024;
   }
 
   private async toggleSessionPopover(): Promise<void> {
@@ -1114,6 +1137,8 @@ class SidebarController {
   }
 }
 
+const __sidebarControllerTestHooks = { SidebarController };
+
 function hasStylesheet(doc: Document, uri: string): boolean {
   return Array.from(doc.childNodes).some((node) => {
     return (
@@ -1122,8 +1147,37 @@ function hasStylesheet(doc: Document, uri: string): boolean {
   });
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
+type SidebarResizeWidthDecision =
+  | { action: "close" }
+  | { action: "resize"; width: number };
+
+function getSidebarCollapseThreshold(viewportWidth: number): number {
+  return viewportWidth <= COMPACT_VIEWPORT_WIDTH
+    ? COMPACT_COLLAPSE_THRESHOLD
+    : DEFAULT_COLLAPSE_THRESHOLD;
+}
+
+function getInitialSidebarWidth(
+  storedWidth: unknown,
+  viewportWidth: number,
+): number {
+  const threshold = getSidebarCollapseThreshold(viewportWidth);
+  const parsedWidth = Number(storedWidth);
+  if (Number.isFinite(parsedWidth) && parsedWidth > threshold) {
+    return Math.round(parsedWidth);
+  }
+  return DEFAULT_SIDEBAR_WIDTH;
+}
+
+function resolveSidebarResizeWidth(
+  width: number,
+  viewportWidth: number,
+): SidebarResizeWidthDecision {
+  const nextWidth = Math.round(width);
+  if (nextWidth <= getSidebarCollapseThreshold(viewportWidth)) {
+    return { action: "close" };
+  }
+  return { action: "resize", width: nextWidth };
 }
 
 function formatCodexError(error: unknown): string {
@@ -1141,3 +1195,5 @@ function isSafeExternalURL(url: string, win: Window): boolean {
     return false;
   }
 }
+
+export { __sidebarControllerTestHooks };
