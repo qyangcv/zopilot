@@ -14,7 +14,7 @@
     "type": "git",
     "url": "git+https://github.com/qyangcv/zopilot.git"
   },
-  "author": "quan yang <qyang@bupt.edu.cn>",
+  "author": "qyang",
   "bugs": {
     "url": "https://github.com/qyangcv/zopilot/issues"
   },
