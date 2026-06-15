@@ -53,6 +53,7 @@ describe("preferences.js", function () {
   it("runs Codex status checks with a GUI-safe PATH", async function () {
     const script = readFileSync("addon/content/preferences.js", "utf8");
     const calls: Array<{
+      command?: string;
       arguments?: string[];
       environment?: { PATH: string };
     }> = [];
@@ -62,11 +63,17 @@ describe("preferences.js", function () {
       call: async (options: {
         arguments?: string[];
         environment?: { PATH: string };
+        command?: string;
       }) => {
         calls.push(options);
         let stdoutRead = false;
-        const stdout =
-          options.arguments?.join(" ") === "login status" ? "Logged in" : "";
+        let stdout = "";
+        if (options.command === "/bin/zsh") {
+          stdout =
+            "\n__ZOPILOT_PATH_START__/Users/test/.nvm/versions/node/v22.12.0/bin:/usr/bin__ZOPILOT_PATH_END__\n";
+        } else if (options.arguments?.join(" ") === "login status") {
+          stdout = "Logged in";
+        }
         return {
           kill: async () => ({ exitCode: 0 }),
           wait: async () => ({ exitCode: 0 }),
@@ -86,6 +93,7 @@ describe("preferences.js", function () {
       },
       getEnvironment: () => ({
         HOME: "/Users/test",
+        SHELL: "/bin/zsh",
         PATH: "/usr/bin:/custom/bin",
       }),
     };
@@ -97,7 +105,9 @@ describe("preferences.js", function () {
         },
       },
       IOUtils: {
-        exists: async (path: string) => path === "/opt/homebrew/bin/codex",
+        exists: async (path: string) =>
+          path === "/bin/zsh" ||
+          path === "/Users/test/.nvm/versions/node/v22.12.0/bin/codex",
       },
       clearTimeout,
       document: {
@@ -113,13 +123,18 @@ describe("preferences.js", function () {
     });
 
     assert.doesNotThrow(() => vm.runInContext(script, context));
-    await waitFor(() => calls.length === 2);
+    await waitFor(() => calls.length === 3);
 
-    assert.deepEqual(calls[0].arguments, ["app-server", "--help"]);
-    assert.deepEqual(calls[1].arguments, ["login", "status"]);
+    const codexCalls = calls.filter((call) => call.command?.endsWith("/codex"));
+    assert.deepEqual(codexCalls[0].arguments, ["app-server", "--help"]);
+    assert.deepEqual(codexCalls[1].arguments, ["login", "status"]);
     assert.equal(
-      calls[0].environment?.PATH,
-      "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/custom/bin",
+      codexCalls[0].command,
+      "/Users/test/.nvm/versions/node/v22.12.0/bin/codex",
+    );
+    assert.equal(
+      codexCalls[0].environment?.PATH,
+      "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/test/.local/bin:/Users/test/.npm-global/bin:/Users/test/.bun/bin:/Users/test/.volta/bin:/Users/test/.local/share/mise/shims:/Users/test/.nvm/current/bin:/Users/test/.nvm/versions/node/v22.12.0/bin:/custom/bin",
     );
     assert.equal(statusElement.dataset.status, "connected");
   });

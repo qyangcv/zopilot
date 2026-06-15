@@ -214,11 +214,12 @@ class CodexBridge {
 
   private async startProcess(): Promise<void> {
     const subprocess = this.getSubprocess();
-    const command = await resolveCodexBinaryPath();
+    const environment = await buildCodexSubprocessEnvironment(subprocess);
+    const command = await resolveCodexBinaryPath(environment.PATH);
     const proc = await subprocess.call({
       command,
       arguments: buildCodexAppServerArguments(),
-      environment: buildCodexSubprocessEnvironment(subprocess.getEnvironment()),
+      environment,
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",

@@ -29,6 +29,16 @@ describe("Codex binary path resolution", function () {
     assert.equal(resolved, "/usr/local/bin/codex");
   });
 
+  it("finds Codex on the prepared PATH", async function () {
+    existingPaths.add("/Users/test/.nvm/versions/node/v22.12.0/bin/codex");
+
+    const resolved = await resolveCodexBinaryPath(
+      "/Users/test/.nvm/versions/node/v22.12.0/bin:/usr/bin",
+    );
+
+    assert.equal(resolved, "/Users/test/.nvm/versions/node/v22.12.0/bin/codex");
+  });
+
   it("throws when neither supported macOS default Codex path exists", async function () {
     try {
       await resolveCodexBinaryPath();
