@@ -10,6 +10,10 @@ Zopilot is a information-dense plugin that brings Codex into Zotero.
 - Zotero 9.0.x
 - Codex CLI (signed in with your account)
 
+## Preview
+
+![Zopilot in Zotero](assets/snapshot-1.png)
+
 ## Gratitude
 
 Thanks to the following projects that make Zopilot possible:

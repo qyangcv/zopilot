@@ -200,22 +200,22 @@ function renderCodeBlock({
   language: string;
   text: string;
 }): string {
-  const escapedLanguage = escapeHtml(language);
-  const copyPayload = escapeHtml(encodeURIComponent(text));
+  const displayLanguage = language || "text";
+  const escapedLanguage = escapeHtml(displayLanguage);
+  const copyButton = text
+    ? `<button aria-label="Copy code" class="zp-code-copy zp-inline-copy" data-zp-copy-code="${escapeHtml(
+        encodeURIComponent(text),
+      )}" title="Copy code" type="button"><span class="zp-copy-icon"></span></button>`
+    : "";
   const content = highlighted
     ? `<div class="zp-code-content">${highlighted}</div>`
     : `<pre class="zp-code-plain"><code class="language-${escapedLanguage}">${escapeHtml(
         text,
       )}</code></pre>`;
 
-  return [
-    `<div class="zp-code-block" data-language="${escapedLanguage}">`,
-    `<button aria-label="Copy code" class="zp-code-copy zp-inline-copy" data-zp-copy-code="${copyPayload}" title="Copy code" type="button">`,
-    '<span class="zp-copy-icon"></span>',
-    "</button>",
-    content,
-    "</div>",
-  ].join("");
+  return [`<div class="zp-code-block">`, copyButton, content, "</div>"].join(
+    "",
+  );
 }
 
 function renderPlainCodeBlock(text: string, language: string): string {

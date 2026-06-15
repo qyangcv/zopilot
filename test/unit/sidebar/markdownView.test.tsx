@@ -5,6 +5,7 @@ import {
   highlightCodeWithShiki,
 } from "../../../src/modules/sidebar/app/codeHighlighting.ts";
 import { MarkdownView } from "../../../src/modules/sidebar/app/MarkdownView.tsx";
+import { renderMarkdownToHtml } from "../../../src/modules/sidebar/app/markdownRenderer.ts";
 
 function renderMarkdown(markdown: string): string {
   return renderToStaticMarkup(
@@ -67,7 +68,6 @@ describe("MarkdownView", function () {
     );
 
     assert.include(html, 'class="zp-code-block"');
-    assert.include(html, 'data-language="typescript"');
     assert.notInclude(html, 'class="zp-code-language"');
     assert.include(html, 'aria-label="Copy code"');
     assert.include(html, 'class="zp-code-copy zp-inline-copy"');
@@ -103,6 +103,17 @@ describe("MarkdownView", function () {
     const html = await highlightCodeWithShiki("plain", "made-up-language");
 
     assert.isUndefined(html);
+  });
+
+  it("renders empty and unlabelled code fences with XHTML-safe attributes", function () {
+    const html = renderMarkdownToHtml(
+      ["```", "plain", "```", "", "```", "```"].join("\n"),
+    );
+
+    assert.include(html, 'class="language-text"');
+    assert.notInclude(html, "data-language");
+    assert.notInclude(html, "data-zp-copy-code ");
+    assert.notInclude(html, "data-zp-copy-code>");
   });
 
   it("renders inline code, links, and autolinks", function () {
