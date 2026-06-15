@@ -135,10 +135,8 @@ class ReaderToolbarController {
 
     this.buttons.add(button);
     this.buttonReaders.set(button, reader);
-    doc.defaultView?.addEventListener(
-      "unload",
-      () => this.buttons.delete(button),
-      { once: true },
+    doc.defaultView?.addEventListener("unload", () =>
+      this.buttons.delete(button),
     );
     if (append) {
       append(button);

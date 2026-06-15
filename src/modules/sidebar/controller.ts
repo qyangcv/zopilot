@@ -326,18 +326,14 @@ class SidebarController {
       }
       this.persistShellWidth();
       shell.removeAttribute("data-resizing");
-      this.win.removeEventListener("pointermove", onPointerMove, {
-        capture: true,
-      });
-      this.win.removeEventListener("pointerup", stopResize, { capture: true });
-      this.win.removeEventListener("pointercancel", stopResize, {
-        capture: true,
-      });
+      this.win.removeEventListener("pointermove", onPointerMove, true);
+      this.win.removeEventListener("pointerup", stopResize, true);
+      this.win.removeEventListener("pointercancel", stopResize, true);
     };
 
-    this.win.addEventListener("pointermove", onPointerMove, { capture: true });
-    this.win.addEventListener("pointerup", stopResize, { capture: true });
-    this.win.addEventListener("pointercancel", stopResize, { capture: true });
+    this.win.addEventListener("pointermove", onPointerMove, true);
+    this.win.addEventListener("pointerup", stopResize, true);
+    this.win.addEventListener("pointercancel", stopResize, true);
   }
 
   private getShellWidth(): number {
