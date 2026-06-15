@@ -6,6 +6,7 @@ Zopilot is a information-dense plugin that brings Codex into Zotero.
 
 ## Requirements
 
+- MacOS
 - Zotero 9.0.x
 - Codex CLI
 
