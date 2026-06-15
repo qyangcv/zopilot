@@ -74,6 +74,7 @@ class ReaderToolbarController {
     for (const button of this.buttons) {
       const reader = this.buttonReaders.get(button);
       const active = reader ? this.options.isOpenForReader(reader) : false;
+      placeReaderToolbarButton(button);
       button.setAttribute("checked", String(active));
       button.setAttribute("aria-pressed", String(active));
       button.toggleAttribute("data-active", active);
@@ -108,12 +109,13 @@ class ReaderToolbarController {
     doc = reader._iframeWindow?.document,
     append?: (button: HTMLButtonElement) => void,
   ): void {
-    if (
-      this.options.isDestroyed() ||
-      !isPDFReader(reader) ||
-      !doc ||
-      doc.getElementById(READER_TOOLBAR_BUTTON_ID)
-    ) {
+    if (this.options.isDestroyed() || !isPDFReader(reader) || !doc) {
+      return;
+    }
+
+    const existing = doc.getElementById(READER_TOOLBAR_BUTTON_ID);
+    if (existing) {
+      placeReaderToolbarButton(existing);
       return;
     }
 
@@ -138,12 +140,15 @@ class ReaderToolbarController {
     doc.defaultView?.addEventListener("unload", () =>
       this.buttons.delete(button),
     );
+    if (placeReaderToolbarButton(button)) {
+      return;
+    }
     if (append) {
       append(button);
+      placeReaderToolbarButton(button);
     } else {
       toolbar?.append(button);
     }
-    positionReaderToolbarButton(doc, button);
   }
 
   private unregister(): void {
@@ -212,12 +217,16 @@ function getReaderToolbar(doc: Document): Element | undefined {
   );
 }
 
-function positionReaderToolbarButton(
-  doc: Document,
-  button: HTMLButtonElement,
-): void {
+function placeReaderToolbarButton(button: Element): boolean {
+  const doc = button.ownerDocument;
   const anchor =
-    doc.querySelector(".toolbar .end .context-pane-toggle") ||
-    doc.querySelector(".toolbar .end .find");
-  anchor?.parentNode?.insertBefore(button, anchor.nextSibling);
+    doc?.querySelector(".toolbar .end .context-pane-toggle") ||
+    doc?.querySelector(".toolbar .end .find");
+  if (!anchor?.parentNode) {
+    return false;
+  }
+  if (anchor.nextSibling !== button) {
+    anchor.parentNode.insertBefore(button, anchor.nextSibling);
+  }
+  return true;
 }
