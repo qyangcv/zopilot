@@ -51,17 +51,13 @@
   display: block;
   width: 2px;
   height: 100%;
-  background: color-mix(in srgb, CanvasText 32%, transparent);
+  background: color-mix(in srgb, CanvasText 10%, Canvas);
   content: "";
 }
 
 #zopilot-sidebar-splitter:hover::before,
 #zopilot-sidebar-shell[data-resizing="true"] #zopilot-sidebar-splitter::before {
-  background: color-mix(
-    in srgb,
-    var(--accent-blue, AccentColor) 52%,
-    CanvasText 32%
-  );
+  background: color-mix(in srgb, CanvasText 18%, Canvas);
 }
 
 #zopilot-sidebar-shell {
