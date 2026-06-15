@@ -15,14 +15,21 @@ import { ConversationStore } from "../../../src/store/conversationStore.ts";
 import type { PaperIdentity } from "../../../src/shared/conversation.ts";
 
 let rootDir: string;
+const originalConsole = globalThis.console;
 
 describe("ConversationStore", function () {
   beforeEach(async function () {
     rootDir = await mkdtemp(join(tmpdir(), "zp-conversations-"));
     installFileMocks();
+    globalThis.console = {
+      ...originalConsole,
+      error: () => undefined,
+      warn: () => undefined,
+    };
   });
 
   afterEach(async function () {
+    globalThis.console = originalConsole;
     await rm(rootDir, { recursive: true, force: true });
   });
 

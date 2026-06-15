@@ -1,5 +1,7 @@
 export { buildCodexSubprocessEnvironment };
 
+import { createLogger } from "../utils/logger";
+
 type CodexSubprocessModule = {
   call(options: {
     command: string;
@@ -32,21 +34,27 @@ const CODEX_PATH_PREFIX = [
 const SHELL_PATH_MARKER_START = "__ZOPILOT_PATH_START__";
 const SHELL_PATH_MARKER_END = "__ZOPILOT_PATH_END__";
 const SHELL_PATH_TIMEOUT_MS = 2500;
+const logger = createLogger("codex.subprocessEnvironment");
 
 async function buildCodexSubprocessEnvironment(
   subprocess: CodexSubprocessModule,
 ): Promise<Record<string, string>> {
   const baseEnvironment = subprocess.getEnvironment();
   const shellPath = await readLoginShellPath(subprocess, baseEnvironment);
+  const path = mergePath(
+    [
+      ...CODEX_PATH_PREFIX,
+      ...buildHomePathCandidates(baseEnvironment),
+      ...splitPath(shellPath),
+    ],
+    baseEnvironment.PATH,
+  );
+  logger.debug("codex subprocess PATH prepared", {
+    shellPathFound: Boolean(shellPath),
+    pathEntryCount: splitPath(path).length,
+  });
   return {
-    PATH: mergePath(
-      [
-        ...CODEX_PATH_PREFIX,
-        ...buildHomePathCandidates(baseEnvironment),
-        ...splitPath(shellPath),
-      ],
-      baseEnvironment.PATH,
-    ),
+    PATH: path,
   };
 }
 
@@ -54,7 +62,12 @@ async function readLoginShellPath(
   subprocess: CodexSubprocessModule,
   baseEnvironment: Record<string, string>,
 ): Promise<string | undefined> {
-  for (const shell of await getShellCandidates(baseEnvironment)) {
+  const shells = await getShellCandidates(baseEnvironment);
+  logger.debug("login shell PATH probe candidates", {
+    shellCount: shells.length,
+    shells,
+  });
+  for (const shell of shells) {
     try {
       const proc = await subprocess.call({
         command: shell,
@@ -74,13 +87,32 @@ async function readLoginShellPath(
       if (result.exitCode === 0) {
         const path = extractMarkedPath(result.stdout);
         if (path) {
+          logger.debug("login shell PATH probe succeeded", {
+            shell,
+            pathEntryCount: splitPath(path).length,
+          });
           return path;
         }
+        logger.debug("login shell PATH probe missing marker", {
+          shell,
+          exitCode: result.exitCode,
+        });
+      } else {
+        logger.debug("login shell PATH probe exited nonzero", {
+          shell,
+          exitCode: result.exitCode,
+          timedOut: result.exitCode === 124,
+        });
       }
-    } catch {
+    } catch (error) {
+      logger.debug("login shell PATH probe failed", {
+        shell,
+        error: String(error),
+      });
       // Try the next shell candidate.
     }
   }
+  logger.debug("login shell PATH unavailable");
   return undefined;
 }
 

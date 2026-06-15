@@ -11,6 +11,7 @@ declare namespace _ZoteroTypes {
       "codex.model": string;
       "codex.reasoningEfforts": string;
       "sidebar.width": number;
+      "log.verbose": boolean;
     };
   }
 }

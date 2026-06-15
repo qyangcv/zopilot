@@ -1,8 +1,11 @@
 import { READER_TOOLBAR_BUTTON_ID, STYLE_URI } from "./constants";
 import { getString } from "../../utils/locale";
+import { createLogger } from "../../utils/logger";
 import { getOpenReaders, isPDFReader } from "../../zotero/reader";
 
 export { ReaderToolbarController };
+
+const logger = createLogger("sidebar.readerToolbar");
 
 type ReaderToolbarControllerOptions = {
   pluginID: string;
@@ -18,22 +21,53 @@ class ReaderToolbarController {
     _ZoteroTypes.ReaderInstance
   >();
   private readonly handler: _ZoteroTypes.Reader.EventHandler<"renderToolbar"> =
-    (event) => this.mountButton(event.reader, event.doc, event.append);
+    (event) => {
+      try {
+        this.mountButton(event.reader, event.doc, event.append);
+      } catch (error) {
+        logger.error("failed to mount reader toolbar button", error, {
+          itemID: event.reader?.itemID,
+          tabID: event.reader?.tabID,
+          readerType: event.reader?.type,
+          source: "renderToolbar",
+        });
+      }
+    };
 
   constructor(private readonly options: ReaderToolbarControllerOptions) {}
 
   mount(): void {
-    Zotero.Reader.registerEventListener(
-      "renderToolbar",
-      this.handler,
-      this.options.pluginID,
-    );
+    try {
+      Zotero.Reader.registerEventListener(
+        "renderToolbar",
+        this.handler,
+        this.options.pluginID,
+      );
+    } catch (error) {
+      logger.error("failed to register reader toolbar listener", error, {
+        pluginID: this.options.pluginID,
+      });
+      throw error;
+    }
     this.mountExistingReaderButtons();
   }
 
   destroy(): void {
-    this.unregister();
-    this.removeButtons();
+    try {
+      this.unregister();
+    } catch (error) {
+      logger.warn("failed to unregister reader toolbar listener", {
+        error: String(error),
+        pluginID: this.options.pluginID,
+      });
+    }
+    try {
+      this.removeButtons();
+    } catch (error) {
+      logger.warn("failed to remove reader toolbar buttons", {
+        error: String(error),
+      });
+    }
   }
 
   refresh(): void {
@@ -48,11 +82,24 @@ class ReaderToolbarController {
 
   private mountExistingReaderButtons(): void {
     getOpenReaders().forEach((reader) => {
-      void reader._initPromise?.then(() => {
-        if (!this.options.isDestroyed()) {
-          this.mountButton(reader);
-        }
-      });
+      const initPromise = reader._initPromise;
+      if (!initPromise) {
+        return;
+      }
+      void initPromise
+        .then(() => {
+          if (!this.options.isDestroyed()) {
+            this.mountButton(reader);
+          }
+        })
+        .catch((error) => {
+          logger.warn("reader init promise rejected before toolbar mount", {
+            error: String(error),
+            itemID: reader.itemID,
+            tabID: reader.tabID,
+            readerType: reader.type,
+          });
+        });
     });
   }
 
@@ -72,6 +119,11 @@ class ReaderToolbarController {
 
     const toolbar = append ? undefined : getReaderToolbar(doc);
     if (!append && !toolbar) {
+      logger.debug("reader toolbar host not found", {
+        itemID: reader.itemID,
+        tabID: reader.tabID,
+        readerType: reader.type,
+      });
       return;
     }
 

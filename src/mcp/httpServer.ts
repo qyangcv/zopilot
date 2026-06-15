@@ -9,6 +9,7 @@ import {
   type McpToolCallResult,
 } from "./protocol";
 import { createPaperReadTool } from "./tools/paperRead";
+import { createLogger } from "../utils/logger";
 
 export {
   MCP_ENDPOINT_PATH,
@@ -32,8 +33,10 @@ type McpHttpServerInfo = {
 type McpHttpHandlerOptions = {
   token: string;
   paperReadTool: McpTool;
-  logger?: (message: string, details?: JsonValue) => void;
+  logger?: McpHttpLogCallback;
 };
+
+type McpHttpLogCallback = (message: string, details?: JsonValue) => void;
 
 type McpHttpRequest = {
   method: string;
@@ -49,6 +52,7 @@ type McpHttpResponse = {
 
 let serverInfo: McpHttpServerInfo | undefined;
 let endpointRegistered = false;
+const mcpLogger = createLogger("mcp.http");
 
 async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
   if (serverInfo && endpointRegistered) {
@@ -64,8 +68,7 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
   };
   const handler = createMcpHttpHandler({
     token,
-    paperReadTool: createPaperReadTool({ logger: logMcp }),
-    logger: logMcp,
+    paperReadTool: createPaperReadTool(),
   });
 
   const endpointHandler = async (
@@ -96,7 +99,7 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
   serverInfo = info;
   endpointRegistered = true;
 
-  logMcp("mcp.http.start", {
+  mcpLogger.info("mcp.http.start", {
     url: info.url,
     path: MCP_ENDPOINT_PATH,
     port,
@@ -112,7 +115,7 @@ function shutdownMcpHttpServer(): void {
     endpointRegistered = false;
   }
   if (serverInfo) {
-    logMcp("mcp.http.stop", {
+    mcpLogger.info("mcp.http.stop", {
       url: serverInfo.url,
       path: MCP_ENDPOINT_PATH,
     });
@@ -121,6 +124,7 @@ function shutdownMcpHttpServer(): void {
 }
 
 function createMcpHttpHandler(options: McpHttpHandlerOptions) {
+  const logger = createMcpRequestLogger(options.logger);
   return {
     async handle(request: McpHttpRequest): Promise<McpHttpResponse> {
       const startedAt = Date.now();
@@ -132,7 +136,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
 
       const securityError = validateRequestSecurity(request, options.token);
       if (securityError) {
-        options.logger?.("mcp.http.reject", {
+        logger.warn("mcp.http.reject", {
           reason: securityError,
           durationMs: Date.now() - startedAt,
         });
@@ -143,7 +147,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
 
       const parseResult = parseRequestBody(request.data);
       if (!parseResult.ok) {
-        options.logger?.("mcp.http.invalid_json", {
+        logger.warn("mcp.http.invalid_json", {
           error: parseResult.error,
           durationMs: Date.now() - startedAt,
         });
@@ -162,7 +166,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
         const response = await handleJsonRpcMessage(
           message,
           options.paperReadTool,
-          options.logger,
+          logger,
           startedAt,
         );
         if (response) {
@@ -179,7 +183,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
         };
       }
 
-      options.logger?.("mcp.http.response", {
+      logger.debug("mcp.http.response", {
         count: responses.length,
         durationMs: Date.now() - startedAt,
       });
@@ -194,7 +198,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
 async function handleJsonRpcMessage(
   message: unknown,
   paperReadTool: McpTool,
-  logger: McpHttpHandlerOptions["logger"],
+  logger: McpRequestLogger,
   requestStartedAt: number,
 ): Promise<JsonValue | undefined> {
   if (!isJsonObject(message)) {
@@ -204,7 +208,7 @@ async function handleJsonRpcMessage(
   const method = typeof message.method === "string" ? message.method : "";
   const hasId = Object.hasOwn(message, "id");
 
-  logger?.("mcp.http.request", {
+  logger.debug("mcp.http.request", {
     id,
     method: method || "(missing)",
   });
@@ -214,7 +218,7 @@ async function handleJsonRpcMessage(
   }
 
   if (!hasId && method === "initialized") {
-    logger?.("mcp.lifecycle.initialized", {
+    logger.debug("mcp.lifecycle.initialized", {
       durationMs: Date.now() - requestStartedAt,
     });
     return undefined;
@@ -253,10 +257,9 @@ async function handleJsonRpcMessage(
         );
     }
   } catch (error) {
-    logger?.("mcp.http.request.error", {
+    logger.error("mcp.http.request.error", error, {
       id,
       method,
-      error: String(error),
       durationMs: Date.now() - requestStartedAt,
     });
     return createJsonRpcError(id, -32602, String(error));
@@ -266,7 +269,7 @@ async function handleJsonRpcMessage(
 async function callToolFromJsonRpc(
   params: JsonValue | undefined,
   paperReadTool: McpTool,
-  logger: McpHttpHandlerOptions["logger"],
+  logger: McpRequestLogger,
 ): Promise<McpToolCallResult> {
   if (!isJsonObject(params)) {
     throw new Error("tools/call params must be an object.");
@@ -277,14 +280,14 @@ async function callToolFromJsonRpc(
   }
 
   const startedAt = Date.now();
-  logger?.("mcp.tool.call.start", {
+  logger.debug("mcp.tool.call.start", {
     name,
   });
   if (name !== paperReadTool.definition.name) {
     throw new Error(`Unknown MCP tool: ${name}`);
   }
   const result = await paperReadTool.call(params.arguments);
-  logger?.("mcp.tool.call.finish", {
+  logger.debug("mcp.tool.call.finish", {
     name,
     isError: Boolean(result.isError),
     durationMs: Date.now() - startedAt,
@@ -406,6 +409,44 @@ function createSessionToken(): string {
   return randomUUID.call(globalThis.crypto);
 }
 
-function logMcp(message: string, details?: JsonValue): void {
-  ztoolkit.log(message, details);
+type McpRequestLogger = {
+  debug(message: string, details?: JsonValue): void;
+  warn(message: string, details?: JsonValue): void;
+  error(message: string, error: unknown, details?: JsonValue): void;
+};
+
+function createMcpRequestLogger(
+  callback?: McpHttpLogCallback,
+): McpRequestLogger {
+  if (callback) {
+    return {
+      debug: callback,
+      warn: callback,
+      error(message, error, details) {
+        callback(message, mergeErrorDetails(error, details));
+      },
+    };
+  }
+  return {
+    debug: (message, details) => mcpLogger.debug(message, details),
+    warn: (message, details) => mcpLogger.warn(message, details),
+    error: (message, error, details) =>
+      mcpLogger.error(message, error, details),
+  };
+}
+
+function mergeErrorDetails(error: unknown, details?: JsonValue): JsonValue {
+  const payload: { [key: string]: JsonValue } = {
+    error: String(error),
+  };
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    return {
+      ...details,
+      error: payload.error,
+    };
+  }
+  if (details !== undefined) {
+    payload.details = details;
+  }
+  return payload;
 }

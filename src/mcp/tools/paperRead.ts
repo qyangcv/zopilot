@@ -3,6 +3,7 @@ import type { PaperScope } from "../../zotero/types";
 import type { JsonValue } from "../../codex/types";
 import type { McpTool, McpToolCallResult } from "../protocol";
 import { isJsonObject } from "../protocol";
+import { createLogger } from "../../utils/logger";
 
 export { createPaperReadTool };
 
@@ -31,6 +32,8 @@ type PaperReadToolOptions = {
   readPaperText?: (scope: PaperScope) => Promise<string>;
   logger?: (message: string, details?: JsonValue) => void;
 };
+
+const paperReadLogger = createLogger("mcp.tools.paperRead");
 
 const CHUNK_TARGET_LENGTH = 1800;
 const CHUNK_OVERLAP = 200;
@@ -62,6 +65,7 @@ const STOP_WORDS = new Set([
 ]);
 
 function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
+  const logger = createPaperReadLogger(options.logger);
   return {
     definition: {
       name: "paper_read",
@@ -89,14 +93,14 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
     async call(input: JsonValue | undefined): Promise<McpToolCallResult> {
       const startedAt = Date.now();
       const parsedInput = parsePaperReadInput(input);
-      options.logger?.("mcp.tool.paper_read.start", {
+      logger.debug("mcp.tool.paper_read.start", {
         hasQuestion: Boolean(parsedInput.question),
       });
 
       try {
         const scope = await resolveActivePaper(options);
         const output = await readPaperEvidence(scope, parsedInput, options);
-        options.logger?.("mcp.tool.paper_read.finish", {
+        logger.debug("mcp.tool.paper_read.finish", {
           status: output.status,
           snippetCount: output.snippets.length,
           durationMs: Date.now() - startedAt,
@@ -117,8 +121,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
         };
       } catch (error) {
         const message = `paper_read failed while reading paper evidence: ${String(error)}`;
-        options.logger?.("mcp.tool.paper_read.error", {
-          error: message,
+        logger.error("mcp.tool.paper_read.error", error, {
           durationMs: Date.now() - startedAt,
         });
         return {
@@ -132,6 +135,39 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
       }
     },
   };
+}
+
+function createPaperReadLogger(callback?: PaperReadToolOptions["logger"]) {
+  if (callback) {
+    return {
+      debug: callback,
+      error(message: string, error: unknown, details?: JsonValue): void {
+        callback(message, mergeErrorDetails(error, details));
+      },
+    };
+  }
+  return {
+    debug: (message: string, details?: JsonValue) =>
+      paperReadLogger.debug(message, details),
+    error: (message: string, error: unknown, details?: JsonValue) =>
+      paperReadLogger.error(message, error, details),
+  };
+}
+
+function mergeErrorDetails(error: unknown, details?: JsonValue): JsonValue {
+  const payload: { [key: string]: JsonValue } = {
+    error: String(error),
+  };
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    return {
+      ...details,
+      error: payload.error,
+    };
+  }
+  if (details !== undefined) {
+    payload.details = details;
+  }
+  return payload;
 }
 
 async function readPaperEvidence(

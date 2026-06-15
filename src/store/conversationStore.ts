@@ -4,8 +4,11 @@ import type {
   ConversationMetadata,
   PaperIdentity,
 } from "../shared/conversation";
+import { createLogger } from "../utils/logger";
 
 export { ConversationStore, getConversationStore };
+
+const logger = createLogger("store.conversation");
 
 class ConversationStore {
   private readonly rootDir: string;
@@ -178,10 +181,27 @@ class ConversationStore {
     paperKey: string,
   ): Promise<ConversationMetadata[]> {
     const dir = this.getPaperDir(paperKey);
-    if (!(await IOUtils.exists(dir))) {
-      return [];
+    try {
+      if (!(await IOUtils.exists(dir))) {
+        return [];
+      }
+    } catch (error) {
+      logger.error("failed to check conversation directory", error, {
+        paperKey,
+        dir,
+      });
+      throw error;
     }
-    const children = await IOUtils.getChildren(dir);
+    let children: string[];
+    try {
+      children = await IOUtils.getChildren(dir);
+    } catch (error) {
+      logger.error("failed to list conversation directory", error, {
+        paperKey,
+        dir,
+      });
+      throw error;
+    }
     const metadataFiles = children.filter((path) => path.endsWith(".json"));
     const metadata = await Promise.all(
       metadataFiles.map((path) => this.readMetadata(path)),
@@ -192,9 +212,17 @@ class ConversationStore {
   }
 
   private async readMetadata(path: string): Promise<ConversationMetadata> {
-    const raw = (await IOUtils.readJSON(path)) as unknown;
+    let raw: unknown;
+    try {
+      raw = (await IOUtils.readJSON(path)) as unknown;
+    } catch (error) {
+      logger.error("failed to read conversation metadata", error, { path });
+      throw error;
+    }
     if (!isConversationMetadata(raw)) {
-      throw new Error(`Invalid Zopilot conversation metadata: ${path}`);
+      const error = new Error(`Invalid Zopilot conversation metadata: ${path}`);
+      logger.error("invalid conversation metadata", error, { path });
+      throw error;
     }
     return raw;
   }
@@ -203,7 +231,17 @@ class ConversationStore {
     metadata: ConversationMetadata,
   ): Promise<ConversationMessage[]> {
     const path = this.getMessagesPath(metadata);
-    const text = await IOUtils.readUTF8(path);
+    let text: string;
+    try {
+      text = await IOUtils.readUTF8(path);
+    } catch (error) {
+      logger.error("failed to read conversation messages", error, {
+        conversationId: metadata.id,
+        paperKey: metadata.paperKey,
+        path,
+      });
+      throw error;
+    }
     if (!text.trim()) {
       return [];
     }
@@ -234,10 +272,19 @@ class ConversationStore {
   }
 
   private async ensurePaperDir(paperKey: string): Promise<void> {
-    await IOUtils.makeDirectory(this.getPaperDir(paperKey), {
-      createAncestors: true,
-      ignoreExisting: true,
-    });
+    const dir = this.getPaperDir(paperKey);
+    try {
+      await IOUtils.makeDirectory(dir, {
+        createAncestors: true,
+        ignoreExisting: true,
+      });
+    } catch (error) {
+      logger.error("failed to create conversation directory", error, {
+        paperKey,
+        dir,
+      });
+      throw error;
+    }
   }
 
   private getPaperDir(paperKey: string): string {
@@ -264,11 +311,34 @@ class ConversationStore {
 
   private async atomicWriteUTF8(path: string, text: string): Promise<void> {
     const tmpPath = `${path}.${createId("tmp")}`;
-    await IOUtils.writeUTF8(tmpPath, text, { flush: true });
-    await IOUtils.move(tmpPath, path).catch(async () => {
-      await IOUtils.remove(path, { ignoreAbsent: true });
+    try {
+      await IOUtils.writeUTF8(tmpPath, text, { flush: true });
+    } catch (error) {
+      logger.error("failed to write conversation temp file", error, {
+        path,
+        tmpPath,
+      });
+      throw error;
+    }
+    try {
       await IOUtils.move(tmpPath, path);
-    });
+    } catch (firstMoveError) {
+      logger.warn("conversation atomic move fallback", {
+        path,
+        tmpPath,
+        error: String(firstMoveError),
+      });
+      try {
+        await IOUtils.remove(path, { ignoreAbsent: true });
+        await IOUtils.move(tmpPath, path);
+      } catch (error) {
+        logger.error("failed to move conversation temp file", error, {
+          path,
+          tmpPath,
+        });
+        throw error;
+      }
+    }
   }
 }
 
@@ -336,9 +406,23 @@ function parseConversationMessage(
   line: string,
   path: string,
 ): ConversationMessage {
-  const raw = JSON.parse(line) as unknown;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(line) as unknown;
+  } catch (error) {
+    logger.error("failed to parse conversation message", error, {
+      path,
+      lineLength: line.length,
+    });
+    throw error;
+  }
   if (!isConversationMessage(raw)) {
-    throw new Error(`Invalid Zopilot conversation message: ${path}`);
+    const error = new Error(`Invalid Zopilot conversation message: ${path}`);
+    logger.error("invalid conversation message", error, {
+      path,
+      lineLength: line.length,
+    });
+    throw error;
   }
   return raw;
 }

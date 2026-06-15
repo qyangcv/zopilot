@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { getPref } from "../utils/prefs";
 import type { ConversationMetadata } from "../shared/conversation";
+import { createLogger } from "../utils/logger";
 
 type CodexSubprocessModule = {
   call(options: {
@@ -86,6 +87,8 @@ type ActiveTurn = {
 };
 
 export { CodexBridge, getCodexBridge, shutdownCodexBridge };
+
+const logger = createLogger("codex.bridge");
 
 class CodexBridge {
   private subprocess?: CodexSubprocessModule;
@@ -286,9 +289,13 @@ class CodexBridge {
           conversation.codexThreadId,
         );
       } catch (error) {
-        ztoolkit.log(
+        logger.error(
           "codex thread/resume failed; starting replacement thread",
-          String(error),
+          error,
+          {
+            conversationId: conversation.id,
+            threadId: conversation.codexThreadId,
+          },
         );
       }
     }
@@ -313,7 +320,7 @@ class CodexBridge {
     if (cwd) {
       params.cwd = cwd;
     }
-    ztoolkit.log(`codex ${method} mcp config injected`, {
+    logger.debug(`codex ${method} mcp config injected`, {
       servers: Object.keys(mcpServers),
     });
 
@@ -423,7 +430,7 @@ class CodexBridge {
       const line = this.stderrBuffer.slice(0, newlineIndex).trim();
       this.stderrBuffer = this.stderrBuffer.slice(newlineIndex + 1);
       if (line) {
-        ztoolkit.log("codex app-server stderr", line);
+        logger.warn("codex app-server stderr", { line });
       }
       newlineIndex = this.stderrBuffer.indexOf("\n");
     }
@@ -434,7 +441,10 @@ class CodexBridge {
     try {
       message = JSON.parse(line) as JsonRpcMessage;
     } catch (error) {
-      ztoolkit.log("invalid codex app-server JSON", line, error);
+      logger.warn("invalid codex app-server JSON", {
+        line,
+        error: String(error),
+      });
       return;
     }
 
@@ -511,16 +521,25 @@ class CodexBridge {
         const activeTurn = this.findActiveTurnForNotification(message.params);
         if (getNestedBoolean(message.params, ["willRetry"])) {
           activeTurn?.onNotice?.(errorText);
-          ztoolkit.log("codex app-server retrying", errorText);
+          logger.warn("codex app-server retrying", {
+            error: errorText,
+            threadId: activeTurn?.threadId,
+            turnId: activeTurn?.turnId,
+          });
           break;
         }
         if (activeTurn) {
+          logger.error("codex app-server error", new Error(errorText), {
+            threadId: activeTurn.threadId,
+            turnId: activeTurn.turnId,
+          });
           this.rejectActiveTurn(
             activeTurn.threadId,
             activeTurn.turnId,
             new Error(errorText),
           );
         } else {
+          logger.error("codex app-server error", new Error(errorText));
           this.clearActiveTurn(new Error(errorText));
         }
         break;
@@ -531,11 +550,15 @@ class CodexBridge {
           "Codex app-server warning.";
         const activeTurn = this.findActiveTurnForNotification(message.params);
         activeTurn?.onNotice?.(warning);
-        ztoolkit.log("codex app-server warning", warning);
+        logger.warn("codex app-server warning", {
+          warning,
+          threadId: activeTurn?.threadId,
+          turnId: activeTurn?.turnId,
+        });
         break;
       }
       case "mcpServer/startupStatus/updated": {
-        ztoolkit.log(
+        logger.debug(
           "codex mcp startup status",
           summarizeJsonForLog(message.params),
         );
@@ -544,7 +567,7 @@ class CodexBridge {
       case "item/mcpToolCall/progress": {
         const activeTurn = this.findActiveTurnForNotification(message.params);
         activeTurn?.onToolActivity?.();
-        ztoolkit.log(
+        logger.debug(
           "codex mcp tool progress",
           summarizeJsonForLog(message.params),
         );
@@ -555,7 +578,7 @@ class CodexBridge {
         if (includesText(message.params, "mcpToolCall")) {
           const activeTurn = this.findActiveTurnForNotification(message.params);
           activeTurn?.onToolActivity?.();
-          ztoolkit.log(
+          logger.debug(
             `codex mcp tool item ${message.method}`,
             summarizeJsonForLog(message.params),
           );

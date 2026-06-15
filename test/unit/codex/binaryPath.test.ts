@@ -1,15 +1,23 @@
 import { assert } from "chai";
 import { resolveCodexBinaryPath } from "../../../src/codex/binaryPath.ts";
 
+const originalConsole = globalThis.console;
+
 describe("Codex binary path resolution", function () {
   let existingPaths: Set<string>;
 
   beforeEach(function () {
     existingPaths = new Set();
     installIoMock((path) => existingPaths.has(path));
+    globalThis.console = {
+      ...originalConsole,
+      error: () => undefined,
+      warn: () => undefined,
+    };
   });
 
   afterEach(function () {
+    globalThis.console = originalConsole;
     delete (globalThis as unknown as { IOUtils?: unknown }).IOUtils;
   });
 

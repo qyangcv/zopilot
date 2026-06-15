@@ -5,6 +5,7 @@ import type { Conversation, PaperIdentity } from "../../shared/conversation";
 import { createPaperIdentity } from "../../shared/conversation";
 import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
+import { createLogger } from "../../utils/logger";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import { getSelectedPDFReader, isPDFReader } from "../../zotero/reader";
 import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
@@ -26,6 +27,7 @@ import {
 const controllers = new WeakMap<Window, SidebarController>();
 const DEFAULT_SIDEBAR_WIDTH = 372;
 const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
+const logger = createLogger("sidebar.controller");
 export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
 
 type RunningTurn = {
@@ -209,6 +211,10 @@ class SidebarController {
       if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
         return;
       }
+      logger.error("failed to load active conversation", error, {
+        paperKey: paper.paperKey,
+        attachmentKey: paper.attachmentKey,
+      });
       this.activePaper = undefined;
       this.activeConversation = undefined;
       this.hideSessionPopover();
@@ -256,7 +262,7 @@ class SidebarController {
       this.reactHost = reactHost;
       this.renderApp();
     } catch (error) {
-      ztoolkit.log("failed to mount Zopilot React sidebar", error);
+      logger.error("failed to mount Zopilot React sidebar", error);
     } finally {
       this.reactHostLoading = false;
     }
@@ -395,8 +401,16 @@ class SidebarController {
       return;
     }
     const paperKey = this.activePaper.paperKey;
-    const conversations =
-      await getConversationStore().listPaperConversations(paperKey);
+    let conversations: Conversation[];
+    try {
+      conversations =
+        await getConversationStore().listPaperConversations(paperKey);
+    } catch (error) {
+      logger.error("failed to list paper conversations", error, {
+        paperKey,
+      });
+      return;
+    }
     if (
       this.destroyed ||
       !this.open ||
@@ -423,9 +437,18 @@ class SidebarController {
     if (!this.activePaper) {
       return;
     }
-    const conversation = await getConversationStore().createPaperConversation(
-      this.activePaper,
-    );
+    let conversation: Conversation;
+    try {
+      conversation = await getConversationStore().createPaperConversation(
+        this.activePaper,
+      );
+    } catch (error) {
+      logger.error("failed to create paper conversation", error, {
+        paperKey: this.activePaper.paperKey,
+        attachmentKey: this.activePaper.attachmentKey,
+      });
+      return;
+    }
     this.activeConversation = conversation;
     this.hideSessionPopover();
     this.refreshContext();
@@ -437,9 +460,18 @@ class SidebarController {
     if (!this.activePaper) {
       return;
     }
-    const active = await getConversationStore().activatePaperConversation(
-      conversation.metadata,
-    );
+    let active: Conversation;
+    try {
+      active = await getConversationStore().activatePaperConversation(
+        conversation.metadata,
+      );
+    } catch (error) {
+      logger.error("failed to switch paper conversation", error, {
+        conversationId: conversation.metadata.id,
+        paperKey: conversation.metadata.paperKey,
+      });
+      return;
+    }
     if (
       this.destroyed ||
       !this.open ||
@@ -463,9 +495,17 @@ class SidebarController {
     if (running) {
       this.interruptRunningTurn(running);
     }
-    await getConversationStore().archivePaperConversation(
-      conversation.metadata,
-    );
+    try {
+      await getConversationStore().archivePaperConversation(
+        conversation.metadata,
+      );
+    } catch (error) {
+      logger.error("failed to archive paper conversation", error, {
+        conversationId: conversation.metadata.id,
+        paperKey: conversation.metadata.paperKey,
+      });
+      return;
+    }
     if (
       this.destroyed ||
       !this.open ||
@@ -475,10 +515,19 @@ class SidebarController {
     }
 
     if (this.activeConversation?.metadata.id === conversation.metadata.id) {
-      const next =
-        (await getConversationStore().getLatestPaperConversation(
-          paper.paperKey,
-        )) || (await getConversationStore().createPaperConversation(paper));
+      let next: Conversation;
+      try {
+        next =
+          (await getConversationStore().getLatestPaperConversation(
+            paper.paperKey,
+          )) || (await getConversationStore().createPaperConversation(paper));
+      } catch (error) {
+        logger.error("failed to select next paper conversation", error, {
+          archivedConversationId: conversation.metadata.id,
+          paperKey: paper.paperKey,
+        });
+        return;
+      }
       this.activeConversation = next;
       this.refreshContext();
       this.renderConversation(next);
@@ -594,6 +643,12 @@ class SidebarController {
       });
       this.finishRunningTurn(runningTurn, conversation);
     } catch (error) {
+      logger.error("codex sendPrompt failed", error, {
+        conversationId: conversation.metadata.id,
+        paperKey: conversation.metadata.paperKey,
+        threadId: runningTurn.threadId,
+        turnId: runningTurn.turnId,
+      });
       this.updateViewState({ codexStatus: "disconnected" });
       const errorText = formatCodexError(error);
       const text = runningTurn.interrupted
@@ -664,7 +719,11 @@ class SidebarController {
     void getCodexBridge()
       .interruptTurn(threadId, turnId)
       .catch((error) => {
-        ztoolkit.log("codex turn/interrupt failed", String(error));
+        logger.error("codex turn/interrupt failed", error, {
+          threadId,
+          turnId,
+          conversationId: runningTurn.conversation.metadata.id,
+        });
       });
   }
 
@@ -695,7 +754,7 @@ class SidebarController {
       this.updateModelSelection(availableModels, selectedModel);
       this.updateViewState({ codexStatus: "connected" });
     } catch (error) {
-      ztoolkit.log("codex model/list failed", String(error));
+      logger.error("codex model/list failed", error);
       if (this.destroyed) {
         return;
       }

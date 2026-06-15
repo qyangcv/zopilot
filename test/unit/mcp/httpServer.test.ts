@@ -88,6 +88,7 @@ describe("MCP HTTP handler", function () {
     const handler = createMcpHttpHandler({
       token: TOKEN,
       paperReadTool: createTool(null),
+      logger: () => undefined,
     });
 
     const response = await handler.handle({
@@ -111,6 +112,7 @@ describe("MCP HTTP handler", function () {
     const handler = createMcpHttpHandler({
       token: TOKEN,
       paperReadTool: createTool(null),
+      logger: () => undefined,
     });
 
     const response = await post(handler, {
@@ -127,6 +129,30 @@ describe("MCP HTTP handler", function () {
     assert.equal(response.status, 200);
     assert.equal(body.error.code, -32602);
     assert.include(body.error.message, "Unknown MCP tool: paper_search");
+  });
+
+  it("keeps supporting an injected logger callback", async function () {
+    const logs: Array<{ message: string; details?: JsonValue }> = [];
+    const handler = createMcpHttpHandler({
+      token: TOKEN,
+      paperReadTool: createTool(null),
+      logger: (message, details) => logs.push({ message, details }),
+    });
+
+    await post(handler, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+    });
+
+    assert.include(
+      logs.map((entry) => entry.message),
+      "mcp.http.request",
+    );
+    assert.include(
+      logs.map((entry) => entry.message),
+      "mcp.http.response",
+    );
   });
 });
 

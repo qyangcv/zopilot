@@ -8,8 +8,11 @@ import {
 import { shutdownCodexBridge } from "./codex/bridge";
 import { shutdownMcpHttpServer, startMcpHttpServer } from "./mcp/httpServer";
 import { createZToolkit } from "./utils/ztoolkit";
+import { createLogger } from "./utils/logger";
 
 type ZoteroPluginRegistry = typeof Zotero & Record<string, unknown>;
+
+const logger = createLogger("hooks");
 
 async function onStartup(): Promise<void> {
   await Promise.all([
@@ -25,7 +28,7 @@ async function onStartup(): Promise<void> {
   Zotero.getMainWindows().forEach((win) => onMainWindowLoad(win));
 
   await startMcpHttpServer().catch((error) => {
-    ztoolkit.log("failed to start zopilot mcp server", String(error));
+    logger.error("failed to start zopilot mcp server", error);
   });
 
   addon.data.initialized = true;
@@ -37,7 +40,7 @@ function onMainWindowLoad(win: _ZoteroTypes.MainWindow): void {
   try {
     registerSidebar(win);
   } catch (error) {
-    ztoolkit.log("failed to register sidebar", error);
+    logger.error("failed to register sidebar", error);
   }
 }
 

@@ -1,7 +1,10 @@
 import type { PaperScope } from "./types";
 import { getSelectedReader } from "./reader";
+import { createLogger } from "../utils/logger";
 
 export { ZoteroContextGateway };
+
+const logger = createLogger("zotero.contextGateway");
 
 class ZoteroContextGateway {
   constructor(private readonly win: Window) {}
@@ -41,7 +44,13 @@ class ZoteroContextGateway {
 
     try {
       return normalizeText((await attachment.attachmentText) || "");
-    } catch {
+    } catch (error) {
+      logger.warn("failed to read attachment full text", {
+        error: String(error),
+        attachmentItemID: scope.attachmentItemID,
+        attachmentKey: scope.attachmentKey,
+        libraryID: scope.libraryID,
+      });
       return "";
     }
   }
