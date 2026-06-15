@@ -8,6 +8,7 @@ import { getPref, setPref } from "../../utils/prefs";
 import { createLogger } from "../../utils/logger";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import { getSelectedPDFReader, isPDFReader } from "../../zotero/reader";
+import { copyText } from "./app/clipboard";
 import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
   SidebarContextView,
@@ -114,6 +115,7 @@ class SidebarController {
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
+    this.bindSelectionCopy();
     this.bindSessionPopoverDismiss();
     this.refreshContext();
   }
@@ -1077,6 +1079,23 @@ class SidebarController {
     this.listeners.push(() => this.doc.removeEventListener("click", dismiss));
   }
 
+  private bindSelectionCopy(): void {
+    const copySelection = (event: ClipboardEvent) => {
+      const text = getSidebarSelectionText(this.win, this.shell);
+      if (!text) {
+        return;
+      }
+
+      event.clipboardData?.setData("text/plain", text);
+      event.preventDefault();
+      void copyText(text, this.win);
+    };
+    this.doc.addEventListener("copy", copySelection, true);
+    this.listeners.push(() =>
+      this.doc.removeEventListener("copy", copySelection, true),
+    );
+  }
+
   private getDisplayTitle(reader?: _ZoteroTypes.ReaderInstance): string {
     if (this.activeConversation) {
       return `${this.activeConversation.metadata.title} / ${this.activeConversation.metadata.label}`;
@@ -1137,7 +1156,27 @@ class SidebarController {
   }
 }
 
-const __sidebarControllerTestHooks = { SidebarController };
+const __sidebarControllerTestHooks = {
+  SidebarController,
+  getSidebarSelectionText,
+};
+
+function getSidebarSelectionText(win: Window, root?: Node): string {
+  const selection = win.getSelection();
+  if (
+    !root ||
+    !selection ||
+    selection.isCollapsed ||
+    !selection.rangeCount ||
+    !selection.anchorNode ||
+    !selection.focusNode ||
+    !root.contains(selection.anchorNode) ||
+    !root.contains(selection.focusNode)
+  ) {
+    return "";
+  }
+  return selection.toString();
+}
 
 function hasStylesheet(doc: Document, uri: string): boolean {
   return Array.from(doc.childNodes).some((node) => {

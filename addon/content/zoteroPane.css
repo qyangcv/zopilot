@@ -100,6 +100,7 @@
   line-height: 1.42;
   background: Canvas;
   color: CanvasText;
+  user-select: text;
 }
 
 .zp-react-root {
@@ -552,7 +553,6 @@
   display: flex;
   gap: 8px;
   min-width: 0;
-  user-select: text;
 }
 
 .zp-message-assistant {

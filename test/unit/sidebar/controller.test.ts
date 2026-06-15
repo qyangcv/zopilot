@@ -91,6 +91,46 @@ describe("sidebar controller resize", function () {
       },
     ]);
   });
+
+  it("returns selected sidebar text only when the selection is inside the shell", function () {
+    const insideStart = {};
+    const insideEnd = {};
+    const outside = {};
+    const root = {
+      contains(node: unknown) {
+        return node === insideStart || node === insideEnd;
+      },
+    };
+    const getSidebarSelectionText = (
+      __sidebarControllerTestHooks as unknown as {
+        getSidebarSelectionText: (win: Window, root?: Node) => string;
+      }
+    ).getSidebarSelectionText;
+
+    assert.equal(
+      getSidebarSelectionText(
+        createSelectionWindow({
+          anchorNode: insideStart,
+          focusNode: insideEnd,
+          text: "selected title",
+        }),
+        root as unknown as Node,
+      ),
+      "selected title",
+    );
+
+    assert.equal(
+      getSidebarSelectionText(
+        createSelectionWindow({
+          anchorNode: insideStart,
+          focusNode: outside,
+          text: "cross-boundary text",
+        }),
+        root as unknown as Node,
+      ),
+      "",
+    );
+  });
 });
 
 type PrefWrite = {
@@ -157,6 +197,26 @@ function createPointerEvent(
     stopPropagation: () => undefined,
     ...patch,
   };
+}
+
+function createSelectionWindow(options: {
+  anchorNode: unknown;
+  focusNode: unknown;
+  text: string;
+}): Window {
+  return {
+    getSelection() {
+      return {
+        anchorNode: options.anchorNode,
+        focusNode: options.focusNode,
+        isCollapsed: false,
+        rangeCount: 1,
+        toString() {
+          return options.text;
+        },
+      };
+    },
+  } as unknown as Window;
 }
 
 class FakeWindow {
