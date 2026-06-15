@@ -2,7 +2,7 @@
   "name": "zopilot",
   "type": "module",
   "version": "0.2.11",
-  "description": "Zopilot",
+  "description": "Bring Codex into Zotero, as your research copilot.",
   "config": {
     "addonName": "Zopilot",
     "addonID": "zopilot@qyangcv.github.io",
