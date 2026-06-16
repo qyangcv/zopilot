@@ -220,9 +220,11 @@ describe("SidebarApp", function () {
     assert.include(html, "zopilot-sidebar-codex-status-checking");
     assert.include(html, 'class="zp-codex-status"');
     assert.include(html, 'data-icon-name="checking"');
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
 
-  it("hides the Codex CLI status after a successful connection", function () {
+  it("hides the Codex CLI status and shows controls after a successful connection", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -235,6 +237,8 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zopilot-sidebar-codex-status-checking");
     assert.notInclude(html, "zopilot-sidebar-codex-status-disconnected");
     assert.notInclude(html, "zp-codex-status");
+    assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
+    assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
 
   it("does not render legacy CSS-drawn icon classes", function () {

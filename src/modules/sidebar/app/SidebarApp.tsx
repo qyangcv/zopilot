@@ -261,38 +261,42 @@ export function SidebarApp({
                   : getString("sidebar-codex-status-disconnected")}
               </span>
             ) : null}
-            <ComposerSelect
-              aria-label={getString("sidebar-model-name")}
-              disabled={!state.models.length}
-              onChange={(event) =>
-                actions.selectModel(event.currentTarget.value)
-              }
-              inlineSize={getComposerSelectInlineSize(selectedModelLabel)}
-              title={getString("sidebar-model-name")}
-              value={state.selectedModel}
-            >
-              {state.models.map((model) => (
-                <option key={model.slug} value={model.slug}>
-                  {model.displayName}
-                </option>
-              ))}
-            </ComposerSelect>
-            {state.availableReasoningEfforts.length ? (
-              <ComposerSelect
-                aria-label={getString("sidebar-reasoning-depth")}
-                onChange={(event) =>
-                  actions.selectReasoningEffort(event.currentTarget.value)
-                }
-                inlineSize={getComposerSelectInlineSize(selectedEffortLabel)}
-                title={getString("sidebar-reasoning-depth")}
-                value={state.selectedReasoningEffort || ""}
-              >
-                {state.availableReasoningEfforts.map((effort) => (
-                  <option key={effort} value={effort}>
-                    {formatEffortLabel(effort)}
-                  </option>
-                ))}
-              </ComposerSelect>
+            {state.codexStatus === "connected" ? (
+              <>
+                <ComposerSelect
+                  aria-label={getString("sidebar-model-name")}
+                  disabled={!state.models.length}
+                  onChange={(event) =>
+                    actions.selectModel(event.currentTarget.value)
+                  }
+                  inlineSize={getComposerSelectInlineSize(selectedModelLabel)}
+                  title={getString("sidebar-model-name")}
+                  value={state.selectedModel}
+                >
+                  {state.models.map((model) => (
+                    <option key={model.slug} value={model.slug}>
+                      {model.displayName}
+                    </option>
+                  ))}
+                </ComposerSelect>
+                {state.availableReasoningEfforts.length ? (
+                  <ComposerSelect
+                    aria-label={getString("sidebar-reasoning-depth")}
+                    onChange={(event) =>
+                      actions.selectReasoningEffort(event.currentTarget.value)
+                    }
+                    inlineSize={getComposerSelectInlineSize(selectedEffortLabel)}
+                    title={getString("sidebar-reasoning-depth")}
+                    value={state.selectedReasoningEffort || ""}
+                  >
+                    {state.availableReasoningEfforts.map((effort) => (
+                      <option key={effort} value={effort}>
+                        {formatEffortLabel(effort)}
+                      </option>
+                    ))}
+                  </ComposerSelect>
+                ) : null}
+              </>
             ) : null}
           </div>
           <button
