@@ -113,7 +113,9 @@ export function SidebarApp({
         </button>
         <div className="zp-sidebar-actions">
           <button
-            aria-expanded={state.sessionsOpen}
+            aria-expanded={
+              state.sessionsOpen && state.sessionsMode === "history"
+            }
             aria-haspopup="true"
             aria-label={getString("sidebar-history")}
             className="zp-icon-button zp-history-button"
@@ -126,6 +128,23 @@ export function SidebarApp({
             type="button"
           >
             <Icon name="history" />
+          </button>
+          <button
+            aria-expanded={
+              state.sessionsOpen && state.sessionsMode === "archive"
+            }
+            aria-haspopup="true"
+            aria-label={getString("sidebar-archived-sessions")}
+            className="zp-icon-button zp-archive-button"
+            disabled={!state.context.paperKey}
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.toggleArchivedSessions();
+            }}
+            title={getString("sidebar-archived-sessions")}
+            type="button"
+          >
+            <Icon name="archive" />
           </button>
           <button
             aria-label={getString("sidebar-new-chat")}
@@ -162,7 +181,11 @@ export function SidebarApp({
         />
       ) : null}
       {state.sessionsOpen ? (
-        <SessionPopover actions={actions} sessions={state.sessions} />
+        <SessionPopover
+          actions={actions}
+          mode={state.sessionsMode}
+          sessions={state.sessions}
+        />
       ) : null}
       <main
         aria-live="polite"
@@ -284,7 +307,9 @@ export function SidebarApp({
                     onChange={(event) =>
                       actions.selectReasoningEffort(event.currentTarget.value)
                     }
-                    inlineSize={getComposerSelectInlineSize(selectedEffortLabel)}
+                    inlineSize={getComposerSelectInlineSize(
+                      selectedEffortLabel,
+                    )}
                     title={getString("sidebar-reasoning-depth")}
                     value={state.selectedReasoningEffort || ""}
                   >
@@ -507,18 +532,21 @@ function IconAction({
 
 function SessionPopover({
   actions,
+  mode,
   sessions,
 }: {
   actions: SidebarActions;
+  mode: SidebarState["sessionsMode"];
   sessions: SidebarState["sessions"];
 }): ReactElement {
+  const archived = mode === "archive";
   return (
     <div
       className="zp-session-popover"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="zp-session-popover-header">
-        {getString("sidebar-history")}
+        {getString(archived ? "sidebar-archived-sessions" : "sidebar-history")}
       </div>
       {sessions.length ? (
         <div className="zp-session-list">
@@ -537,21 +565,25 @@ function SessionPopover({
                 <span className="zp-session-label">{session.title}</span>
                 <span className="zp-session-meta">{session.meta}</span>
               </button>
-              <button
-                aria-label={getString("sidebar-delete-session")}
-                className="zp-session-archive"
-                onClick={() => actions.archiveSession(session.conversation)}
-                title={getString("sidebar-delete-session")}
-                type="button"
-              >
-                <Icon name="archive" size={14} />
-              </button>
+              {archived ? null : (
+                <button
+                  aria-label={getString("sidebar-delete-session")}
+                  className="zp-session-archive"
+                  onClick={() => actions.archiveSession(session.conversation)}
+                  title={getString("sidebar-delete-session")}
+                  type="button"
+                >
+                  <Icon name="archive" size={14} />
+                </button>
+              )}
             </div>
           ))}
         </div>
       ) : (
         <div className="zp-session-empty">
-          {getString("sidebar-no-sessions")}
+          {getString(
+            archived ? "sidebar-no-archived-sessions" : "sidebar-no-sessions",
+          )}
         </div>
       )}
     </div>

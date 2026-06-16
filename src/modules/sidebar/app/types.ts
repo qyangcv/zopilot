@@ -33,12 +33,15 @@ type SidebarSessionView = {
   conversation: Conversation;
 };
 
+export type SidebarSessionMode = "history" | "archive";
+
 export type SidebarState = {
   title: string;
   context: SidebarContextView;
   messages: SidebarMessageView[];
   sessions: SidebarSessionView[];
   sessionsOpen: boolean;
+  sessionsMode: SidebarSessionMode;
   composerEnabled: boolean;
   busy: boolean;
   models: SidebarModelView[];
@@ -61,5 +64,6 @@ export type SidebarActions = {
   submitPrompt: (text: string) => void;
   interruptActiveTurn: () => void;
   switchSession: (conversation: Conversation) => void;
+  toggleArchivedSessions: () => void;
   toggleSessions: () => void;
 };

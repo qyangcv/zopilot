@@ -17,6 +17,7 @@ describe("sidebar view model", function () {
     assert.equal(state.title, "Paper");
     assert.equal(state.codexStatus, "checking");
     assert.isFalse(state.composerEnabled);
+    assert.equal(state.sessionsMode, "history");
     assert.deepEqual(
       state.messages.map((message) => message.id),
       ["zp-welcome-message"],

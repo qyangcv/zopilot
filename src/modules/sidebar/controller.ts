@@ -13,6 +13,7 @@ import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
   SidebarContextView,
   SidebarModelView,
+  SidebarSessionMode,
   SidebarState,
 } from "./app/types";
 import { HTML_NS, SIDEBAR_ID, STYLE_URI } from "./constants";
@@ -407,18 +408,22 @@ class SidebarController {
     return this.doc.documentElement?.clientWidth || this.win.innerWidth || 1024;
   }
 
-  private async toggleSessionPopover(): Promise<void> {
-    if (!this.activePaper || !this.viewState.composerEnabled) {
+  private async toggleSessionPopover(
+    mode: SidebarSessionMode = "history",
+  ): Promise<void> {
+    if (!this.activePaper) {
       return;
     }
-    if (this.viewState.sessionsOpen) {
+    if (this.viewState.sessionsOpen && this.viewState.sessionsMode === mode) {
       this.hideSessionPopover();
       return;
     }
-    await this.showSessionPopover();
+    await this.showSessionPopover(mode);
   }
 
-  private async showSessionPopover(): Promise<void> {
+  private async showSessionPopover(
+    mode: SidebarSessionMode = this.viewState.sessionsMode,
+  ): Promise<void> {
     if (!this.activePaper) {
       return;
     }
@@ -426,10 +431,15 @@ class SidebarController {
     let conversations: Conversation[];
     try {
       conversations =
-        await getConversationStore().listPaperConversations(paperKey);
+        mode === "archive"
+          ? await getConversationStore().listArchivedPaperConversations(
+              paperKey,
+            )
+          : await getConversationStore().listPaperConversations(paperKey);
     } catch (error) {
       logger.error("failed to list paper conversations", error, {
         paperKey,
+        mode,
       });
       return;
     }
@@ -445,6 +455,7 @@ class SidebarController {
         createSessionView(conversation, this.activeConversation?.metadata.id),
       ),
       sessionsOpen: true,
+      sessionsMode: mode,
     });
   }
 
@@ -1152,8 +1163,11 @@ class SidebarController {
       switchSession: (conversation) => {
         void this.switchSession(conversation);
       },
+      toggleArchivedSessions: () => {
+        void this.toggleSessionPopover("archive");
+      },
       toggleSessions: () => {
-        void this.toggleSessionPopover();
+        void this.toggleSessionPopover("history");
       },
     });
   }

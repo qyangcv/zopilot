@@ -9,6 +9,7 @@ import type {
   SidebarActions,
   SidebarState,
 } from "../../../src/modules/sidebar/app/types.ts";
+import type { Conversation } from "../../../src/shared/conversation.ts";
 
 describe("SidebarApp", function () {
   before(function () {
@@ -210,6 +211,49 @@ describe("SidebarApp", function () {
     );
   });
 
+  it("renders the archived session entry and archive popover mode", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          sessionsOpen: true,
+          sessionsMode: "archive",
+          sessions: [
+            {
+              id: "conv-archived",
+              title: "Archived question",
+              meta: "Archived preview",
+              active: false,
+              conversation: createConversation("conv-archived"),
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, 'aria-label="zopilot-sidebar-archived-sessions"');
+    assert.include(html, 'data-icon-name="archive"');
+    assert.include(html, "zopilot-sidebar-archived-sessions");
+    assert.include(html, "Archived question");
+    assert.notInclude(html, 'class="zp-session-archive"');
+  });
+
+  it("uses a distinct empty state for archived sessions", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          sessionsOpen: true,
+          sessionsMode: "archive",
+          sessions: [],
+        })}
+      />,
+    );
+
+    assert.include(html, "zopilot-sidebar-no-archived-sessions");
+    assert.notInclude(html, "zopilot-sidebar-no-sessions");
+  });
+
   it("sizes model and effort selectors from the selected labels", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
@@ -319,6 +363,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     messages: [],
     sessions: [],
     sessionsOpen: false,
+    sessionsMode: "history",
     composerEnabled: true,
     busy: false,
     models: [
@@ -351,7 +396,28 @@ function createActions(): SidebarActions {
     startResize: () => undefined,
     submitPrompt: () => undefined,
     switchSession: () => undefined,
+    toggleArchivedSessions: () => undefined,
     toggleSessions: () => undefined,
+  };
+}
+
+function createConversation(id: string): Conversation {
+  return {
+    metadata: {
+      id,
+      scope: "paper",
+      paperKey: "1:AAA",
+      libraryID: 1,
+      parentItemKey: "AAA",
+      attachmentItemID: 10,
+      attachmentKey: "PDF",
+      title: "Paper",
+      label: "Archived question",
+      createdAt: "2026-06-13T07:00:00.000Z",
+      updatedAt: "2026-06-13T07:31:00.000Z",
+      archived: true,
+    },
+    messages: [],
   };
 }
 

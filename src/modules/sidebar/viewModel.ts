@@ -40,6 +40,7 @@ function createInitialSidebarState(label: string): SidebarState {
     ],
     sessions: [],
     sessionsOpen: false,
+    sessionsMode: "history",
     composerEnabled: false,
     busy: false,
     models: [DEFAULT_MODEL],

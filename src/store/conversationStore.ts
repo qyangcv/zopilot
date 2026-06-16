@@ -67,6 +67,21 @@ class ConversationStore {
     );
   }
 
+  async listArchivedPaperConversations(
+    paperKey: string,
+  ): Promise<Conversation[]> {
+    const metadata = await this.listPaperMetadata(paperKey);
+    const archivedMetadata = metadata
+      .filter((item) => item.archived)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return Promise.all(
+      archivedMetadata.map(async (item) => ({
+        metadata: item,
+        messages: await this.readMessages(item),
+      })),
+    );
+  }
+
   async createPaperConversation(paper: PaperIdentity): Promise<Conversation> {
     const createdAt = new Date().toISOString();
     const metadata: ConversationMetadata = {

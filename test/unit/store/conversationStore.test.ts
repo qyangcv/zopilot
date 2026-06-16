@@ -112,6 +112,14 @@ describe("ConversationStore", function () {
       paperSessions.map((conversation) => conversation.metadata.id),
       [second.metadata.id],
     );
+    const archivedSessions = await store.listArchivedPaperConversations(
+      paper.paperKey,
+    );
+    assert.deepEqual(
+      archivedSessions.map((conversation) => conversation.metadata.id),
+      [activated.metadata.id],
+    );
+    assert.isTrue(archivedSessions[0]?.metadata.archived);
     const otherSessions = await store.listPaperConversations(
       otherPaper.paperKey,
     );
@@ -119,6 +127,10 @@ describe("ConversationStore", function () {
       otherSessions.map((conversation) => conversation.metadata.id),
       [other.metadata.id],
     );
+    const otherArchivedSessions = await store.listArchivedPaperConversations(
+      otherPaper.paperKey,
+    );
+    assert.deepEqual(otherArchivedSessions, []);
   });
 
   it("persists assistant completion metadata and interrupted status", async function () {
