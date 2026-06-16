@@ -1,4 +1,5 @@
 import type { Conversation } from "../../../shared/conversation";
+import type { CodexDiagnosticCode } from "../../../codex/diagnostics";
 
 export type SidebarMessageView = {
   id: string;
@@ -49,6 +50,7 @@ export type SidebarState = {
   selectedReasoningEffort?: string;
   availableReasoningEfforts: string[];
   codexStatus: "checking" | "connected" | "disconnected";
+  codexDiagnostic?: CodexDiagnosticCode;
   focusToken: number;
 };
 

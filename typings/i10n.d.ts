@@ -3,6 +3,12 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'codex-diagnostic-app-server-unavailable'
+  | 'codex-diagnostic-cli-not-found'
+  | 'codex-diagnostic-command-timeout'
+  | 'codex-diagnostic-not-logged-in'
+  | 'codex-diagnostic-permission-denied'
+  | 'codex-diagnostic-unknown-error'
   | 'pref-codex-status'
   | 'pref-codex-status-connected'
   | 'pref-codex-status-missing'

@@ -25,7 +25,6 @@ describe("preferences pane script", function () {
         },
       },
       schedule: createQueuedScheduler(timers),
-      cancelTimer: () => undefined,
       getSubprocess() {
         subprocessRequested = true;
         throw new Error("Subprocess unavailable in this test");
@@ -44,7 +43,7 @@ describe("preferences pane script", function () {
     assert.isTrue(subprocessRequested);
     assert.equal(statusElement.dataset.status, "missing");
     assert.equal(statusElement.textContent, "");
-    assert.equal(l10nId, "zopilot-pref-codex-status-missing");
+    assert.equal(l10nId, "zopilot-codex-diagnostic-unknown-error");
   });
 
   it("runs Codex status checks with a GUI-safe PATH", async function () {
@@ -59,7 +58,6 @@ describe("preferences pane script", function () {
     initPreferencesPane({
       document: createDocument(statusElement),
       schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-      cancelTimer: (timer) => clearTimeout(timer),
       getSubprocess: () => createSubprocess(calls, "Logged in"),
     });
 
@@ -82,40 +80,64 @@ describe("preferences pane script", function () {
   it("shows missing when app-server is unavailable", async function () {
     const calls: SubprocessCall[] = [];
     const statusElement: StatusElement = { dataset: {}, textContent: "stale" };
+    const l10nIds: string[] = [];
     installIoMock((path) => path === "/usr/local/bin/codex");
 
     initPreferencesPane({
-      document: createDocument(statusElement),
+      document: createDocument(statusElement, l10nIds),
       schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-      cancelTimer: (timer) => clearTimeout(timer),
       getSubprocess: () =>
         createSubprocess(calls, "Logged in", { appServerExitCode: 1 }),
     });
 
-    await waitFor(() => calls.some((call) => call.command?.endsWith("/codex")));
+    await waitFor(
+      () =>
+        calls.filter((call) => call.command?.endsWith("/codex")).length === 2,
+    );
 
     assert.equal(statusElement.dataset.status, "missing");
-    assert.lengthOf(
-      calls.filter((call) => call.command?.endsWith("/codex")),
-      1,
+    assert.equal(
+      l10nIds.at(-1),
+      "zopilot-codex-diagnostic-app-server-unavailable",
     );
   });
 
   it("shows missing when Codex is not logged in", async function () {
     const calls: SubprocessCall[] = [];
     const statusElement: StatusElement = { dataset: {}, textContent: "stale" };
+    const l10nIds: string[] = [];
     installIoMock((path) => path === "/usr/local/bin/codex");
 
     initPreferencesPane({
-      document: createDocument(statusElement),
+      document: createDocument(statusElement, l10nIds),
       schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-      cancelTimer: (timer) => clearTimeout(timer),
       getSubprocess: () => createSubprocess(calls, "Not logged in"),
     });
 
-    await waitFor(() => calls.length === 2);
+    await waitFor(() => calls.length === 4);
 
     assert.equal(statusElement.dataset.status, "missing");
+    assert.equal(l10nIds.at(-1), "zopilot-codex-diagnostic-not-logged-in");
+  });
+
+  it("shows the CLI not found diagnostic", async function () {
+    const calls: SubprocessCall[] = [];
+    const statusElement: StatusElement = { dataset: {}, textContent: "stale" };
+    const l10nIds: string[] = [];
+    installIoMock(() => false);
+
+    initPreferencesPane({
+      document: createDocument(statusElement, l10nIds),
+      schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+      getSubprocess: () => createSubprocess(calls, "Logged in"),
+    });
+
+    await waitFor(
+      () => l10nIds.at(-1) === "zopilot-codex-diagnostic-cli-not-found",
+    );
+
+    assert.equal(statusElement.dataset.status, "missing");
+    assert.isEmpty(calls);
   });
 });
 
@@ -137,13 +159,15 @@ function createQueuedScheduler(timers: Array<() => void>) {
   };
 }
 
-function createDocument(statusElement: StatusElement) {
+function createDocument(statusElement: StatusElement, l10nIds: string[] = []) {
   return {
     getElementById(id: string) {
       return id === "zopilot-codex-status-value" ? statusElement : null;
     },
     l10n: {
-      setAttributes: () => undefined,
+      setAttributes: (_element: StatusElement, id: string) => {
+        l10nIds.push(id);
+      },
       translateElements: async () => undefined,
     },
   };

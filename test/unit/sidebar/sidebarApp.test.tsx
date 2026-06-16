@@ -323,6 +323,23 @@ describe("SidebarApp", function () {
     assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
 
+  it("shows a Codex diagnostic without model controls after a failed connection", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          codexStatus: "disconnected",
+          codexDiagnostic: "cli_not_found",
+        })}
+      />,
+    );
+
+    assert.include(html, "zopilot-codex-diagnostic-cli-not-found");
+    assert.notInclude(html, "zopilot-sidebar-codex-status-checking");
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
+  });
+
   it("does not render legacy CSS-drawn icon classes", function () {
     const html = renderToStaticMarkup(
       <SidebarApp

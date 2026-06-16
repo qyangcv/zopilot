@@ -1,6 +1,11 @@
 import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
 import { getCodexBridge } from "../../codex/bridge";
+import {
+  diagnoseCodexConnection,
+  type CodexDiagnostic,
+} from "../../codex/diagnostics";
+import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
 import type { Conversation, PaperIdentity } from "../../shared/conversation";
 import { createPaperIdentity } from "../../shared/conversation";
 import { getConversationStore } from "../../store/conversationStore";
@@ -114,6 +119,7 @@ class SidebarController {
   private appMount?: HTMLElement;
   private open = false;
   private destroyed = false;
+  private diagnosticSubprocess?: CodexDiscoverySubprocessModule;
   private modelLoadPromise?: Promise<void>;
   private selectionToken = 0;
   private displayState: DisplayState = { kind: "closed", token: 0 };
@@ -745,7 +751,10 @@ class SidebarController {
       });
       runningTurn.threadId = result.threadId;
       runningTurn.turnId = result.turnId;
-      this.updateViewState({ codexStatus: "connected" });
+      this.updateViewState({
+        codexStatus: "connected",
+        codexDiagnostic: undefined,
+      });
       const finalText =
         runningTurn.assistantOutput ||
         result.text ||
@@ -775,7 +784,7 @@ class SidebarController {
         threadId: runningTurn.threadId,
         turnId: runningTurn.turnId,
       });
-      this.updateViewState({ codexStatus: "disconnected" });
+      await this.showCodexDiagnostic();
       const errorText = formatCodexError(error);
       const text = runningTurn.interrupted
         ? runningTurn.assistantOutput || getString("sidebar-status-interrupted")
@@ -866,7 +875,10 @@ class SidebarController {
   }
 
   private async loadModelsOnce(): Promise<void> {
-    this.updateViewState({ codexStatus: "checking" });
+    this.updateViewState({
+      codexStatus: "checking",
+      codexDiagnostic: undefined,
+    });
     try {
       const models = await getCodexBridge().listModels();
       if (this.destroyed) {
@@ -880,15 +892,57 @@ class SidebarController {
         ? preferredModel
         : availableModels[0]?.slug || DEFAULT_MODEL.slug;
       this.updateModelSelection(availableModels, selectedModel);
-      this.updateViewState({ codexStatus: "connected" });
+      this.updateViewState({
+        codexStatus: "connected",
+        codexDiagnostic: undefined,
+      });
     } catch (error) {
       logger.error("codex model/list failed", error);
       if (this.destroyed) {
         return;
       }
       this.updateModelSelection([DEFAULT_MODEL], DEFAULT_MODEL.slug);
-      this.updateViewState({ codexStatus: "disconnected" });
+      await this.showCodexDiagnostic();
     }
+  }
+
+  private async showCodexDiagnostic(): Promise<void> {
+    this.updateViewState({
+      codexStatus: "disconnected",
+      codexDiagnostic: undefined,
+    });
+    let diagnostic: CodexDiagnostic;
+    try {
+      diagnostic = (await diagnoseCodexConnection(
+        this.getDiagnosticSubprocess(),
+      )) || {
+        code: "unknown_error",
+        messageKey: "codex-diagnostic-unknown-error",
+      };
+    } catch {
+      diagnostic = {
+        code: "unknown_error",
+        messageKey: "codex-diagnostic-unknown-error",
+      };
+    }
+    if (this.destroyed) {
+      return;
+    }
+    this.updateViewState({
+      codexStatus: "disconnected",
+      codexDiagnostic: diagnostic?.code || "unknown_error",
+    });
+  }
+
+  private getDiagnosticSubprocess(): CodexDiscoverySubprocessModule {
+    if (this.diagnosticSubprocess) {
+      return this.diagnosticSubprocess;
+    }
+    const imported = ChromeUtils.importESModule(
+      "resource://gre/modules/Subprocess.sys.mjs",
+    ) as { Subprocess: CodexDiscoverySubprocessModule };
+    this.diagnosticSubprocess = imported.Subprocess;
+    return this.diagnosticSubprocess;
   }
 
   private selectModel(model: string): void {

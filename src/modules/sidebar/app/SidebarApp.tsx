@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { getString } from "../../../utils/locale";
+import { getCodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import { copyText } from "./clipboard";
 import { Icon, type IconName } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
@@ -280,7 +281,11 @@ export function SidebarApp({
                 />
                 {state.codexStatus === "checking"
                   ? getString("sidebar-codex-status-checking")
-                  : getString("sidebar-codex-status-disconnected")}
+                  : getString(
+                      state.codexDiagnostic
+                        ? getCodexDiagnosticMessageKey(state.codexDiagnostic)
+                        : "sidebar-codex-status-disconnected",
+                    )}
               </span>
             ) : null}
             {state.codexStatus === "connected" ? (
