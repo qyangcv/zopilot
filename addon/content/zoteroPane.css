@@ -60,9 +60,9 @@
   flex: 0 0 auto;
   min-height: 0;
   position: relative;
-  background: Canvas;
+  background: color-mix(in srgb, Canvas 78%, Field 22%);
   color: CanvasText;
-  border-inline-start: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+  border-inline-start: 1px solid color-mix(in srgb, CanvasText 11%, transparent);
 }
 
 #zopilot-sidebar-shell[data-resizing="true"] {
@@ -70,13 +70,17 @@
 }
 
 .zp-sidebar {
-  --zp-border: color-mix(in srgb, CanvasText 14%, transparent);
-  --zp-subtle-border: color-mix(in srgb, CanvasText 9%, transparent);
-  --zp-muted: color-mix(in srgb, CanvasText 58%, Canvas);
-  --zp-muted-strong: color-mix(in srgb, CanvasText 72%, Canvas);
-  --zp-panel: color-mix(in srgb, Canvas 92%, CanvasText 8%);
-  --zp-panel-strong: color-mix(in srgb, Canvas 84%, CanvasText 16%);
-  --zp-popover: color-mix(in srgb, Canvas 98%, CanvasText 2%);
+  --zp-app-bg: color-mix(in srgb, Canvas 78%, Field 22%);
+  --zp-header-bg: color-mix(in srgb, Canvas 72%, Field 28%);
+  --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
+  --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
+  --zp-composer-bg: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+  --zp-bubble: color-mix(in srgb, Canvas 91%, CanvasText 9%);
+  --zp-border: color-mix(in srgb, CanvasText 10%, transparent);
+  --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
+  --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);
+  --zp-muted-strong: color-mix(in srgb, CanvasText 64%, Canvas);
   --zp-accent: var(--accent-blue, AccentColor);
   --zp-accent-text: AccentColorText;
   box-sizing: border-box;
@@ -89,7 +93,7 @@
   font: menu;
   font-size: 13px;
   line-height: 1.42;
-  background: Canvas;
+  background: var(--zp-app-bg);
   color: CanvasText;
   user-select: text;
 }
@@ -115,6 +119,7 @@
   min-height: 42px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--zp-border);
+  background: var(--zp-header-bg);
 }
 
 .zp-sidebar-identity {
@@ -238,7 +243,7 @@
   border-radius: 8px;
   background-color: var(--zp-popover);
   color: CanvasText;
-  box-shadow: 0 8px 22px color-mix(in srgb, CanvasText 18%, transparent);
+  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 10%, transparent);
   font: menu;
   font-size: 13px;
 }
@@ -258,7 +263,7 @@
   border-radius: 8px;
   background-color: var(--zp-popover);
   color: CanvasText;
-  box-shadow: 0 8px 22px color-mix(in srgb, CanvasText 18%, transparent);
+  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 10%, transparent);
   font: menu;
   font-size: 12px;
 }
@@ -397,6 +402,7 @@
   min-height: 0;
   overflow: auto;
   padding: 12px 12px 10px;
+  background: var(--zp-app-bg);
 }
 
 .zp-message {
@@ -597,7 +603,7 @@
   width: 20px;
   height: 20px;
   border: 1px solid var(--zp-subtle-border);
-  background: color-mix(in srgb, Canvas 86%, transparent);
+  background: color-mix(in srgb, Field 82%, transparent);
   opacity: 0.78;
 }
 
@@ -719,7 +725,7 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   border-radius: 8px;
-  background: var(--zp-panel-strong);
+  background: var(--zp-bubble);
   padding: 7px 9px;
   color: CanvasText;
 }
@@ -770,8 +776,8 @@
   margin: 0 10px 10px;
   border: 1px solid var(--zp-border);
   border-radius: 8px;
-  background: var(--zp-panel);
-  box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 10%, transparent);
+  background: var(--zp-composer-bg);
+  box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 5%, transparent);
 }
 
 .zp-context-row {
