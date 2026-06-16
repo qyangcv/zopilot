@@ -4,10 +4,13 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEventHandler,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import { getString } from "../../../utils/locale";
 import { copyText } from "./clipboard";
+import { Icon, type IconName } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
 
@@ -101,7 +104,7 @@ export function SidebarApp({
           title={state.title}
           type="button"
         >
-          <span className="zp-sidebar-icon" />
+          <Icon className="zp-sidebar-icon" name="brand" size={18} />
           <span className="zp-sidebar-title-block">
             <span className="zp-sidebar-title">
               {getString("sidebar-title")}
@@ -123,7 +126,7 @@ export function SidebarApp({
             title={getString("sidebar-history")}
             type="button"
           >
-            <span className="zp-history-icon" />
+            <Icon name="history" />
           </button>
           <button
             aria-label={getString("sidebar-new-chat")}
@@ -136,7 +139,7 @@ export function SidebarApp({
             title={getString("sidebar-new-chat")}
             type="button"
           >
-            <span className="zp-action-icon zp-plus-icon" />
+            <Icon name="newChat" />
           </button>
           <button
             aria-label={getString("sidebar-close")}
@@ -145,7 +148,7 @@ export function SidebarApp({
             title={getString("sidebar-close")}
             type="button"
           >
-            <span className="zp-action-icon zp-close-icon" />
+            <Icon name="close" />
           </button>
         </div>
       </header>
@@ -208,7 +211,7 @@ export function SidebarApp({
             title={getString("sidebar-add-context")}
             type="button"
           >
-            <span className="zp-action-icon zp-plus-icon" />
+            <Icon name="add" size={15} />
           </button>
           <button
             className="zp-context-chip"
@@ -220,7 +223,7 @@ export function SidebarApp({
             title={state.context.label}
             type="button"
           >
-            <span className="zp-context-chip-icon" />
+            <Icon className="zp-context-chip-icon" name="context" size={13} />
             <span className="zp-context-chip-text">{state.context.label}</span>
           </button>
         </div>
@@ -244,21 +247,27 @@ export function SidebarApp({
           <div className="zp-composer-meta">
             {state.codexStatus !== "connected" ? (
               <span className="zp-codex-status" data-status={state.codexStatus}>
+                <Icon
+                  className="zp-status-icon"
+                  name={
+                    state.codexStatus === "checking"
+                      ? "checking"
+                      : "disconnected"
+                  }
+                  size={13}
+                />
                 {state.codexStatus === "checking"
                   ? getString("sidebar-codex-status-checking")
                   : getString("sidebar-codex-status-disconnected")}
               </span>
             ) : null}
-            <select
+            <ComposerSelect
               aria-label={getString("sidebar-model-name")}
-              className="zp-composer-select"
               disabled={!state.models.length}
               onChange={(event) =>
                 actions.selectModel(event.currentTarget.value)
               }
-              style={{
-                inlineSize: getComposerSelectInlineSize(selectedModelLabel),
-              }}
+              inlineSize={getComposerSelectInlineSize(selectedModelLabel)}
               title={getString("sidebar-model-name")}
               value={state.selectedModel}
             >
@@ -267,17 +276,14 @@ export function SidebarApp({
                   {model.displayName}
                 </option>
               ))}
-            </select>
+            </ComposerSelect>
             {state.availableReasoningEfforts.length ? (
-              <select
+              <ComposerSelect
                 aria-label={getString("sidebar-reasoning-depth")}
-                className="zp-composer-select"
                 onChange={(event) =>
                   actions.selectReasoningEffort(event.currentTarget.value)
                 }
-                style={{
-                  inlineSize: getComposerSelectInlineSize(selectedEffortLabel),
-                }}
+                inlineSize={getComposerSelectInlineSize(selectedEffortLabel)}
                 title={getString("sidebar-reasoning-depth")}
                 value={state.selectedReasoningEffort || ""}
               >
@@ -286,7 +292,7 @@ export function SidebarApp({
                     {formatEffortLabel(effort)}
                   </option>
                 ))}
-              </select>
+              </ComposerSelect>
             ) : null}
           </div>
           <button
@@ -307,7 +313,7 @@ export function SidebarApp({
             }
             type={state.busy ? "button" : "submit"}
           >
-            <span className={state.busy ? "zp-stop-icon" : "zp-send-icon"} />
+            <Icon name={state.busy ? "stop" : "send"} size={15} />
           </button>
         </div>
       </form>
@@ -349,7 +355,9 @@ export function Message({
       className={`zp-message zp-message-${message.role}`}
       data-status={message.status}
     >
-      {isAssistant ? <div className="zp-message-avatar" /> : null}
+      {isAssistant ? (
+        <Icon className="zp-message-avatar" name="brand" size={17} />
+      ) : null}
       <div
         className={isAssistant ? "zp-message-stack" : "zp-message-user-stack"}
       >
@@ -475,7 +483,7 @@ function IconAction({
 }: {
   active?: boolean;
   disabled?: boolean;
-  icon: string;
+  icon: IconName;
   label: string;
   onClick: () => void;
 }): ReactElement {
@@ -489,7 +497,7 @@ function IconAction({
       title={label}
       type="button"
     >
-      <span className={`zp-${active ? "check" : icon}-icon`} />
+      <Icon name={active ? "copied" : icon} size={14} />
     </button>
   );
 }
@@ -533,7 +541,7 @@ function SessionPopover({
                 title={getString("sidebar-delete-session")}
                 type="button"
               >
-                <span className="zp-action-icon zp-close-icon" />
+                <Icon name="archive" size={14} />
               </button>
             </div>
           ))}
@@ -576,7 +584,7 @@ function ContextPopover({
           title={getString("sidebar-close")}
           type="button"
         >
-          <span className="zp-close-icon" />
+          <Icon name="close" size={14} />
         </button>
       </div>
       <dl className="zp-context-details">
@@ -602,6 +610,26 @@ function ContextPopover({
         ) : null}
       </dl>
     </div>
+  );
+}
+
+function ComposerSelect({
+  children,
+  inlineSize,
+  ...props
+}: {
+  "aria-label": string;
+  children: ReactNode;
+  disabled?: boolean;
+  inlineSize: string;
+  onChange: ChangeEventHandler<HTMLSelectElement>;
+  title: string;
+  value: string;
+}): ReactElement {
+  return (
+    <select {...props} className="zp-composer-select" style={{ inlineSize }}>
+      {children}
+    </select>
   );
 }
 
@@ -631,7 +659,8 @@ function formatEffortLabel(effort: string): string {
 
 function getComposerSelectInlineSize(label: string): string {
   const characterCount = Array.from(label || "").length;
-  return `${clampNumber(characterCount + 2, 5, 24)}ch`;
+  const labelWidth = clampNumber(characterCount, 4, 22);
+  return `calc(${labelWidth}ch + 12px)`;
 }
 
 function clampNumber(value: number, min: number, max: number): number {

@@ -2,6 +2,7 @@ import { READER_TOOLBAR_BUTTON_ID, STYLE_URI } from "./constants";
 import { getString } from "../../utils/locale";
 import { createLogger } from "../../utils/logger";
 import { getOpenReaders, isPDFReader } from "../../zotero/reader";
+import { createStaticIconElement } from "./app/staticIcons";
 
 export { ReaderToolbarController };
 
@@ -187,9 +188,7 @@ function createReaderToolbarButton(
   button.setAttribute("aria-label", getString("sidebar-toggle-tooltip"));
   button.setAttribute("aria-pressed", String(open));
 
-  const icon = doc.createElement("span");
-  icon.setAttribute("aria-hidden", "true");
-  button.appendChild(icon);
+  button.appendChild(createStaticIconElement(doc, "brand"));
   button.addEventListener("click", onClick);
 
   return button;

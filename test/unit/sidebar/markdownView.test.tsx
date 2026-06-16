@@ -71,6 +71,8 @@ describe("MarkdownView", function () {
     assert.notInclude(html, 'class="zp-code-language"');
     assert.include(html, 'aria-label="Copy code"');
     assert.include(html, 'class="zp-code-copy zp-inline-copy"');
+    assert.include(html, 'data-icon-name="copy"');
+    assert.notInclude(html, "zp-copy-icon");
     assert.include(html, 'class="zp-code-content"');
     assert.include(html, "shiki-themes github-light github-dark");
     assert.include(html, "--shiki-dark");
@@ -185,10 +187,13 @@ describe("MarkdownView", function () {
   });
 
   it("skips raw HTML", function () {
-    const html = renderMarkdown('<script>alert("x")</script><b>raw</b>');
+    const html = renderMarkdown(
+      '<script>alert("x")</script><b>raw</b><svg><path d="M0 0h1v1" /></svg>',
+    );
 
     assert.notInclude(html, "<script>");
     assert.notInclude(html, "<b>raw</b>");
+    assert.notInclude(html, "<svg");
     assert.notInclude(html, "alert");
   });
 

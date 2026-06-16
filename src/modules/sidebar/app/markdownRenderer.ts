@@ -10,6 +10,7 @@ import {
   getCodeLanguage,
   highlightCodeWithShiki,
 } from "./codeHighlighting";
+import { renderStaticIconHtml } from "./staticIcons";
 
 type MarkdownRenderEnv = {
   unsafeLinkStack?: boolean[];
@@ -205,7 +206,9 @@ function renderCodeBlock({
   const copyButton = text
     ? `<button aria-label="Copy code" class="zp-code-copy zp-inline-copy" data-zp-copy-code="${escapeHtml(
         encodeURIComponent(text),
-      )}" title="Copy code" type="button"><span class="zp-copy-icon"></span></button>`
+      )}" title="Copy code" type="button">${renderStaticIconHtml("copy", {
+        className: "zp-icon zp-code-copy-icon",
+      })}</button>`
     : "";
   const content = highlighted
     ? `<div class="zp-code-content">${highlighted}</div>`
@@ -261,17 +264,35 @@ function sanitizeMarkdownHtml(html: string): string {
       annotation: ["encoding"],
       button: ["aria-label", "class", "data-zp-copy-code", "title", "type"],
       input: ["checked", "class", "disabled", "readonly", "type"],
+      circle: ["cx", "cy", "r"],
+      line: ["x1", "x2", "y1", "y2"],
       path: ["d"],
+      rect: ["height", "rx", "ry", "width", "x", "y"],
       span: ["aria-hidden", "class", "style"],
-      svg: ["aria-hidden", "class", "focusable", "height", "viewbox", "width"],
+      svg: [
+        "aria-hidden",
+        "class",
+        "data-icon-name",
+        "fill",
+        "focusable",
+        "height",
+        "stroke",
+        "stroke-linecap",
+        "stroke-linejoin",
+        "stroke-width",
+        "viewbox",
+        "width",
+      ],
     },
     allowedSchemes: ["http", "https", "mailto", "zotero"],
     allowedTags: [
       ...sanitizeHtml.defaults.allowedTags,
       "annotation",
       "button",
+      "circle",
       "del",
       "input",
+      "line",
       "math",
       "menclose",
       "mfrac",
@@ -295,6 +316,7 @@ function sanitizeMarkdownHtml(html: string): string {
       "munder",
       "munderover",
       "path",
+      "rect",
       "semantics",
       "svg",
     ],

@@ -6,6 +6,7 @@ import {
 } from "react";
 import { copyText } from "./clipboard";
 import { isInternalUrl, renderMarkdownToHtml } from "./markdownRenderer";
+import { renderStaticIconHtml } from "./staticIcons";
 
 type MarkdownViewProps = {
   className?: string;
@@ -88,13 +89,17 @@ function decodeCopyPayload(encoded: string | undefined): string {
 }
 
 function showCopiedState(button: Element): void {
-  const icon = button.querySelector("span");
+  const icon = button.querySelector("svg.zp-icon");
   if (!icon) {
     return;
   }
 
-  icon.className = "zp-check-icon";
+  button.innerHTML = renderStaticIconHtml("copied", {
+    className: "zp-icon zp-code-copy-icon",
+  });
   globalThis.setTimeout(() => {
-    icon.className = "zp-copy-icon";
+    button.innerHTML = renderStaticIconHtml("copy", {
+      className: "zp-icon zp-code-copy-icon",
+    });
   }, 900);
 }

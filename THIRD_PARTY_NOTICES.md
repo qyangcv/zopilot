@@ -1,11 +1,11 @@
 # Third-party Notices
 
-## Tabler Icons
+## Lucide Icons
 
-This project includes the `message-circle` icon from Tabler Icons.
+This project includes icons from Lucide.
 
-Tabler Icons is licensed under the MIT License.
+Lucide is licensed under the ISC License.
 
-- Source: https://tabler.io/icons
-- Repository: https://github.com/tabler/tabler-icons
-- License: https://github.com/tabler/tabler-icons/blob/main/LICENSE
+- Source: https://lucide.dev/icons
+- Repository: https://github.com/lucide-icons/lucide
+- License: https://github.com/lucide-icons/lucide/blob/main/LICENSE

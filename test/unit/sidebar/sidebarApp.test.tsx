@@ -36,7 +36,8 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, 'aria-label="zopilot-sidebar-stop"');
-    assert.include(html, 'class="zp-stop-icon"');
+    assert.include(html, 'data-icon-name="stop"');
+    assert.notInclude(html, "zp-stop-icon");
     assert.notInclude(html, "zp-message-footer");
   });
 
@@ -167,6 +168,9 @@ describe("SidebarApp", function () {
     assert.include(html, "zopilot-sidebar-copy-text");
     assert.include(html, "zopilot-sidebar-insert-composer");
     assert.include(html, "zopilot-sidebar-retry-turn");
+    assert.include(html, 'data-icon-name="copy"');
+    assert.include(html, 'data-icon-name="insert"');
+    assert.include(html, 'data-icon-name="retry"');
     assert.include(html, "2026-06-13 15:30");
   });
 
@@ -196,8 +200,11 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.include(html, "inline-size:9ch");
-    assert.include(html, "inline-size:6ch");
+    assert.include(html, "inline-size:calc(7ch + 12px)");
+    assert.include(html, "inline-size:calc(4ch + 12px)");
+    assert.notInclude(html, 'data-icon-name="model"');
+    assert.notInclude(html, 'data-icon-name="reason"');
+    assert.notInclude(html, 'data-icon-name="select"');
   });
 
   it("shows a non-blocking Codex CLI status while checking", function () {
@@ -212,6 +219,7 @@ describe("SidebarApp", function () {
 
     assert.include(html, "zopilot-sidebar-codex-status-checking");
     assert.include(html, 'class="zp-codex-status"');
+    assert.include(html, 'data-icon-name="checking"');
   });
 
   it("hides the Codex CLI status after a successful connection", function () {
@@ -227,6 +235,37 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zopilot-sidebar-codex-status-checking");
     assert.notInclude(html, "zopilot-sidebar-codex-status-disconnected");
     assert.notInclude(html, "zp-codex-status");
+  });
+
+  it("does not render legacy CSS-drawn icon classes", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          codexStatus: "checking",
+          messages: [
+            {
+              id: "complete",
+              role: "assistant",
+              text: "Done",
+              status: "complete",
+              completedAt: "2026-06-13 15:30",
+            },
+          ],
+        })}
+      />,
+    );
+
+    [
+      "zp-action-icon",
+      "zp-check-icon",
+      "zp-close-icon",
+      "zp-copy-icon",
+      "zp-history-icon",
+      "zp-plus-icon",
+      "zp-send-icon",
+      "zp-stop-icon",
+    ].forEach((className) => assert.notInclude(html, className));
   });
 });
 
