@@ -74,6 +74,7 @@
   --zp-header-bg: color-mix(in srgb, Canvas 72%, Field 28%);
   --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
   --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
   --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
   --zp-composer-bg: color-mix(in srgb, Canvas 94%, CanvasText 6%);
   --zp-bubble: color-mix(in srgb, Canvas 91%, CanvasText 9%);
@@ -217,11 +218,14 @@
 }
 
 .zp-icon-button:hover,
-.zp-context-add:hover,
 .zp-context-chip:hover,
 .zp-message-action:hover,
 .zp-inline-copy:hover {
   background: var(--zp-panel-strong);
+}
+
+.zp-context-add:hover {
+  background: var(--zp-composer-control-hover);
 }
 
 .zp-icon-button:disabled,
@@ -918,7 +922,7 @@
 }
 
 .zp-composer-select:hover {
-  background: var(--zp-panel-strong) !important;
+  background: var(--zp-composer-control-hover) !important;
 }
 
 .zp-composer-select:focus-visible {
