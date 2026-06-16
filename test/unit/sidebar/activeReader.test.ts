@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import {
   getSelectedPDFReader,
+  getSelectedPDFReaderAsync,
   getSelectedReader,
   isPDFReader,
 } from "../../../src/zotero/reader.ts";
@@ -9,6 +10,7 @@ type MockReader = {
   itemID?: number;
   tabID: string;
   type: "pdf" | "epub" | "snapshot";
+  _initPromise?: Promise<void>;
 };
 
 type MockWindow = Window & {
@@ -62,6 +64,49 @@ describe("Zotero reader helpers", function () {
 
     assert.strictEqual(getSelectedPDFReader(win), PDF_READER);
   });
+
+  it("waits briefly for the selected PDF reader to appear", async function () {
+    const readers: MockReader[] = [];
+    installZoteroMock(readers);
+    const win = createWindow("reader", "pdf-tab");
+
+    setTimeout(() => readers.push(PDF_READER), 10);
+
+    assert.strictEqual(
+      await getSelectedPDFReaderAsync(win, { timeoutMs: 100, intervalMs: 5 }),
+      PDF_READER,
+    );
+  });
+
+  it("does not return a reader when the selected tab changes while waiting", async function () {
+    let releaseInit: () => void = () => undefined;
+    const slowReader = {
+      ...createReader("pdf-tab", "pdf"),
+      _initPromise: new Promise<void>((resolve) => {
+        releaseInit = resolve;
+      }),
+    };
+    installZoteroMock([slowReader]);
+    const win = createWindow("reader", "pdf-tab");
+    const promise = getSelectedPDFReaderAsync(win, {
+      timeoutMs: 30,
+      intervalMs: 5,
+    });
+
+    win.Zotero_Tabs!.selectedID = "other-tab";
+    releaseInit();
+
+    assert.isUndefined(await promise);
+  });
+
+  it("does not wait for non-PDF selected readers", async function () {
+    installZoteroMock([EPUB_READER]);
+    const win = createWindow("reader", "epub-tab");
+
+    assert.isUndefined(
+      await getSelectedPDFReaderAsync(win, { timeoutMs: 100, intervalMs: 5 }),
+    );
+  });
 });
 
 function installZoteroMock(
@@ -78,7 +123,9 @@ function installZoteroMock(
     _readers: readers,
   };
   if (options.getByTabID !== false) {
-    readerAPI.getByTabID = (tabID) => readerByTabID.get(tabID);
+    readerAPI.getByTabID = (tabID) =>
+      readerByTabID.get(tabID) ||
+      readers.find((reader) => reader.tabID === tabID);
   }
 
   (globalThis as unknown as { Zotero: unknown }).Zotero = {

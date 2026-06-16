@@ -140,20 +140,23 @@ describe("sidebar controller resize", function () {
       }
     ).SidebarController(win as unknown as Window) as Record<string, any>;
     const paper = createPaperIdentity();
-    controller.activePaper = paper;
-    controller.activeConversation = {
-      metadata: {
-        ...paper,
-        id: "conv-1",
-        scope: "paper" as const,
-        label: "总结一下这篇论文",
-        createdAt: "2026-06-16T00:00:00.000Z",
-        updatedAt: "2026-06-16T00:01:00.000Z",
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      reader: createPDFReader(11, "tab-a"),
+      paper,
+      conversation: {
+        metadata: {
+          ...paper,
+          id: "conv-1",
+          scope: "paper" as const,
+          label: "总结一下这篇论文",
+          createdAt: "2026-06-16T00:00:00.000Z",
+          updatedAt: "2026-06-16T00:01:00.000Z",
+        },
+        messages: [],
       },
-      messages: [],
-    };
-
-    controller.refreshContext();
+    });
 
     assert.equal(
       controller.viewState.title,
@@ -170,6 +173,138 @@ describe("sidebar controller resize", function () {
     assert.equal(controller.viewState.context.paperKey, "1:AAA");
     assert.equal(controller.viewState.context.parentItemKey, "AAA");
     assert.equal(controller.viewState.context.attachmentKey, "PDF");
+  });
+
+  it("keeps background streaming turns from repainting after switching papers", function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paperA = createPaperIdentity();
+    const paperB = {
+      ...paperA,
+      paperKey: "1:BBB",
+      parentItemID: 20,
+      parentItemKey: "BBB",
+      attachmentItemID: 21,
+      attachmentKey: "PDF-B",
+      title: "Paper B",
+    };
+    const conversationA = createConversation(paperA, "conv-a", "Question A");
+    const conversationB = createConversation(paperB, "conv-b", "Question B");
+    const runningTurn = {
+      conversation: conversationA,
+      assistantOutput: "partial A",
+      interrupting: false,
+      interrupted: false,
+    };
+    controller.open = true;
+    controller.runningTurns.set("conv-a", runningTurn);
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      reader: createPDFReader(11, "tab-a"),
+      paper: paperA,
+      conversation: conversationA,
+    });
+
+    controller.setDisplayState({
+      kind: "loading",
+      token: 2,
+      reader: createPDFReader(21, "tab-b"),
+      label: "Paper B",
+    });
+    runningTurn.assistantOutput = "partial A + delta";
+    controller.refreshRunningTurnView(runningTurn);
+
+    assert.equal(controller.viewState.title, "Paper B");
+    assert.deepEqual(
+      controller.viewState.messages.map((item: any) => item.text),
+      ["zopilot-sidebar-loading-conversation"],
+    );
+
+    controller.setDisplayState({
+      kind: "ready",
+      token: 2,
+      reader: createPDFReader(21, "tab-b"),
+      paper: paperB,
+      conversation: conversationB,
+    });
+    runningTurn.assistantOutput = "partial A + later delta";
+    controller.refreshRunningTurnView(runningTurn);
+
+    assert.equal(controller.viewState.title, "Paper B / Question B");
+    assert.deepEqual(
+      controller.viewState.messages.map((item: any) => item.text),
+      ["Question B"],
+    );
+
+    controller.setDisplayState({
+      kind: "ready",
+      token: 3,
+      reader: createPDFReader(11, "tab-a"),
+      paper: paperA,
+      conversation: conversationA,
+    });
+
+    assert.equal(
+      controller.viewState.title,
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning / Question A",
+    );
+    assert.deepEqual(
+      controller.viewState.messages.map((item: any) => item.text),
+      ["Question A", "partial A + later delta"],
+    );
+  });
+
+  it("rejects stale conversation loads after a faster paper switch", async function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    controller.open = true;
+
+    controller.setDisplayState({
+      kind: "loading",
+      token: 1,
+      reader: createPDFReader(11, "tab-a"),
+      label: "Paper A",
+    });
+    controller.selectionToken = 2;
+    controller.setDisplayState({
+      kind: "ready",
+      token: 2,
+      reader: createPDFReader(21, "tab-b"),
+      paper: {
+        ...createPaperIdentity(),
+        paperKey: "1:BBB",
+        parentItemID: 20,
+        parentItemKey: "BBB",
+        attachmentItemID: 21,
+        attachmentKey: "PDF-B",
+        title: "Paper B",
+      },
+      conversation: createConversation(
+        {
+          ...createPaperIdentity(),
+          paperKey: "1:BBB",
+          parentItemID: 20,
+          parentItemKey: "BBB",
+          attachmentItemID: 21,
+          attachmentKey: "PDF-B",
+          title: "Paper B",
+        },
+        "conv-b",
+        "Question B",
+      ),
+    });
+
+    assert.isFalse(controller.canCommitSelection(1));
+    assert.equal(controller.viewState.title, "Paper B / Question B");
   });
 });
 
@@ -268,6 +403,41 @@ function createPaperIdentity() {
     attachmentItemID: 11,
     attachmentKey: "PDF",
     title: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+  };
+}
+
+function createPDFReader(itemID: number, tabID: string) {
+  return {
+    itemID,
+    tabID,
+    type: "pdf" as const,
+  };
+}
+
+function createConversation(
+  paper: ReturnType<typeof createPaperIdentity>,
+  id: string,
+  label: string,
+) {
+  return {
+    metadata: {
+      ...paper,
+      id,
+      scope: "paper" as const,
+      label,
+      createdAt: "2026-06-16T00:00:00.000Z",
+      updatedAt: "2026-06-16T00:01:00.000Z",
+    },
+    messages: [
+      {
+        id: `${id}-user`,
+        conversationId: id,
+        role: "user" as const,
+        text: label,
+        createdAt: "2026-06-16T00:00:01.000Z",
+        status: "complete" as const,
+      },
+    ],
   };
 }
 

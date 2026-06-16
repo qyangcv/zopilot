@@ -7,11 +7,14 @@ import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
 import { createLogger } from "../../utils/logger";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
-import { getSelectedPDFReader, isPDFReader } from "../../zotero/reader";
+import {
+  getSelectedPDFReader,
+  getSelectedPDFReaderAsync,
+  isPDFReader,
+} from "../../zotero/reader";
 import { copyText } from "./app/clipboard";
 import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
-  SidebarContextView,
   SidebarModelView,
   SidebarSessionMode,
   SidebarState,
@@ -53,6 +56,30 @@ type RunningTurn = {
   interrupted: boolean;
 };
 
+type DisplayState =
+  | { kind: "closed"; token: number }
+  | { kind: "no-reader"; token: number; label: string }
+  | {
+      kind: "loading";
+      token: number;
+      reader: _ZoteroTypes.ReaderInstance<"pdf">;
+      label: string;
+    }
+  | {
+      kind: "ready";
+      token: number;
+      reader: _ZoteroTypes.ReaderInstance<"pdf">;
+      paper: PaperIdentity;
+      conversation: Conversation;
+    }
+  | {
+      kind: "error";
+      token: number;
+      reader?: _ZoteroTypes.ReaderInstance<"pdf">;
+      label: string;
+      message: string;
+    };
+
 function registerSidebar(win: _ZoteroTypes.MainWindow): void {
   const existing = controllers.get(win);
   if (existing) {
@@ -85,13 +112,11 @@ class SidebarController {
   private reactHost?: SidebarReactHost;
   private reactHostLoading = false;
   private appMount?: HTMLElement;
-  private activeReader?: _ZoteroTypes.ReaderInstance;
-  private activePaper?: PaperIdentity;
-  private activeConversation?: Conversation;
   private open = false;
   private destroyed = false;
   private modelLoadPromise?: Promise<void>;
-  private contextLoadId = 0;
+  private selectionToken = 0;
+  private displayState: DisplayState = { kind: "closed", token: 0 };
   private viewState: SidebarState;
   private readonly readerToolbar: ReaderToolbarController;
   private readonly runningTurns = new Map<string, RunningTurn>();
@@ -133,13 +158,17 @@ class SidebarController {
   }
 
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
-    const activeReader = reader || this.activeReader;
-    const title = this.getDisplayTitle(activeReader);
-    this.updateViewState({
-      title,
-      context: this.getContextView(activeReader),
-    });
-    this.updateSessionControls();
+    if (this.open) {
+      if (isPDFReader(reader)) {
+        const token = ++this.selectionToken;
+        void this.loadReaderConversation(reader, token);
+      } else {
+        void this.syncWithSelectedPDFReader();
+      }
+      return;
+    }
+    this.displayState = { kind: "closed", token: this.selectionToken };
+    this.renderDisplayState();
   }
 
   private injectStylesheet(): void {
@@ -163,17 +192,23 @@ class SidebarController {
   }
 
   private openZopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
-    const pdfReader = isPDFReader(reader)
-      ? reader
-      : getSelectedPDFReader(this.win);
-    if (!pdfReader) {
-      this.setOpen(false);
+    const token = ++this.selectionToken;
+    this.setOpen(true);
+    if (isPDFReader(reader)) {
+      void this.loadReaderConversation(reader, token);
       return;
     }
-
-    this.activeReader = pdfReader;
-    this.setOpen(true);
-    void this.loadActiveConversation(pdfReader);
+    const selectedReader = getSelectedPDFReader(this.win);
+    if (selectedReader) {
+      void this.loadReaderConversation(selectedReader, token);
+      return;
+    }
+    this.setDisplayState({
+      kind: "no-reader",
+      token,
+      label: getSelectedItemTitle(this.win),
+    });
+    void this.loadSelectedReader(token);
   }
 
   private queueCodexStatusCheck(): void {
@@ -184,57 +219,79 @@ class SidebarController {
     }, 0);
   }
 
-  private async loadActiveConversation(
-    reader?: _ZoteroTypes.ReaderInstance,
+  private async loadSelectedReader(token: number): Promise<void> {
+    const reader = await getSelectedPDFReaderAsync(this.win);
+    if (!this.canCommitSelection(token)) {
+      return;
+    }
+    if (!reader) {
+      this.setOpen(false);
+      return;
+    }
+    await this.loadReaderConversation(reader, token);
+  }
+
+  private async loadReaderConversation(
+    reader: _ZoteroTypes.ReaderInstance<"pdf">,
+    token: number,
   ): Promise<void> {
-    if (!this.open || this.destroyed) {
+    if (!this.canCommitSelection(token)) {
       return;
     }
 
-    const loadId = ++this.contextLoadId;
-    this.renderStatusMessage(getString("sidebar-loading-conversation"));
+    this.attachPanel();
+    this.setDisplayState({
+      kind: "loading",
+      token,
+      reader,
+      label: getSelectedItemTitle(this.win, reader),
+    });
 
     const gateway = new ZoteroContextGateway(this.win);
-    const scope = await gateway.getActivePaper(reader || this.activeReader);
-    if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
+    const scope = await gateway.getActivePaper(reader);
+    if (!this.canCommitSelection(token)) {
       return;
     }
     const paper = scope ? createPaperIdentity(scope) : null;
     if (!paper) {
-      this.activePaper = undefined;
-      this.activeConversation = undefined;
-      this.hideSessionPopover();
-      this.refreshContext(reader);
-      this.renderStatusMessage(getString("sidebar-unavailable-message"));
-      this.updateViewState({ composerEnabled: false });
+      this.setDisplayState({
+        kind: "error",
+        token,
+        reader,
+        label: getSelectedItemTitle(this.win, reader),
+        message: getString("sidebar-unavailable-message"),
+      });
       return;
     }
 
     try {
       const conversation =
         await getConversationStore().getOrCreateLatestPaperConversation(paper);
-      if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
+      if (!this.canCommitSelection(token)) {
         return;
       }
-      this.activePaper = paper;
-      this.activeConversation = conversation;
-      this.hideSessionPopover();
-      this.refreshContext(reader);
-      this.renderConversation(conversation);
+      this.setDisplayState({
+        kind: "ready",
+        token,
+        reader,
+        paper,
+        conversation,
+      });
     } catch (error) {
-      if (loadId !== this.contextLoadId || this.destroyed || !this.open) {
+      if (!this.canCommitSelection(token)) {
         return;
       }
       logger.error("failed to load active conversation", error, {
         paperKey: paper.paperKey,
         attachmentKey: paper.attachmentKey,
       });
-      this.activePaper = undefined;
-      this.activeConversation = undefined;
-      this.hideSessionPopover();
-      this.refreshContext(reader);
-      this.renderStatusMessage(formatCodexError(error));
-      this.updateViewState({ composerEnabled: false });
+      this.setDisplayState({
+        kind: "error",
+        token,
+        reader,
+        label: paper.title,
+        message: formatCodexError(error),
+      });
     }
   }
 
@@ -411,7 +468,8 @@ class SidebarController {
   private async toggleSessionPopover(
     mode: SidebarSessionMode = "history",
   ): Promise<void> {
-    if (!this.activePaper) {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
     if (this.viewState.sessionsOpen && this.viewState.sessionsMode === mode) {
@@ -424,10 +482,11 @@ class SidebarController {
   private async showSessionPopover(
     mode: SidebarSessionMode = this.viewState.sessionsMode,
   ): Promise<void> {
-    if (!this.activePaper) {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
-    const paperKey = this.activePaper.paperKey;
+    const paperKey = ready.paper.paperKey;
     let conversations: Conversation[];
     try {
       conversations =
@@ -446,13 +505,16 @@ class SidebarController {
     if (
       this.destroyed ||
       !this.open ||
-      this.activePaper?.paperKey !== paperKey
+      this.getReadyDisplayState()?.paper.paperKey !== paperKey
     ) {
       return;
     }
     this.updateViewState({
       sessions: conversations.map((conversation) =>
-        createSessionView(conversation, this.activeConversation?.metadata.id),
+        createSessionView(
+          conversation,
+          this.getReadyDisplayState()?.conversation.metadata.id,
+        ),
       ),
       sessionsOpen: true,
       sessionsMode: mode,
@@ -467,30 +529,30 @@ class SidebarController {
   }
 
   private async createNewSession(): Promise<void> {
-    if (!this.activePaper) {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
+    const paper = ready.paper;
     let conversation: Conversation;
     try {
-      conversation = await getConversationStore().createPaperConversation(
-        this.activePaper,
-      );
+      conversation =
+        await getConversationStore().createPaperConversation(paper);
     } catch (error) {
       logger.error("failed to create paper conversation", error, {
-        paperKey: this.activePaper.paperKey,
-        attachmentKey: this.activePaper.attachmentKey,
+        paperKey: paper.paperKey,
+        attachmentKey: paper.attachmentKey,
       });
       return;
     }
-    this.activeConversation = conversation;
+    this.setReadyConversation(conversation);
     this.hideSessionPopover();
-    this.refreshContext();
-    this.renderConversation(conversation);
     this.focusComposer();
   }
 
   private async switchSession(conversation: Conversation): Promise<void> {
-    if (!this.activePaper) {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
     let active: Conversation;
@@ -508,22 +570,21 @@ class SidebarController {
     if (
       this.destroyed ||
       !this.open ||
-      this.activePaper.paperKey !== active.metadata.paperKey
+      this.getReadyDisplayState()?.paper.paperKey !== active.metadata.paperKey
     ) {
       return;
     }
-    this.activeConversation = active;
+    this.setReadyConversation(active);
     this.hideSessionPopover();
-    this.refreshContext();
-    this.renderConversation(active);
     this.focusComposer();
   }
 
   private async archiveSession(conversation: Conversation): Promise<void> {
-    if (!this.activePaper) {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
-    const paper = this.activePaper;
+    const paper = ready.paper;
     const running = this.runningTurns.get(conversation.metadata.id);
     if (running) {
       this.interruptRunningTurn(running);
@@ -542,12 +603,15 @@ class SidebarController {
     if (
       this.destroyed ||
       !this.open ||
-      this.activePaper?.paperKey !== paper.paperKey
+      this.getReadyDisplayState()?.paper.paperKey !== paper.paperKey
     ) {
       return;
     }
 
-    if (this.activeConversation?.metadata.id === conversation.metadata.id) {
+    if (
+      this.getReadyDisplayState()?.conversation.metadata.id ===
+      conversation.metadata.id
+    ) {
       let next: Conversation;
       try {
         next =
@@ -561,19 +625,18 @@ class SidebarController {
         });
         return;
       }
-      this.activeConversation = next;
-      this.refreshContext();
-      this.renderConversation(next);
+      this.setReadyConversation(next);
     }
 
     await this.showSessionPopover();
   }
 
   private async restoreSession(conversation: Conversation): Promise<void> {
-    if (!this.activePaper) {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
-    const paper = this.activePaper;
+    const paper = ready.paper;
     let restoredMetadata: Conversation["metadata"];
     try {
       restoredMetadata = await getConversationStore().restorePaperConversation(
@@ -589,17 +652,17 @@ class SidebarController {
     if (
       this.destroyed ||
       !this.open ||
-      this.activePaper?.paperKey !== paper.paperKey
+      this.getReadyDisplayState()?.paper.paperKey !== paper.paperKey
     ) {
       return;
     }
 
-    if (this.activeConversation?.metadata.id === conversation.metadata.id) {
-      this.activeConversation = {
-        ...this.activeConversation,
+    const current = this.getReadyDisplayState();
+    if (current?.conversation.metadata.id === conversation.metadata.id) {
+      this.setReadyConversation({
+        ...current.conversation,
         metadata: restoredMetadata,
-      };
-      this.renderConversation(this.activeConversation);
+      });
     }
 
     await this.showSessionPopover("archive");
@@ -611,16 +674,11 @@ class SidebarController {
       return;
     }
 
-    let conversation = this.activeConversation;
-    if (!conversation) {
-      await this.loadActiveConversation(this.activeReader);
-      conversation = this.activeConversation;
-    }
-    if (!conversation) {
-      this.renderStatusMessage(getString("sidebar-unavailable-message"));
-      this.updateViewState({ composerEnabled: false });
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
       return;
     }
+    let conversation = ready.conversation;
     if (this.runningTurns.has(conversation.metadata.id)) {
       return;
     }
@@ -632,7 +690,7 @@ class SidebarController {
         text: promptText,
       },
     );
-    this.activeConversation = conversation;
+    this.setReadyConversation(conversation);
     const runningTurn: RunningTurn = {
       conversation,
       assistantOutput: "",
@@ -642,8 +700,7 @@ class SidebarController {
       interrupted: false,
     };
     this.runningTurns.set(conversation.metadata.id, runningTurn);
-    this.renderConversation(conversation);
-    this.refreshContext();
+    this.renderDisplayState();
 
     try {
       const bridge = getCodexBridge();
@@ -742,12 +799,12 @@ class SidebarController {
 
   private refreshRunningTurnView(runningTurn: RunningTurn): void {
     if (
-      this.activeConversation?.metadata.id !==
+      this.getReadyDisplayState()?.conversation.metadata.id !==
       runningTurn.conversation.metadata.id
     ) {
       return;
     }
-    this.renderConversation(runningTurn.conversation);
+    this.renderDisplayState();
   }
 
   private finishRunningTurn(
@@ -756,9 +813,10 @@ class SidebarController {
   ): void {
     const conversationId = runningTurn.conversation.metadata.id;
     this.runningTurns.delete(conversationId);
-    if (this.activeConversation?.metadata.id === conversationId) {
-      this.activeConversation = conversation;
-      this.renderConversation(conversation);
+    if (
+      this.getReadyDisplayState()?.conversation.metadata.id === conversationId
+    ) {
+      this.setReadyConversation(conversation);
     }
     if (this.viewState.sessionsOpen) {
       void this.showSessionPopover();
@@ -766,7 +824,8 @@ class SidebarController {
   }
 
   private interruptActiveTurn(): void {
-    const conversationId = this.activeConversation?.metadata.id;
+    const conversationId =
+      this.getReadyDisplayState()?.conversation.metadata.id;
     const runningTurn = conversationId
       ? this.runningTurns.get(conversationId)
       : undefined;
@@ -905,7 +964,8 @@ class SidebarController {
   }
 
   private updateRunningState(): void {
-    const conversationId = this.activeConversation?.metadata.id;
+    const conversationId =
+      this.getReadyDisplayState()?.conversation.metadata.id;
     const runningTurn = conversationId
       ? this.runningTurns.get(conversationId)
       : undefined;
@@ -914,32 +974,99 @@ class SidebarController {
     });
   }
 
-  private renderConversation(conversation: Conversation): void {
-    const runningTurn = this.runningTurns.get(conversation.metadata.id);
-    this.updateViewState({
-      composerEnabled: true,
-      messages: createConversationMessages(
-        conversation,
-        runningTurn
-          ? {
-              text: runningTurn.assistantOutput,
-              interrupted: runningTurn.interrupted,
-              running: !runningTurn.interrupted,
-            }
-          : undefined,
-      ),
-      busy: Boolean(runningTurn),
-    });
+  private updateSessionControls(): void {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
+      this.hideSessionPopover();
+    } else if (this.viewState.sessionsOpen) {
+      this.updateViewState({
+        sessions: this.viewState.sessions.map((session) =>
+          createSessionView(
+            session.conversation,
+            ready.conversation.metadata.id,
+          ),
+        ),
+      });
+    }
   }
 
-  private renderStatusMessage(markdown: string): void {
+  private getReadyDisplayState():
+    | Extract<DisplayState, { kind: "ready" }>
+    | undefined {
+    return this.displayState.kind === "ready" ? this.displayState : undefined;
+  }
+
+  private setReadyConversation(conversation: Conversation): void {
+    const ready = this.getReadyDisplayState();
+    if (!ready || ready.paper.paperKey !== conversation.metadata.paperKey) {
+      return;
+    }
+    this.setDisplayState({ ...ready, conversation });
+  }
+
+  private setDisplayState(displayState: DisplayState): void {
+    this.displayState = displayState;
+    this.renderDisplayState();
+    this.readerToolbar.refresh();
+  }
+
+  private renderDisplayState(): void {
+    const state = this.displayState;
+    if (state.kind === "ready") {
+      const runningTurn = this.runningTurns.get(state.conversation.metadata.id);
+      this.updateViewState({
+        title: `${state.conversation.metadata.title} / ${state.conversation.metadata.label}`,
+        context: {
+          label: state.paper.title,
+          paperTitle: state.paper.title,
+          paperKey: state.paper.paperKey,
+          parentItemKey: state.paper.parentItemKey,
+          attachmentKey: state.paper.attachmentKey,
+        },
+        composerEnabled: true,
+        messages: createConversationMessages(
+          state.conversation,
+          runningTurn
+            ? {
+                text: runningTurn.assistantOutput,
+                interrupted: runningTurn.interrupted,
+                running: !runningTurn.interrupted,
+              }
+            : undefined,
+        ),
+        busy: Boolean(runningTurn),
+        sessions: this.viewState.sessions.map((session) =>
+          createSessionView(
+            session.conversation,
+            state.conversation.metadata.id,
+          ),
+        ),
+      });
+      return;
+    }
+
+    const label =
+      state.kind === "closed"
+        ? getSelectedItemTitle(this.win, getSelectedPDFReader(this.win))
+        : state.label;
+    const message =
+      state.kind === "loading"
+        ? getString("sidebar-loading-conversation")
+        : state.kind === "error"
+          ? state.message
+          : getString("sidebar-unavailable-message");
     this.updateViewState({
+      title: label,
+      context: { label },
+      composerEnabled: false,
       busy: false,
+      sessionsOpen: false,
+      sessions: [],
       messages: [
         {
-          id: `zp-status-${this.contextLoadId}`,
+          id: `zp-status-${state.token}`,
           role: "assistant",
-          text: markdown,
+          text: message,
           status: "complete",
           transient: true,
         },
@@ -947,19 +1074,8 @@ class SidebarController {
     });
   }
 
-  private updateSessionControls(): void {
-    if (!this.activePaper) {
-      this.hideSessionPopover();
-    } else if (this.viewState.sessionsOpen) {
-      this.updateViewState({
-        sessions: this.viewState.sessions.map((session) =>
-          createSessionView(
-            session.conversation,
-            this.activeConversation?.metadata.id,
-          ),
-        ),
-      });
-    }
+  private canCommitSelection(token: number): boolean {
+    return !this.destroyed && this.open && token === this.selectionToken;
   }
 
   private toggle(reader?: _ZoteroTypes.ReaderInstance): void {
@@ -980,15 +1096,14 @@ class SidebarController {
     if (open) {
       this.attachPanel();
     } else {
-      this.activeReader = undefined;
-      this.activePaper = undefined;
-      this.activeConversation = undefined;
+      this.selectionToken++;
+      this.displayState = { kind: "closed", token: this.selectionToken };
       this.hideSessionPopover();
       this.updateViewState({ busy: false, composerEnabled: false });
       this.shell?.remove();
     }
     this.readerToolbar.refresh();
-    this.refreshContext();
+    this.renderDisplayState();
     this.win.requestAnimationFrame(() => {
       this.win.dispatchEvent(new this.win.Event("resize"));
     });
@@ -1020,14 +1135,20 @@ class SidebarController {
   }
 
   private isCurrentReader(reader: _ZoteroTypes.ReaderInstance): boolean {
-    if (this.activeReader?.itemID === reader.itemID) {
+    const state = this.displayState;
+    if (
+      (state.kind === "loading" ||
+        state.kind === "ready" ||
+        state.kind === "error") &&
+      state.reader?.itemID === reader.itemID
+    ) {
       return true;
     }
-    const attachmentKey = this.activePaper?.attachmentKey;
-    if (!attachmentKey || reader.itemID === undefined) {
-      return false;
-    }
-    return Zotero.Items.get(reader.itemID)?.key === attachmentKey;
+    return (
+      state.kind === "ready" &&
+      reader.itemID !== undefined &&
+      Zotero.Items.get(reader.itemID)?.key === state.paper.attachmentKey
+    );
   }
 
   private bindContextRefresh(): void {
@@ -1090,24 +1211,35 @@ class SidebarController {
     }
   }
 
-  private syncWithSelectedPDFReader(): void {
+  private async syncWithSelectedPDFReader(): Promise<void> {
+    const token = ++this.selectionToken;
     const selectedReader = getSelectedPDFReader(this.win);
     if (!selectedReader) {
       if (this.open) {
-        this.setOpen(false);
+        await this.loadSelectedReader(token);
       } else {
-        this.activeReader = undefined;
-        this.refreshContext();
+        this.setDisplayState({
+          kind: "no-reader",
+          token,
+          label: getSelectedItemTitle(this.win),
+        });
         this.readerToolbar.refresh();
       }
       return;
     }
 
-    this.activeReader = selectedReader;
     if (this.open) {
-      void this.loadActiveConversation(selectedReader);
+      if (
+        this.isCurrentReader(selectedReader) &&
+        this.displayState.kind === "ready"
+      ) {
+        this.readerToolbar.refresh();
+        return;
+      }
+      await this.loadReaderConversation(selectedReader, token);
     } else {
-      this.refreshContext(selectedReader);
+      this.displayState = { kind: "closed", token };
+      this.renderDisplayState();
     }
     this.readerToolbar.refresh();
   }
@@ -1142,28 +1274,6 @@ class SidebarController {
     this.listeners.push(() =>
       this.doc.removeEventListener("copy", copySelection, true),
     );
-  }
-
-  private getDisplayTitle(reader?: _ZoteroTypes.ReaderInstance): string {
-    if (this.activeConversation) {
-      return `${this.activeConversation.metadata.title} / ${this.activeConversation.metadata.label}`;
-    }
-    return getSelectedItemTitle(this.win, reader);
-  }
-
-  private getContextView(
-    reader?: _ZoteroTypes.ReaderInstance,
-  ): SidebarContextView {
-    if (!this.activePaper) {
-      return { label: getSelectedItemTitle(this.win, reader) };
-    }
-    return {
-      label: this.activePaper.title,
-      paperTitle: this.activePaper.title,
-      paperKey: this.activePaper.paperKey,
-      parentItemKey: this.activePaper.parentItemKey,
-      attachmentKey: this.activePaper.attachmentKey,
-    };
   }
 
   private updateViewState(patch: Partial<SidebarState>): void {
