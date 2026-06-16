@@ -104,7 +104,6 @@ export function SidebarApp({
           title={state.title}
           type="button"
         >
-          <Icon className="zp-sidebar-icon" name="brand" size={18} />
           <span className="zp-sidebar-title-block">
             <span className="zp-sidebar-title">
               {getString("sidebar-title")}

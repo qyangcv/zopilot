@@ -132,10 +132,11 @@ class SidebarController {
   }
 
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
-    const title = this.getDisplayTitle(reader || this.activeReader);
+    const activeReader = reader || this.activeReader;
+    const title = this.getDisplayTitle(activeReader);
     this.updateViewState({
       title,
-      context: this.getContextView(title),
+      context: this.getContextView(activeReader),
     });
     this.updateSessionControls();
   }
@@ -1103,12 +1104,14 @@ class SidebarController {
     return getSelectedItemTitle(this.win, reader);
   }
 
-  private getContextView(label: string): SidebarContextView {
+  private getContextView(
+    reader?: _ZoteroTypes.ReaderInstance,
+  ): SidebarContextView {
     if (!this.activePaper) {
-      return { label };
+      return { label: getSelectedItemTitle(this.win, reader) };
     }
     return {
-      label,
+      label: this.activePaper.title,
       paperTitle: this.activePaper.title,
       paperKey: this.activePaper.paperKey,
       parentItemKey: this.activePaper.parentItemKey,

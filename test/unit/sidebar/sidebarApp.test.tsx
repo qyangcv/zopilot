@@ -174,16 +174,18 @@ describe("SidebarApp", function () {
     assert.include(html, "2026-06-13 15:30");
   });
 
-  it("uses only the paper title for the context chip tooltip", function () {
+  it("uses only the paper title for the context chip text and tooltip", function () {
+    const paperTitle =
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning";
+    const sessionTitle = `${paperTitle} / 总结一下这篇论文`;
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
+          title: sessionTitle,
           context: {
-            label:
-              "DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文",
-            paperTitle:
-              "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+            label: paperTitle,
+            paperTitle,
             paperKey: "1:AAA",
           },
         })}
@@ -192,12 +194,19 @@ describe("SidebarApp", function () {
 
     assert.include(
       html,
-      'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning"',
+      'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
     );
-    assert.include(html, " / 总结一下这篇论文");
+    assert.include(
+      html,
+      '<button class="zp-context-chip" title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning" type="button"',
+    );
+    assert.include(
+      html,
+      '<span class="zp-context-chip-text">DeepSeekMath: Pushing the Limits of Mathematical Reasoning</span>',
+    );
     assert.notInclude(
       html,
-      'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
+      '<button class="zp-context-chip" title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
     );
   });
 

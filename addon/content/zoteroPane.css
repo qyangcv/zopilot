@@ -143,12 +143,6 @@
   stroke: currentColor;
 }
 
-.zp-sidebar-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--zp-accent);
-}
-
 .zp-sidebar-title-block {
   display: flex;
   flex-direction: column;

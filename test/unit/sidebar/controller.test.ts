@@ -131,6 +131,46 @@ describe("sidebar controller resize", function () {
       "",
     );
   });
+
+  it("keeps the active paper title as the context label after the conversation label changes", function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paper = createPaperIdentity();
+    controller.activePaper = paper;
+    controller.activeConversation = {
+      metadata: {
+        ...paper,
+        id: "conv-1",
+        scope: "paper" as const,
+        label: "总结一下这篇论文",
+        createdAt: "2026-06-16T00:00:00.000Z",
+        updatedAt: "2026-06-16T00:01:00.000Z",
+      },
+      messages: [],
+    };
+
+    controller.refreshContext();
+
+    assert.equal(
+      controller.viewState.title,
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文",
+    );
+    assert.equal(
+      controller.viewState.context.label,
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+    );
+    assert.equal(
+      controller.viewState.context.paperTitle,
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+    );
+    assert.equal(controller.viewState.context.paperKey, "1:AAA");
+    assert.equal(controller.viewState.context.parentItemKey, "AAA");
+    assert.equal(controller.viewState.context.attachmentKey, "PDF");
+  });
 });
 
 type PrefWrite = {
@@ -217,6 +257,18 @@ function createSelectionWindow(options: {
       };
     },
   } as unknown as Window;
+}
+
+function createPaperIdentity() {
+  return {
+    paperKey: "1:AAA",
+    libraryID: 1,
+    parentItemID: 10,
+    parentItemKey: "AAA",
+    attachmentItemID: 11,
+    attachmentKey: "PDF",
+    title: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+  };
 }
 
 class FakeWindow {
