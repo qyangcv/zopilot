@@ -783,14 +783,14 @@
 .zp-context-row {
   display: flex;
   align-items: center;
-  gap: 6px;
   min-height: 28px;
   padding: 6px 8px 0;
 }
 
 .zp-context-add {
-  width: 22px;
-  height: 22px;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
   color: var(--zp-muted-strong);
   font-size: 18px;
   line-height: 1;
@@ -863,7 +863,7 @@
 .zp-composer-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   overflow: hidden;
 }

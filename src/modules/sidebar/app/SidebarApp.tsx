@@ -201,19 +201,6 @@ export function SidebarApp({
       >
         <div className="zp-context-row">
           <button
-            aria-label={getString("sidebar-add-context")}
-            className="zp-context-add"
-            disabled={!state.context.paperKey}
-            onClick={(event) => {
-              event.stopPropagation();
-              setContextOpen((open) => !open);
-            }}
-            title={getString("sidebar-add-context")}
-            type="button"
-          >
-            <Icon name="add" size={15} />
-          </button>
-          <button
             className="zp-context-chip"
             disabled={!state.context.paperKey}
             onClick={(event) => {
@@ -245,6 +232,19 @@ export function SidebarApp({
         />
         <div className="zp-composer-footer">
           <div className="zp-composer-meta">
+            <button
+              aria-label={getString("sidebar-add-context")}
+              className="zp-context-add"
+              disabled={!state.context.paperKey}
+              onClick={(event) => {
+                event.stopPropagation();
+                setContextOpen((open) => !open);
+              }}
+              title={getString("sidebar-add-context")}
+              type="button"
+            >
+              <Icon name="add" size={15} />
+            </button>
             {state.codexStatus !== "connected" ? (
               <span className="zp-codex-status" data-status={state.codexStatus}>
                 <Icon
