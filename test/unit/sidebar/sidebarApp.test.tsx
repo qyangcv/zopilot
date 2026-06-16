@@ -232,10 +232,12 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, 'aria-label="zopilot-sidebar-archived-sessions"');
-    assert.include(html, 'data-icon-name="archive"');
+    assert.include(html, 'aria-label="zopilot-sidebar-restore-session"');
+    assert.include(html, 'class="zp-session-action zp-session-restore"');
+    assert.include(html, 'data-icon-name="archiveRestore"');
     assert.include(html, "zopilot-sidebar-archived-sessions");
     assert.include(html, "Archived question");
-    assert.notInclude(html, 'class="zp-session-archive"');
+    assert.notInclude(html, "zopilot-sidebar-delete-session");
   });
 
   it("uses a distinct empty state for archived sessions", function () {
@@ -395,6 +397,7 @@ function createActions(): SidebarActions {
     selectReasoningEffort: () => undefined,
     startResize: () => undefined,
     submitPrompt: () => undefined,
+    restoreSession: () => undefined,
     switchSession: () => undefined,
     toggleArchivedSessions: () => undefined,
     toggleSessions: () => undefined,

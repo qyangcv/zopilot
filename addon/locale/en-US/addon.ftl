@@ -8,6 +8,7 @@ sidebar-new-chat = New chat
 sidebar-no-sessions = No sessions yet
 sidebar-no-archived-sessions = No archived sessions
 sidebar-delete-session = Archive session
+sidebar-restore-session = Unarchive session
 sidebar-add-context = Add context
 sidebar-input-placeholder = Ask about the selected item
 sidebar-send = Send

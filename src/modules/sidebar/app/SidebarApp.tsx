@@ -568,7 +568,7 @@ function SessionPopover({
               {archived ? null : (
                 <button
                   aria-label={getString("sidebar-delete-session")}
-                  className="zp-session-archive"
+                  className="zp-session-action zp-session-archive"
                   onClick={() => actions.archiveSession(session.conversation)}
                   title={getString("sidebar-delete-session")}
                   type="button"
@@ -576,6 +576,17 @@ function SessionPopover({
                   <Icon name="archive" size={14} />
                 </button>
               )}
+              {archived ? (
+                <button
+                  aria-label={getString("sidebar-restore-session")}
+                  className="zp-session-action zp-session-restore"
+                  onClick={() => actions.restoreSession(session.conversation)}
+                  title={getString("sidebar-restore-session")}
+                  type="button"
+                >
+                  <Icon name="archiveRestore" size={14} />
+                </button>
+              ) : null}
             </div>
           ))}
         </div>

@@ -63,6 +63,7 @@ export type SidebarActions = {
   startResize: (event: PointerEvent) => void;
   submitPrompt: (text: string) => void;
   interruptActiveTurn: () => void;
+  restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;
   toggleArchivedSessions: () => void;
   toggleSessions: () => void;

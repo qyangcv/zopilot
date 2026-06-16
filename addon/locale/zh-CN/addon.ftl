@@ -8,6 +8,7 @@ sidebar-new-chat = 新建会话
 sidebar-no-sessions = 暂无会话
 sidebar-no-archived-sessions = 暂无已归档会话
 sidebar-delete-session = 归档会话
+sidebar-restore-session = 取消归档
 sidebar-add-context = 添加上下文
 sidebar-input-placeholder = 询问当前选中的条目
 sidebar-send = 发送

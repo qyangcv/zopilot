@@ -1,5 +1,6 @@
 import {
   Archive,
+  ArchiveX,
   Check,
   CircleAlert,
   Copy,
@@ -21,6 +22,7 @@ import type { ReactElement } from "react";
 const ICONS = {
   add: Plus,
   archive: Archive,
+  archiveRestore: ArchiveX,
   brand: MessageCircle,
   checking: LoaderCircle,
   close: X,

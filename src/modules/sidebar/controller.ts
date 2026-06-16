@@ -569,6 +569,42 @@ class SidebarController {
     await this.showSessionPopover();
   }
 
+  private async restoreSession(conversation: Conversation): Promise<void> {
+    if (!this.activePaper) {
+      return;
+    }
+    const paper = this.activePaper;
+    let restoredMetadata: Conversation["metadata"];
+    try {
+      restoredMetadata = await getConversationStore().restorePaperConversation(
+        conversation.metadata,
+      );
+    } catch (error) {
+      logger.error("failed to restore paper conversation", error, {
+        conversationId: conversation.metadata.id,
+        paperKey: conversation.metadata.paperKey,
+      });
+      return;
+    }
+    if (
+      this.destroyed ||
+      !this.open ||
+      this.activePaper?.paperKey !== paper.paperKey
+    ) {
+      return;
+    }
+
+    if (this.activeConversation?.metadata.id === conversation.metadata.id) {
+      this.activeConversation = {
+        ...this.activeConversation,
+        metadata: restoredMetadata,
+      };
+      this.renderConversation(this.activeConversation);
+    }
+
+    await this.showSessionPopover("archive");
+  }
+
   private async submitPromptAsync(value: string): Promise<void> {
     const promptText = value.trim();
     if (!promptText) {
@@ -1162,6 +1198,9 @@ class SidebarController {
       },
       switchSession: (conversation) => {
         void this.switchSession(conversation);
+      },
+      restoreSession: (conversation) => {
+        void this.restoreSession(conversation);
       },
       toggleArchivedSessions: () => {
         void this.toggleSessionPopover("archive");

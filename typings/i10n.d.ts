@@ -36,6 +36,7 @@ export type FluentMessageId =
   | 'sidebar-parent-key'
   | 'sidebar-reasoning-depth'
   | 'sidebar-resend'
+  | 'sidebar-restore-session'
   | 'sidebar-retry-turn'
   | 'sidebar-send'
   | 'sidebar-status-error'

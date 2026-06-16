@@ -334,7 +334,7 @@
 }
 
 .zp-session-select,
-.zp-session-archive {
+.zp-session-action {
   appearance: none;
   -moz-appearance: none;
   border: 0;
@@ -359,7 +359,7 @@
 }
 
 .zp-session-select:hover,
-.zp-session-archive:hover {
+.zp-session-action:hover {
   background: var(--zp-panel-strong);
 }
 
@@ -385,7 +385,7 @@
   line-height: 16px;
 }
 
-.zp-session-archive {
+.zp-session-action {
   display: grid;
   place-items: center;
   flex: 0 0 26px;

@@ -120,6 +120,20 @@ describe("ConversationStore", function () {
       [activated.metadata.id],
     );
     assert.isTrue(archivedSessions[0]?.metadata.archived);
+    const restoredMetadata = await store.restorePaperConversation(
+      archivedSessions[0]!.metadata,
+    );
+    assert.isUndefined(restoredMetadata.archived);
+    paperSessions = await store.listPaperConversations(paper.paperKey);
+    assert.deepEqual(
+      paperSessions.map((conversation) => conversation.metadata.id),
+      [activated.metadata.id, second.metadata.id],
+    );
+    assert.isUndefined(paperSessions[0]?.metadata.archived);
+    assert.deepEqual(
+      await store.listArchivedPaperConversations(paper.paperKey),
+      [],
+    );
     const otherSessions = await store.listPaperConversations(
       otherPaper.paperKey,
     );

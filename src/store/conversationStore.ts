@@ -120,6 +120,18 @@ class ConversationStore {
     });
   }
 
+  async restorePaperConversation(
+    metadata: ConversationMetadata,
+  ): Promise<ConversationMetadata> {
+    const restoredMetadata = {
+      ...metadata,
+      updatedAt: new Date().toISOString(),
+    };
+    delete restoredMetadata.archived;
+    await this.writeMetadata(restoredMetadata);
+    return restoredMetadata;
+  }
+
   async addMessage(
     metadata: ConversationMetadata,
     input: {

@@ -7,6 +7,7 @@ describe("sidebar Icon", function () {
     const names: IconName[] = [
       "add",
       "archive",
+      "archiveRestore",
       "brand",
       "checking",
       "close",
@@ -30,5 +31,14 @@ describe("sidebar Icon", function () {
       assert.include(html, "zp-icon");
       assert.include(html, `data-icon-name="${name}"`);
     }
+  });
+
+  it("uses an archive-family icon for restore", function () {
+    const archiveRestore = renderToStaticMarkup(
+      <Icon name="archiveRestore" size={14} />,
+    );
+
+    assert.include(archiveRestore, "lucide-archive-x");
+    assert.include(archiveRestore, 'data-icon-name="archiveRestore"');
   });
 });
