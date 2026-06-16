@@ -1,8 +1,11 @@
-export { buildCodexSubprocessEnvironment };
+export {
+  buildCodexSubprocessEnvironment,
+  resolveCodexBinaryPath,
+  type CodexDiscoverySubprocessModule,
+  type CodexDiscoverySubprocessProcess,
+};
 
-import { createLogger } from "../utils/logger";
-
-type CodexSubprocessModule = {
+type CodexDiscoverySubprocessModule = {
   call(options: {
     command: string;
     arguments?: string[];
@@ -11,12 +14,15 @@ type CodexSubprocessModule = {
     stdout?: "ignore" | "pipe";
     stderr?: "ignore" | "stdout" | "pipe";
     workdir?: string;
-  }): Promise<CodexSubprocessProcess>;
+  }): Promise<CodexDiscoverySubprocessProcess>;
   getEnvironment(): Record<string, string>;
 };
 
-type CodexSubprocessProcess = {
+type CodexDiscoverySubprocessProcess = {
   stdout: {
+    readString(length?: number | null): Promise<string>;
+  };
+  stderr?: {
     readString(length?: number | null): Promise<string>;
   };
   wait(): Promise<{ exitCode: number }>;
@@ -31,43 +37,56 @@ const CODEX_PATH_PREFIX = [
   "/usr/sbin",
   "/sbin",
 ] as const;
+const CODEX_BINARY_CANDIDATES = [
+  "/opt/homebrew/bin/codex",
+  "/usr/local/bin/codex",
+] as const;
 const SHELL_PATH_MARKER_START = "__ZOPILOT_PATH_START__";
 const SHELL_PATH_MARKER_END = "__ZOPILOT_PATH_END__";
 const SHELL_PATH_TIMEOUT_MS = 2500;
-const logger = createLogger("codex.subprocessEnvironment");
 
 async function buildCodexSubprocessEnvironment(
-  subprocess: CodexSubprocessModule,
+  subprocess: CodexDiscoverySubprocessModule,
 ): Promise<Record<string, string>> {
   const baseEnvironment = subprocess.getEnvironment();
   const shellPath = await readLoginShellPath(subprocess, baseEnvironment);
-  const path = mergePath(
-    [
-      ...CODEX_PATH_PREFIX,
-      ...buildHomePathCandidates(baseEnvironment),
-      ...splitPath(shellPath),
-    ],
-    baseEnvironment.PATH,
-  );
-  logger.debug("codex subprocess PATH prepared", {
-    shellPathFound: Boolean(shellPath),
-    pathEntryCount: splitPath(path).length,
-  });
   return {
-    PATH: path,
+    PATH: mergePath(
+      [
+        ...CODEX_PATH_PREFIX,
+        ...buildHomePathCandidates(baseEnvironment),
+        ...splitPath(shellPath),
+      ],
+      baseEnvironment.PATH,
+    ),
   };
 }
 
+async function resolveCodexBinaryPath(pathValue?: string): Promise<string> {
+  for (const candidate of CODEX_BINARY_CANDIDATES) {
+    if (await pathExists(candidate)) {
+      return candidate;
+    }
+  }
+  for (const candidate of buildPathCandidates(pathValue)) {
+    if (await pathExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    [
+      "Unable to find the Codex CLI.",
+      "Install it with Homebrew or npm -g so the binary is available on your login shell PATH.",
+    ].join(" "),
+  );
+}
+
 async function readLoginShellPath(
-  subprocess: CodexSubprocessModule,
+  subprocess: CodexDiscoverySubprocessModule,
   baseEnvironment: Record<string, string>,
 ): Promise<string | undefined> {
-  const shells = await getShellCandidates(baseEnvironment);
-  logger.debug("login shell PATH probe candidates", {
-    shellCount: shells.length,
-    shells,
-  });
-  for (const shell of shells) {
+  for (const shell of await getShellCandidates(baseEnvironment)) {
     try {
       const proc = await subprocess.call({
         command: shell,
@@ -84,35 +103,17 @@ async function readLoginShellPath(
         workdir: baseEnvironment.HOME,
       });
       const result = await waitForPathProbe(proc);
-      if (result.exitCode === 0) {
-        const path = extractMarkedPath(result.stdout);
-        if (path) {
-          logger.debug("login shell PATH probe succeeded", {
-            shell,
-            pathEntryCount: splitPath(path).length,
-          });
-          return path;
-        }
-        logger.debug("login shell PATH probe missing marker", {
-          shell,
-          exitCode: result.exitCode,
-        });
-      } else {
-        logger.debug("login shell PATH probe exited nonzero", {
-          shell,
-          exitCode: result.exitCode,
-          timedOut: result.exitCode === 124,
-        });
+      if (result.exitCode !== 0) {
+        continue;
       }
-    } catch (error) {
-      logger.debug("login shell PATH probe failed", {
-        shell,
-        error: String(error),
-      });
+      const path = extractMarkedPath(result.stdout);
+      if (path) {
+        return path;
+      }
+    } catch {
       // Try the next shell candidate.
     }
   }
-  logger.debug("login shell PATH unavailable");
   return undefined;
 }
 
@@ -135,7 +136,7 @@ async function getShellCandidates(
 }
 
 async function waitForPathProbe(
-  proc: CodexSubprocessProcess,
+  proc: CodexDiscoverySubprocessProcess,
 ): Promise<{ exitCode: number; stdout: string }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<{ exitCode: number; stdout: string }>(
@@ -159,7 +160,9 @@ async function waitForPathProbe(
   return result;
 }
 
-async function readStream(stream: CodexSubprocessProcess["stdout"]) {
+async function readStream(
+  stream: CodexDiscoverySubprocessProcess["stdout"],
+): Promise<string> {
   let output = "";
   while (true) {
     const chunk = await stream.readString().catch(() => "");
@@ -194,6 +197,17 @@ function buildHomePathCandidates(
     `${home}/.local/share/mise/shims`,
     `${home}/.nvm/current/bin`,
   ];
+}
+
+function buildPathCandidates(pathValue?: string): string[] {
+  const candidates: string[] = [];
+  for (const entry of splitPath(pathValue)) {
+    const candidate = `${entry.replace(/\/+$/, "")}/codex`;
+    if (!candidates.includes(candidate)) {
+      candidates.push(candidate);
+    }
+  }
+  return candidates;
 }
 
 function mergePath(prefix: readonly string[], currentPath?: string): string {

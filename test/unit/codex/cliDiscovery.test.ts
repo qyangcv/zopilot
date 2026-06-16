@@ -1,14 +1,66 @@
 import { assert } from "chai";
-import { buildCodexSubprocessEnvironment } from "../../../src/codex/subprocessEnvironment.ts";
+import {
+  buildCodexSubprocessEnvironment,
+  resolveCodexBinaryPath,
+} from "../../../src/codex/cliDiscovery.ts";
 
-describe("Codex subprocess environment", function () {
+const originalConsole = globalThis.console;
+
+describe("Codex CLI discovery", function () {
+  let existingPaths: Set<string>;
+
+  beforeEach(function () {
+    existingPaths = new Set();
+    installIoMock((path) => existingPaths.has(path));
+    globalThis.console = {
+      ...originalConsole,
+      error: () => undefined,
+      warn: () => undefined,
+    };
+  });
+
   afterEach(function () {
+    globalThis.console = originalConsole;
     delete (globalThis as unknown as { IOUtils?: unknown }).IOUtils;
   });
 
-  it("prepends supported Codex binary directories when PATH is missing", async function () {
-    installIoMock(() => false);
+  it("returns the Apple Silicon Homebrew Codex path when present", async function () {
+    existingPaths.add("/opt/homebrew/bin/codex");
 
+    const resolved = await resolveCodexBinaryPath();
+
+    assert.equal(resolved, "/opt/homebrew/bin/codex");
+  });
+
+  it("falls back to the Intel Homebrew and npm global Codex path", async function () {
+    existingPaths.add("/usr/local/bin/codex");
+
+    const resolved = await resolveCodexBinaryPath();
+
+    assert.equal(resolved, "/usr/local/bin/codex");
+  });
+
+  it("finds Codex on the prepared PATH", async function () {
+    existingPaths.add("/Users/test/.nvm/versions/node/v22.12.0/bin/codex");
+
+    const resolved = await resolveCodexBinaryPath(
+      "/Users/test/.nvm/versions/node/v22.12.0/bin:/usr/bin",
+    );
+
+    assert.equal(resolved, "/Users/test/.nvm/versions/node/v22.12.0/bin/codex");
+  });
+
+  it("throws when neither supported macOS default Codex path exists", async function () {
+    try {
+      await resolveCodexBinaryPath();
+      assert.fail("Expected resolveCodexBinaryPath to throw");
+    } catch (error) {
+      assert.instanceOf(error, Error);
+      assert.match((error as Error).message, /Unable to find the Codex CLI/);
+    }
+  });
+
+  it("prepends supported Codex binary directories when PATH is missing", async function () {
     const environment = await buildCodexSubprocessEnvironment(
       createSubprocess({}),
     );
@@ -20,8 +72,6 @@ describe("Codex subprocess environment", function () {
   });
 
   it("keeps existing PATH entries after the supported defaults", async function () {
-    installIoMock(() => false);
-
     const environment = await buildCodexSubprocessEnvironment(
       createSubprocess({
         PATH: "/custom/bin:/another/bin",
@@ -35,7 +85,7 @@ describe("Codex subprocess environment", function () {
   });
 
   it("merges login shell PATH before the GUI environment PATH", async function () {
-    installIoMock((path) => path === "/bin/zsh");
+    existingPaths.add("/bin/zsh");
 
     const environment = await buildCodexSubprocessEnvironment(
       createSubprocess(

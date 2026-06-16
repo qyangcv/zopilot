@@ -1,9 +1,11 @@
 import { config, version } from "../../package.json";
 import { buildCodexAppServerArguments } from "./appServerConfig";
+import {
+  buildCodexSubprocessEnvironment,
+  resolveCodexBinaryPath,
+} from "./cliDiscovery";
 import { buildCodexDeveloperInstructions } from "./developerInstructions";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
-import { resolveCodexBinaryPath } from "./binaryPath";
-import { buildCodexSubprocessEnvironment } from "./subprocessEnvironment";
 import type {
   CodexModelInfo,
   CodexPromptOptions,
