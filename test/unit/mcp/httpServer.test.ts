@@ -1,7 +1,8 @@
 import { assert } from "chai";
 import type { JsonValue } from "../../../src/codex/types.ts";
-import type { PaperScope } from "../../../src/zotero/types.ts";
+import type { ConversationMetadata } from "../../../src/shared/conversation.ts";
 import { createMcpHttpHandler } from "../../../src/mcp/httpServer.ts";
+import { createPaperBindingHeaders } from "../../../src/mcp/paperBinding.ts";
 import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
 
 const TOKEN = "test-token";
@@ -39,13 +40,9 @@ describe("MCP HTTP handler", function () {
   it("handles initialize, tools/list, and paper_read tools/call", async function () {
     const handler = createMcpHttpHandler({
       token: TOKEN,
-      paperReadTool: createTool({
-        attachmentItemID: 10,
-        attachmentKey: "PDF",
-        libraryID: 1,
-        parentItemID: 20,
-      }),
+      paperReadTool: createTool(),
     });
+    const bindingHeaders = createPaperBindingHeaders(createConversation());
 
     const initialize = await post(handler, {
       jsonrpc: "2.0",
@@ -57,17 +54,21 @@ describe("MCP HTTP handler", function () {
       id: 2,
       method: "tools/list",
     });
-    const call = await post(handler, {
-      jsonrpc: "2.0",
-      id: 3,
-      method: "tools/call",
-      params: {
-        name: "paper_read",
-        arguments: {
-          question: "smoke method",
+    const call = await post(
+      handler,
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "paper_read",
+          arguments: {
+            question: "smoke method",
+          },
         },
       },
-    });
+      bindingHeaders,
+    );
 
     assert.equal(initialize.status, 200);
     assert.equal(
@@ -87,7 +88,7 @@ describe("MCP HTTP handler", function () {
   it("rejects requests without the bearer token", async function () {
     const handler = createMcpHttpHandler({
       token: TOKEN,
-      paperReadTool: createTool(null),
+      paperReadTool: createTool(),
       logger: () => undefined,
     });
 
@@ -111,7 +112,7 @@ describe("MCP HTTP handler", function () {
   it("returns a JSON-RPC error for unknown tools", async function () {
     const handler = createMcpHttpHandler({
       token: TOKEN,
-      paperReadTool: createTool(null),
+      paperReadTool: createTool(),
       logger: () => undefined,
     });
 
@@ -135,7 +136,7 @@ describe("MCP HTTP handler", function () {
     const logs: Array<{ message: string; details?: JsonValue }> = [];
     const handler = createMcpHttpHandler({
       token: TOKEN,
-      paperReadTool: createTool(null),
+      paperReadTool: createTool(),
       logger: (message, details) => logs.push({ message, details }),
     });
 
@@ -154,18 +155,44 @@ describe("MCP HTTP handler", function () {
       "mcp.http.response",
     );
   });
+
+  it("returns a tool error when paper_read is called without paper binding headers", async function () {
+    const handler = createMcpHttpHandler({
+      token: TOKEN,
+      paperReadTool: createTool(),
+      logger: () => undefined,
+    });
+
+    const response = await post(handler, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "paper_read",
+        arguments: {
+          question: "smoke method",
+        },
+      },
+    });
+
+    const result = readResult<ToolCallResult>(response);
+    assert.equal(response.status, 200);
+    assert.isTrue(result.isError);
+    assert.include(result.content[0].text, "not bound to a Zotero paper");
+  });
 });
 
-function createTool(scope: PaperScope | null) {
+function createTool() {
   return createPaperReadTool({
-    resolveActivePaper: async () => scope,
-    readPaperText: async () => "A smoke method snippet.",
+    readPaperText: async (scope) =>
+      `${scope.attachmentKey} smoke method snippet.`,
   });
 }
 
 async function post(
   handler: ReturnType<typeof createMcpHttpHandler>,
   body: JsonValue,
+  headers: Record<string, string> = {},
 ) {
   return handler.handle({
     method: "POST",
@@ -173,6 +200,7 @@ async function post(
       Authorization: `Bearer ${TOKEN}`,
       "Content-Type": "application/json",
       Host: "127.0.0.1:23119",
+      ...headers,
     },
     data: JSON.stringify(body),
   });
@@ -180,4 +208,20 @@ async function post(
 
 function readResult<T>(response: { body?: string }): T {
   return (JSON.parse(response.body || "{}") as JsonRpcTestResponse<T>).result;
+}
+
+function createConversation(): ConversationMetadata {
+  return {
+    id: "conv-a",
+    scope: "paper",
+    paperKey: "1:PAPER-A",
+    libraryID: 1,
+    parentItemKey: "PAPER-A",
+    attachmentItemID: 10,
+    attachmentKey: "PDF-A",
+    title: "Paper A",
+    label: "Paper A",
+    createdAt: "2026-06-13T00:00:00.000Z",
+    updatedAt: "2026-06-13T00:00:00.000Z",
+  };
 }

@@ -309,7 +309,7 @@ class CodexBridge {
     fallbackThreadId?: string,
   ): Promise<string> {
     const cwd = this.subprocess?.getEnvironment().HOME;
-    const mcpServers = await buildCodexMcpServersConfig();
+    const mcpServers = await buildCodexMcpServersConfig(conversation);
     const params: { [key: string]: JsonValue } = {
       ...extraParams,
       developerInstructions: buildCodexDeveloperInstructions(),

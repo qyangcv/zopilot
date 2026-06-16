@@ -5,9 +5,11 @@ import {
   createJsonRpcResult,
   getJsonRpcId,
   isJsonObject,
+  type McpToolCallContext,
   type McpTool,
   type McpToolCallResult,
 } from "./protocol";
+import { parsePaperBindingHeaders } from "./paperBinding";
 import { createPaperReadTool } from "./tools/paperRead";
 import { createLogger } from "../utils/logger";
 
@@ -166,6 +168,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
         const response = await handleJsonRpcMessage(
           message,
           options.paperReadTool,
+          createToolCallContext(request.headers),
           logger,
           startedAt,
         );
@@ -198,6 +201,7 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
 async function handleJsonRpcMessage(
   message: unknown,
   paperReadTool: McpTool,
+  context: McpToolCallContext,
   logger: McpRequestLogger,
   requestStartedAt: number,
 ): Promise<JsonValue | undefined> {
@@ -247,7 +251,12 @@ async function handleJsonRpcMessage(
       case "tools/call":
         return createJsonRpcResult(
           id,
-          await callToolFromJsonRpc(message.params, paperReadTool, logger),
+          await callToolFromJsonRpc(
+            message.params,
+            paperReadTool,
+            context,
+            logger,
+          ),
         );
       default:
         return createJsonRpcError(
@@ -269,6 +278,7 @@ async function handleJsonRpcMessage(
 async function callToolFromJsonRpc(
   params: JsonValue | undefined,
   paperReadTool: McpTool,
+  context: McpToolCallContext,
   logger: McpRequestLogger,
 ): Promise<McpToolCallResult> {
   if (!isJsonObject(params)) {
@@ -286,13 +296,27 @@ async function callToolFromJsonRpc(
   if (name !== paperReadTool.definition.name) {
     throw new Error(`Unknown MCP tool: ${name}`);
   }
-  const result = await paperReadTool.call(params.arguments);
+  const result = await paperReadTool.call(params.arguments, context);
   logger.debug("mcp.tool.call.finish", {
     name,
     isError: Boolean(result.isError),
     durationMs: Date.now() - startedAt,
   });
   return result;
+}
+
+function createToolCallContext(
+  headers: Record<string, string>,
+): McpToolCallContext {
+  const binding = parsePaperBindingHeaders(headers);
+  if (binding.ok) {
+    return {
+      paperScope: binding.value,
+    };
+  }
+  return {
+    paperBindingError: binding.error,
+  };
 }
 
 function validateRequestSecurity(

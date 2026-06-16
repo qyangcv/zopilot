@@ -1,8 +1,12 @@
-import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import type { PaperScope } from "../../zotero/types";
 import type { JsonValue } from "../../codex/types";
-import type { McpTool, McpToolCallResult } from "../protocol";
+import type {
+  McpTool,
+  McpToolCallContext,
+  McpToolCallResult,
+} from "../protocol";
 import { isJsonObject } from "../protocol";
+import { PAPER_BINDING_MISSING_MESSAGE } from "../paperBinding";
 import { createLogger } from "../../utils/logger";
 
 export { createPaperReadTool };
@@ -18,8 +22,9 @@ type PaperReadSnippet = {
 };
 
 type PaperReadResult = {
-  status: "active_reader" | "no_active_reader" | "no_text";
+  status: "bound_paper" | "not_bound" | "no_text";
   snippets: PaperReadSnippet[];
+  error?: string;
 };
 
 type TextChunk = {
@@ -28,7 +33,6 @@ type TextChunk = {
 };
 
 type PaperReadToolOptions = {
-  resolveActivePaper?: () => Promise<PaperScope | null>;
   readPaperText?: (scope: PaperScope) => Promise<string>;
   logger?: (message: string, details?: JsonValue) => void;
 };
@@ -69,9 +73,9 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
   return {
     definition: {
       name: "paper_read",
-      title: "Read current Zotero paper",
+      title: "Read bound Zotero paper",
       description:
-        "Read Zotero full-text evidence snippets for the currently active PDF reader paper. Returns evidence and provenance, not a final answer.",
+        "Read Zotero full-text evidence snippets for the PDF bound to this Zopilot conversation. Returns evidence and provenance, not a final answer.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -90,16 +94,24 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
         openWorldHint: false,
       },
     },
-    async call(input: JsonValue | undefined): Promise<McpToolCallResult> {
+    async call(
+      input: JsonValue | undefined,
+      context: McpToolCallContext,
+    ): Promise<McpToolCallResult> {
       const startedAt = Date.now();
       const parsedInput = parsePaperReadInput(input);
       logger.debug("mcp.tool.paper_read.start", {
         hasQuestion: Boolean(parsedInput.question),
+        hasPaperBinding: Boolean(context.paperScope),
       });
 
       try {
-        const scope = await resolveActivePaper(options);
-        const output = await readPaperEvidence(scope, parsedInput, options);
+        const output = await readPaperEvidence(
+          context.paperScope,
+          context.paperBindingError,
+          parsedInput,
+          options,
+        );
         logger.debug("mcp.tool.paper_read.finish", {
           status: output.status,
           snippetCount: output.snippets.length,
@@ -112,8 +124,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
               text: formatPaperReadSummary(output),
             },
           ],
-          isError:
-            output.status === "no_active_reader" || output.status === "no_text",
+          isError: output.status === "not_bound" || output.status === "no_text",
           _meta: {
             "zopilot.mcp.step": "5.2",
             "zopilot.mcp.durationMs": Date.now() - startedAt,
@@ -171,14 +182,16 @@ function mergeErrorDetails(error: unknown, details?: JsonValue): JsonValue {
 }
 
 async function readPaperEvidence(
-  scope: PaperScope | null,
+  scope: PaperScope | undefined,
+  bindingError: string | undefined,
   request: PaperReadInput,
   options: PaperReadToolOptions,
 ): Promise<PaperReadResult> {
   if (!scope) {
     return {
-      status: "no_active_reader",
+      status: "not_bound",
       snippets: [],
+      error: bindingError || PAPER_BINDING_MISSING_MESSAGE,
     };
   }
 
@@ -194,7 +207,7 @@ async function readPaperEvidence(
   const queryTerms = tokenize(request.question || "");
   if (!queryTerms.length) {
     return {
-      status: "active_reader",
+      status: "bound_paper",
       snippets: [],
     };
   }
@@ -207,7 +220,7 @@ async function readPaperEvidence(
     );
 
   return {
-    status: "active_reader",
+    status: "bound_paper",
     snippets,
   };
 }
@@ -235,16 +248,6 @@ function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
   };
 }
 
-async function resolveActivePaper(
-  options: PaperReadToolOptions,
-): Promise<PaperScope | null> {
-  if (options.resolveActivePaper) {
-    return options.resolveActivePaper();
-  }
-  const win = getBestZoteroWindow();
-  return new ZoteroContextGateway(win).getActivePaper();
-}
-
 async function readPaperText(
   options: PaperReadToolOptions,
   scope: PaperScope,
@@ -252,8 +255,17 @@ async function readPaperText(
   if (options.readPaperText) {
     return options.readPaperText(scope);
   }
-  const win = getBestZoteroWindow();
-  return new ZoteroContextGateway(win).getAttachmentFullTextForTool(scope);
+  const attachment = Zotero.Items.get(scope.attachmentItemID);
+  if (!attachment?.isAttachment?.() || !attachment.isPDFAttachment?.()) {
+    return "";
+  }
+  if (
+    attachment.key !== scope.attachmentKey ||
+    attachment.libraryID !== scope.libraryID
+  ) {
+    throw new Error("Bound Zotero attachment no longer matches this thread.");
+  }
+  return normalizeText((await attachment.attachmentText) || "");
 }
 
 function createChunks(text: string): TextChunk[] {
@@ -345,27 +357,22 @@ function countTerms(terms: string[]): Map<string, number> {
   return counts;
 }
 
-function getBestZoteroWindow(): Window {
-  const windows = Zotero.getMainWindows?.();
-  const firstWindow = windows?.[0];
-  if (!firstWindow) {
-    throw new Error("No Zotero main window is available.");
-  }
-  return firstWindow;
-}
-
 function formatPaperReadSummary(output: PaperReadResult): string {
   if (output.snippets.length) {
     return output.snippets.map((snippet) => snippet.text).join("\n\n---\n\n");
   }
 
-  if (output.status === "no_active_reader") {
-    return "No active Zotero PDF reader paper is available.";
+  if (output.status === "not_bound") {
+    return output.error || PAPER_BINDING_MISSING_MESSAGE;
   }
 
   if (output.status === "no_text") {
-    return "The current PDF has no readable Zotero full text.";
+    return "The bound PDF has no readable Zotero full text.";
   }
 
   return "No relevant text was found.";
+}
+
+function normalizeText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }

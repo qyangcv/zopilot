@@ -1,4 +1,5 @@
 import type { JsonValue } from "../codex/types";
+import type { BoundPaperScope } from "./paperBinding";
 
 export {
   MCP_PROTOCOL_VERSION,
@@ -7,7 +8,7 @@ export {
   getJsonRpcId,
   isJsonObject,
 };
-export type { McpTool, McpToolCallResult };
+export type { McpTool, McpToolCallContext, McpToolCallResult };
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -35,7 +36,15 @@ type McpToolCallResult = JsonObject & {
 
 type McpTool = {
   definition: McpToolDefinition;
-  call(input: JsonValue | undefined): Promise<McpToolCallResult>;
+  call(
+    input: JsonValue | undefined,
+    context: McpToolCallContext,
+  ): Promise<McpToolCallResult>;
+};
+
+type McpToolCallContext = {
+  paperScope?: BoundPaperScope;
+  paperBindingError?: string;
 };
 
 function createJsonRpcResult(id: JsonValue, result: JsonValue): JsonObject {

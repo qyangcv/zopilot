@@ -132,7 +132,7 @@ describe("CodexBridge", function () {
         mcp_servers: {
           zopilot: {
             url: string;
-            http_headers: { Authorization: string };
+            http_headers: Record<string, string> & { Authorization: string };
             enabled_tools: string[];
             startup_timeout_sec: number;
             tool_timeout_sec: number;
@@ -142,6 +142,17 @@ describe("CodexBridge", function () {
     ).mcp_servers["zopilot"];
     assert.equal(mcpServer.url, "http://127.0.0.1:23124/zopilot/mcp");
     assert.match(mcpServer.http_headers.Authorization, /^Bearer /);
+    assert.equal(
+      mcpServer.http_headers["X-Zopilot-Conversation-ID"],
+      "conv-new",
+    );
+    assert.equal(mcpServer.http_headers["X-Zopilot-Paper-Key"], "1:conv-new");
+    assert.equal(mcpServer.http_headers["X-Zopilot-Attachment-Item-ID"], "1");
+    assert.equal(
+      mcpServer.http_headers["X-Zopilot-Attachment-Key"],
+      "conv-new-pdf",
+    );
+    assert.equal(mcpServer.http_headers["X-Zopilot-Library-ID"], "1");
     assert.deepEqual(mcpServer.enabled_tools, ["paper_read"]);
     assert.equal(mcpServer.startup_timeout_sec, 10);
     assert.equal(mcpServer.tool_timeout_sec, 60);
