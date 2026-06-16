@@ -220,7 +220,7 @@ export function SidebarApp({
               event.stopPropagation();
               setContextOpen((open) => !open);
             }}
-            title={state.context.label}
+            title={state.context.paperTitle || state.context.label}
             type="button"
           >
             <Icon className="zp-context-chip-icon" name="context" size={13} />

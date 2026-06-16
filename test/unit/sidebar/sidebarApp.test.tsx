@@ -174,6 +174,33 @@ describe("SidebarApp", function () {
     assert.include(html, "2026-06-13 15:30");
   });
 
+  it("uses only the paper title for the context chip tooltip", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          context: {
+            label:
+              "DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文",
+            paperTitle:
+              "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+            paperKey: "1:AAA",
+          },
+        })}
+      />,
+    );
+
+    assert.include(
+      html,
+      'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning"',
+    );
+    assert.include(html, " / 总结一下这篇论文");
+    assert.notInclude(
+      html,
+      'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
+    );
+  });
+
   it("sizes model and effort selectors from the selected labels", function () {
     const html = renderToStaticMarkup(
       <SidebarApp

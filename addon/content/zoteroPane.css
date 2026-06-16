@@ -806,6 +806,8 @@
   border-radius: 6px;
   padding: 3px 7px;
   color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .zp-context-chip-icon {
