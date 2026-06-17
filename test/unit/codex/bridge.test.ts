@@ -18,12 +18,12 @@ describe("CodexBridge", function () {
     delete (globalThis as unknown as { ztoolkit?: unknown }).ztoolkit;
   });
 
-  it("starts app-server with Zotero conflict isolation config", function () {
+  it("starts app-server over stdio without legacy Zotero overrides", function () {
     const args = buildCodexAppServerArguments();
 
-    assert.deepEqual(args.slice(0, 2), ["app-server", "--stdio"]);
-    assert.include(args, 'plugins."zotero@openai-curated".enabled=false');
-    assert.include(args, "mcp_servers.llm_for_zotero.enabled=false");
+    assert.deepEqual(args, ["app-server", "--stdio"]);
+    assert.notInclude(args, 'plugins."zotero@openai-curated".enabled=false');
+    assert.notInclude(args, "mcp_servers.llm_for_zotero.enabled=false");
   });
 
   it("requests model/list and normalizes returned model metadata", async function () {
