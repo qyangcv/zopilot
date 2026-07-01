@@ -15,6 +15,9 @@ tsconfig.tsbuildinfo
 build
 logs
 
-notes/
+notes/*
+!notes/v0.3.0.md
+!notes/solution-for-doc.md
 doc/
-
+.agents/
+.vscode/
