@@ -4,6 +4,7 @@ import type { ConversationMetadata } from "../../../src/shared/conversation.ts";
 import { createMcpHttpHandler } from "../../../src/mcp/httpServer.ts";
 import { createPaperBindingHeaders } from "../../../src/mcp/paperBinding.ts";
 import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
+import type { BuiltContext } from "../../../src/document/types.ts";
 
 const TOKEN = "test-token";
 
@@ -184,8 +185,16 @@ describe("MCP HTTP handler", function () {
 
 function createTool() {
   return createPaperReadTool({
-    readPaperText: async (scope) =>
-      `${scope.attachmentKey} smoke method snippet.`,
+    contextBuilder: {
+      async build(input) {
+        return createContext(
+          input.scope
+            ? `${input.scope.defaultSource?.attachmentKey} smoke method snippet.`
+            : "smoke method snippet.",
+          input.scope ? "ready" : "not_bound",
+        );
+      },
+    },
   });
 }
 
@@ -213,15 +222,77 @@ function readResult<T>(response: { body?: string }): T {
 function createConversation(): ConversationMetadata {
   return {
     id: "conv-a",
-    scope: "paper",
-    paperKey: "1:PAPER-A",
+    scope: "workspace",
+    workspaceKey: "item:1:PAPER-A",
+    workspaceType: "item",
+    workspaceLabel: "Paper A",
+    workspaceTitle: "Paper A",
     libraryID: 1,
-    parentItemKey: "PAPER-A",
-    attachmentItemID: 10,
-    attachmentKey: "PDF-A",
-    title: "Paper A",
+    defaultSource: {
+      paperKey: "1:PAPER-A",
+      libraryID: 1,
+      parentItemKey: "PAPER-A",
+      attachmentItemID: 10,
+      attachmentKey: "PDF-A",
+      title: "Paper A",
+    },
     label: "Paper A",
     createdAt: "2026-06-13T00:00:00.000Z",
     updatedAt: "2026-06-13T00:00:00.000Z",
+  };
+}
+
+function createContext(
+  text: string,
+  status: BuiltContext["status"],
+): BuiltContext {
+  return {
+    status,
+    workspace: {
+      key: "item:1:PAPER-A",
+      type: "item",
+      label: "Paper A",
+    },
+    sources:
+      status === "ready"
+        ? [
+            {
+              sourceId: "1-PDF-A",
+              paperKey: "1:PAPER-A",
+              libraryID: 1,
+              attachmentItemID: 10,
+              attachmentKey: "PDF-A",
+              title: "Paper A",
+              filePath: "/tmp/paper.pdf",
+              mtime: 1,
+              size: 1024,
+              pdfHash: "hash",
+            },
+          ]
+        : [],
+    query: {
+      query: "smoke method",
+      intent: "general",
+      includeReferences: false,
+    },
+    evidence:
+      status === "ready"
+        ? [
+            {
+              type: "chunk",
+              sourceId: "1-PDF-A",
+              chunkId: "1-PDF-A:chunk:1",
+              page: 2,
+              sectionPath: ["Method"],
+              score: 1,
+              reasons: ["body search"],
+              text,
+            },
+          ]
+        : [],
+    warnings:
+      status === "not_bound"
+        ? ["This Codex thread is not bound to a Zotero paper."]
+        : [],
   };
 }

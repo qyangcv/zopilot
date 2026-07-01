@@ -6,8 +6,14 @@ import {
   type CodexDiagnostic,
 } from "../../codex/diagnostics";
 import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
-import type { Conversation, PaperIdentity } from "../../shared/conversation";
-import { createPaperIdentity } from "../../shared/conversation";
+import type {
+  Conversation,
+  WorkspaceIdentity,
+} from "../../shared/conversation";
+import {
+  createItemWorkspaceIdentity,
+  createPaperIdentity,
+} from "../../shared/conversation";
 import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
 import { createLogger } from "../../utils/logger";
@@ -74,7 +80,7 @@ type DisplayState =
       kind: "ready";
       token: number;
       reader: _ZoteroTypes.ReaderInstance<"pdf">;
-      paper: PaperIdentity;
+      workspace: WorkspaceIdentity;
       conversation: Conversation;
     }
   | {
@@ -259,7 +265,8 @@ class SidebarController {
       return;
     }
     const paper = scope ? createPaperIdentity(scope) : null;
-    if (!paper) {
+    const workspace = paper ? createItemWorkspaceIdentity(paper) : null;
+    if (!workspace) {
       this.setDisplayState({
         kind: "error",
         token,
@@ -272,7 +279,9 @@ class SidebarController {
 
     try {
       const conversation =
-        await getConversationStore().getOrCreateLatestPaperConversation(paper);
+        await getConversationStore().getOrCreateLatestWorkspaceConversation(
+          workspace,
+        );
       if (!this.canCommitSelection(token)) {
         return;
       }
@@ -280,7 +289,7 @@ class SidebarController {
         kind: "ready",
         token,
         reader,
-        paper,
+        workspace,
         conversation,
       });
     } catch (error) {
@@ -288,14 +297,14 @@ class SidebarController {
         return;
       }
       logger.error("failed to load active conversation", error, {
-        paperKey: paper.paperKey,
-        attachmentKey: paper.attachmentKey,
+        workspaceKey: workspace.workspaceKey,
+        attachmentKey: workspace.defaultSource?.attachmentKey,
       });
       this.setDisplayState({
         kind: "error",
         token,
         reader,
-        label: paper.title,
+        label: workspace.workspaceLabel,
         message: formatCodexError(error),
       });
     }
@@ -492,18 +501,20 @@ class SidebarController {
     if (!ready) {
       return;
     }
-    const paperKey = ready.paper.paperKey;
+    const workspaceKey = ready.workspace.workspaceKey;
     let conversations: Conversation[];
     try {
       conversations =
         mode === "archive"
-          ? await getConversationStore().listArchivedPaperConversations(
-              paperKey,
+          ? await getConversationStore().listArchivedWorkspaceConversations(
+              workspaceKey,
             )
-          : await getConversationStore().listPaperConversations(paperKey);
+          : await getConversationStore().listWorkspaceConversations(
+              workspaceKey,
+            );
     } catch (error) {
-      logger.error("failed to list paper conversations", error, {
-        paperKey,
+      logger.error("failed to list workspace conversations", error, {
+        workspaceKey,
         mode,
       });
       return;
@@ -511,7 +522,7 @@ class SidebarController {
     if (
       this.destroyed ||
       !this.open ||
-      this.getReadyDisplayState()?.paper.paperKey !== paperKey
+      this.getReadyDisplayState()?.workspace.workspaceKey !== workspaceKey
     ) {
       return;
     }
@@ -535,19 +546,19 @@ class SidebarController {
   }
 
   private async createNewSession(): Promise<void> {
-    const ready = this.getReadyDisplayState();
+    const ready = await this.getReadyStateForSelectedReader();
     if (!ready) {
       return;
     }
-    const paper = ready.paper;
+    const workspace = ready.workspace;
     let conversation: Conversation;
     try {
       conversation =
-        await getConversationStore().createPaperConversation(paper);
+        await getConversationStore().createWorkspaceConversation(workspace);
     } catch (error) {
-      logger.error("failed to create paper conversation", error, {
-        paperKey: paper.paperKey,
-        attachmentKey: paper.attachmentKey,
+      logger.error("failed to create workspace conversation", error, {
+        workspaceKey: workspace.workspaceKey,
+        attachmentKey: workspace.defaultSource?.attachmentKey,
       });
       return;
     }
@@ -563,20 +574,21 @@ class SidebarController {
     }
     let active: Conversation;
     try {
-      active = await getConversationStore().activatePaperConversation(
+      active = await getConversationStore().activateWorkspaceConversation(
         conversation.metadata,
       );
     } catch (error) {
-      logger.error("failed to switch paper conversation", error, {
+      logger.error("failed to switch workspace conversation", error, {
         conversationId: conversation.metadata.id,
-        paperKey: conversation.metadata.paperKey,
+        workspaceKey: conversation.metadata.workspaceKey,
       });
       return;
     }
     if (
       this.destroyed ||
       !this.open ||
-      this.getReadyDisplayState()?.paper.paperKey !== active.metadata.paperKey
+      this.getReadyDisplayState()?.workspace.workspaceKey !==
+        active.metadata.workspaceKey
     ) {
       return;
     }
@@ -590,26 +602,27 @@ class SidebarController {
     if (!ready) {
       return;
     }
-    const paper = ready.paper;
+    const workspace = ready.workspace;
     const running = this.runningTurns.get(conversation.metadata.id);
     if (running) {
       this.interruptRunningTurn(running);
     }
     try {
-      await getConversationStore().archivePaperConversation(
+      await getConversationStore().archiveWorkspaceConversation(
         conversation.metadata,
       );
     } catch (error) {
-      logger.error("failed to archive paper conversation", error, {
+      logger.error("failed to archive workspace conversation", error, {
         conversationId: conversation.metadata.id,
-        paperKey: conversation.metadata.paperKey,
+        workspaceKey: conversation.metadata.workspaceKey,
       });
       return;
     }
     if (
       this.destroyed ||
       !this.open ||
-      this.getReadyDisplayState()?.paper.paperKey !== paper.paperKey
+      this.getReadyDisplayState()?.workspace.workspaceKey !==
+        workspace.workspaceKey
     ) {
       return;
     }
@@ -621,13 +634,14 @@ class SidebarController {
       let next: Conversation;
       try {
         next =
-          (await getConversationStore().getLatestPaperConversation(
-            paper.paperKey,
-          )) || (await getConversationStore().createPaperConversation(paper));
+          (await getConversationStore().getLatestWorkspaceConversation(
+            workspace.workspaceKey,
+          )) ||
+          (await getConversationStore().createWorkspaceConversation(workspace));
       } catch (error) {
-        logger.error("failed to select next paper conversation", error, {
+        logger.error("failed to select next workspace conversation", error, {
           archivedConversationId: conversation.metadata.id,
-          paperKey: paper.paperKey,
+          workspaceKey: workspace.workspaceKey,
         });
         return;
       }
@@ -642,23 +656,25 @@ class SidebarController {
     if (!ready) {
       return;
     }
-    const paper = ready.paper;
+    const workspace = ready.workspace;
     let restoredMetadata: Conversation["metadata"];
     try {
-      restoredMetadata = await getConversationStore().restorePaperConversation(
-        conversation.metadata,
-      );
+      restoredMetadata =
+        await getConversationStore().restoreWorkspaceConversation(
+          conversation.metadata,
+        );
     } catch (error) {
-      logger.error("failed to restore paper conversation", error, {
+      logger.error("failed to restore workspace conversation", error, {
         conversationId: conversation.metadata.id,
-        paperKey: conversation.metadata.paperKey,
+        workspaceKey: conversation.metadata.workspaceKey,
       });
       return;
     }
     if (
       this.destroyed ||
       !this.open ||
-      this.getReadyDisplayState()?.paper.paperKey !== paper.paperKey
+      this.getReadyDisplayState()?.workspace.workspaceKey !==
+        workspace.workspaceKey
     ) {
       return;
     }
@@ -680,7 +696,7 @@ class SidebarController {
       return;
     }
 
-    const ready = this.getReadyDisplayState();
+    const ready = await this.getReadyStateForSelectedReader();
     if (!ready) {
       return;
     }
@@ -780,7 +796,7 @@ class SidebarController {
     } catch (error) {
       logger.error("codex sendPrompt failed", error, {
         conversationId: conversation.metadata.id,
-        paperKey: conversation.metadata.paperKey,
+        workspaceKey: conversation.metadata.workspaceKey,
         threadId: runningTurn.threadId,
         turnId: runningTurn.turnId,
       });
@@ -1050,9 +1066,31 @@ class SidebarController {
     return this.displayState.kind === "ready" ? this.displayState : undefined;
   }
 
+  private async getReadyStateForSelectedReader(): Promise<
+    Extract<DisplayState, { kind: "ready" }> | undefined
+  > {
+    const selectedReader = getSelectedPDFReader(this.win);
+    const ready = this.getReadyDisplayState();
+    if (selectedReader && ready && this.isCurrentReader(selectedReader)) {
+      return ready;
+    }
+
+    const token = ++this.selectionToken;
+    if (selectedReader) {
+      await this.loadReaderConversation(selectedReader, token);
+      return this.getReadyDisplayState();
+    }
+
+    await this.loadSelectedReader(token);
+    return this.getReadyDisplayState();
+  }
+
   private setReadyConversation(conversation: Conversation): void {
     const ready = this.getReadyDisplayState();
-    if (!ready || ready.paper.paperKey !== conversation.metadata.paperKey) {
+    if (
+      !ready ||
+      ready.workspace.workspaceKey !== conversation.metadata.workspaceKey
+    ) {
       return;
     }
     this.setDisplayState({ ...ready, conversation });
@@ -1068,14 +1106,17 @@ class SidebarController {
     const state = this.displayState;
     if (state.kind === "ready") {
       const runningTurn = this.runningTurns.get(state.conversation.metadata.id);
+      const source = state.workspace.defaultSource;
       this.updateViewState({
-        title: `${state.conversation.metadata.title} / ${state.conversation.metadata.label}`,
+        title: `${state.conversation.metadata.workspaceTitle} / ${state.conversation.metadata.label}`,
         context: {
-          label: state.paper.title,
-          paperTitle: state.paper.title,
-          paperKey: state.paper.paperKey,
-          parentItemKey: state.paper.parentItemKey,
-          attachmentKey: state.paper.attachmentKey,
+          label: state.workspace.workspaceLabel,
+          workspaceKey: state.workspace.workspaceKey,
+          workspaceType: state.workspace.workspaceType,
+          paperTitle: source?.title,
+          paperKey: source?.paperKey,
+          parentItemKey: source?.parentItemKey,
+          attachmentKey: source?.attachmentKey,
         },
         composerEnabled: true,
         messages: createConversationMessages(
@@ -1201,7 +1242,8 @@ class SidebarController {
     return (
       state.kind === "ready" &&
       reader.itemID !== undefined &&
-      Zotero.Items.get(reader.itemID)?.key === state.paper.attachmentKey
+      Zotero.Items.get(reader.itemID)?.key ===
+        state.workspace.defaultSource?.attachmentKey
     );
   }
 

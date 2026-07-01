@@ -2,6 +2,7 @@ import type { PaperScope } from "../zotero/types";
 
 type ConversationMessageStatus = "complete" | "error" | "interrupted";
 type ConversationMessageRole = "user" | "assistant";
+export type WorkspaceType = "item" | "collection" | "library";
 
 export type PaperIdentity = {
   paperKey: string;
@@ -13,9 +14,18 @@ export type PaperIdentity = {
   title: string;
 };
 
-export type ConversationMetadata = PaperIdentity & {
+export type WorkspaceIdentity = {
+  workspaceKey: string;
+  workspaceType: WorkspaceType;
+  libraryID: number;
+  workspaceLabel: string;
+  workspaceTitle: string;
+  defaultSource?: PaperIdentity;
+};
+
+export type ConversationMetadata = WorkspaceIdentity & {
   id: string;
-  scope: "paper";
+  scope: "workspace";
   label: string;
   createdAt: string;
   updatedAt: string;
@@ -65,5 +75,46 @@ export function createPaperIdentity(scope: PaperScope): PaperIdentity | null {
     attachmentItemID: scope.attachmentItemID,
     attachmentKey: scope.attachmentKey,
     title,
+  };
+}
+
+export function createItemWorkspaceIdentity(
+  paper: PaperIdentity,
+): WorkspaceIdentity {
+  return {
+    workspaceKey: `item:${paper.paperKey}`,
+    workspaceType: "item",
+    libraryID: paper.libraryID,
+    workspaceLabel: paper.title,
+    workspaceTitle: paper.title,
+    defaultSource: paper,
+  };
+}
+
+export function createLibraryWorkspaceIdentity(input: {
+  libraryID: number;
+  label?: string;
+}): WorkspaceIdentity {
+  const title = input.label || `Library ${input.libraryID}`;
+  return {
+    workspaceKey: `library:${input.libraryID}`,
+    workspaceType: "library",
+    libraryID: input.libraryID,
+    workspaceLabel: title,
+    workspaceTitle: title,
+  };
+}
+
+export function createCollectionWorkspaceIdentity(input: {
+  libraryID: number;
+  collectionKey: string;
+  label: string;
+}): WorkspaceIdentity {
+  return {
+    workspaceKey: `collection:${input.libraryID}:${input.collectionKey}`,
+    workspaceType: "collection",
+    libraryID: input.libraryID,
+    workspaceLabel: input.label,
+    workspaceTitle: input.label,
   };
 }

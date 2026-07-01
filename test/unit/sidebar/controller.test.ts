@@ -5,6 +5,7 @@ import {
   getSidebarCollapseThreshold,
   resolveSidebarResizeWidth,
 } from "../../../src/modules/sidebar/controller.ts";
+import { createItemWorkspaceIdentity } from "../../../src/shared/conversation.ts";
 
 describe("sidebar controller resize", function () {
   before(function () {
@@ -140,16 +141,17 @@ describe("sidebar controller resize", function () {
       }
     ).SidebarController(win as unknown as Window) as Record<string, any>;
     const paper = createPaperIdentity();
+    const workspace = createItemWorkspaceIdentity(paper);
     controller.setDisplayState({
       kind: "ready",
       token: 1,
       reader: createPDFReader(11, "tab-a"),
-      paper,
+      workspace,
       conversation: {
         metadata: {
-          ...paper,
+          ...workspace,
           id: "conv-1",
-          scope: "paper" as const,
+          scope: "workspace" as const,
           label: "总结一下这篇论文",
           createdAt: "2026-06-16T00:00:00.000Z",
           updatedAt: "2026-06-16T00:01:00.000Z",
@@ -183,6 +185,7 @@ describe("sidebar controller resize", function () {
       }
     ).SidebarController(win as unknown as Window) as Record<string, any>;
     const paperA = createPaperIdentity();
+    const workspaceA = createItemWorkspaceIdentity(paperA);
     const paperB = {
       ...paperA,
       paperKey: "1:BBB",
@@ -192,6 +195,7 @@ describe("sidebar controller resize", function () {
       attachmentKey: "PDF-B",
       title: "Paper B",
     };
+    const workspaceB = createItemWorkspaceIdentity(paperB);
     const conversationA = createConversation(paperA, "conv-a", "Question A");
     const conversationB = createConversation(paperB, "conv-b", "Question B");
     const runningTurn = {
@@ -206,7 +210,7 @@ describe("sidebar controller resize", function () {
       kind: "ready",
       token: 1,
       reader: createPDFReader(11, "tab-a"),
-      paper: paperA,
+      workspace: workspaceA,
       conversation: conversationA,
     });
 
@@ -229,7 +233,7 @@ describe("sidebar controller resize", function () {
       kind: "ready",
       token: 2,
       reader: createPDFReader(21, "tab-b"),
-      paper: paperB,
+      workspace: workspaceB,
       conversation: conversationB,
     });
     runningTurn.assistantOutput = "partial A + later delta";
@@ -245,7 +249,7 @@ describe("sidebar controller resize", function () {
       kind: "ready",
       token: 3,
       reader: createPDFReader(11, "tab-a"),
-      paper: paperA,
+      workspace: workspaceA,
       conversation: conversationA,
     });
 
@@ -275,36 +279,85 @@ describe("sidebar controller resize", function () {
       label: "Paper A",
     });
     controller.selectionToken = 2;
+    const paperB = {
+      ...createPaperIdentity(),
+      paperKey: "1:BBB",
+      parentItemID: 20,
+      parentItemKey: "BBB",
+      attachmentItemID: 21,
+      attachmentKey: "PDF-B",
+      title: "Paper B",
+    };
     controller.setDisplayState({
       kind: "ready",
       token: 2,
       reader: createPDFReader(21, "tab-b"),
-      paper: {
-        ...createPaperIdentity(),
-        paperKey: "1:BBB",
-        parentItemID: 20,
-        parentItemKey: "BBB",
-        attachmentItemID: 21,
-        attachmentKey: "PDF-B",
-        title: "Paper B",
-      },
-      conversation: createConversation(
-        {
-          ...createPaperIdentity(),
-          paperKey: "1:BBB",
-          parentItemID: 20,
-          parentItemKey: "BBB",
-          attachmentItemID: 21,
-          attachmentKey: "PDF-B",
-          title: "Paper B",
-        },
-        "conv-b",
-        "Question B",
-      ),
+      workspace: createItemWorkspaceIdentity(paperB),
+      conversation: createConversation(paperB, "conv-b", "Question B"),
     });
 
     assert.isFalse(controller.canCommitSelection(1));
     assert.equal(controller.viewState.title, "Paper B / Question B");
+  });
+
+  it("refreshes stale ready state from the selected reader before workspace actions", async function () {
+    const win = new FakeWindow(1200) as FakeWindow & {
+      Zotero_Tabs: { selectedID: string; selectedType: string };
+    };
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paperA = createPaperIdentity();
+    const paperB = {
+      ...paperA,
+      paperKey: "1:BBB",
+      parentItemID: 20,
+      parentItemKey: "BBB",
+      attachmentItemID: 21,
+      attachmentKey: "PDF-B",
+      title: "Paper B",
+    };
+    const readerB = createPDFReader(21, "tab-b");
+
+    controller.open = true;
+    win.Zotero_Tabs = { selectedID: "tab-b", selectedType: "reader" };
+    (globalThis as unknown as { Zotero: Record<string, any> }).Zotero.Reader = {
+      getByTabID(tabID: string) {
+        return tabID === "tab-b" ? readerB : undefined;
+      },
+    };
+    (globalThis as unknown as { Zotero: Record<string, any> }).Zotero.Items = {
+      get(itemID: number) {
+        return itemID === 21 ? { key: "PDF-B" } : { key: "PDF" };
+      },
+    };
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      reader: createPDFReader(11, "tab-a"),
+      workspace: createItemWorkspaceIdentity(paperA),
+      conversation: createConversation(paperA, "conv-a", "Question A"),
+    });
+    controller.loadReaderConversation = async (
+      reader: ReturnType<typeof createPDFReader>,
+      token: number,
+    ) => {
+      assert.strictEqual(reader, readerB);
+      controller.setDisplayState({
+        kind: "ready",
+        token,
+        reader,
+        workspace: createItemWorkspaceIdentity(paperB),
+        conversation: createConversation(paperB, "conv-b", "Question B"),
+      });
+    };
+
+    const ready = await controller.getReadyStateForSelectedReader();
+
+    assert.equal(ready?.workspace.workspaceKey, "item:1:BBB");
+    assert.equal(controller.viewState.context.label, "Paper B");
   });
 });
 
@@ -419,11 +472,12 @@ function createConversation(
   id: string,
   label: string,
 ) {
+  const workspace = createItemWorkspaceIdentity(paper);
   return {
     metadata: {
-      ...paper,
+      ...workspace,
       id,
-      scope: "paper" as const,
+      scope: "workspace" as const,
       label,
       createdAt: "2026-06-16T00:00:00.000Z",
       updatedAt: "2026-06-16T00:01:00.000Z",

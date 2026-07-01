@@ -1,5 +1,5 @@
 import type { JsonValue } from "../codex/types";
-import type { BoundPaperScope } from "./paperBinding";
+import type { BoundWorkspaceScope } from "./paperBinding";
 
 export {
   MCP_PROTOCOL_VERSION,
@@ -43,7 +43,7 @@ type McpTool = {
 };
 
 type McpToolCallContext = {
-  paperScope?: BoundPaperScope;
+  workspaceScope?: BoundWorkspaceScope;
   paperBindingError?: string;
 };
 

@@ -1,10 +1,12 @@
 import type { PaperScope } from "./types";
 import { getSelectedReader } from "./reader";
-import { createLogger } from "../utils/logger";
+import {
+  createItemWorkspaceIdentity,
+  createPaperIdentity,
+  type WorkspaceIdentity,
+} from "../shared/conversation";
 
 export { ZoteroContextGateway };
-
-const logger = createLogger("zotero.contextGateway");
 
 class ZoteroContextGateway {
   constructor(private readonly win: Window) {}
@@ -36,26 +38,11 @@ class ZoteroContextGateway {
     };
   }
 
-  async getAttachmentFullTextForTool(scope: PaperScope): Promise<string> {
-    const attachment = Zotero.Items.get(scope.attachmentItemID);
-    if (!attachment?.isAttachment?.()) {
-      return "";
-    }
-
-    try {
-      return normalizeText((await attachment.attachmentText) || "");
-    } catch (error) {
-      logger.warn("failed to read attachment full text", {
-        error: String(error),
-        attachmentItemID: scope.attachmentItemID,
-        attachmentKey: scope.attachmentKey,
-        libraryID: scope.libraryID,
-      });
-      return "";
-    }
+  async getActiveWorkspace(
+    reader?: _ZoteroTypes.ReaderInstance,
+  ): Promise<WorkspaceIdentity | null> {
+    const scope = await this.getActivePaper(reader);
+    const paper = scope ? createPaperIdentity(scope) : null;
+    return paper ? createItemWorkspaceIdentity(paper) : null;
   }
-}
-
-function normalizeText(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
 }

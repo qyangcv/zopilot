@@ -56,10 +56,10 @@ export function SidebarApp({
   }, [draft, state.busy, state.composerEnabled]);
 
   useEffect(() => {
-    if (!state.context.paperKey) {
+    if (!state.context.workspaceKey) {
       setContextOpen(false);
     }
-  }, [state.context.paperKey]);
+  }, [state.context.workspaceKey]);
 
   const submit = (text = draft) => {
     const trimmed = text.trim();
@@ -120,7 +120,7 @@ export function SidebarApp({
             aria-haspopup="true"
             aria-label={getString("sidebar-history")}
             className="zp-icon-button zp-history-button"
-            disabled={!state.context.paperKey}
+            disabled={!state.context.workspaceKey}
             onClick={(event) => {
               event.stopPropagation();
               actions.toggleSessions();
@@ -137,7 +137,7 @@ export function SidebarApp({
             aria-haspopup="true"
             aria-label={getString("sidebar-archived-sessions")}
             className="zp-icon-button zp-archive-button"
-            disabled={!state.context.paperKey}
+            disabled={!state.context.workspaceKey}
             onClick={(event) => {
               event.stopPropagation();
               actions.toggleArchivedSessions();
@@ -150,7 +150,7 @@ export function SidebarApp({
           <button
             aria-label={getString("sidebar-new-chat")}
             className="zp-icon-button zp-new-session-button"
-            disabled={!state.context.paperKey}
+            disabled={!state.context.workspaceKey}
             onClick={(event) => {
               event.stopPropagation();
               actions.createNewSession();
@@ -179,6 +179,8 @@ export function SidebarApp({
           paperTitle={state.context.paperTitle}
           parentItemKey={state.context.parentItemKey}
           attachmentKey={state.context.attachmentKey}
+          workspaceKey={state.context.workspaceKey}
+          workspaceType={state.context.workspaceType}
         />
       ) : null}
       {state.sessionsOpen ? (
@@ -225,7 +227,7 @@ export function SidebarApp({
         <div className="zp-context-row">
           <button
             className="zp-context-chip"
-            disabled={!state.context.paperKey}
+            disabled={!state.context.workspaceKey}
             onClick={(event) => {
               event.stopPropagation();
               setContextOpen((open) => !open);
@@ -258,7 +260,7 @@ export function SidebarApp({
             <button
               aria-label={getString("sidebar-add-context")}
               className="zp-context-add"
-              disabled={!state.context.paperKey}
+              disabled={!state.context.workspaceKey}
               onClick={(event) => {
                 event.stopPropagation();
                 setContextOpen((open) => !open);
@@ -613,6 +615,8 @@ function ContextPopover({
   paperKey,
   paperTitle,
   parentItemKey,
+  workspaceKey,
+  workspaceType,
 }: {
   attachmentKey?: string;
   label: string;
@@ -620,6 +624,8 @@ function ContextPopover({
   paperKey?: string;
   paperTitle?: string;
   parentItemKey?: string;
+  workspaceKey?: string;
+  workspaceType?: string;
 }): ReactElement {
   return (
     <div
@@ -642,6 +648,13 @@ function ContextPopover({
         <div>
           <dt>{getString("sidebar-current-context")}</dt>
           <dd>{paperTitle || label}</dd>
+        </div>
+        <div>
+          <dt>Workspace</dt>
+          <dd>
+            {workspaceType ? `${workspaceType}: ` : ""}
+            {workspaceKey || getString("sidebar-unavailable-context")}
+          </dd>
         </div>
         <div>
           <dt>{getString("sidebar-paper-key")}</dt>

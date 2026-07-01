@@ -1,115 +1,105 @@
 import { assert } from "chai";
-import type { PaperScope } from "../../../src/zotero/types.ts";
 import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
 import {
   PAPER_BINDING_MISSING_MESSAGE,
-  type BoundPaperScope,
+  type BoundWorkspaceScope,
 } from "../../../src/mcp/paperBinding.ts";
+import type { BuiltContext } from "../../../src/document/types.ts";
 
 describe("paper_read MCP tool", function () {
-  afterEach(function () {
-    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
-  });
-
-  it("exposes only the paper_read definition for Step 5.2", function () {
-    const tool = createTool();
+  it("exposes the paper_read definition as a read-only context facade", function () {
+    const tool = createTool(createContext("ready"));
 
     assert.equal(tool.definition.name, "paper_read");
+    assert.include(tool.definition.description, "material cache");
     assert.isTrue(tool.definition.annotations?.readOnlyHint);
   });
 
-  it("calls paper_read with the bound paper and returns evidence snippets", async function () {
-    const scope = createScope({
-      attachmentItemID: 10,
-      attachmentKey: "PDF-A",
-      libraryID: 1,
-      parentItemID: 20,
-    });
+  it("calls the context builder with the bound workspace and returns traceable context", async function () {
+    let observedQuestion = "";
+    let observedScope: BoundWorkspaceScope | undefined;
     const tool = createPaperReadTool({
-      readPaperText: async (paper) =>
-        paper.attachmentKey === "PDF-A"
-          ? "The paper introduces a retrieval augmented method for reading PDFs. Evaluation details are elsewhere. The method uses lexical chunk ranking."
-          : "Wrong paper text.",
+      contextBuilder: {
+        async build(input) {
+          observedQuestion = input.question || "";
+          observedScope = input.scope;
+          return createContext("ready");
+        },
+      },
     });
 
     const result = await tool.call(
       {
-        question: "What is the retrieval method?",
+        question: "Explain Figure 2",
       },
-      { paperScope: scope },
+      { workspaceScope: createScope() },
     );
 
     assert.isFalse(result.isError);
-    assert.include(result.content[0].text, "retrieval augmented method");
-    assert.notInclude(result.content[0].text, "Wrong paper text");
-    assert.notInclude(result.content[0].text, "paper_read");
-    assert.notInclude(result.content[0].text, "Current paper scope");
-    assert.notInclude(result.content[0].text, "[snippet");
+    assert.equal(observedQuestion, "Explain Figure 2");
+    assert.equal(observedScope?.workspaceKey, "item:1:PAPER-A");
+    assert.include(result.content[0].text, "Workspace: item item:1:PAPER-A");
+    assert.include(result.content[0].text, "Evidence 1");
+    assert.include(result.content[0].text, "label=Figure 2");
+    assert.include(result.content[0].text, "page=5");
+    assert.include(result.content[0].text, "image=/cache/assets/page-0005.png");
+    assert.notInclude(result.content[0].text, "Parser warning");
+    assert.notInclude(result.content[0].text, "Markdown extraction failed");
     assert.notProperty(result, "structuredContent");
-    assert.notInclude(JSON.stringify(result), "chunkIndex");
-    assert.notInclude(JSON.stringify(result), "charStart");
-    assert.notInclude(JSON.stringify(result), "score");
-    assert.notInclude(JSON.stringify(result), "/tmp");
   });
 
-  it("returns no_text when the bound PDF has no Zotero full-text", async function () {
-    const tool = createTool("");
+  it("returns an error when paper_read has no bound workspace", async function () {
+    const tool = createTool(createContext("not_bound"));
 
     const result = await tool.call(
       {
         question: "What is the method?",
       },
-      { paperScope: createScope() },
-    );
-
-    assert.isTrue(result.isError);
-    assert.equal(
-      result.content[0].text,
-      "The bound PDF has no readable Zotero full text.",
-    );
-    assert.notProperty(result, "structuredContent");
-  });
-
-  it("returns an error when paper_read has no bound paper scope", async function () {
-    const tool = createTool();
-
-    const result = await tool.call(
-      {
-        question: "What is the method?",
-      },
-      {},
+      { paperBindingError: PAPER_BINDING_MISSING_MESSAGE },
     );
 
     assert.isTrue(result.isError);
     assert.equal(result.content[0].text, PAPER_BINDING_MISSING_MESSAGE);
-    assert.notProperty(result, "structuredContent");
   });
 
-  it("calls paper_read without returning local attachment paths", async function () {
-    const tool = createTool();
+  it("returns a source selection error for workspaces without a default PDF", async function () {
+    const tool = createTool(createContext("no_source"));
 
     const result = await tool.call(
       {
         question: "What is the method?",
       },
-      { paperScope: createScope() },
+      { workspaceScope: { ...createScope(), defaultSource: undefined } },
     );
 
-    assert.isFalse(result.isError);
-    assert.include(result.content[0].text, "lexical retrieval");
-    assert.notProperty(result, "structuredContent");
-    assert.notInclude(JSON.stringify(result), "/tmp");
+    assert.isTrue(result.isError);
+    assert.include(result.content[0].text, "no selected PDF source");
+  });
+
+  it("returns material pipeline failures as tool errors", async function () {
+    const tool = createTool(createContext("material_error"));
+
+    const result = await tool.call(
+      {
+        question: "What is Table 1?",
+      },
+      { workspaceScope: createScope() },
+    );
+
+    assert.isTrue(result.isError);
+    assert.include(result.content[0].text, "PDF material pipeline failed");
+    assert.include(result.content[0].text, "PyMuPDF4LLM");
   });
 
   it("rejects unsupported paper_read input fields", async function () {
-    const tool = createTool();
+    const tool = createTool(createContext("ready"));
 
     try {
       await tool.call(
         {
           itemId: 1,
         },
-        { paperScope: createScope() },
+        { workspaceScope: createScope() },
       );
       assert.fail("Expected invalid input to fail");
     } catch (error) {
@@ -119,74 +109,99 @@ describe("paper_read MCP tool", function () {
       );
     }
   });
-
-  it("rejects stale bound attachment metadata instead of reading another PDF", async function () {
-    installZoteroMock({
-      id: 10,
-      key: "ACTUAL-PDF",
-      libraryID: 1,
-      attachmentText: "The method should not be read.",
-    });
-    const tool = createPaperReadTool({
-      logger: () => undefined,
-    });
-
-    const result = await tool.call(
-      {
-        question: "method",
-      },
-      {
-        paperScope: createScope({
-          attachmentItemID: 10,
-          attachmentKey: "STALE-PDF",
-          libraryID: 1,
-        }),
-      },
-    );
-
-    assert.isTrue(result.isError);
-    assert.include(
-      result.content[0].text,
-      "Bound Zotero attachment no longer matches this thread.",
-    );
-    assert.notInclude(result.content[0].text, "The method should not be read.");
-  });
 });
 
-function createTool(text = "The method uses lexical retrieval.") {
+function createTool(context: BuiltContext) {
   return createPaperReadTool({
-    readPaperText: async () => text,
+    contextBuilder: {
+      async build() {
+        return context;
+      },
+    },
   });
 }
 
-function createScope(overrides: Partial<PaperScope> = {}): BoundPaperScope {
+function createScope(): BoundWorkspaceScope {
   return {
     conversationId: "conv-a",
-    paperKey: "1:PAPER-A",
-    attachmentItemID: 10,
-    attachmentKey: "PDF",
-    libraryID: 1,
-    parentItemID: 20,
-    ...overrides,
+    workspaceKey: "item:1:PAPER-A",
+    workspaceType: "item",
+    workspaceLabel: "Paper A",
+    defaultSource: {
+      paperKey: "1:PAPER-A",
+      attachmentItemID: 10,
+      attachmentKey: "PDF",
+      libraryID: 1,
+    },
   };
 }
 
-function installZoteroMock(attachment: {
-  id: number;
-  key: string;
-  libraryID: number;
-  attachmentText: string;
-}): void {
-  (globalThis as unknown as { Zotero: unknown }).Zotero = {
-    Items: {
-      get: (itemID: number) =>
-        itemID === attachment.id
-          ? {
-              ...attachment,
-              isAttachment: () => true,
-              isPDFAttachment: () => true,
-            }
-          : undefined,
+function createContext(status: BuiltContext["status"]): BuiltContext {
+  const base: BuiltContext = {
+    status,
+    workspace: {
+      key: "item:1:PAPER-A",
+      type: "item",
+      label: "Paper A",
     },
+    sources:
+      status === "not_bound" || status === "no_source"
+        ? []
+        : [
+            {
+              sourceId: "1-PDF",
+              paperKey: "1:PAPER-A",
+              libraryID: 1,
+              attachmentItemID: 10,
+              attachmentKey: "PDF",
+              title: "Paper A",
+              filePath: "/tmp/paper.pdf",
+              mtime: 1,
+              size: 1024,
+              pdfHash: "hash",
+            },
+          ],
+    query: {
+      query: "Explain Figure 2",
+      intent: "figure",
+      locator: { type: "figure", value: "2" },
+      includeReferences: false,
+    },
+    evidence: [],
+    warnings: ["Markdown extraction failed; page text extraction was used."],
+  };
+
+  if (status === "not_bound") {
+    return { ...base, warnings: [PAPER_BINDING_MISSING_MESSAGE] };
+  }
+  if (status === "no_source") {
+    return {
+      ...base,
+      warnings: ["The current workspace has no selected PDF source."],
+    };
+  }
+  if (status === "material_error") {
+    return {
+      ...base,
+      warnings: ["PyMuPDF4LLM failed to parse the PDF."],
+    };
+  }
+  return {
+    ...base,
+    evidence: [
+      {
+        type: "artifact",
+        sourceId: "1-PDF",
+        artifactId: "1-PDF:figure:2",
+        chunkId: "1-PDF:chunk:3",
+        label: "Figure 2",
+        page: 5,
+        sectionPath: ["Experiments"],
+        imagePath: "/cache/assets/page-0005.png",
+        score: 1.8,
+        reasons: ["exact artifact locator"],
+        text: "Caption: Figure 2 summarizes the retrieval pipeline.",
+      },
+    ],
   };
 }

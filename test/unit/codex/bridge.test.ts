@@ -146,6 +146,11 @@ describe("CodexBridge", function () {
       mcpServer.http_headers["X-Zopilot-Conversation-ID"],
       "conv-new",
     );
+    assert.equal(
+      mcpServer.http_headers["X-Zopilot-Workspace-Key"],
+      "item:1:conv-new",
+    );
+    assert.equal(mcpServer.http_headers["X-Zopilot-Workspace-Type"], "item");
     assert.equal(mcpServer.http_headers["X-Zopilot-Paper-Key"], "1:conv-new");
     assert.equal(mcpServer.http_headers["X-Zopilot-Attachment-Item-ID"], "1");
     assert.equal(
@@ -317,13 +322,20 @@ function installMcpMocks(): void {
 function createConversation(id: string): ConversationMetadata {
   return {
     id,
-    scope: "paper",
-    paperKey: `1:${id}`,
+    scope: "workspace",
+    workspaceKey: `item:1:${id}`,
+    workspaceType: "item",
+    workspaceLabel: id,
+    workspaceTitle: id,
     libraryID: 1,
-    parentItemKey: id,
-    attachmentItemID: 1,
-    attachmentKey: `${id}-pdf`,
-    title: id,
+    defaultSource: {
+      paperKey: `1:${id}`,
+      libraryID: 1,
+      parentItemKey: id,
+      attachmentItemID: 1,
+      attachmentKey: `${id}-pdf`,
+      title: id,
+    },
     label: id,
     createdAt: "2026-06-13T00:00:00.000Z",
     updatedAt: "2026-06-13T00:00:00.000Z",

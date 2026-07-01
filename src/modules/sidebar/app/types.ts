@@ -20,6 +20,8 @@ export type SidebarModelView = {
 
 export type SidebarContextView = {
   label: string;
+  workspaceKey?: string;
+  workspaceType?: "item" | "collection" | "library";
   paperTitle?: string;
   paperKey?: string;
   parentItemKey?: string;

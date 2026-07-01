@@ -8,6 +8,7 @@ type MockItem = {
   libraryID: number;
   parentItem?: MockItem;
   attachmentText?: string;
+  getField?: (field: string) => string;
   isAttachment?: () => boolean;
   isPDFAttachment?: () => boolean;
   isRegularItem?: () => boolean;
@@ -91,64 +92,32 @@ describe("ZoteroContextGateway", function () {
     assert.isNull(await gateway.getActivePaper());
   });
 
-  it("reads normalized full text for MCP tools", async function () {
+  it("resolves the active PDF reader as an item workspace", async function () {
+    const parent = createItem({
+      id: 20,
+      key: "PARENT",
+      isRegularItem: () => true,
+      getField: (field) => (field === "title" ? "Paper Title" : ""),
+    });
     const attachment = createItem({
       id: 10,
-      attachmentText: "The   method\nuses lexical retrieval.",
+      key: "PDF",
+      parentItem: parent,
       isAttachment: () => true,
       isPDFAttachment: () => true,
     });
     installZoteroMock({
-      items: [attachment],
+      items: [attachment, parent],
       readers: [createReader(attachment.id)],
     });
     const gateway = new ZoteroContextGateway(createReaderWindow());
 
-    const text = await gateway.getAttachmentFullTextForTool(
-      createScope(attachment),
-    );
+    const workspace = await gateway.getActiveWorkspace();
 
-    assert.equal(text, "The method uses lexical retrieval.");
-  });
-
-  it("returns an empty text result when attachmentText is empty", async function () {
-    const attachment = createItem({
-      id: 10,
-      attachmentText: "",
-      isAttachment: () => true,
-      isPDFAttachment: () => true,
-    });
-    installZoteroMock({
-      items: [attachment],
-      readers: [createReader(attachment.id)],
-    });
-    const gateway = new ZoteroContextGateway(createReaderWindow());
-
-    const text = await gateway.getAttachmentFullTextForTool(
-      createScope(attachment),
-    );
-
-    assert.equal(text, "");
-  });
-
-  it("returns readable attachment text without probing full-text index state", async function () {
-    const attachment = createItem({
-      id: 10,
-      attachmentText: "Readable text exists.",
-      isAttachment: () => true,
-      isPDFAttachment: () => true,
-    });
-    installZoteroMock({
-      items: [attachment],
-      readers: [createReader(attachment.id)],
-    });
-    const gateway = new ZoteroContextGateway(createReaderWindow());
-
-    const text = await gateway.getAttachmentFullTextForTool(
-      createScope(attachment),
-    );
-
-    assert.equal(text, "Readable text exists.");
+    assert.equal(workspace?.workspaceKey, "item:1:PARENT");
+    assert.equal(workspace?.workspaceType, "item");
+    assert.equal(workspace?.workspaceLabel, "Paper Title");
+    assert.equal(workspace?.defaultSource?.attachmentKey, "PDF");
   });
 });
 
@@ -196,15 +165,6 @@ function createReader(itemID: number): MockReader {
     itemID,
     tabID: TAB_ID,
     type: "pdf",
-  };
-}
-
-function createScope(attachment: MockItem): PaperScope {
-  return {
-    attachmentItemID: attachment.id,
-    attachmentKey: attachment.key,
-    parentItemID: attachment.parentItem?.id,
-    libraryID: attachment.libraryID,
   };
 }
 

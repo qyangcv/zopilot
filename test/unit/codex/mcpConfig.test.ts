@@ -52,6 +52,12 @@ describe("Codex MCP config", function () {
     assert.deepEqual(server.enabled_tools, ["paper_read"]);
     assert.match(server.http_headers.Authorization, /^Bearer /);
     assert.equal(server.http_headers["X-Zopilot-Conversation-ID"], "conv-a");
+    assert.equal(
+      server.http_headers["X-Zopilot-Workspace-Key"],
+      "item:1:PAPER-A",
+    );
+    assert.equal(server.http_headers["X-Zopilot-Workspace-Type"], "item");
+    assert.equal(server.http_headers["X-Zopilot-Workspace-Label"], "Paper A");
     assert.equal(server.http_headers["X-Zopilot-Paper-Key"], "1:PAPER-A");
     assert.equal(server.http_headers["X-Zopilot-Attachment-Item-ID"], "10");
     assert.equal(server.http_headers["X-Zopilot-Attachment-Key"], "PDF-A");
@@ -88,13 +94,20 @@ function getTestGlobals(): TestGlobals {
 function createConversation(): ConversationMetadata {
   return {
     id: "conv-a",
-    scope: "paper",
-    paperKey: "1:PAPER-A",
+    scope: "workspace",
+    workspaceKey: "item:1:PAPER-A",
+    workspaceType: "item",
+    workspaceLabel: "Paper A",
+    workspaceTitle: "Paper A",
     libraryID: 1,
-    parentItemKey: "PAPER-A",
-    attachmentItemID: 10,
-    attachmentKey: "PDF-A",
-    title: "Paper A",
+    defaultSource: {
+      paperKey: "1:PAPER-A",
+      libraryID: 1,
+      parentItemKey: "PAPER-A",
+      attachmentItemID: 10,
+      attachmentKey: "PDF-A",
+      title: "Paper A",
+    },
     label: "Paper A",
     createdAt: "2026-06-13T00:00:00.000Z",
     updatedAt: "2026-06-13T00:00:00.000Z",

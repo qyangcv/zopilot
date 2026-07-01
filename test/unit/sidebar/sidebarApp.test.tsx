@@ -186,6 +186,8 @@ describe("SidebarApp", function () {
           title: sessionTitle,
           context: {
             label: paperTitle,
+            workspaceKey: "item:1:AAA",
+            workspaceType: "item",
             paperTitle,
             paperKey: "1:AAA",
           },

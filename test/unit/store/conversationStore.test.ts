@@ -12,7 +12,10 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { ConversationStore } from "../../../src/store/conversationStore.ts";
-import type { PaperIdentity } from "../../../src/shared/conversation.ts";
+import {
+  createItemWorkspaceIdentity,
+  type PaperIdentity,
+} from "../../../src/shared/conversation.ts";
 
 let rootDir: string;
 const originalConsole = globalThis.console;
@@ -35,12 +38,15 @@ describe("ConversationStore", function () {
     await rm(rootDir, { recursive: true, force: true });
   });
 
-  it("persists paper messages and keeps paper histories isolated", async function () {
+  it("persists workspace messages and keeps workspace histories isolated", async function () {
     const paperA = createPaper("1:AAA", "AAA", "Paper A");
     const paperB = createPaper("1:BBB", "BBB", "Paper B");
+    const workspaceA = createItemWorkspaceIdentity(paperA);
+    const workspaceB = createItemWorkspaceIdentity(paperB);
     const store = new ConversationStore(rootDir);
 
-    let conversationA = await store.getOrCreateLatestPaperConversation(paperA);
+    let conversationA =
+      await store.getOrCreateLatestWorkspaceConversation(workspaceA);
     conversationA = await store.addMessage(conversationA.metadata, {
       role: "user",
       text: "What is the method?",
@@ -57,13 +63,13 @@ describe("ConversationStore", function () {
     });
 
     const conversationB =
-      await store.getOrCreateLatestPaperConversation(paperB);
+      await store.getOrCreateLatestWorkspaceConversation(workspaceB);
     const reloadedStore = new ConversationStore(rootDir);
-    const reloadedA = await reloadedStore.getLatestPaperConversation(
-      paperA.paperKey,
+    const reloadedA = await reloadedStore.getLatestWorkspaceConversation(
+      workspaceA.workspaceKey,
     );
-    const reloadedB = await reloadedStore.getLatestPaperConversation(
-      paperB.paperKey,
+    const reloadedB = await reloadedStore.getLatestWorkspaceConversation(
+      workspaceB.workspaceKey,
     );
 
     assert.strictEqual(reloadedA?.metadata.id, conversationA.metadata.id);
@@ -80,21 +86,25 @@ describe("ConversationStore", function () {
     assert.notStrictEqual(reloadedA?.metadata.id, reloadedB?.metadata.id);
   });
 
-  it("lists, activates, and archives sessions within one paper", async function () {
+  it("lists, activates, and archives sessions within one workspace", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const otherPaper = createPaper("1:BBB", "BBB", "Paper B");
+    const workspace = createItemWorkspaceIdentity(paper);
+    const otherWorkspace = createItemWorkspaceIdentity(otherPaper);
     const store = new ConversationStore(rootDir);
 
-    let first = await store.createPaperConversation(paper);
+    let first = await store.createWorkspaceConversation(workspace);
     first = await store.addMessage(first.metadata, {
       role: "user",
       text: "First session question",
     });
     await waitForTimestampTick();
-    const second = await store.createPaperConversation(paper);
-    const other = await store.createPaperConversation(otherPaper);
+    const second = await store.createWorkspaceConversation(workspace);
+    const other = await store.createWorkspaceConversation(otherWorkspace);
 
-    let paperSessions = await store.listPaperConversations(paper.paperKey);
+    let paperSessions = await store.listWorkspaceConversations(
+      workspace.workspaceKey,
+    );
     assert.deepEqual(
       paperSessions.map((conversation) => conversation.metadata.id),
       [second.metadata.id, first.metadata.id],
@@ -102,55 +112,63 @@ describe("ConversationStore", function () {
     assert.strictEqual(first.metadata.label, "First session question");
 
     await waitForTimestampTick();
-    const activated = await store.activatePaperConversation(first.metadata);
-    const latest = await store.getLatestPaperConversation(paper.paperKey);
+    const activated = await store.activateWorkspaceConversation(first.metadata);
+    const latest = await store.getLatestWorkspaceConversation(
+      workspace.workspaceKey,
+    );
     assert.strictEqual(latest?.metadata.id, activated.metadata.id);
 
-    await store.archivePaperConversation(activated.metadata);
-    paperSessions = await store.listPaperConversations(paper.paperKey);
+    await store.archiveWorkspaceConversation(activated.metadata);
+    paperSessions = await store.listWorkspaceConversations(
+      workspace.workspaceKey,
+    );
     assert.deepEqual(
       paperSessions.map((conversation) => conversation.metadata.id),
       [second.metadata.id],
     );
-    const archivedSessions = await store.listArchivedPaperConversations(
-      paper.paperKey,
+    const archivedSessions = await store.listArchivedWorkspaceConversations(
+      workspace.workspaceKey,
     );
     assert.deepEqual(
       archivedSessions.map((conversation) => conversation.metadata.id),
       [activated.metadata.id],
     );
     assert.isTrue(archivedSessions[0]?.metadata.archived);
-    const restoredMetadata = await store.restorePaperConversation(
+    const restoredMetadata = await store.restoreWorkspaceConversation(
       archivedSessions[0]!.metadata,
     );
     assert.isUndefined(restoredMetadata.archived);
-    paperSessions = await store.listPaperConversations(paper.paperKey);
+    paperSessions = await store.listWorkspaceConversations(
+      workspace.workspaceKey,
+    );
     assert.deepEqual(
       paperSessions.map((conversation) => conversation.metadata.id),
       [activated.metadata.id, second.metadata.id],
     );
     assert.isUndefined(paperSessions[0]?.metadata.archived);
     assert.deepEqual(
-      await store.listArchivedPaperConversations(paper.paperKey),
+      await store.listArchivedWorkspaceConversations(workspace.workspaceKey),
       [],
     );
-    const otherSessions = await store.listPaperConversations(
-      otherPaper.paperKey,
+    const otherSessions = await store.listWorkspaceConversations(
+      otherWorkspace.workspaceKey,
     );
     assert.deepEqual(
       otherSessions.map((conversation) => conversation.metadata.id),
       [other.metadata.id],
     );
-    const otherArchivedSessions = await store.listArchivedPaperConversations(
-      otherPaper.paperKey,
-    );
+    const otherArchivedSessions =
+      await store.listArchivedWorkspaceConversations(
+        otherWorkspace.workspaceKey,
+      );
     assert.deepEqual(otherArchivedSessions, []);
   });
 
   it("persists assistant completion metadata and interrupted status", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
     const store = new ConversationStore(rootDir);
-    const conversation = await store.createPaperConversation(paper);
+    const conversation = await store.createWorkspaceConversation(workspace);
 
     await store.addMessage(conversation.metadata, {
       role: "assistant",
@@ -165,7 +183,7 @@ describe("ConversationStore", function () {
 
     const reloaded = await new ConversationStore(
       rootDir,
-    ).getLatestPaperConversation(paper.paperKey);
+    ).getLatestWorkspaceConversation(workspace.workspaceKey);
     assert.strictEqual(reloaded?.messages[0]?.status, "interrupted");
     assert.strictEqual(
       reloaded?.messages[0]?.completedAt,
@@ -177,38 +195,45 @@ describe("ConversationStore", function () {
 
   it("fails loudly on invalid conversation metadata", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
     const store = new ConversationStore(rootDir);
-    await store.createPaperConversation(paper);
-    const { metadataPath } = await getConversationFilePaths(paper.paperKey);
+    await store.createWorkspaceConversation(workspace);
+    const { metadataPath } = await getConversationFilePaths(
+      workspace.workspaceKey,
+    );
 
     await writeFile(metadataPath, JSON.stringify({ id: "broken" }), "utf8");
 
     await assertRejects(
-      () => store.getLatestPaperConversation(paper.paperKey),
+      () => store.getLatestWorkspaceConversation(workspace.workspaceKey),
       "Invalid Zopilot conversation metadata",
     );
   });
 
   it("fails loudly on invalid conversation messages", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
     const store = new ConversationStore(rootDir);
-    const conversation = await store.createPaperConversation(paper);
+    const conversation = await store.createWorkspaceConversation(workspace);
     await store.addMessage(conversation.metadata, {
       role: "user",
       text: "Question",
     });
-    const { messagesPath } = await getConversationFilePaths(paper.paperKey);
+    const { messagesPath } = await getConversationFilePaths(
+      workspace.workspaceKey,
+    );
 
     await writeFile(messagesPath, JSON.stringify({ id: "broken" }), "utf8");
 
     await assertRejects(
-      () => store.getLatestPaperConversation(paper.paperKey),
+      () => store.getLatestWorkspaceConversation(workspace.workspaceKey),
       "Invalid Zopilot conversation message",
     );
   });
 
   it("uses Zotero.Profile.dir for the default conversation root", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
     const profileDir = join(rootDir, "profile");
     let deprecatedProfileDirectoryCalled = false;
     installZoteroProfileMock(profileDir, () => {
@@ -217,16 +242,16 @@ describe("ConversationStore", function () {
     });
     const store = new ConversationStore();
 
-    await store.createPaperConversation(paper);
+    await store.createWorkspaceConversation(workspace);
 
-    const paperDir = join(
+    const workspaceDir = join(
       profileDir,
       "zopilot",
       "conversations",
-      "papers",
-      encodePathSegment(paper.paperKey),
+      "workspaces",
+      encodePathSegment(workspace.workspaceKey),
     );
-    const files = await readdir(paperDir);
+    const files = await readdir(workspaceDir);
     assert.isFalse(deprecatedProfileDirectoryCalled);
     assert.lengthOf(
       files.filter((file) => file.endsWith(".json")),
@@ -259,11 +284,11 @@ async function waitForTimestampTick(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 2));
 }
 
-async function getConversationFilePaths(paperKey: string): Promise<{
+async function getConversationFilePaths(workspaceKey: string): Promise<{
   metadataPath: string;
   messagesPath: string;
 }> {
-  const dir = join(rootDir, "papers", encodePathSegment(paperKey));
+  const dir = join(rootDir, "workspaces", encodePathSegment(workspaceKey));
   const files = await readdir(dir);
   const metadataPath = files.find((file) => file.endsWith(".json"));
   const messagesPath = files.find((file) => file.endsWith(".jsonl"));

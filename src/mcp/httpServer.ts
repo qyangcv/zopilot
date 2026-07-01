@@ -311,7 +311,7 @@ function createToolCallContext(
   const binding = parsePaperBindingHeaders(headers);
   if (binding.ok) {
     return {
-      paperScope: binding.value,
+      workspaceScope: binding.value,
     };
   }
   return {

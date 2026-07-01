@@ -2,7 +2,7 @@ import type {
   Conversation,
   ConversationMessage,
   ConversationMetadata,
-  PaperIdentity,
+  WorkspaceIdentity,
 } from "../shared/conversation";
 import { createLogger } from "../utils/logger";
 
@@ -23,25 +23,30 @@ class ConversationStore {
     this.rootDir = rootDir;
   }
 
-  async getOrCreateLatestPaperConversation(
-    paper: PaperIdentity,
+  async getOrCreateLatestWorkspaceConversation(
+    workspace: WorkspaceIdentity,
   ): Promise<Conversation> {
-    const existing = await this.getLatestPaperConversation(paper.paperKey);
+    const existing = await this.getLatestWorkspaceConversation(
+      workspace.workspaceKey,
+    );
     if (existing) {
-      const metadata = this.refreshPaperSnapshot(existing.metadata, paper);
+      const metadata = this.refreshWorkspaceSnapshot(
+        existing.metadata,
+        workspace,
+      );
       if (metadata !== existing.metadata) {
         await this.writeMetadata(metadata);
         return { metadata, messages: existing.messages };
       }
       return existing;
     }
-    return this.createPaperConversation(paper);
+    return this.createWorkspaceConversation(workspace);
   }
 
-  async getLatestPaperConversation(
-    paperKey: string,
+  async getLatestWorkspaceConversation(
+    workspaceKey: string,
   ): Promise<Conversation | null> {
-    const metadata = await this.listPaperMetadata(paperKey);
+    const metadata = await this.listWorkspaceMetadata(workspaceKey);
     const latest = metadata
       .filter((item) => !item.archived)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
@@ -54,8 +59,10 @@ class ConversationStore {
     };
   }
 
-  async listPaperConversations(paperKey: string): Promise<Conversation[]> {
-    const metadata = await this.listPaperMetadata(paperKey);
+  async listWorkspaceConversations(
+    workspaceKey: string,
+  ): Promise<Conversation[]> {
+    const metadata = await this.listWorkspaceMetadata(workspaceKey);
     const activeMetadata = metadata
       .filter((item) => !item.archived)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -67,10 +74,10 @@ class ConversationStore {
     );
   }
 
-  async listArchivedPaperConversations(
-    paperKey: string,
+  async listArchivedWorkspaceConversations(
+    workspaceKey: string,
   ): Promise<Conversation[]> {
-    const metadata = await this.listPaperMetadata(paperKey);
+    const metadata = await this.listWorkspaceMetadata(workspaceKey);
     const archivedMetadata = metadata
       .filter((item) => item.archived)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -82,12 +89,14 @@ class ConversationStore {
     );
   }
 
-  async createPaperConversation(paper: PaperIdentity): Promise<Conversation> {
+  async createWorkspaceConversation(
+    workspace: WorkspaceIdentity,
+  ): Promise<Conversation> {
     const createdAt = new Date().toISOString();
     const metadata: ConversationMetadata = {
-      ...paper,
+      ...workspace,
       id: createId("conv"),
-      scope: "paper",
+      scope: "workspace",
       label: defaultConversationLabel(createdAt),
       createdAt,
       updatedAt: createdAt,
@@ -96,7 +105,7 @@ class ConversationStore {
     return { metadata, messages: [] };
   }
 
-  async activatePaperConversation(
+  async activateWorkspaceConversation(
     metadata: ConversationMetadata,
   ): Promise<Conversation> {
     const nextMetadata = {
@@ -110,7 +119,7 @@ class ConversationStore {
     };
   }
 
-  async archivePaperConversation(
+  async archiveWorkspaceConversation(
     metadata: ConversationMetadata,
   ): Promise<void> {
     await this.writeMetadata({
@@ -120,7 +129,7 @@ class ConversationStore {
     });
   }
 
-  async restorePaperConversation(
+  async restoreWorkspaceConversation(
     metadata: ConversationMetadata,
   ): Promise<ConversationMetadata> {
     const restoredMetadata = {
@@ -192,35 +201,42 @@ class ConversationStore {
     return nextMetadata;
   }
 
-  private refreshPaperSnapshot(
+  private refreshWorkspaceSnapshot(
     metadata: ConversationMetadata,
-    paper: PaperIdentity,
+    workspace: WorkspaceIdentity,
   ): ConversationMetadata {
+    const source = workspace.defaultSource;
+    const currentSource = metadata.defaultSource;
     if (
-      metadata.title === paper.title &&
-      metadata.parentItemID === paper.parentItemID &&
-      metadata.attachmentItemID === paper.attachmentItemID &&
-      metadata.attachmentKey === paper.attachmentKey
+      metadata.workspaceLabel === workspace.workspaceLabel &&
+      metadata.workspaceTitle === workspace.workspaceTitle &&
+      metadata.workspaceType === workspace.workspaceType &&
+      metadata.libraryID === workspace.libraryID &&
+      currentSource?.paperKey === source?.paperKey &&
+      currentSource?.title === source?.title &&
+      currentSource?.parentItemID === source?.parentItemID &&
+      currentSource?.attachmentItemID === source?.attachmentItemID &&
+      currentSource?.attachmentKey === source?.attachmentKey
     ) {
       return metadata;
     }
     return {
       ...metadata,
-      ...paper,
+      ...workspace,
     };
   }
 
-  private async listPaperMetadata(
-    paperKey: string,
+  private async listWorkspaceMetadata(
+    workspaceKey: string,
   ): Promise<ConversationMetadata[]> {
-    const dir = this.getPaperDir(paperKey);
+    const dir = this.getWorkspaceDir(workspaceKey);
     try {
       if (!(await IOUtils.exists(dir))) {
         return [];
       }
     } catch (error) {
       logger.error("failed to check conversation directory", error, {
-        paperKey,
+        workspaceKey,
         dir,
       });
       throw error;
@@ -230,7 +246,7 @@ class ConversationStore {
       children = await IOUtils.getChildren(dir);
     } catch (error) {
       logger.error("failed to list conversation directory", error, {
-        paperKey,
+        workspaceKey,
         dir,
       });
       throw error;
@@ -240,7 +256,8 @@ class ConversationStore {
       metadataFiles.map((path) => this.readMetadata(path)),
     );
     return metadata.filter(
-      (item): item is ConversationMetadata => item?.paperKey === paperKey,
+      (item): item is ConversationMetadata =>
+        item?.workspaceKey === workspaceKey,
     );
   }
 
@@ -270,7 +287,7 @@ class ConversationStore {
     } catch (error) {
       logger.error("failed to read conversation messages", error, {
         conversationId: metadata.id,
-        paperKey: metadata.paperKey,
+        workspaceKey: metadata.workspaceKey,
         path,
       });
       throw error;
@@ -289,7 +306,7 @@ class ConversationStore {
     metadata: ConversationMetadata,
     messages: ConversationMessage[],
   ): Promise<void> {
-    await this.ensurePaperDir(metadata.paperKey);
+    await this.ensureWorkspaceDir(metadata.workspaceKey);
     await this.writeMetadata(metadata);
     await this.atomicWriteUTF8(
       this.getMessagesPath(metadata),
@@ -300,12 +317,12 @@ class ConversationStore {
   }
 
   private async writeMetadata(metadata: ConversationMetadata): Promise<void> {
-    await this.ensurePaperDir(metadata.paperKey);
+    await this.ensureWorkspaceDir(metadata.workspaceKey);
     await this.atomicWriteJSON(this.getMetadataPath(metadata), metadata);
   }
 
-  private async ensurePaperDir(paperKey: string): Promise<void> {
-    const dir = this.getPaperDir(paperKey);
+  private async ensureWorkspaceDir(workspaceKey: string): Promise<void> {
+    const dir = this.getWorkspaceDir(workspaceKey);
     try {
       await IOUtils.makeDirectory(dir, {
         createAncestors: true,
@@ -313,27 +330,31 @@ class ConversationStore {
       });
     } catch (error) {
       logger.error("failed to create conversation directory", error, {
-        paperKey,
+        workspaceKey,
         dir,
       });
       throw error;
     }
   }
 
-  private getPaperDir(paperKey: string): string {
-    return PathUtils.join(this.rootDir, "papers", encodePathSegment(paperKey));
+  private getWorkspaceDir(workspaceKey: string): string {
+    return PathUtils.join(
+      this.rootDir,
+      "workspaces",
+      encodePathSegment(workspaceKey),
+    );
   }
 
   private getMetadataPath(metadata: ConversationMetadata): string {
     return PathUtils.join(
-      this.getPaperDir(metadata.paperKey),
+      this.getWorkspaceDir(metadata.workspaceKey),
       `${metadata.id}.json`,
     );
   }
 
   private getMessagesPath(metadata: ConversationMetadata): string {
     return PathUtils.join(
-      this.getPaperDir(metadata.paperKey),
+      this.getWorkspaceDir(metadata.workspaceKey),
       `${metadata.id}.jsonl`,
     );
   }
@@ -411,10 +432,15 @@ function isConversationMetadata(value: unknown): value is ConversationMetadata {
   const item = value as Partial<ConversationMetadata>;
   return (
     Boolean(item) &&
-    item.scope === "paper" &&
+    item.scope === "workspace" &&
     typeof item.id === "string" &&
-    typeof item.paperKey === "string" &&
-    typeof item.parentItemKey === "string" &&
+    typeof item.workspaceKey === "string" &&
+    (item.workspaceType === "item" ||
+      item.workspaceType === "collection" ||
+      item.workspaceType === "library") &&
+    typeof item.workspaceLabel === "string" &&
+    typeof item.workspaceTitle === "string" &&
+    typeof item.libraryID === "number" &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
   );

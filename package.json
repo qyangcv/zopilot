@@ -34,6 +34,7 @@
     "@mdit/plugin-footnote": "^0.23.2",
     "@mdit/plugin-tasklist": "^0.23.2",
     "@mdit/plugin-tex": "^0.24.2",
+    "flexsearch": "^0.8.212",
     "katex": "^0.17.0",
     "lucide-react": "^1.18.0",
     "markdown-it": "^14.2.0",
