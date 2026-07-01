@@ -17,7 +17,9 @@ logs
 
 notes/*
 !notes/v0.3.0.md
+!notes/v0.3.0-light.md
 !notes/solution-for-doc.md
+!notes/light-solution-for-doc.md
 doc/
 .agents/
 .vscode/
