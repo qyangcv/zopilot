@@ -7,6 +7,7 @@ import {
 } from "../../../src/modules/sidebar/app/SidebarApp.tsx";
 import type {
   SidebarActions,
+  SidebarMessageView,
   SidebarPromptView,
   SidebarState,
 } from "../../../src/modules/sidebar/app/types.ts";
@@ -101,10 +102,28 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "<p>");
   });
 
-  it("keeps edit and resend actions bound to raw user text", function () {
+  it("keeps edit and resend actions bound to raw user text and context", function () {
     const rawText = "**raw** [link](https://example.com)";
-    const inserted: string[] = [];
-    const submitted: string[] = [];
+    const mention = {
+      id: "mention-paper",
+      sourceId: "source-paper",
+      paperKey: "1:AAA",
+      libraryID: 1,
+      parentItemID: 10,
+      parentItemKey: "AAA",
+      attachmentItemID: 11,
+      attachmentKey: "PDF",
+      title: "CodeV",
+    };
+    const attachment = {
+      id: "local-figure",
+      path: "/tmp/figure.png",
+      filename: "figure.png",
+      kind: "image" as const,
+      mimeType: "image/png",
+    };
+    const inserted: SidebarMessageView[] = [];
+    const submitted: SidebarMessageView[] = [];
     const element = Message({
       busy: false,
       copiedId: null,
@@ -112,19 +131,25 @@ describe("SidebarApp", function () {
         id: "raw-user",
         role: "user",
         text: rawText,
+        mentions: [mention],
+        localAttachments: [attachment],
       },
       onCopy: () => undefined,
-      onInsert: (text) => inserted.push(text),
+      onEdit: (message) => inserted.push(message),
       onOpenLink: () => undefined,
       onOpenLocator: () => undefined,
-      onSubmit: (text) => submitted.push(text),
+      onSubmit: (message) => submitted.push(message),
     });
 
     getIconAction(element, "edit").onClick();
     getIconAction(element, "resend").onClick();
 
-    assert.deepEqual(inserted, [rawText]);
-    assert.deepEqual(submitted, [rawText]);
+    assert.deepEqual(inserted.map((message) => message.text), [rawText]);
+    assert.deepEqual(submitted.map((message) => message.text), [rawText]);
+    assert.deepEqual(inserted[0]?.mentions, [mention]);
+    assert.deepEqual(submitted[0]?.mentions, [mention]);
+    assert.deepEqual(inserted[0]?.localAttachments, [attachment]);
+    assert.deepEqual(submitted[0]?.localAttachments, [attachment]);
   });
 
   it("renders sent user message attachments inside the message bubble", function () {
@@ -153,10 +178,59 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, 'class="zp-message-bubble zp-message-user-content"');
-    assert.include(html, 'class="zp-local-attachments zp-message-attachments"');
+    assert.include(
+      html,
+      'class="zp-context-chips zp-local-attachments zp-message-attachments"',
+    );
     assert.include(html, 'data-icon-name="attachmentImage"');
     assert.include(html, "figure.png");
     assert.notInclude(html, "zopilot-sidebar-attachment-remove");
+  });
+
+  it("renders sent @ papers and PDF attachments as distinct context chips", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "user-with-context",
+              role: "user",
+              text: "Compare these sources",
+              mentions: [
+                {
+                  id: "mention-paper",
+                  sourceId: "source-paper",
+                  paperKey: "1:AAA",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "AAA",
+                  attachmentItemID: 11,
+                  attachmentKey: "PDF",
+                  title: "CodeV: Code with Images",
+                },
+              ],
+              localAttachments: [
+                {
+                  id: "local-paper",
+                  path: "/tmp/paper.pdf",
+                  filename: "paper.pdf",
+                  kind: "pdf",
+                  mimeType: "application/pdf",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, "CodeV: Code with Images");
+    assert.include(html, "paper.pdf");
+    assert.include(html, 'data-icon-name="paperMention"');
+    assert.include(html, 'data-icon-name="attachmentPdf"');
+    assert.include(html, "zp-context-chip");
+    assert.notInclude(html, "@CodeV: Code with Images");
   });
 
   it("hides the assistant footer for welcome messages without a completion time", function () {
@@ -178,11 +252,9 @@ describe("SidebarApp", function () {
 
     assert.notInclude(html, "zp-message-footer");
     assert.notInclude(html, "zopilot-sidebar-copy-text");
-    assert.notInclude(html, "zopilot-sidebar-insert-composer");
-    assert.notInclude(html, "zopilot-sidebar-retry-turn");
   });
 
-  it("renders completed model responses with three actions and Beijing time", function () {
+  it("renders completed model responses with copy action and Beijing time", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -201,11 +273,7 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "zopilot-sidebar-copy-text");
-    assert.include(html, "zopilot-sidebar-insert-composer");
-    assert.include(html, "zopilot-sidebar-retry-turn");
     assert.include(html, 'data-icon-name="copy"');
-    assert.include(html, 'data-icon-name="insert"');
-    assert.include(html, 'data-icon-name="retry"');
     assert.include(html, "2026-06-13 15:30");
   });
 

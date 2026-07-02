@@ -12,6 +12,7 @@ export type SidebarMessageView = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  mentions?: SourceMention[];
   localAttachments?: LocalAttachmentRef[];
   status?: "complete" | "error" | "interrupted";
   completedAt?: string;

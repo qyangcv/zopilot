@@ -48,6 +48,30 @@ describe("sidebar source mentions", function () {
     );
   });
 
+  it("returns all workspace sources for an empty @ query", function () {
+    const sources = Array.from({ length: 12 }, (_, index) =>
+      createSource(
+        `s${index}`,
+        `Paper ${String(index).padStart(2, "0")}`,
+        "2026",
+      ),
+    );
+
+    assert.lengthOf(matchMentionCandidates("", sources), 12);
+  });
+
+  it("does not cap matching @ candidates at eight results", function () {
+    const sources = Array.from({ length: 12 }, (_, index) =>
+      createSource(
+        `s${index}`,
+        `Retrieval Augmented Generation Study ${index}`,
+        "2026",
+      ),
+    );
+
+    assert.lengthOf(matchMentionCandidates("retrieval", sources), 12);
+  });
+
   it("converts selected sources to stable mention payloads", function () {
     const mention = sourceToMention(createSource("s1", "Paper A", "2024"));
 

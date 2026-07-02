@@ -12,6 +12,7 @@ import {
 import { getString } from "../../../utils/locale";
 import { getCodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import { copyText } from "./clipboard";
+import { ContextChips } from "./ContextChips";
 import { Icon, type IconName } from "./Icon";
 import { Message } from "./Message";
 import { FloatingPortal, Select } from "./ui/index";
@@ -37,6 +38,8 @@ import type {
 } from "../../../shared/conversation";
 
 export { Message } from "./Message";
+
+const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
 
 export function SidebarApp({
   actions,
@@ -70,11 +73,6 @@ export function SidebarApp({
   const [commandAnchor, setCommandAnchor] = useState<"button" | "input">(
     "input",
   );
-  const lastUserMessage = useMemo(
-    () =>
-      [...state.messages].reverse().find((message) => message.role === "user"),
-    [state.messages],
-  );
   const sourceCandidates = state.sourceCandidates || [];
   const currentSourceId = sourceCandidates.find(
     (source) => source.paperKey === state.context.paperKey,
@@ -91,7 +89,6 @@ export function SidebarApp({
     () => filterSidebarCommands(commands, commandQuery),
     [commandQuery, commands],
   );
-
   useLayoutEffect(() => {
     const log = logRef.current;
     if (log && autoScrollRef.current) {
@@ -137,9 +134,6 @@ export function SidebarApp({
 
   const updateDraft = (text: string, cursor?: number) => {
     setDraft(text);
-    setMentions((items) =>
-      items.filter((mention) => text.includes(`@${mention.title}`)),
-    );
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
     if (text.startsWith("/")) {
       setCommandAnchor("input");
@@ -157,15 +151,21 @@ export function SidebarApp({
     nextLocalAttachments = localAttachments,
   ) => {
     const trimmed = text.trim();
-    if (!trimmed || state.busy || !state.composerEnabled) {
+    const selectedMentions = nextMentions;
+    const selectedLocalAttachments = nextLocalAttachments;
+    if (
+      (!trimmed &&
+        !selectedMentions.length &&
+        !selectedLocalAttachments.length) ||
+      state.busy ||
+      !state.composerEnabled
+    ) {
       return;
     }
     actions.submitPrompt({
-      text: trimmed,
-      mentions: nextMentions.filter((mention) =>
-        trimmed.includes(`@${mention.title}`),
-      ),
-      localAttachments: nextLocalAttachments,
+      text: trimmed || SELECTED_CONTEXT_PROMPT,
+      mentions: selectedMentions,
+      localAttachments: selectedLocalAttachments,
     });
     setDraft("");
     setMentions([]);
@@ -177,24 +177,20 @@ export function SidebarApp({
     if (!mentionQuery || mentions.length >= MAX_SOURCE_MENTIONS) {
       return;
     }
-    const inserted = `@${source.title}`;
     const nextDraft =
-      draft.slice(0, mentionQuery.start) +
-      inserted +
-      draft.slice(mentionQuery.end);
+      draft.slice(0, mentionQuery.start) + draft.slice(mentionQuery.end);
     const nextMentions = mentions.some(
       (mention) => mention.sourceId === source.sourceId,
     )
       ? mentions
       : [...mentions, sourceToMention(source)];
-    setDraft(nextDraft);
+    updateDraft(nextDraft, mentionQuery.start);
     setMentions(nextMentions);
     setMentionQuery(null);
     globalThis.setTimeout(() => {
-      const nextCursor = mentionQuery.start + inserted.length;
+      const nextCursor = mentionQuery.start;
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
-      resizeTextarea(textareaRef.current);
     }, 0);
   };
 
@@ -205,9 +201,18 @@ export function SidebarApp({
     });
   };
 
-  const insertPrompt = (text: string) => {
+  const insertPrompt = (
+    text: string,
+    nextMentions: SourceMention[] = [],
+    nextLocalAttachments: LocalAttachmentRef[] = [],
+  ) => {
+    setMentions([...nextMentions]);
+    setLocalAttachments([...nextLocalAttachments]);
     updateDraft(text);
-    globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+    globalThis.setTimeout(() => {
+      textareaRef.current?.focus();
+      resizeTextarea(textareaRef.current);
+    }, 0);
   };
 
   const addLocalAttachment = () => {
@@ -231,6 +236,10 @@ export function SidebarApp({
     setLocalAttachments((items) =>
       items.filter((attachment) => attachment.id !== attachmentId),
     );
+  };
+
+  const removeMention = (mentionId: string) => {
+    setMentions((items) => items.filter((mention) => mention.id !== mentionId));
   };
 
   const executeCommand = (command: SidebarCommandView) => {
@@ -405,16 +414,24 @@ export function SidebarApp({
             busy={state.busy}
             copiedId={copiedId}
             key={message.id}
-            lastUserText={lastUserMessage?.text}
             message={message}
             onCopy={copyMessage}
-            onInsert={(text) => {
-              updateDraft(text);
-              globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+            onEdit={(messageToEdit) => {
+              insertPrompt(
+                messageToEdit.text,
+                messageToEdit.mentions || [],
+                messageToEdit.localAttachments || [],
+              );
             }}
             onOpenLink={actions.openExternalLink}
             onOpenLocator={actions.openReaderLocator}
-            onSubmit={(text) => submit(text, [], [])}
+            onSubmit={(messageToSubmit) =>
+              submit(
+                messageToSubmit.text,
+                messageToSubmit.mentions || [],
+                messageToSubmit.localAttachments || [],
+              )
+            }
           />
         ))}
       </main>
@@ -428,43 +445,15 @@ export function SidebarApp({
           }}
           ref={composerRef}
         >
-          {localAttachments.length ? (
+          {mentions.length || localAttachments.length ? (
             <div className="zp-context-row">
-              <div
-                aria-label={getString("sidebar-attachment-context")}
-                className="zp-local-attachments"
-              >
-                {localAttachments.map((attachment) => (
-                  <div className="zp-local-attachment" key={attachment.id}>
-                    <button
-                      aria-label={getString("sidebar-attachment-remove")}
-                      className="zp-local-attachment-remove"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        removeLocalAttachment(attachment.id);
-                      }}
-                      title={getString("sidebar-attachment-remove")}
-                      type="button"
-                    >
-                      <Icon name="close" size={13} />
-                    </button>
-                    <Icon
-                      className="zp-local-attachment-icon"
-                      name={
-                        attachment.kind === "pdf"
-                          ? "attachmentPdf"
-                          : "attachmentImage"
-                      }
-                      size={13}
-                    />
-                    <span
-                      className="zp-local-attachment-name"
-                      title={attachment.path}
-                    >
-                      {attachment.filename}
-                    </span>
-                  </div>
-                ))}
+              <div aria-label={getString("sidebar-attachment-context")}>
+                <ContextChips
+                  attachments={localAttachments}
+                  mentions={mentions}
+                  onRemoveAttachment={removeLocalAttachment}
+                  onRemoveMention={removeMention}
+                />
               </div>
             </div>
           ) : null}
@@ -472,6 +461,7 @@ export function SidebarApp({
             <FloatingPortal
               align="stretch"
               anchorRef={textareaRef}
+              maxHeight={320}
               maxWidth={720}
               minWidth={0}
               onDismiss={() => setMentionQuery(null)}
@@ -507,12 +497,12 @@ export function SidebarApp({
           <textarea
             className="zp-composer-input"
             disabled={!state.composerEnabled}
-            onChange={(event) =>
+            onChange={(event) => {
               updateDraft(
                 event.currentTarget.value,
                 event.currentTarget.selectionStart ?? undefined,
-              )
-            }
+              );
+            }}
             onClick={(event) =>
               setMentionQuery(
                 findMentionQuery(
@@ -521,7 +511,9 @@ export function SidebarApp({
                 ),
               )
             }
-            onInput={(event) => resizeTextarea(event.currentTarget)}
+            onInput={(event) => {
+              resizeTextarea(event.currentTarget);
+            }}
             onKeyDown={(event) => {
               if (mentionCandidates.length) {
                 if (event.key === "Escape") {
@@ -668,7 +660,11 @@ export function SidebarApp({
               }
               className="zp-send-button"
               disabled={
-                !state.composerEnabled || (!state.busy && !draft.trim())
+                !state.composerEnabled ||
+                (!state.busy &&
+                  !draft.trim() &&
+                  !mentions.length &&
+                  !localAttachments.length)
               }
               onClick={(event) => {
                 if (!state.busy) {

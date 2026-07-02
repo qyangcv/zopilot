@@ -17,10 +17,9 @@ describe("sidebar Icon", function () {
       "disconnected",
       "edit",
       "history",
-      "insert",
       "newChat",
+      "paperMention",
       "resend",
-      "retry",
       "send",
       "stop",
     ];

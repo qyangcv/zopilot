@@ -59,6 +59,24 @@ describe("sidebar view model", function () {
     ]);
   });
 
+  it("keeps source mentions on user message views", function () {
+    const messages = createConversationMessages(createConversation());
+
+    assert.deepEqual(messages[0].mentions, [
+      {
+        id: "mention-paper",
+        sourceId: "source-paper",
+        paperKey: "1:AAA",
+        libraryID: 1,
+        parentItemID: 10,
+        parentItemKey: "AAA",
+        attachmentItemID: 11,
+        attachmentKey: "PDF",
+        title: "CodeV: Code with Images",
+      },
+    ]);
+  });
+
   it("creates compact session rows with active state", function () {
     const view = createSessionView(createConversation(), "conv-a");
 
@@ -93,6 +111,19 @@ function createConversation(): Conversation {
         text: "Summarize the method section in two paragraphs.",
         createdAt: "2026-06-13T07:00:00.000Z",
         status: "complete",
+        mentions: [
+          {
+            id: "mention-paper",
+            sourceId: "source-paper",
+            paperKey: "1:AAA",
+            libraryID: 1,
+            parentItemID: 10,
+            parentItemKey: "AAA",
+            attachmentItemID: 11,
+            attachmentKey: "PDF",
+            title: "CodeV: Code with Images",
+          },
+        ],
         localAttachments: [
           {
             id: "local-figure",

@@ -1,17 +1,10 @@
-import { config } from "../../../package.json";
-import {
-  checkCodexConnection,
-  diagnoseCodexConnection,
-} from "../../codex/diagnostics";
 import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
-import {
-  createCustomPrompt,
-  deleteCustomPrompt,
-  loadCustomPrompts,
-  updateCustomPrompt,
-} from "../sidebar/promptStore";
+import type { Root } from "react-dom/client";
+import { installChromeWindowGlobals } from "../sidebar/chromeGlobals";
+import type { PreferencesAppProps } from "./app/PreferencesApp";
 
 export { initPreferencesPane };
+export type { PreferencePaneDependencies, PreferencePaneRenderApp };
 
 declare const document: PreferencePaneDocument | undefined;
 
@@ -21,45 +14,26 @@ type PreferencePaneDependencies = {
     callback: () => void,
     delayMs: number,
   ): ReturnType<typeof setTimeout>;
-  getSubprocess(): PreferencePaneSubprocessModule;
+  getSubprocess(): CodexDiscoverySubprocessModule;
+  renderApp?: PreferencePaneRenderApp;
 };
 
+type PreferencePaneRenderApp = (
+  root: HTMLElement,
+  props: PreferencesAppProps,
+) => void;
+
 type PreferencePaneDocument = {
-  createElement(tagName: string): PreferencePaneElement;
-  getElementById(id: string): PreferencePaneElement | null;
+  getElementById(id: string): HTMLElement | null;
   l10n?: {
-    setAttributes(element: PreferencePaneElement, id: string): void;
-    translateElements?(elements: PreferencePaneElement[]): Promise<unknown>;
+    translateElements?(elements: Element[]): Promise<unknown>;
   };
 };
 
-type PreferencePaneElement = {
-  addEventListener?(
-    type: string,
-    listener: (event: PreferencePaneEvent) => void,
-  ): void;
-  append?(...nodes: PreferencePaneElement[]): void;
-  className?: string;
-  dataset: Record<string, string>;
-  disabled?: boolean;
-  replaceChildren?(...nodes: PreferencePaneElement[]): void;
-  setAttribute?(name: string, value: string): void;
-  title?: string;
-  textContent: string | null;
-  value?: string;
-};
-
-type PreferencePaneEvent = {
-  preventDefault(): void;
-};
-
-type PreferencePaneSubprocessModule = CodexDiscoverySubprocessModule;
-type PromptView = ReturnType<typeof loadCustomPrompts>[number];
-
 const MAX_INIT_ATTEMPTS = 50;
+const ROOT_ID = "zopilot-preferences-root";
 
 function initPreferencesPane(dependencies = getGlobalDependencies()): void {
-  let statusValue: PreferencePaneElement | null = null;
   let initAttempts = 0;
   let initialized = false;
 
@@ -74,10 +48,8 @@ function initPreferencesPane(dependencies = getGlobalDependencies()): void {
       return;
     }
 
-    statusValue = dependencies.document.getElementById(
-      "zopilot-codex-status-value",
-    );
-    if (!statusValue) {
+    const root = dependencies.document.getElementById(ROOT_ID);
+    if (!root) {
       initAttempts += 1;
       if (initAttempts < MAX_INIT_ATTEMPTS) {
         scheduleInit();
@@ -86,177 +58,65 @@ function initPreferencesPane(dependencies = getGlobalDependencies()): void {
     }
 
     initialized = true;
-    setStatus(statusValue, dependencies.document, "missing");
-    initPromptPreferences(dependencies.document);
-    void detectCodexStatus(dependencies, statusValue);
+    const translate = () => translatePreferenceElements(root, dependencies);
+    const render = dependencies.renderApp || mountReactPreferencesApp();
+    render(root, {
+      getSubprocess: dependencies.getSubprocess,
+      translate,
+    });
   }
 }
 
-async function detectCodexStatus(
+function mountReactPreferencesApp(): PreferencePaneRenderApp {
+  let reactRoot: Root | undefined;
+  return (root, props) => {
+    void (async () => {
+      try {
+        installChromeWindowGlobals(root);
+        const [{ createElement }, { createRoot }, { PreferencesApp }] =
+          await Promise.all([
+            import("react"),
+            import("react-dom/client"),
+            import("./app/PreferencesApp"),
+          ]);
+        installChromeWindowGlobals(root);
+        reactRoot ??= createRoot(root);
+        reactRoot.render(createElement(PreferencesApp, props));
+      } catch (error) {
+        renderMountError(root, error);
+      }
+    })();
+  };
+}
+
+function renderMountError(root: HTMLElement, error: unknown): void {
+  root.textContent = "";
+  const message = root.ownerDocument?.createElement("div");
+  if (!message) {
+    return;
+  }
+  message.style.border =
+    "1px solid color-mix(in srgb, CanvasText 20%, transparent)";
+  message.style.borderRadius = "8px";
+  message.style.margin = "24px";
+  message.style.padding = "16px";
+  message.textContent = `Zopilot preferences failed to load: ${
+    error instanceof Error ? error.message : String(error)
+  }`;
+  root.append(message);
+}
+
+function translatePreferenceElements(
+  root: HTMLElement,
   dependencies: PreferencePaneDependencies,
-  statusValue: PreferencePaneElement,
-): Promise<void> {
-  let subprocess: PreferencePaneSubprocessModule | undefined;
-  try {
-    subprocess = dependencies.getSubprocess();
-    if (await checkCodexConnection(subprocess)) {
-      setStatus(statusValue, dependencies.document, "connected");
-      return;
-    }
-  } catch {
-    // Failure details are intentionally resolved by the shared diagnostics.
-  }
-  const diagnostic = subprocess
-    ? await diagnoseCodexConnection(subprocess).catch(() => undefined)
-    : undefined;
-  setStatus(
-    statusValue,
-    dependencies.document,
-    "missing",
-    diagnostic?.messageKey || "codex-diagnostic-unknown-error",
-  );
-}
-
-function setStatus(
-  statusValue: PreferencePaneElement,
-  document: PreferencePaneDocument,
-  status: "connected" | "missing",
-  messageKey?: string,
 ): void {
-  const l10nId =
-    messageKey ||
-    (status === "connected"
-      ? "pref-codex-status-connected"
-      : "pref-codex-status-missing");
-  statusValue.dataset.status = status;
-  statusValue.textContent = "";
-  if (document.l10n?.setAttributes) {
-    document.l10n.setAttributes(statusValue, `${config.addonRef}-${l10nId}`);
-    void document.l10n
-      ?.translateElements?.([statusValue])
-      ?.catch(() => undefined);
-  }
-}
-
-function initPromptPreferences(document: PreferencePaneDocument): void {
-  const list = document.getElementById("zopilot-prompt-list");
-  const form = document.getElementById("zopilot-prompt-form");
-  const titleInput = document.getElementById("zopilot-prompt-title");
-  const bodyInput = document.getElementById("zopilot-prompt-body");
-  const error = document.getElementById("zopilot-prompt-error");
-  const newButton = document.getElementById("zopilot-prompt-new");
-  const deleteButton = document.getElementById("zopilot-prompt-delete");
-  if (
-    !list ||
-    !form?.addEventListener ||
-    !titleInput ||
-    !bodyInput ||
-    !error ||
-    !newButton?.addEventListener ||
-    !deleteButton?.addEventListener
-  ) {
-    return;
-  }
-
-  let selectedPromptId: string | undefined;
-  let prompts = loadCustomPrompts();
-
-  const clearError = () => {
-    error.textContent = "";
-  };
-  const setError = (message: string) => {
-    error.textContent = message;
-  };
-  const loadEditor = (prompt?: PromptView) => {
-    selectedPromptId = prompt?.id;
-    titleInput.value = prompt?.title || "";
-    bodyInput.value = prompt?.body || "";
-    deleteButton.disabled = !prompt;
-    clearError();
-    renderList();
-  };
-  const selectPrompt = (promptId: string) => {
-    loadEditor(prompts.find((prompt) => prompt.id === promptId));
-  };
-  const renderList = () => {
-    if (!list.replaceChildren) {
-      return;
-    }
-    if (!prompts.length) {
-      const empty = document.createElement("div");
-      empty.className = "zopilot-prompt-empty";
-      setLocalizedText(document, empty, "pref-prompt-empty");
-      list.replaceChildren(empty);
-      return;
-    }
-    list.replaceChildren(
-      ...prompts.map((prompt) => {
-        const row = document.createElement("button");
-        row.className = "zopilot-prompt-row";
-        row.dataset.selected = String(prompt.id === selectedPromptId);
-        row.setAttribute?.("type", "button");
-        row.setAttribute?.("role", "option");
-        row.title = prompt.body;
-        row.addEventListener?.("click", () => selectPrompt(prompt.id));
-
-        const title = document.createElement("span");
-        title.className = "zopilot-prompt-row-title";
-        title.textContent = prompt.title;
-        const body = document.createElement("span");
-        body.className = "zopilot-prompt-row-body";
-        body.textContent = prompt.body;
-        row.append?.(title, body);
-        return row;
-      }),
-    );
-  };
-  const refreshPrompts = (nextSelectedId?: string) => {
-    prompts = loadCustomPrompts();
-    const nextSelected = nextSelectedId
-      ? prompts.find((prompt) => prompt.id === nextSelectedId)
-      : prompts.find((prompt) => prompt.id === selectedPromptId);
-    loadEditor(nextSelected);
-  };
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    try {
-      const input = {
-        title: titleInput.value || "",
-        body: bodyInput.value || "",
-      };
-      const saved = selectedPromptId
-        ? updateCustomPrompt(selectedPromptId, input)
-        : createCustomPrompt(input);
-      refreshPrompts(saved.id);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Save failed.");
-    }
-  });
-  newButton.addEventListener("click", () => loadEditor());
-  deleteButton.addEventListener("click", () => {
-    if (!selectedPromptId) {
-      return;
-    }
-    deleteCustomPrompt(selectedPromptId);
-    refreshPrompts();
-  });
-
-  loadEditor(prompts[0]);
-}
-
-function setLocalizedText(
-  document: PreferencePaneDocument,
-  element: PreferencePaneElement,
-  messageKey: string,
-): void {
-  element.textContent = "";
-  if (!document.l10n?.setAttributes) {
-    element.textContent = messageKey;
-    return;
-  }
-  document.l10n.setAttributes(element, `${config.addonRef}-${messageKey}`);
-  void document.l10n.translateElements?.([element])?.catch(() => undefined);
+  const elements = [
+    root,
+    ...Array.from(root.querySelectorAll("[data-l10n-id]")),
+  ] as Element[];
+  void dependencies.document.l10n
+    ?.translateElements?.(elements)
+    ?.catch(() => undefined);
 }
 
 function getGlobalDependencies(): PreferencePaneDependencies {

@@ -735,6 +735,7 @@
   max-width: 100%;
 }
 
+.zp-message-attachments .zp-context-chip,
 .zp-message-attachment {
   background: color-mix(in srgb, Canvas 78%, CanvasText 8%);
   padding-inline-start: 7px;
@@ -1081,6 +1082,7 @@
   min-width: 0;
 }
 
+.zp-context-chips,
 .zp-local-attachments {
   display: flex;
   flex-wrap: wrap;
@@ -1088,6 +1090,7 @@
   min-width: 0;
 }
 
+.zp-context-chip,
 .zp-local-attachment {
   display: inline-flex;
   align-items: center;
@@ -1104,11 +1107,13 @@
   padding: 0 8px 0 3px;
 }
 
+.zp-context-chip-icon,
 .zp-local-attachment-icon {
   flex: 0 0 auto;
   color: var(--zp-accent);
 }
 
+.zp-context-chip-text,
 .zp-local-attachment-name {
   flex: 0 1 auto;
   min-width: 0;
@@ -1117,6 +1122,7 @@
   white-space: nowrap;
 }
 
+.zp-context-chip-remove,
 .zp-local-attachment-remove {
   appearance: none;
   -moz-appearance: none;
@@ -1181,6 +1187,21 @@
   box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
   font: menu;
   font-size: 12px;
+  scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.zp-mention-popover::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zp-mention-popover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zp-mention-popover::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, CanvasText 28%, transparent);
 }
 
 .zp-command-menu {

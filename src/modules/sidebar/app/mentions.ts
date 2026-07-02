@@ -82,7 +82,6 @@ function matchMentionCandidates(
         right.score - left.score ||
         left.source.title.localeCompare(right.source.title),
     )
-    .slice(0, 8)
     .map((item) => item.source);
 }
 

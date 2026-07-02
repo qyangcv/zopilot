@@ -49,6 +49,7 @@ function FloatingPortal({
   align = "start",
   anchorRef,
   children,
+  maxHeight,
   maxWidth = 360,
   minWidth = 160,
   offset = 6,
@@ -60,6 +61,7 @@ function FloatingPortal({
   align?: FloatingAlign;
   anchorRef: RefObject<HTMLElement | null>;
   children: ReactNode;
+  maxHeight?: number;
   maxWidth?: number;
   minWidth?: number;
   offset?: number;
@@ -95,13 +97,17 @@ function FloatingPortal({
         rootRect: portalRoot.getBoundingClientRect(),
         width,
       });
+      const resolvedMaxHeight =
+        maxHeight === undefined
+          ? next.maxHeight
+          : Math.min(next.maxHeight, maxHeight);
       setStyle({
         bottom:
           next.side === "above" && next.bottom !== undefined
             ? `${Math.round(next.bottom)}px`
             : undefined,
         left: `${Math.round(next.left)}px`,
-        maxHeight: `${Math.floor(next.maxHeight)}px`,
+        maxHeight: `${Math.floor(resolvedMaxHeight)}px`,
         top:
           next.side === "below" && next.top !== undefined
             ? `${Math.round(next.top)}px`
@@ -121,6 +127,7 @@ function FloatingPortal({
   }, [
     align,
     anchorRef,
+    maxHeight,
     maxWidth,
     minWidth,
     offset,

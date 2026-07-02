@@ -112,6 +112,7 @@ function toMessageView(
     id: message.id,
     role: message.role,
     text: message.text,
+    mentions: message.mentions,
     localAttachments: message.localAttachments,
     status: message.status,
     completedAt: formatBeijingTimestamp(

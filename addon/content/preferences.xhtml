@@ -2,102 +2,88 @@
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
 </linkset>
 <html:style>
-  .zopilot-pref-section { margin: 0 0 18px; padding: 0; }
-  .zopilot-pref-heading { margin: 0; } .zopilot-pref-title { line-height: 1.2;
-  margin-block: 0 10px; } .zopilot-status-row { display: flex; align-items:
-  center; gap: 12px; margin-block: 4px; } .zopilot-status-label { width: 96px;
-  min-width: 96px; margin: 0; } .zopilot-status-value { display: inline-flex;
-  align-items: center; gap: 6px; min-width: 10em; line-height: 1.2; }
-  .zopilot-status-value::before { content: ""; box-sizing: border-box; display:
-  inline-block; width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto;
-  background: #c9342f; } .zopilot-status-value[data-status="connected"]::before
-  { background: #2f8f46; } .zopilot-prompt-layout { display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(260px, 1fr); gap: 14px;
-  align-items: start; } .zopilot-prompt-list { display: flex; flex-direction:
-  column; gap: 6px; min-height: 140px; max-height: 280px; overflow: auto;
-  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-  border-radius: 6px; padding: 6px; } .zopilot-prompt-empty { color:
-  color-mix(in srgb, CanvasText 64%, transparent); padding: 8px; }
-  .zopilot-prompt-row { appearance: none; border: 0; border-radius: 5px;
-  background: transparent; color: inherit; cursor: default; display: flex;
-  flex-direction: column; gap: 2px; min-width: 0; padding: 7px 8px; text-align:
-  start; } .zopilot-prompt-row:hover, .zopilot-prompt-row[data-selected="true"]
-  { background: color-mix(in srgb, SelectedItem 16%, transparent); }
-  .zopilot-prompt-row-title { font-weight: 600; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; } .zopilot-prompt-row-body {
-  color: color-mix(in srgb, CanvasText 64%, transparent); overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; } .zopilot-prompt-editor {
-  display: grid; gap: 8px; } .zopilot-prompt-label { display: grid; gap: 4px; }
-  .zopilot-prompt-input, .zopilot-prompt-textarea { box-sizing: border-box;
-  width: 100%; } .zopilot-prompt-textarea { min-height: 92px; resize: vertical; }
-  .zopilot-prompt-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .zopilot-prompt-error { color: #c9342f; min-height: 1.2em; }
+  #zopilot-preferences-root { color-scheme: light dark; min-height: 520px; }
+  .zp-pref-shell { --zp-pref-bg: Canvas; --zp-pref-panel: color-mix(in srgb,
+  Canvas 94%, CanvasText 6%); --zp-pref-panel-strong: color-mix(in srgb, Canvas
+  88%, CanvasText 12%); --zp-pref-border: color-mix(in srgb, CanvasText 18%,
+  transparent); --zp-pref-border-strong: color-mix(in srgb, CanvasText 26%,
+  transparent); --zp-pref-muted: color-mix(in srgb, CanvasText 62%,
+  transparent); --zp-pref-accent: AccentColor; --zp-pref-danger: #c9342f;
+  display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 520px;
+  overflow: hidden; border: 1px solid var(--zp-pref-border); border-radius: 8px;
+  background: var(--zp-pref-bg); color: CanvasText; font: menu; font-size: 13px;
+  } .zp-pref-sidebar { display: flex; min-width: 0; flex-direction: column;
+  border-inline-end: 1px solid var(--zp-pref-border); background:
+  var(--zp-pref-panel); padding: 16px 12px; } .zp-pref-brand { display: flex;
+  align-items: center; gap: 8px; min-height: 28px; padding: 0 8px 16px; color:
+  CanvasText; font-weight: 650; } .zp-pref-nav { display: flex; flex-direction:
+  column; gap: 4px; } .zp-pref-nav-item, .zp-pref-button, .zp-pref-prompt-row {
+  appearance: none; -moz-appearance: none; border: 0; font: inherit; }
+  .zp-pref-nav-item { display: grid; grid-template-columns: 18px minmax(0, 1fr)
+  auto; align-items: center; gap: 10px; min-height: 34px; border-radius: 6px;
+  background: transparent; color: var(--zp-pref-muted); cursor: default;
+  padding: 7px 8px; text-align: start; } .zp-pref-nav-item:hover,
+  .zp-pref-nav-item[data-active] { background: var(--zp-pref-panel-strong);
+  color: CanvasText; } .zp-pref-nav-count { color: var(--zp-pref-muted);
+  font-size: 12px; font-variant-numeric: tabular-nums; } .zp-pref-main {
+  min-width: 0; overflow: auto; padding: 28px 32px 32px; } .zp-pref-page {
+  display: flex; max-width: 980px; min-width: 0; flex-direction: column; gap:
+  20px; } .zp-pref-page-header { display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .zp-pref-page-header h2 { margin: 0; font-size: 22px; font-weight: 700;
+  line-height: 1.25; } .zp-pref-page-header p, .zp-pref-card p { margin: 6px 0
+  0; color: var(--zp-pref-muted); line-height: 1.45; } .zp-pref-card,
+  .zp-pref-list-card, .zp-pref-editor-card { border: 1px solid
+  var(--zp-pref-border); border-radius: 8px; background: color-mix(in srgb,
+  Canvas 96%, CanvasText 4%); } .zp-pref-card { display: flex; flex-direction:
+  column; gap: 18px; padding: 18px; } .zp-pref-card-header { display: flex;
+  align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .zp-pref-card h3 { margin: 0; font-size: 15px; font-weight: 650; }
+  .zp-pref-button { display: inline-flex; align-items: center; justify-content:
+  center; gap: 7px; min-height: 30px; border: 1px solid
+  var(--zp-pref-border-strong); border-radius: 6px; cursor: default; padding:
+  5px 10px; white-space: nowrap; } .zp-pref-button:disabled { opacity: 0.5; }
+  .zp-pref-button-primary { background: color-mix(in srgb, var(--zp-pref-accent)
+  20%, Canvas); color: CanvasText; } .zp-pref-button-secondary { background:
+  var(--zp-pref-panel); color: CanvasText; } .zp-pref-button-danger {
+  background: color-mix(in srgb, var(--zp-pref-danger) 12%, Canvas); color:
+  CanvasText; } .zp-pref-status { display: inline-flex; align-items: center;
+  gap: 8px; width: fit-content; max-width: 100%; border: 1px solid
+  var(--zp-pref-border); border-radius: 999px; padding: 6px 10px; color:
+  var(--zp-pref-muted); } .zp-pref-status-connected { color: color-mix(in srgb,
+  #2f8f46 78%, CanvasText); } .zp-pref-status-missing { color:
+  var(--zp-pref-danger); } .zp-pref-spin { animation: zp-pref-spin 1s linear
+  infinite; } .zp-pref-prompt-grid { display: grid; grid-template-columns: 1fr;
+  gap: 16px; align-items: stretch; min-height: 0; } .zp-pref-list-card {
+  display: flex; min-width: 0; flex-direction: column; gap: 4px; max-height:
+  210px; overflow: auto; padding: 8px; } .zp-pref-prompt-row { display: flex;
+  min-width: 0; flex-direction: column; gap: 4px; border-radius: 6px;
+  background: transparent; color: inherit; cursor: default; padding: 9px 10px;
+  text-align: start; } .zp-pref-prompt-row:hover,
+  .zp-pref-prompt-row[data-selected] { background: var(--zp-pref-panel-strong);
+  } .zp-pref-prompt-row-title { overflow: hidden; font-weight: 650; line-height:
+  1.3; text-overflow: ellipsis; white-space: nowrap; } .zp-pref-prompt-row-body
+  { display: -webkit-box; overflow: hidden; color: var(--zp-pref-muted);
+  line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .zp-pref-empty { color: var(--zp-pref-muted); padding: 12px; }
+  .zp-pref-editor-card { display: flex; min-width: 0; flex-direction: column;
+  gap: 14px; padding: 16px; } .zp-pref-field { display: flex; min-width: 0;
+  flex-direction: column; gap: 6px; color: CanvasText; font-weight: 650; }
+  .zp-pref-input, .zp-pref-textarea { box-sizing: border-box; width: 100%;
+  min-width: 0; border: 1px solid var(--zp-pref-border-strong); border-radius:
+  6px; background: color-mix(in srgb, Canvas 92%, CanvasText 8%); color:
+  CanvasText; font: menu; font-size: 13px; font-weight: 400; line-height: 1.45;
+  padding: 8px 9px; } .zp-pref-textarea { min-height: 190px; resize: vertical; }
+  .zp-pref-editor-meta, .zp-pref-message { min-height: 18px; color:
+  var(--zp-pref-muted); font-size: 12px; } .zp-pref-message[data-kind="error"] {
+  color: var(--zp-pref-danger); } .zp-pref-message[data-kind="success"] { color:
+  color-mix(in srgb, #2f8f46 78%, CanvasText); } .zp-pref-actions { display:
+  flex; flex-wrap: wrap; gap: 8px; margin-block-start: auto; } @media
+  (max-width: 900px) { .zp-pref-shell { grid-template-columns: 190px minmax(0,
+  1fr); } .zp-pref-main { padding: 24px; } .zp-pref-textarea { min-height:
+  150px; } } @media (max-width: 760px) { .zp-pref-shell { grid-template-columns:
+  1fr; } .zp-pref-sidebar { border-block-end: 1px solid var(--zp-pref-border);
+  border-inline-end: 0; } .zp-pref-main { padding: 20px; } } @keyframes
+  zp-pref-spin { to { transform: rotate(360deg); } }
 </html:style>
-<groupbox class="zopilot-pref-section">
-  <label class="zopilot-pref-heading"
-    ><html:h2
-      class="zopilot-pref-title"
-      data-l10n-id="pref-zopilot-title"
-    ></html:h2
-  ></label>
-  <hbox align="center" class="zopilot-status-row">
-    <html:label
-      class="zopilot-status-label"
-      data-l10n-id="pref-codex-status"
-    ></html:label>
-    <html:span
-      id="zopilot-codex-status-value"
-      class="zopilot-status-value"
-      data-status="missing"
-      data-l10n-id="pref-codex-status-missing"
-    ></html:span>
-  </hbox>
-</groupbox>
-<groupbox class="zopilot-pref-section">
-  <label class="zopilot-pref-heading"
-    ><html:h2
-      class="zopilot-pref-title"
-      data-l10n-id="pref-prompts-title"
-    ></html:h2
-  ></label>
-  <html:div class="zopilot-prompt-layout">
-    <html:div
-      id="zopilot-prompt-list"
-      class="zopilot-prompt-list"
-      role="listbox"
-    ></html:div>
-    <html:form id="zopilot-prompt-form" class="zopilot-prompt-editor">
-      <html:label class="zopilot-prompt-label">
-        <html:span data-l10n-id="pref-prompt-title-label"></html:span>
-        <html:input
-          id="zopilot-prompt-title"
-          class="zopilot-prompt-input"
-          type="text"
-        />
-      </html:label>
-      <html:label class="zopilot-prompt-label">
-        <html:span data-l10n-id="pref-prompt-body-label"></html:span>
-        <html:textarea
-          id="zopilot-prompt-body"
-          class="zopilot-prompt-textarea"
-        ></html:textarea>
-      </html:label>
-      <html:div
-        id="zopilot-prompt-error"
-        class="zopilot-prompt-error"
-        role="status"
-      ></html:div>
-      <html:div class="zopilot-prompt-actions">
-        <html:button id="zopilot-prompt-save" type="submit">
-          <html:span data-l10n-id="pref-prompt-save"></html:span>
-        </html:button>
-        <html:button id="zopilot-prompt-new" type="button">
-          <html:span data-l10n-id="pref-prompt-new"></html:span>
-        </html:button>
-        <html:button id="zopilot-prompt-delete" type="button">
-          <html:span data-l10n-id="pref-prompt-delete"></html:span>
-        </html:button>
-      </html:div>
-    </html:form>
-  </html:div>
-</groupbox>
+<html:div id="zopilot-preferences-root"></html:div>
