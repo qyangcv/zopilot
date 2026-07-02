@@ -8,6 +8,7 @@ import {
   createItemWorkspaceIdentity,
   createLibraryWorkspaceIdentity,
 } from "../shared/conversation";
+import { createSourceId } from "../shared/sourceIdentity";
 import { createLogger } from "../utils/logger";
 
 export { ZoteroSourceUniverse, createPaperSourceRef, paperSourceRefToIdentity };
@@ -692,10 +693,6 @@ function getCollectionKeys(
       return collection?.key;
     })
     .filter((key): key is string => Boolean(key));
-}
-
-function createSourceId(libraryID: number, attachmentKey: string): string {
-  return `${libraryID}-${attachmentKey}`;
 }
 
 function getLibraryLabel(

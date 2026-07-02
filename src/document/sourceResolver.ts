@@ -1,8 +1,10 @@
 import type { WorkspaceQueryScope } from "./types";
 import type { SourceIdentity } from "./types";
 import type { PaperSourceRef } from "../shared/conversation";
+import { createSourceId } from "../shared/sourceIdentity";
 
-export { ZoteroPdfSourceResolver, createSourceId };
+export { ZoteroPdfSourceResolver };
+export { createSourceId } from "../shared/sourceIdentity";
 
 class ZoteroPdfSourceResolver {
   async resolveDefaultSource(
@@ -125,10 +127,6 @@ async function resolveAttachmentFilePath(attachment: unknown): Promise<string> {
     return typeof value === "string" ? value : "";
   }
   return item.filePath || "";
-}
-
-function createSourceId(libraryID: number, attachmentKey: string): string {
-  return `${libraryID}-${attachmentKey}`;
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {

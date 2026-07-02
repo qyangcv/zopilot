@@ -226,7 +226,7 @@ async function resolveSourceSelection(
       universe.map((source) => [source.sourceId, source]),
     );
     const selected = sourceIds.map((id) => sourceById.get(id));
-    const invalid = sourceIds.filter((id, index) => !selected[index]);
+    const invalid = sourceIds.filter((_, index) => !selected[index]);
     if (invalid.length) {
       return {
         ok: false,

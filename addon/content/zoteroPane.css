@@ -1,5 +1,7 @@
 @import url("vendor/katex/katex.min.css");
 
+/* Context pane host */
+
 #zopilot-context-pane-deck {
   box-sizing: border-box;
   display: grid;
@@ -54,6 +56,8 @@
 .zp-context-sidenav-button[data-active] .zp-context-sidenav-icon {
   opacity: 1;
 }
+
+/* Sidebar shell and shared tokens */
 
 .zp-sidebar {
   --zp-composer-height: 112px;
@@ -126,6 +130,8 @@
 .zp-portal-root *::after {
   box-sizing: border-box;
 }
+
+/* Header and shared controls */
 
 .zp-sidebar-header {
   position: absolute;
@@ -254,6 +260,8 @@
 .zp-send-button:disabled {
   opacity: 0.45;
 }
+
+/* Header popovers */
 
 .zp-session-popover {
   position: absolute;
@@ -416,6 +424,8 @@
   color: var(--zp-muted);
   font-size: 14px;
 }
+
+/* Conversation log and Markdown */
 
 .zp-chat-log {
   position: absolute;
@@ -824,6 +834,8 @@
   color: var(--zp-accent);
 }
 
+/* Composer and workspace controls */
+
 .zp-composer {
   position: absolute;
   z-index: 2;
@@ -1037,6 +1049,8 @@
   opacity: 1;
 }
 
+/* Composer popovers and command menu */
+
 .zp-mention-popover {
   position: absolute;
   z-index: 6;
@@ -1152,6 +1166,8 @@
 .zp-command-empty {
   padding: 10px;
 }
+
+/* Prompt and skill panels */
 
 .zp-floating-panel {
   position: absolute;
@@ -1397,6 +1413,8 @@
   margin-block-start: 2px;
 }
 
+/* Composer footer and model controls */
+
 .zp-composer-footer {
   display: flex;
   align-items: center;
@@ -1601,6 +1619,8 @@
 .zp-send-button:hover {
   filter: brightness(1.05);
 }
+
+/* Motion and responsive adjustments */
 
 @keyframes zp-spin {
   to {

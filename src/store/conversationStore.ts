@@ -5,21 +5,25 @@ import type {
   WorkspaceIdentity,
 } from "../shared/conversation";
 import { createLogger } from "../utils/logger";
+import {
+  getConversationMessagesPath,
+  getConversationMetadataPath,
+  getConversationWorkspaceDir,
+  getDefaultConversationRootDir,
+} from "./conversationPaths";
+import {
+  isConversationMetadata,
+  parseConversationMessage,
+} from "./conversationSchema";
 
 export { ConversationStore, getConversationStore };
 
 const logger = createLogger("store.conversation");
 
-type ZoteroWithProfile = typeof Zotero & {
-  Profile: {
-    readonly dir: string;
-  };
-};
-
 class ConversationStore {
   private readonly rootDir: string;
 
-  constructor(rootDir = getDefaultRootDir()) {
+  constructor(rootDir = getDefaultConversationRootDir()) {
     this.rootDir = rootDir;
   }
 
@@ -235,7 +239,7 @@ class ConversationStore {
   private async listWorkspaceMetadata(
     workspaceKey: string,
   ): Promise<ConversationMetadata[]> {
-    const dir = this.getWorkspaceDir(workspaceKey);
+    const dir = getConversationWorkspaceDir(this.rootDir, workspaceKey);
     try {
       if (!(await IOUtils.exists(dir))) {
         return [];
@@ -286,7 +290,7 @@ class ConversationStore {
   private async readMessages(
     metadata: ConversationMetadata,
   ): Promise<ConversationMessage[]> {
-    const path = this.getMessagesPath(metadata);
+    const path = getConversationMessagesPath(this.rootDir, metadata);
     let text: string;
     try {
       text = await IOUtils.readUTF8(path);
@@ -315,7 +319,7 @@ class ConversationStore {
     await this.ensureWorkspaceDir(metadata.workspaceKey);
     await this.writeMetadata(metadata);
     await this.atomicWriteUTF8(
-      this.getMessagesPath(metadata),
+      getConversationMessagesPath(this.rootDir, metadata),
       `${messages.map((message) => JSON.stringify(message)).join("\n")}${
         messages.length ? "\n" : ""
       }`,
@@ -324,11 +328,14 @@ class ConversationStore {
 
   private async writeMetadata(metadata: ConversationMetadata): Promise<void> {
     await this.ensureWorkspaceDir(metadata.workspaceKey);
-    await this.atomicWriteJSON(this.getMetadataPath(metadata), metadata);
+    await this.atomicWriteJSON(
+      getConversationMetadataPath(this.rootDir, metadata),
+      metadata,
+    );
   }
 
   private async ensureWorkspaceDir(workspaceKey: string): Promise<void> {
-    const dir = this.getWorkspaceDir(workspaceKey);
+    const dir = getConversationWorkspaceDir(this.rootDir, workspaceKey);
     try {
       await IOUtils.makeDirectory(dir, {
         createAncestors: true,
@@ -341,28 +348,6 @@ class ConversationStore {
       });
       throw error;
     }
-  }
-
-  private getWorkspaceDir(workspaceKey: string): string {
-    return PathUtils.join(
-      this.rootDir,
-      "workspaces",
-      encodePathSegment(workspaceKey),
-    );
-  }
-
-  private getMetadataPath(metadata: ConversationMetadata): string {
-    return PathUtils.join(
-      this.getWorkspaceDir(metadata.workspaceKey),
-      `${metadata.id}.json`,
-    );
-  }
-
-  private getMessagesPath(metadata: ConversationMetadata): string {
-    return PathUtils.join(
-      this.getWorkspaceDir(metadata.workspaceKey),
-      `${metadata.id}.jsonl`,
-    );
   }
 
   private async atomicWriteJSON(path: string, value: unknown): Promise<void> {
@@ -409,21 +394,6 @@ function getConversationStore(): ConversationStore {
   return sharedStore;
 }
 
-function getDefaultRootDir(): string {
-  return PathUtils.join(
-    (Zotero as ZoteroWithProfile).Profile.dir,
-    "zopilot",
-    "conversations",
-  );
-}
-
-function encodePathSegment(value: string): string {
-  return encodeURIComponent(value).replace(
-    /[!'()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-}
-
 function createId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random()
     .toString(36)
@@ -432,98 +402,4 @@ function createId(prefix: string): string {
 
 function defaultConversationLabel(createdAt: string): string {
   return new Date(createdAt).toLocaleString();
-}
-
-function isConversationMetadata(value: unknown): value is ConversationMetadata {
-  const item = value as Partial<ConversationMetadata>;
-  return (
-    Boolean(item) &&
-    item.scope === "workspace" &&
-    typeof item.id === "string" &&
-    typeof item.workspaceKey === "string" &&
-    (item.workspaceType === "item" ||
-      item.workspaceType === "collection" ||
-      item.workspaceType === "library") &&
-    typeof item.workspaceLabel === "string" &&
-    typeof item.workspaceTitle === "string" &&
-    typeof item.libraryID === "number" &&
-    (item.collectionKey === undefined ||
-      typeof item.collectionKey === "string") &&
-    (item.collectionPath === undefined ||
-      (Array.isArray(item.collectionPath) &&
-        item.collectionPath.every((entry) => typeof entry === "string"))) &&
-    (item.itemKey === undefined || typeof item.itemKey === "string") &&
-    typeof item.createdAt === "string" &&
-    typeof item.updatedAt === "string"
-  );
-}
-
-function isConversationMessage(value: unknown): value is ConversationMessage {
-  const item = value as Partial<ConversationMessage>;
-  return (
-    Boolean(item) &&
-    typeof item.id === "string" &&
-    typeof item.conversationId === "string" &&
-    (item.role === "user" || item.role === "assistant") &&
-    typeof item.text === "string" &&
-    typeof item.createdAt === "string" &&
-    (item.status === "complete" ||
-      item.status === "error" ||
-      item.status === "interrupted") &&
-    (item.mentions === undefined ||
-      (Array.isArray(item.mentions) &&
-        item.mentions.every((mention) => isSourceMention(mention))))
-  );
-}
-
-function isSourceMention(value: unknown): boolean {
-  const item = value as {
-    id?: unknown;
-    sourceId?: unknown;
-    paperKey?: unknown;
-    libraryID?: unknown;
-    parentItemID?: unknown;
-    parentItemKey?: unknown;
-    attachmentItemID?: unknown;
-    attachmentKey?: unknown;
-    title?: unknown;
-  };
-  return (
-    Boolean(item) &&
-    typeof item.id === "string" &&
-    typeof item.sourceId === "string" &&
-    typeof item.paperKey === "string" &&
-    typeof item.libraryID === "number" &&
-    (item.parentItemID === undefined ||
-      typeof item.parentItemID === "number") &&
-    typeof item.parentItemKey === "string" &&
-    typeof item.attachmentItemID === "number" &&
-    typeof item.attachmentKey === "string" &&
-    typeof item.title === "string"
-  );
-}
-
-function parseConversationMessage(
-  line: string,
-  path: string,
-): ConversationMessage {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(line) as unknown;
-  } catch (error) {
-    logger.error("failed to parse conversation message", error, {
-      path,
-      lineLength: line.length,
-    });
-    throw error;
-  }
-  if (!isConversationMessage(raw)) {
-    const error = new Error(`Invalid Zopilot conversation message: ${path}`);
-    logger.error("invalid conversation message", error, {
-      path,
-      lineLength: line.length,
-    });
-    throw error;
-  }
-  return raw;
 }

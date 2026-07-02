@@ -36,7 +36,6 @@ import { copyText } from "./app/clipboard";
 import type { ReaderLocator } from "./readerNavigation";
 import { navigateReaderLocator } from "./readerNavigation";
 import type {
-  SidebarModelView,
   SidebarMode,
   SidebarPromptSubmission,
   SidebarSessionMode,
@@ -65,6 +64,11 @@ import {
   createInitialSidebarState,
   createSessionView,
 } from "./viewModel";
+import {
+  buildModelSelectionPatch,
+  getReasoningEffortsForModel,
+  parseSavedReasoningEfforts,
+} from "./modelPreferences";
 
 const controllers = new WeakMap<Window, SidebarController>();
 const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
@@ -923,7 +927,7 @@ class SidebarController {
   }
 
   private selectReasoningEffort(effort: string): void {
-    const efforts = this.getReasoningEffortsForModel(
+    const efforts = getReasoningEffortsForModel(
       this.viewState.selectedModel,
       this.viewState.models,
     );
@@ -1111,53 +1115,20 @@ class SidebarController {
   }
 
   private updateModelSelection(
-    models: SidebarModelView[],
+    models: SidebarState["models"],
     selectedModel: string,
   ): void {
-    const efforts = this.getReasoningEffortsForModel(selectedModel, models);
-    const savedEffort = this.readSavedReasoningEfforts()[selectedModel];
-    const defaultEffort = models.find(
-      (item) => item.slug === selectedModel,
-    )?.defaultReasoningEffort;
-    const selectedReasoningEffort = efforts.includes(savedEffort)
-      ? savedEffort
-      : defaultEffort && efforts.includes(defaultEffort)
-        ? defaultEffort
-        : efforts[0];
-    this.updateViewState({
-      models,
-      selectedModel,
-      availableReasoningEfforts: efforts,
-      selectedReasoningEffort,
-    });
-  }
-
-  private getReasoningEffortsForModel(
-    model: string,
-    models: SidebarModelView[],
-  ): string[] {
-    return (
-      models.find((item) => item.slug === model)?.supportedReasoningEfforts ||
-      []
+    this.updateViewState(
+      buildModelSelectionPatch(
+        models,
+        selectedModel,
+        this.readSavedReasoningEfforts(),
+      ),
     );
   }
 
   private readSavedReasoningEfforts(): Record<string, string> {
-    const raw = String(getPref("codex.reasoningEfforts") || "{}");
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return {};
-      }
-      return Object.fromEntries(
-        Object.entries(parsed).filter(
-          (entry): entry is [string, string] =>
-            typeof entry[0] === "string" && typeof entry[1] === "string",
-        ),
-      );
-    } catch {
-      return {};
-    }
+    return parseSavedReasoningEfforts(getPref("codex.reasoningEfforts"));
   }
 
   private updateRunningState(): void {

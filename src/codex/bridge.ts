@@ -6,6 +6,15 @@ import {
 } from "./cliDiscovery";
 import { buildCodexDeveloperInstructions } from "./developerInstructions";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
+import {
+  encodeJsonRpcMessage,
+  isJsonRpcRequest,
+  isJsonRpcResponse,
+  parseJsonRpcMessage,
+  type JsonRpcMessage,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+} from "./jsonRpc";
 import type {
   CodexModelInfo,
   CodexPromptOptions,
@@ -43,30 +52,6 @@ type CodexSubprocessProcess = {
   wait(): Promise<{ exitCode: number }>;
   kill(timeout?: number): Promise<{ exitCode: number }>;
 };
-
-type JsonRpcRequest = {
-  id: number;
-  method: string;
-  params?: JsonValue;
-};
-
-type JsonRpcResponse = {
-  id: number;
-  result?: JsonValue;
-  error?: {
-    code?: number;
-    message?: string;
-    data?: JsonValue;
-  };
-};
-
-type JsonRpcMessage =
-  | JsonRpcRequest
-  | JsonRpcResponse
-  | {
-      method: string;
-      params?: JsonValue;
-    };
 
 type PendingRequest = {
   method: string;
@@ -363,7 +348,7 @@ class CodexBridge {
     });
 
     try {
-      await proc.stdin.write(`${JSON.stringify(message)}\n`);
+      await proc.stdin.write(encodeJsonRpcMessage(message));
     } catch (error) {
       const pending = this.pendingRequests.get(id);
       if (pending) {
@@ -381,7 +366,7 @@ class CodexBridge {
       throw new Error("Codex app-server is not running.");
     }
     const message = params === undefined ? { method } : { method, params };
-    await proc.stdin.write(`${JSON.stringify(message)}\n`);
+    await proc.stdin.write(encodeJsonRpcMessage(message));
   }
 
   private readStdout(proc: CodexSubprocessProcess): void {
@@ -441,7 +426,7 @@ class CodexBridge {
   private handleLine(line: string): void {
     let message: JsonRpcMessage;
     try {
-      message = JSON.parse(line) as JsonRpcMessage;
+      message = parseJsonRpcMessage(line);
     } catch (error) {
       logger.warn("invalid codex app-server JSON", {
         line,
@@ -450,12 +435,12 @@ class CodexBridge {
       return;
     }
 
-    if ("id" in message && "method" in message) {
-      this.rejectServerRequest(message as JsonRpcRequest);
+    if (isJsonRpcRequest(message)) {
+      this.rejectServerRequest(message);
       return;
     }
-    if ("id" in message) {
-      this.handleResponse(message as JsonRpcResponse);
+    if (isJsonRpcResponse(message)) {
+      this.handleResponse(message);
       return;
     }
     this.handleNotification(message);
@@ -488,7 +473,7 @@ class CodexBridge {
         message: `Zopilot does not support app-server request: ${method}`,
       },
     };
-    void this.process?.stdin.write(`${JSON.stringify(response)}\n`);
+    void this.process?.stdin.write(encodeJsonRpcMessage(response));
   }
 
   private handleNotification(message: JsonRpcMessage): void {
