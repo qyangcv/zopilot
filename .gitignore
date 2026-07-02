@@ -18,6 +18,7 @@ logs
 notes/*
 !notes/ui-macro-plan.md
 !notes/ui-detailed-plan.md
+!notes/sidebar-ui.md
 !notes/v0.3.0.md
 !notes/v0.3.0-light.md
 !notes/solution-for-doc.md

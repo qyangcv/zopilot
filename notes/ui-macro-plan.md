@@ -1,45 +1,59 @@
-# Zopilot UI Macro Plan
+# Zopilot UI 宏观方案
 
-## Goal
+## 目标
 
-Zopilot UI will move from the current MVP implementation to a mature product-grade UI architecture.
+Zopilot UI 将从 MVP 实现迁移到成熟产品级 UI 架构。
 
-This is a major feature update and technical migration. The goal is to remove existing UI technical debt and migrate to the final long-term UI solution. Large-scale refactoring is expected, and old UI code does not need to be preserved.
+这是一次重大功能更新和技术迁移，目标是清除当前 UI technical debt，并进入长期稳定方案。允许大规模重构；旧 UI 代码不需要保留。
 
-## Final Direction
+## 范围
 
-The target architecture is:
+本方案只定义 Zopilot 内部产品 UI 的技术路线。
 
-Base UI + Zopilot UI Kit + static CSS tokens.
+Zotero 9 右侧 pane 的挂载、deck 注入、sidenav 和外层 resize 所有权由 `notes/sidebar-ui.md` 定义。
 
-Base UI provides accessible headless interaction primitives.
+因此，本方案中的 sidebar 应理解为 Zopilot active surface，而不是当前外挂 sidebar shell。
 
-Zopilot UI Kit owns product components, Zotero environment adaptation, visual consistency, and public UI contracts.
+## 最终路线
 
-Static CSS tokens define the design language, theme variables, spacing, density, colors, typography, focus rings, motion, and component states.
+最终技术路线是：
 
-## Core Principle
+Base UI + Zopilot UI Kit + static CSS tokens。
 
-Business UI must not use Base UI directly.
+Base UI 提供 accessible headless primitives。
 
-All Base UI usage must be wrapped by Zopilot UI Kit so Zotero-specific constraints are handled once: portal containers, focus behavior, chrome window globals, reader iframe boundaries, dark mode, density, and z-index layers.
+Zopilot UI Kit 封装产品组件、interaction contract、portal、focus、density、theme 和 Zotero chrome 适配。
 
-## Migration Scope
+Static CSS tokens 定义颜色、间距、typography、radius、shadow、focus ring、motion、z-index、density 和 component states。
 
-The migration should replace fragile hand-written controls, native select styling, ad hoc popovers, manual menus, and scattered CSS with a coherent component system.
+## 核心原则
 
-The sidebar should be rebuilt around stable layout primitives, reusable product components, and a clear state boundary between Zotero integration, Codex session logic, and UI rendering.
+Feature UI 不得直接 import Base UI。
 
-Reader toolbar integration should remain lightweight and Zotero-native, while complex UI stays in the main Zopilot React surface.
+所有 Base UI primitives 必须通过 Zopilot UI Kit 暴露。
 
-## Future Product Capabilities
+Zotero integration layer 负责 chrome window、reader、attachment、preferences、deck host 和 lifecycle。
 
-The new architecture must support attachment upload, reader content navigation, slash command, custom prompts, skills, and ask/agent mode.
+UI Kit 负责内部控件质量，不直接操作 Zotero context-pane DOM。
 
-These capabilities should be first-class product flows, not incremental patches on the current MVP layout.
+业务组件只组合 Zopilot UI Kit 和 domain hooks。
 
-## Success Criteria
+## 迁移重点
 
-The UI becomes predictable, maintainable, visually mature, and resilient across Zotero 9 chrome windows, reader tabs, dark/light themes, long text, resizing, and keyboard interaction.
+用稳定组件系统替换 native select、hand-written popover、manual menu、mention popup、散乱 CSS 和 ad hoc focus handling。
 
-After this migration, no further UI framework migration should be needed.
+Composer、message list、source picker、model picker、command menu、prompt、skill 和 mode 都应重建为清晰的 product surfaces。
+
+Reader toolbar 保持轻量，只负责打开或聚焦 Zopilot；复杂 UI 留在 Zopilot main surface。
+
+## 未来能力
+
+新架构必须支持 attachment upload、reader content navigation、slash command、自定义 prompt、skill 和 ask/agent mode。
+
+这些能力应是一等产品流程，而不是继续叠加在 MVP layout 上的补丁。
+
+## 成功标准
+
+Zopilot UI 在 Zotero 9 chrome window 中具备稳定交互、成熟视觉、清晰状态边界和可维护组件系统。
+
+Deck 集成解决外层挂载和 splitter 问题；本方案解决 Zopilot 内部 UI 的长期技术路线。
