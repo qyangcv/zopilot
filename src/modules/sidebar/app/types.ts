@@ -5,6 +5,7 @@ import type {
   WorkspaceType,
 } from "../../../shared/conversation";
 import type { CodexDiagnosticCode } from "../../../codex/diagnostics";
+import type { ReaderLocator } from "../readerNavigation";
 
 export type SidebarMessageView = {
   id: string;
@@ -14,6 +15,7 @@ export type SidebarMessageView = {
   completedAt?: string;
   transient?: boolean;
   running?: boolean;
+  locators?: ReaderLocator[];
 };
 
 export type SidebarModelView = {
@@ -53,6 +55,49 @@ type SidebarSessionView = {
 };
 
 export type SidebarSessionMode = "history" | "archive";
+export type SidebarMode = "ask" | "agent";
+
+export type SidebarCommandCategory =
+  | "source"
+  | "reader"
+  | "attachment"
+  | "prompt"
+  | "skill"
+  | "session"
+  | "mode";
+
+export type SidebarCommandView = {
+  id: string;
+  title: string;
+  description: string;
+  keywords: string[];
+  category: SidebarCommandCategory;
+  icon: string;
+  available: boolean;
+  disabledReason?: string;
+};
+
+export type SidebarPromptView = {
+  id: string;
+  title: string;
+  body: string;
+  variables: string[];
+  scope: "workspace" | "global";
+  compatibleModes: SidebarMode[];
+  updatedAt: string;
+  custom?: boolean;
+};
+
+export type SidebarSkillView = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  enabled: boolean;
+  status: "available" | "disabled" | "requires-context";
+  requiredContext: Array<"workspace" | "reader">;
+  compatibleModes: SidebarMode[];
+};
 
 export type SidebarState = {
   title: string;
@@ -66,12 +111,15 @@ export type SidebarState = {
   models: SidebarModelView[];
   selectedModel: string;
   selectedReasoningEffort?: string;
+  selectedMode: SidebarMode;
   availableReasoningEfforts: string[];
   codexStatus: "checking" | "connected" | "disconnected";
   codexDiagnostic?: CodexDiagnosticCode;
   focusToken: number;
   sourceCandidates: PaperSourceRef[];
   collectionOptions: SidebarCollectionOption[];
+  prompts: SidebarPromptView[];
+  skills: SidebarSkillView[];
 };
 
 export type SidebarPromptSubmission = {
@@ -85,13 +133,18 @@ export type SidebarActions = {
   createNewSession: () => void;
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
+  openReaderLocator: (locator: ReaderLocator) => void;
+  createPrompt: (input: { title: string; body: string }) => void;
+  deletePrompt: (promptId: string) => void;
   selectModel: (model: string) => void;
   selectReasoningEffort: (effort: string) => void;
   selectWorkspaceMode: (type: WorkspaceType) => void;
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
-  startResize: (event: PointerEvent) => void;
+  selectMode: (mode: SidebarMode) => void;
+  setSkillEnabled: (skillId: string, enabled: boolean) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
+  uploadAttachment: () => void;
   interruptActiveTurn: () => void;
   restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;

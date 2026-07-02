@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEventHandler,
   type KeyboardEvent,
   type MouseEvent,
   type ReactElement,
@@ -15,10 +14,14 @@ import { getCodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import { copyText } from "./clipboard";
 import { Icon, type IconName } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
+import { DismissLayer, Portal, Select } from "./ui/index";
+import { buildSidebarCommands, filterSidebarCommands } from "./commandRegistry";
 import type {
   SidebarActions,
   SidebarCollectionOption,
+  SidebarCommandView,
   SidebarMessageView,
+  SidebarMode,
   SidebarState,
 } from "./types";
 import {
@@ -32,6 +35,7 @@ import type {
   SourceMention,
   WorkspaceType,
 } from "../../../shared/conversation";
+import { extractPromptVariables } from "../promptSchema";
 
 export function SidebarApp({
   actions,
@@ -45,22 +49,22 @@ export function SidebarApp({
   const [mentionQuery, setMentionQuery] = useState<ReturnType<
     typeof findMentionQuery
   > | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const [contextOpen, setContextOpen] = useState(false);
+  const [promptPickerOpen, setPromptPickerOpen] = useState(false);
+  const [skillListOpen, setSkillListOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const logRef = useRef<HTMLElement | null>(null);
   const autoScrollRef = useRef(true);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastUserMessage = useMemo(
     () =>
       [...state.messages].reverse().find((message) => message.role === "user"),
     [state.messages],
   );
-  const selectedModelLabel =
-    state.models.find((model) => model.slug === state.selectedModel)
-      ?.displayName || state.selectedModel;
-  const selectedEffortLabel = state.selectedReasoningEffort
-    ? formatEffortLabel(state.selectedReasoningEffort)
-    : "";
   const sourceCandidates = state.sourceCandidates || [];
   const currentSourceId = sourceCandidates.find(
     (source) => source.paperKey === state.context.paperKey,
@@ -72,6 +76,11 @@ export function SidebarApp({
         currentSourceId,
       )
     : [];
+  const commands = useMemo(() => buildSidebarCommands(state), [state]);
+  const visibleCommands = useMemo(
+    () => filterSidebarCommands(commands, commandQuery),
+    [commandQuery, commands],
+  );
 
   useLayoutEffect(() => {
     const log = logRef.current;
@@ -79,6 +88,34 @@ export function SidebarApp({
       log.scrollTop = log.scrollHeight;
     }
   }, [state.messages]);
+
+  useLayoutEffect(() => {
+    const composer = composerRef.current;
+    const header = headerRef.current;
+    const root = composer?.closest(".zp-sidebar") as HTMLElement | null;
+    if (!root || !composer || !header) {
+      return;
+    }
+    const updateLayoutBounds = () => {
+      root.style.setProperty(
+        "--zp-header-height",
+        `${Math.ceil(header.getBoundingClientRect().height)}px`,
+      );
+      root.style.setProperty(
+        "--zp-composer-height",
+        `${Math.ceil(composer.getBoundingClientRect().height)}px`,
+      );
+    };
+    updateLayoutBounds();
+    const ResizeObserverCtor = globalThis.ResizeObserver;
+    if (!ResizeObserverCtor) {
+      return;
+    }
+    const resizeObserver = new ResizeObserverCtor(updateLayoutBounds);
+    resizeObserver.observe(header);
+    resizeObserver.observe(composer);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -100,6 +137,13 @@ export function SidebarApp({
       items.filter((mention) => text.includes(`@${mention.title}`)),
     );
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
+    if (text.startsWith("/")) {
+      setCommandOpen(true);
+      setCommandQuery(text.slice(1));
+    } else {
+      setCommandOpen(false);
+      setCommandQuery("");
+    }
   };
 
   const submit = (text = draft, nextMentions = mentions) => {
@@ -150,25 +194,68 @@ export function SidebarApp({
     });
   };
 
+  const insertPrompt = (text: string) => {
+    updateDraft(text);
+    globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  const executeCommand = (command: SidebarCommandView) => {
+    if (!command.available) {
+      return;
+    }
+    setCommandOpen(false);
+    setCommandQuery("");
+    if (command.id === "mode.ask") {
+      actions.selectMode("ask");
+      return;
+    }
+    if (command.id === "mode.agent") {
+      actions.selectMode("agent");
+      return;
+    }
+    if (command.id === "source.add") {
+      setContextOpen(true);
+      return;
+    }
+    if (command.id === "session.new") {
+      actions.createNewSession();
+      return;
+    }
+    if (command.id === "session.history") {
+      actions.toggleSessions();
+      return;
+    }
+    if (command.id === "reader.navigate") {
+      insertPrompt(
+        "Find the strongest evidence in this paper and include page or section locators.",
+      );
+      return;
+    }
+    if (command.id === "attachment.upload") {
+      actions.uploadAttachment();
+      return;
+    }
+    if (command.id.startsWith("prompt.")) {
+      const prompt = state.prompts.find(
+        (item) => command.id === `prompt.${item.id}`,
+      );
+      if (prompt) {
+        insertPrompt(prompt.body);
+      }
+      return;
+    }
+    if (command.id.startsWith("skill.")) {
+      setSkillListOpen(true);
+    }
+  };
+
   return (
     <aside
       aria-label={getString("sidebar-title")}
       className="zp-sidebar"
-      onClick={() => {
-        if (state.sessionsOpen) {
-          actions.hideSessions();
-        }
-        setContextOpen(false);
-      }}
       role="complementary"
     >
-      <div
-        aria-hidden="true"
-        className="zp-resize-handle"
-        id="zopilot-sidebar-splitter"
-        onPointerDown={(event) => actions.startResize(event.nativeEvent)}
-      />
-      <header className="zp-sidebar-header">
+      <header className="zp-sidebar-header" ref={headerRef}>
         <button
           className="zp-sidebar-identity"
           onClick={(event) => {
@@ -245,23 +332,60 @@ export function SidebarApp({
         </div>
       </header>
       {contextOpen ? (
-        <ContextPopover
-          label={state.context.label}
-          onClose={() => setContextOpen(false)}
-          paperKey={state.context.paperKey}
-          paperTitle={state.context.paperTitle}
-          parentItemKey={state.context.parentItemKey}
-          attachmentKey={state.context.attachmentKey}
-          workspaceKey={state.context.workspaceKey}
-          workspaceType={state.context.workspaceType}
-        />
+        <Portal>
+          <DismissLayer onDismiss={() => setContextOpen(false)}>
+            <ContextPopover
+              label={state.context.label}
+              onClose={() => setContextOpen(false)}
+              paperKey={state.context.paperKey}
+              paperTitle={state.context.paperTitle}
+              parentItemKey={state.context.parentItemKey}
+              attachmentKey={state.context.attachmentKey}
+              workspaceKey={state.context.workspaceKey}
+              workspaceType={state.context.workspaceType}
+            />
+          </DismissLayer>
+        </Portal>
       ) : null}
       {state.sessionsOpen ? (
-        <SessionPopover
-          actions={actions}
-          mode={state.sessionsMode}
-          sessions={state.sessions}
-        />
+        <Portal>
+          <DismissLayer onDismiss={actions.hideSessions}>
+            <SessionPopover
+              actions={actions}
+              mode={state.sessionsMode}
+              sessions={state.sessions}
+            />
+          </DismissLayer>
+        </Portal>
+      ) : null}
+      {promptPickerOpen ? (
+        <Portal>
+          <DismissLayer onDismiss={() => setPromptPickerOpen(false)}>
+            <PromptPicker
+              onCreate={actions.createPrompt}
+              mode={state.selectedMode}
+              onClose={() => setPromptPickerOpen(false)}
+              onDelete={actions.deletePrompt}
+              onInsert={(body) => {
+                setPromptPickerOpen(false);
+                insertPrompt(body);
+              }}
+              prompts={state.prompts}
+            />
+          </DismissLayer>
+        </Portal>
+      ) : null}
+      {skillListOpen ? (
+        <Portal>
+          <DismissLayer onDismiss={() => setSkillListOpen(false)}>
+            <SkillList
+              mode={state.selectedMode}
+              onClose={() => setSkillListOpen(false)}
+              onToggle={actions.setSkillEnabled}
+              skills={state.skills}
+            />
+          </DismissLayer>
+        </Portal>
       ) : null}
       <main
         aria-live="polite"
@@ -285,6 +409,7 @@ export function SidebarApp({
               globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
             }}
             onOpenLink={actions.openExternalLink}
+            onOpenLocator={actions.openReaderLocator}
             onSubmit={(text) => submit(text, [])}
           />
         ))}
@@ -296,6 +421,7 @@ export function SidebarApp({
           event.preventDefault();
           submit();
         }}
+        ref={composerRef}
       >
         <div className="zp-context-row">
           <WorkspaceSelector actions={actions} state={state} />
@@ -314,11 +440,27 @@ export function SidebarApp({
           </button>
         </div>
         {mentionCandidates.length ? (
-          <MentionPopover
-            candidates={mentionCandidates}
-            disabled={mentions.length >= MAX_SOURCE_MENTIONS}
-            onSelect={selectMention}
-          />
+          <Portal>
+            <DismissLayer onDismiss={() => setMentionQuery(null)}>
+              <MentionPopover
+                candidates={mentionCandidates}
+                disabled={mentions.length >= MAX_SOURCE_MENTIONS}
+                onClose={() => setMentionQuery(null)}
+                onSelect={selectMention}
+              />
+            </DismissLayer>
+          </Portal>
+        ) : null}
+        {commandOpen ? (
+          <Portal>
+            <DismissLayer onDismiss={() => setCommandOpen(false)}>
+              <CommandMenu
+                commands={visibleCommands}
+                onClose={() => setCommandOpen(false)}
+                onSelect={executeCommand}
+              />
+            </DismissLayer>
+          </Portal>
         ) : null}
         <textarea
           className="zp-composer-input"
@@ -351,6 +493,21 @@ export function SidebarApp({
                 return;
               }
             }
+            if (commandOpen) {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setCommandOpen(false);
+                return;
+              }
+              if (
+                (event.key === "Tab" || event.key === "Enter") &&
+                visibleCommands[0]?.available
+              ) {
+                event.preventDefault();
+                executeCommand(visibleCommands[0]!);
+                return;
+              }
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               submit();
@@ -363,6 +520,63 @@ export function SidebarApp({
         />
         <div className="zp-composer-footer">
           <div className="zp-composer-meta">
+            <button
+              aria-label={getString("sidebar-command-menu")}
+              aria-expanded={commandOpen}
+              aria-haspopup="dialog"
+              className="zp-context-add"
+              disabled={!state.composerEnabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                setCommandOpen((open) => !open);
+                setCommandQuery("");
+              }}
+              title={getString("sidebar-command-menu")}
+              type="button"
+            >
+              <Icon name="command" size={15} />
+            </button>
+            <button
+              aria-label={getString("sidebar-prompts")}
+              className="zp-context-add"
+              disabled={!state.composerEnabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                setPromptPickerOpen((open) => !open);
+                setSkillListOpen(false);
+              }}
+              title={getString("sidebar-prompts")}
+              type="button"
+            >
+              <Icon name="prompt" size={15} />
+            </button>
+            <button
+              aria-label={getString("sidebar-skills")}
+              className="zp-context-add"
+              disabled={!state.context.workspaceKey}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSkillListOpen((open) => !open);
+                setPromptPickerOpen(false);
+              }}
+              title={getString("sidebar-skills")}
+              type="button"
+            >
+              <Icon name="skill" size={15} />
+            </button>
+            <button
+              aria-label={getString("sidebar-attachment-upload")}
+              className="zp-context-add"
+              disabled={!state.context.workspaceKey || state.busy}
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.uploadAttachment();
+              }}
+              title={getString("sidebar-attachment-upload")}
+              type="button"
+            >
+              <Icon name="attachment" size={15} />
+            </button>
             <button
               aria-label={getString("sidebar-add-context")}
               className="zp-context-add"
@@ -398,40 +612,32 @@ export function SidebarApp({
             ) : null}
             {state.codexStatus === "connected" ? (
               <>
-                <ComposerSelect
+                <ModeSwitch
+                  mode={state.selectedMode}
+                  onChange={actions.selectMode}
+                />
+                <Select
                   aria-label={getString("sidebar-model-name")}
                   disabled={!state.models.length}
-                  onChange={(event) =>
-                    actions.selectModel(event.currentTarget.value)
-                  }
-                  inlineSize={getComposerSelectInlineSize(selectedModelLabel)}
+                  onChange={actions.selectModel}
+                  options={state.models.map((model) => ({
+                    label: model.displayName,
+                    value: model.slug,
+                  }))}
                   title={getString("sidebar-model-name")}
                   value={state.selectedModel}
-                >
-                  {state.models.map((model) => (
-                    <option key={model.slug} value={model.slug}>
-                      {model.displayName}
-                    </option>
-                  ))}
-                </ComposerSelect>
+                />
                 {state.availableReasoningEfforts.length ? (
-                  <ComposerSelect
+                  <Select
                     aria-label={getString("sidebar-reasoning-depth")}
-                    onChange={(event) =>
-                      actions.selectReasoningEffort(event.currentTarget.value)
-                    }
-                    inlineSize={getComposerSelectInlineSize(
-                      selectedEffortLabel,
-                    )}
+                    onChange={actions.selectReasoningEffort}
+                    options={state.availableReasoningEfforts.map((effort) => ({
+                      label: formatEffortLabel(effort),
+                      value: effort,
+                    }))}
                     title={getString("sidebar-reasoning-depth")}
                     value={state.selectedReasoningEffort || ""}
-                  >
-                    {state.availableReasoningEfforts.map((effort) => (
-                      <option key={effort} value={effort}>
-                        {formatEffortLabel(effort)}
-                      </option>
-                    ))}
-                  </ComposerSelect>
+                  />
                 ) : null}
               </>
             ) : null}
@@ -459,6 +665,363 @@ export function SidebarApp({
         </div>
       </form>
     </aside>
+  );
+}
+
+function ModeSwitch({
+  mode,
+  onChange,
+}: {
+  mode: SidebarMode;
+  onChange: (mode: SidebarMode) => void;
+}): ReactElement {
+  return (
+    <span
+      aria-label={getString("sidebar-mode")}
+      className="zp-mode-switch"
+      role="group"
+    >
+      {(["ask", "agent"] as const).map((item) => (
+        <button
+          aria-pressed={mode === item}
+          className="zp-mode-option"
+          data-active={mode === item || undefined}
+          key={item}
+          onClick={() => onChange(item)}
+          title={getString(
+            item === "ask" ? "sidebar-mode-ask" : "sidebar-mode-agent",
+          )}
+          type="button"
+        >
+          <Icon name={item === "ask" ? "askMode" : "agentMode"} size={12} />
+          <span>
+            {getString(
+              item === "ask" ? "sidebar-mode-ask" : "sidebar-mode-agent",
+            )}
+          </span>
+        </button>
+      ))}
+    </span>
+  );
+}
+
+function CommandMenu({
+  commands,
+  onClose,
+  onSelect,
+}: {
+  commands: SidebarCommandView[];
+  onClose: () => void;
+  onSelect: (command: SidebarCommandView) => void;
+}): ReactElement {
+  return (
+    <div
+      aria-label={getString("sidebar-command-menu")}
+      className="zp-command-menu"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      role="dialog"
+    >
+      <div className="zp-command-menu-header">
+        <span>{getString("sidebar-command-menu")}</span>
+        <button
+          aria-label={getString("sidebar-close")}
+          className="zp-inline-copy"
+          onClick={onClose}
+          title={getString("sidebar-close")}
+          type="button"
+        >
+          <Icon name="close" size={13} />
+        </button>
+      </div>
+      <div className="zp-command-list" role="listbox">
+        {commands.length ? (
+          commands.slice(0, 8).map((command, index) => (
+            <button
+              aria-disabled={!command.available}
+              className="zp-command-row"
+              data-active={index === 0 || undefined}
+              disabled={!command.available}
+              key={command.id}
+              onClick={() => onSelect(command)}
+              role="option"
+              title={command.disabledReason || command.description}
+              type="button"
+            >
+              <Icon name={command.icon as IconName} size={14} />
+              <span className="zp-command-main">
+                <span className="zp-command-title">{command.title}</span>
+                <span className="zp-command-description">
+                  {command.disabledReason || command.description}
+                </span>
+              </span>
+              <span className="zp-command-category">{command.category}</span>
+            </button>
+          ))
+        ) : (
+          <div className="zp-command-empty">
+            {getString("sidebar-command-empty")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PromptPicker({
+  mode,
+  onCreate,
+  onClose,
+  onDelete,
+  onInsert,
+  prompts,
+}: {
+  mode: SidebarMode;
+  onCreate: (input: { title: string; body: string }) => void;
+  onClose: () => void;
+  onDelete: (promptId: string) => void;
+  onInsert: (body: string) => void;
+  prompts: SidebarState["prompts"];
+}): ReactElement {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const variables = useMemo(() => extractPromptVariables(body), [body]);
+  const canCreate = Boolean(title.trim() && body.trim());
+  return (
+    <section
+      aria-label={getString("sidebar-prompts")}
+      className="zp-floating-panel zp-prompt-picker"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <FloatingPanelHeader
+        onClose={onClose}
+        title={getString("sidebar-prompts")}
+      />
+      <form
+        className="zp-prompt-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canCreate) {
+            return;
+          }
+          onCreate({ title, body });
+          setTitle("");
+          setBody("");
+        }}
+      >
+        <input
+          aria-label={getString("sidebar-prompt-title")}
+          className="zp-prompt-title-input"
+          onChange={(event) => setTitle(event.currentTarget.value)}
+          placeholder={getString("sidebar-prompt-title")}
+          value={title}
+        />
+        <textarea
+          aria-label={getString("sidebar-prompt-body")}
+          className="zp-prompt-body-input"
+          onChange={(event) => setBody(event.currentTarget.value)}
+          placeholder={getString("sidebar-prompt-body")}
+          rows={3}
+          value={body}
+        />
+        <div className="zp-prompt-form-footer">
+          <span className="zp-prompt-variable-preview">
+            {variables.length
+              ? variables.map((variable) => `{{${variable}}}`).join(" ")
+              : getString("sidebar-prompt-no-variables")}
+          </span>
+          <button
+            className="zp-prompt-save"
+            disabled={!canCreate}
+            type="submit"
+          >
+            {getString("sidebar-prompt-save")}
+          </button>
+        </div>
+      </form>
+      <div className="zp-panel-list">
+        {prompts.map((prompt) => {
+          const compatible = prompt.compatibleModes.includes(mode);
+          return (
+            <div className="zp-panel-row" key={prompt.id} title={prompt.body}>
+              <button
+                className="zp-panel-row-main zp-prompt-insert-row"
+                disabled={!compatible}
+                onClick={() => onInsert(prompt.body)}
+                type="button"
+              >
+                <span className="zp-panel-row-title">{prompt.title}</span>
+                <span className="zp-panel-row-description">{prompt.body}</span>
+              </button>
+              <span className="zp-panel-row-meta">
+                {compatible
+                  ? getString("sidebar-prompt-insert")
+                  : getString("sidebar-mode-incompatible")}
+              </span>
+              {prompt.custom ? (
+                <button
+                  aria-label={getString("sidebar-prompt-delete")}
+                  className="zp-inline-copy"
+                  onClick={() => onDelete(prompt.id)}
+                  title={getString("sidebar-prompt-delete")}
+                  type="button"
+                >
+                  <Icon name="close" size={13} />
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SkillList({
+  mode,
+  onClose,
+  onToggle,
+  skills,
+}: {
+  mode: SidebarMode;
+  onClose: () => void;
+  onToggle: (skillId: string, enabled: boolean) => void;
+  skills: SidebarState["skills"];
+}): ReactElement {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleSkills = useMemo(
+    () =>
+      normalizedQuery
+        ? skills.filter((skill) =>
+            [
+              skill.title,
+              skill.description,
+              skill.category,
+              skill.status,
+              ...skill.requiredContext,
+            ]
+              .join(" ")
+              .toLocaleLowerCase()
+              .includes(normalizedQuery),
+          )
+        : skills,
+    [normalizedQuery, skills],
+  );
+  return (
+    <section
+      aria-label={getString("sidebar-skills")}
+      className="zp-floating-panel zp-skill-list"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <FloatingPanelHeader
+        onClose={onClose}
+        title={getString("sidebar-skills")}
+      />
+      <input
+        aria-label={getString("sidebar-skill-search")}
+        className="zp-skill-filter"
+        onChange={(event) => setQuery(event.currentTarget.value)}
+        placeholder={getString("sidebar-skill-search")}
+        value={query}
+      />
+      <div className="zp-panel-list">
+        {visibleSkills.map((skill) => {
+          const compatible = skill.compatibleModes.includes(mode);
+          const active =
+            skill.enabled && compatible && skill.status === "available";
+          const contextLabel = skill.requiredContext
+            .map((context) =>
+              context === "reader"
+                ? getString("sidebar-skill-reader-context")
+                : getString("sidebar-skill-workspace-context"),
+            )
+            .join(", ");
+          return (
+            <div className="zp-panel-row" key={skill.id}>
+              <span className="zp-panel-row-main">
+                <span className="zp-panel-row-title">{skill.title}</span>
+                <span className="zp-panel-row-description">
+                  {skill.description}
+                </span>
+                <span className="zp-panel-row-description">
+                  {skill.category}
+                  {contextLabel ? ` · ${contextLabel}` : ""}
+                </span>
+              </span>
+              <span
+                className="zp-skill-status"
+                data-active={active || undefined}
+              >
+                {active
+                  ? getString("sidebar-skill-enabled")
+                  : skill.status === "requires-context"
+                    ? getString("sidebar-skill-requires-context")
+                    : !compatible
+                      ? getString("sidebar-mode-incompatible")
+                      : getString("sidebar-skill-disabled")}
+              </span>
+              <label className="zp-skill-toggle">
+                <input
+                  checked={skill.enabled}
+                  onChange={(event) =>
+                    onToggle(skill.id, event.currentTarget.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  {skill.enabled
+                    ? getString("sidebar-skill-enabled")
+                    : getString("sidebar-skill-disabled")}
+                </span>
+              </label>
+            </div>
+          );
+        })}
+        {visibleSkills.length === 0 ? (
+          <div className="zp-command-empty">
+            {getString("sidebar-skill-empty")}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function FloatingPanelHeader({
+  onClose,
+  title,
+}: {
+  onClose: () => void;
+  title: string;
+}): ReactElement {
+  return (
+    <div className="zp-floating-panel-header">
+      <span>{title}</span>
+      <button
+        aria-label={getString("sidebar-close")}
+        className="zp-inline-copy"
+        onClick={onClose}
+        title={getString("sidebar-close")}
+        type="button"
+      >
+        <Icon name="close" size={13} />
+      </button>
+    </div>
   );
 }
 
@@ -622,7 +1185,6 @@ function WorkspaceSelector({
             setOpen(false);
           }
         }}
-        style={{ inlineSize: getComposerSelectInlineSize(workspaceLabel) }}
         title={getString("sidebar-workspace-level")}
         type="button"
       >
@@ -747,14 +1309,25 @@ function getSelectedCollectionExpansion(
 function MentionPopover({
   candidates,
   disabled,
+  onClose,
   onSelect,
 }: {
   candidates: PaperSourceRef[];
   disabled: boolean;
+  onClose: () => void;
   onSelect: (source: PaperSourceRef) => void;
 }): ReactElement {
   return (
-    <div className="zp-mention-popover" role="listbox">
+    <div
+      className="zp-mention-popover"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      role="listbox"
+    >
       {disabled ? (
         <div className="zp-mention-limit">
           {getString("sidebar-mention-limit")}
@@ -795,6 +1368,7 @@ export function Message({
   onCopy,
   onInsert,
   onOpenLink,
+  onOpenLocator,
   onSubmit,
 }: {
   busy: boolean;
@@ -804,6 +1378,9 @@ export function Message({
   onCopy: (message: SidebarMessageView) => void;
   onInsert: (text: string) => void;
   onOpenLink: (url: string) => void;
+  onOpenLocator: (
+    locator: NonNullable<SidebarMessageView["locators"]>[number],
+  ) => void;
   onSubmit: (text: string) => void;
 }): ReactElement {
   const isAssistant = message.role === "assistant";
@@ -848,9 +1425,11 @@ export function Message({
             canRetry={Boolean(canRetry)}
             completedAt={completedAt}
             copied={copiedId === `${message.id}-text`}
+            locators={message.locators || []}
             message={message}
             onCopy={() => onCopy(message)}
             onInsert={() => onInsert(message.text)}
+            onOpenLocator={onOpenLocator}
             onRetry={() => {
               if (lastUserText) {
                 onSubmit(lastUserText);
@@ -881,17 +1460,23 @@ function AssistantFooter({
   canRetry,
   completedAt,
   copied,
+  locators,
   message,
   onCopy,
   onInsert,
+  onOpenLocator,
   onRetry,
 }: {
   canRetry: boolean;
   completedAt?: string;
   copied: boolean;
+  locators: NonNullable<SidebarMessageView["locators"]>;
   message: SidebarMessageView;
   onCopy: () => void;
   onInsert: () => void;
+  onOpenLocator: (
+    locator: NonNullable<SidebarMessageView["locators"]>[number],
+  ) => void;
   onRetry: () => void;
 }): ReactElement | null {
   if (message.running || message.transient) {
@@ -917,6 +1502,17 @@ function AssistantFooter({
   return (
     <div className="zp-message-footer">
       <div className="zp-message-actions">
+        {locators.map((locator) => (
+          <button
+            className="zp-locator-chip"
+            key={`${locator.kind}-${locator.label}`}
+            onClick={() => onOpenLocator(locator)}
+            title={getString("sidebar-open-reader-location")}
+            type="button"
+          >
+            {locator.label}
+          </button>
+        ))}
         <IconAction
           active={copied}
           icon="copy"
@@ -1108,32 +1704,12 @@ function ContextPopover({
   );
 }
 
-function ComposerSelect({
-  children,
-  inlineSize,
-  ...props
-}: {
-  "aria-label": string;
-  children: ReactNode;
-  disabled?: boolean;
-  inlineSize: string;
-  onChange: ChangeEventHandler<HTMLSelectElement>;
-  title: string;
-  value: string;
-}): ReactElement {
-  return (
-    <select {...props} className="zp-composer-select" style={{ inlineSize }}>
-      {children}
-    </select>
-  );
-}
-
 function resizeTextarea(textarea: HTMLTextAreaElement | null): void {
   if (!textarea) {
     return;
   }
   const hostHeight =
-    textarea.closest("#zopilot-sidebar-shell")?.clientHeight || 680;
+    textarea.closest("#zopilot-context-pane-deck")?.clientHeight || 680;
   const maxHeight = Math.max(140, Math.floor(hostHeight * 0.42));
   textarea.style.height = "auto";
   textarea.style.maxHeight = `${maxHeight}px`;
@@ -1150,14 +1726,4 @@ function isNearScrollBottom(element: HTMLElement): boolean {
 
 function formatEffortLabel(effort: string): string {
   return effort.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase());
-}
-
-function getComposerSelectInlineSize(label: string): string {
-  const characterCount = Array.from(label || "").length;
-  const labelWidth = clampNumber(characterCount, 4, 22);
-  return `calc(${labelWidth}ch + 12px)`;
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }

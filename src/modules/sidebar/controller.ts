@@ -31,17 +31,34 @@ import {
   getSelectedPDFReaderAsync,
   isPDFReader,
 } from "../../zotero/reader";
+import { pickAndImportAttachment } from "./attachmentUpload";
 import { copyText } from "./app/clipboard";
-import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
+import type { ReaderLocator } from "./readerNavigation";
+import { navigateReaderLocator } from "./readerNavigation";
 import type {
   SidebarModelView,
+  SidebarMode,
   SidebarPromptSubmission,
   SidebarSessionMode,
   SidebarState,
 } from "./app/types";
-import { HTML_NS, SIDEBAR_ID, STYLE_URI } from "./constants";
+import {
+  ContextPaneDeckAdapter,
+  type ContextPaneActiveState,
+} from "./contextPane";
+import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
+import { STYLE_URI } from "./constants";
 import { ReaderToolbarController } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
+import {
+  createCustomPrompt,
+  deleteCustomPrompt,
+  loadPromptViews,
+} from "./promptStore";
+import {
+  loadSkillViews,
+  setSkillEnabled as saveSkillEnabled,
+} from "./skillRegistry";
 import {
   DEFAULT_MODEL,
   createConversationMessages,
@@ -50,25 +67,15 @@ import {
 } from "./viewModel";
 
 const controllers = new WeakMap<Window, SidebarController>();
-const DEFAULT_SIDEBAR_WIDTH = 372;
-const COMPACT_VIEWPORT_WIDTH = 860;
-const DEFAULT_COLLAPSE_THRESHOLD = 300;
-const COMPACT_COLLAPSE_THRESHOLD = 280;
 const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
 const logger = createLogger("sidebar.controller");
-export {
-  registerSidebar,
-  unregisterSidebar,
-  unregisterAllSidebars,
-  getSidebarCollapseThreshold,
-  getInitialSidebarWidth,
-  resolveSidebarResizeWidth,
-};
+export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
 
 type RunningTurn = {
   conversation: Conversation;
   assistantOutput: string;
   model?: string;
+  mode: SidebarMode;
   reasoningEffort?: string;
   threadId?: string;
   turnId?: string;
@@ -128,10 +135,10 @@ class SidebarController {
   private readonly doc: Document;
   private readonly win: Window;
   private styleNode?: ProcessingInstruction;
-  private shell?: XUL.Box;
-  private reactHost?: SidebarReactHost;
-  private reactHostLoading = false;
-  private appMount?: HTMLElement;
+  private readonly deckAdapter: ContextPaneDeckAdapter;
+  private deckHost?: ZopilotDeckHost;
+  private deckHostLoading = false;
+  private deckPanel?: HTMLElement;
   private open = false;
   private destroyed = false;
   private diagnosticSubprocess?: CodexDiscoverySubprocessModule;
@@ -150,19 +157,22 @@ class SidebarController {
     this.sourceUniverse = new ZoteroSourceUniverse(
       (win as Window & { Zotero?: typeof Zotero }).Zotero || Zotero,
     );
+    this.deckAdapter = new ContextPaneDeckAdapter(win, {
+      onActiveStateChange: (state) => this.handleDeckStateChange(state),
+    });
     const label = getSelectedItemTitle(this.win);
     this.viewState = createInitialSidebarState(label);
+    this.viewState.selectedMode = readSavedMode();
+    this.viewState.prompts = loadPromptViews();
     this.readerToolbar = new ReaderToolbarController({
       pluginID: config.addonID,
-      isDestroyed: () => this.destroyed,
-      isOpenForReader: (reader) => this.open && this.isCurrentReader(reader),
-      onToggle: (reader) => this.toggle(reader),
     });
   }
 
   mount(): void {
     this.injectStylesheet();
     this.readerToolbar.mount();
+    this.deckAdapter.mount();
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
@@ -174,12 +184,12 @@ class SidebarController {
   destroy(): void {
     this.destroyed = true;
     this.listeners.splice(0).forEach((dispose) => dispose());
-    this.reactHost?.unmount();
-    this.reactHost = undefined;
-    this.appMount = undefined;
+    this.deckHost?.destroy();
+    this.deckHost = undefined;
+    this.deckPanel = undefined;
+    this.deckAdapter.destroy();
     this.styleNode?.remove();
     this.readerToolbar.destroy();
-    this.shell?.remove();
   }
 
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
@@ -208,16 +218,16 @@ class SidebarController {
   }
 
   private ensureMountedSurfaces(): void {
-    if (this.open && getSelectedPDFReader(this.win)) {
+    this.deckAdapter.mount();
+    if (this.open) {
       this.attachPanel();
-    } else {
-      this.shell?.remove();
     }
     this.readerToolbar.refresh();
   }
 
   private openZopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
     const token = ++this.selectionToken;
+    this.ensureNativeContextPaneVisible(reader);
     this.setOpen(true);
     if (isPDFReader(reader)) {
       void this.loadReaderConversation(reader, token);
@@ -225,6 +235,7 @@ class SidebarController {
     }
     const selectedReader = getSelectedPDFReader(this.win);
     if (selectedReader) {
+      this.ensureNativeContextPaneVisible(selectedReader);
       void this.loadReaderConversation(selectedReader, token);
       return;
     }
@@ -368,173 +379,48 @@ class SidebarController {
   }
 
   private mountPanel(): void {
-    if (this.shell) {
-      void this.ensureReactHost();
+    const panel = this.deckAdapter.ensurePanel();
+    if (!panel) {
+      const unavailable = this.deckAdapter.getUnavailableResult();
+      logger.warn("failed to mount Zopilot context pane deck", unavailable);
+      this.setOpen(false);
+      return;
+    }
+    this.deckPanel = panel;
+    void this.ensureDeckHost(panel);
+  }
+
+  private ensureDeckHost(panel: HTMLElement): void {
+    if (this.deckHost || this.deckHostLoading) {
       return;
     }
 
-    this.doc.getElementById(SIDEBAR_ID)?.remove();
-
-    this.shell = this.createShell();
-    this.appMount = this.doc.createElementNS(HTML_NS, "div") as HTMLElement;
-    this.appMount.className = "zp-react-root";
-    this.shell.appendChild(this.appMount);
-    void this.ensureReactHost();
+    this.deckHostLoading = true;
+    void this.createDeckHost(panel);
   }
 
-  private ensureReactHost(): void {
-    if (this.reactHost || this.reactHostLoading || !this.appMount) {
-      return;
-    }
-
-    const mountNode = this.appMount;
-    this.reactHostLoading = true;
-    void this.createReactHost(mountNode);
-  }
-
-  private async createReactHost(mountNode: HTMLElement): Promise<void> {
+  private async createDeckHost(panel: HTMLElement): Promise<void> {
+    let failed = false;
     try {
-      if (this.destroyed || this.appMount !== mountNode) {
+      if (this.destroyed || this.deckPanel !== panel) {
         return;
       }
-      const reactHost = await createSidebarReactHost(mountNode);
-      if (this.destroyed || this.appMount !== mountNode) {
-        reactHost.unmount();
+      const deckHost = await createZopilotDeckHost(panel);
+      if (this.destroyed || this.deckPanel !== panel) {
+        deckHost.destroy();
         return;
       }
-      this.reactHost = reactHost;
+      this.deckHost = deckHost;
       this.renderApp();
     } catch (error) {
-      logger.error("failed to mount Zopilot React sidebar", error);
+      failed = true;
+      logger.error("failed to mount Zopilot React deck", error);
     } finally {
-      this.reactHostLoading = false;
-    }
-  }
-
-  private createShell(): XUL.Box {
-    const shell = this.doc.createXULElement("box") as XUL.Box;
-    const width = this.getInitialShellWidth();
-    shell.id = SIDEBAR_ID;
-    shell.setAttribute("orient", "vertical");
-    shell.setAttribute("width", String(width));
-    shell.style.width = `${width}px`;
-    shell.style.flexBasis = `${width}px`;
-    return shell;
-  }
-
-  private startResize(event: PointerEvent): void {
-    const shell = this.shell;
-    if (event.button !== 0 || !shell) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const splitter = event.currentTarget as HTMLElement;
-    const startX = event.clientX;
-    const startWidth = this.getShellWidth();
-    const isRtl = Boolean((Zotero as unknown as { rtl?: boolean }).rtl);
-
-    shell.toggleAttribute("data-resizing", true);
-    try {
-      splitter.setPointerCapture?.(event.pointerId);
-    } catch {
-      // Synthetic pointer events used in runtime verification may not have an
-      // active pointer capture target. Real mouse drags still take this path.
-    }
-
-    const cleanupResize = () => {
-      shell.removeAttribute("data-resizing");
-      this.win.removeEventListener("pointermove", onPointerMove, true);
-      this.win.removeEventListener("pointerup", stopResize, true);
-      this.win.removeEventListener("pointercancel", stopResize, true);
-    };
-
-    const releasePointerCapture = () => {
-      try {
-        splitter.releasePointerCapture?.(event.pointerId);
-      } catch {
-        // Ignore stale synthetic pointer ids during verification.
+      this.deckHostLoading = false;
+      if (!failed && this.open && !this.deckHost && this.deckPanel) {
+        this.ensureDeckHost(this.deckPanel);
       }
-    };
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      if (moveEvent.pointerId !== event.pointerId) {
-        return;
-      }
-      moveEvent.preventDefault();
-      moveEvent.stopPropagation();
-      const delta = isRtl
-        ? moveEvent.clientX - startX
-        : startX - moveEvent.clientX;
-      const resized = this.setShellWidth(startWidth + delta);
-      if (!resized) {
-        releasePointerCapture();
-        cleanupResize();
-      }
-    };
-
-    const stopResize = (endEvent: PointerEvent) => {
-      if (endEvent.pointerId !== event.pointerId) {
-        return;
-      }
-      endEvent.preventDefault();
-      endEvent.stopPropagation();
-      releasePointerCapture();
-      this.persistShellWidth();
-      cleanupResize();
-    };
-
-    this.win.addEventListener("pointermove", onPointerMove, true);
-    this.win.addEventListener("pointerup", stopResize, true);
-    this.win.addEventListener("pointercancel", stopResize, true);
-  }
-
-  private getShellWidth(): number {
-    const width =
-      this.shell?.getBoundingClientRect().width ||
-      Number(this.shell?.getAttribute("width")) ||
-      DEFAULT_SIDEBAR_WIDTH;
-    return Math.round(width);
-  }
-
-  private setShellWidth(width: number): boolean {
-    if (!this.shell) {
-      return false;
     }
-    const decision = resolveSidebarResizeWidth(width, this.getViewportWidth());
-    if (decision.action === "close") {
-      this.setOpen(false);
-      return false;
-    }
-    this.shell.setAttribute("width", String(decision.width));
-    this.shell.style.width = `${decision.width}px`;
-    this.shell.style.flexBasis = `${decision.width}px`;
-    return true;
-  }
-
-  private persistShellWidth(): void {
-    const width = this.getShellWidth();
-    if (width <= this.getCollapseThreshold()) {
-      return;
-    }
-    setPref("sidebar.width", width);
-  }
-
-  private getInitialShellWidth(): number {
-    return getInitialSidebarWidth(
-      getPref("sidebar.width"),
-      this.getViewportWidth(),
-    );
-  }
-
-  private getCollapseThreshold(): number {
-    return getSidebarCollapseThreshold(this.getViewportWidth());
-  }
-
-  private getViewportWidth(): number {
-    return this.doc.documentElement?.clientWidth || this.win.innerWidth || 1024;
   }
 
   private async toggleSessionPopover(
@@ -777,6 +663,7 @@ class SidebarController {
       conversation,
       assistantOutput: "",
       model: this.viewState.selectedModel,
+      mode: this.viewState.selectedMode,
       reasoningEffort: this.viewState.selectedReasoningEffort,
       interrupting: false,
       interrupted: false,
@@ -788,7 +675,10 @@ class SidebarController {
       const bridge = getCodexBridge();
       let pendingToolBoundary = false;
       const result = await bridge.sendPrompt(
-        buildPromptWithSourceRefs(promptText, submission.mentions),
+        buildPromptWithMode(
+          buildPromptWithSourceRefs(promptText, submission.mentions),
+          runningTurn.mode,
+        ),
         {
           conversation: conversation.metadata,
           model: runningTurn.model,
@@ -1046,6 +936,39 @@ class SidebarController {
     this.updateViewState({ selectedReasoningEffort: effort });
   }
 
+  private selectMode(mode: SidebarMode): void {
+    if (mode !== "ask" && mode !== "agent") {
+      return;
+    }
+    setPref("codex.mode", mode);
+    this.updateViewState({ selectedMode: mode });
+  }
+
+  private createPrompt(input: { title: string; body: string }): void {
+    try {
+      createCustomPrompt(input);
+      this.updateViewState({ prompts: loadPromptViews() });
+    } catch (error) {
+      logger.warn("failed to create custom prompt", { error: String(error) });
+    }
+  }
+
+  private deletePrompt(promptId: string): void {
+    deleteCustomPrompt(promptId);
+    this.updateViewState({ prompts: loadPromptViews() });
+  }
+
+  private setSkillEnabled(skillId: string, enabled: boolean): void {
+    try {
+      saveSkillEnabled(skillId, enabled);
+      this.updateViewState({
+        skills: this.loadSkillViewsForDisplayState(this.displayState),
+      });
+    } catch (error) {
+      logger.warn("failed to update skill setting", { error: String(error) });
+    }
+  }
+
   private async selectWorkspaceMode(type: WorkspaceType): Promise<void> {
     const ready = this.getReadyDisplayState();
     if (!ready || ready.workspace.workspaceType === type) {
@@ -1130,6 +1053,48 @@ class SidebarController {
       workspace,
       currentSource: paperSourceRefToIdentity(source),
     });
+  }
+
+  private async uploadAttachment(): Promise<void> {
+    const ready = this.getReadyDisplayState();
+    if (!ready) {
+      return;
+    }
+    try {
+      const result = await pickAndImportAttachment({
+        win: this.win,
+        libraryID: ready.workspace.libraryID,
+        parentItemID: ready.workspace.defaultSource?.parentItemID,
+      });
+      if (result.status === "imported") {
+        await this.loadWorkspaceConversation({
+          token: ready.token,
+          reader: ready.reader,
+          workspace: ready.workspace,
+          currentSource: ready.workspace.defaultSource,
+        });
+      }
+    } catch (error) {
+      logger.error("failed to upload Zotero attachment", error, {
+        workspaceKey: ready.workspace.workspaceKey,
+      });
+    }
+  }
+
+  private async openReaderLocator(locator: ReaderLocator): Promise<void> {
+    const ready = this.getReadyDisplayState();
+    const itemID = ready?.workspace.defaultSource?.attachmentItemID;
+    try {
+      await navigateReaderLocator(this.win, locator, {
+        itemID,
+        reader: ready?.reader,
+      });
+    } catch (error) {
+      logger.error("failed to navigate Zotero reader locator", error, {
+        locator,
+        itemID,
+      });
+    }
   }
 
   private findSourceForItemMode(
@@ -1294,6 +1259,7 @@ class SidebarController {
             : undefined,
         ),
         busy: Boolean(runningTurn),
+        skills: this.loadSkillViewsForDisplayState(state),
         sessions: this.viewState.sessions.map((session) =>
           createSessionView(
             session.conversation,
@@ -1323,6 +1289,7 @@ class SidebarController {
       sessions: [],
       sourceCandidates: [],
       collectionOptions: [],
+      skills: this.loadSkillViewsForDisplayState(state),
       messages: [
         {
           id: `zp-status-${state.token}`,
@@ -1335,20 +1302,20 @@ class SidebarController {
     });
   }
 
-  private canCommitSelection(token: number): boolean {
-    return !this.destroyed && this.open && token === this.selectionToken;
+  private loadSkillViewsForDisplayState(
+    state: DisplayState,
+  ): SidebarState["skills"] {
+    return loadSkillViews({
+      hasReader:
+        state.kind === "loading" ||
+        state.kind === "ready" ||
+        (state.kind === "error" && Boolean(state.reader)),
+      hasWorkspace: state.kind === "ready",
+    });
   }
 
-  private toggle(reader?: _ZoteroTypes.ReaderInstance): void {
-    if (this.open) {
-      if (reader && !this.isCurrentReader(reader)) {
-        this.openZopilotPane(reader);
-        return;
-      }
-      this.setOpen(false);
-    } else {
-      this.openZopilotPane(reader);
-    }
+  private canCommitSelection(token: number): boolean {
+    return !this.destroyed && this.open && token === this.selectionToken;
   }
 
   private setOpen(open: boolean): void {
@@ -1357,11 +1324,8 @@ class SidebarController {
     if (open) {
       this.attachPanel();
     } else {
-      this.selectionToken++;
-      this.displayState = { kind: "closed", token: this.selectionToken };
-      this.hideSessionPopover();
-      this.updateViewState({ busy: false, composerEnabled: false });
-      this.shell?.remove();
+      this.closeZopilotPane({ restoreItemPane: true });
+      return;
     }
     this.readerToolbar.refresh();
     this.renderDisplayState();
@@ -1377,22 +1341,69 @@ class SidebarController {
     }
   }
 
+  private closeZopilotPane(options: { restoreItemPane?: boolean } = {}): void {
+    this.open = false;
+    this.selectionToken++;
+    this.displayState = { kind: "closed", token: this.selectionToken };
+    this.hideSessionPopover();
+    this.updateViewState({ busy: false, composerEnabled: false });
+    this.deckHost?.destroy();
+    this.deckHost = undefined;
+    this.deckPanel = undefined;
+    if (options.restoreItemPane) {
+      this.deckAdapter.select("item");
+    }
+    this.readerToolbar.refresh();
+    this.renderDisplayState();
+    this.win.requestAnimationFrame(() => {
+      this.win.dispatchEvent(new this.win.Event("resize"));
+    });
+  }
+
   private attachPanel(): void {
-    if (!getSelectedPDFReader(this.win)) {
-      return;
-    }
+    this.ensureNativeContextPaneVisible();
     this.mountPanel();
-    const host = this.doc.getElementById("tabs-deck")?.parentElement;
-    if (!host || !this.shell || this.shell.isConnected) {
+    this.deckAdapter.select("zopilot");
+  }
+
+  private ensureNativeContextPaneVisible(
+    reader?: _ZoteroTypes.ReaderInstance,
+  ): void {
+    const contextPane = this.doc.getElementById("zotero-context-pane");
+    if (isElementVisible(contextPane)) {
       return;
     }
-    host.append(this.shell);
+    const readerWin = reader?._iframeWindow;
+    const toggle = readerWin?.document?.querySelector(
+      ".toolbar .end .context-pane-toggle",
+    );
+    if (!readerWin || !toggle) {
+      return;
+    }
+    if (toggle instanceof readerWin.HTMLElement) {
+      (toggle as HTMLElement).click();
+    }
   }
 
   private focusComposer(): void {
     this.win.requestAnimationFrame(() => {
       this.updateViewState({ focusToken: this.viewState.focusToken + 1 });
     });
+  }
+
+  private handleDeckStateChange(state: ContextPaneActiveState): void {
+    if (this.destroyed) {
+      return;
+    }
+    if (state === "zopilot") {
+      if (!this.open) {
+        this.openZopilotPane();
+      }
+      return;
+    }
+    if (this.open) {
+      this.closeZopilotPane();
+    }
   }
 
   private isCurrentReader(reader: _ZoteroTypes.ReaderInstance): boolean {
@@ -1512,7 +1523,7 @@ class SidebarController {
         return;
       }
       const target = event.target as Node | null;
-      if (target && this.shell?.contains(target)) {
+      if (target && this.deckPanel?.contains(target)) {
         return;
       }
       this.hideSessionPopover();
@@ -1523,7 +1534,7 @@ class SidebarController {
 
   private bindSelectionCopy(): void {
     const copySelection = (event: ClipboardEvent) => {
-      const text = getSidebarSelectionText(this.win, this.shell);
+      const text = getSidebarSelectionText(this.win, this.deckPanel);
       if (!text) {
         return;
       }
@@ -1547,7 +1558,7 @@ class SidebarController {
   }
 
   private renderApp(): void {
-    this.reactHost?.render(this.viewState, {
+    this.deckHost?.render(this.viewState, {
       archiveSession: (conversation) => {
         void this.archiveSession(conversation);
       },
@@ -1562,8 +1573,16 @@ class SidebarController {
           Zotero.launchURL(url);
         }
       },
+      openReaderLocator: (locator) => {
+        void this.openReaderLocator(locator);
+      },
+      createPrompt: (input) => this.createPrompt(input),
+      deletePrompt: (promptId) => this.deletePrompt(promptId),
       selectModel: (model) => this.selectModel(model),
+      selectMode: (mode) => this.selectMode(mode),
       selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
+      setSkillEnabled: (skillId, enabled) =>
+        this.setSkillEnabled(skillId, enabled),
       selectWorkspaceMode: (type) => {
         void this.selectWorkspaceMode(type);
       },
@@ -1573,9 +1592,11 @@ class SidebarController {
       selectItemWorkspace: (sourceId) => {
         void this.selectItemWorkspace(sourceId);
       },
-      startResize: (event) => this.startResize(event),
       submitPrompt: (submission) => {
         void this.submitPromptAsync(submission);
+      },
+      uploadAttachment: () => {
+        void this.uploadAttachment();
       },
       switchSession: (conversation) => {
         void this.switchSession(conversation);
@@ -1623,37 +1644,12 @@ function hasStylesheet(doc: Document, uri: string): boolean {
   });
 }
 
-type SidebarResizeWidthDecision =
-  | { action: "close" }
-  | { action: "resize"; width: number };
-
-function getSidebarCollapseThreshold(viewportWidth: number): number {
-  return viewportWidth <= COMPACT_VIEWPORT_WIDTH
-    ? COMPACT_COLLAPSE_THRESHOLD
-    : DEFAULT_COLLAPSE_THRESHOLD;
-}
-
-function getInitialSidebarWidth(
-  storedWidth: unknown,
-  viewportWidth: number,
-): number {
-  const threshold = getSidebarCollapseThreshold(viewportWidth);
-  const parsedWidth = Number(storedWidth);
-  if (Number.isFinite(parsedWidth) && parsedWidth > threshold) {
-    return Math.round(parsedWidth);
+function isElementVisible(element: Element | null): boolean {
+  if (!element || typeof element.getBoundingClientRect !== "function") {
+    return false;
   }
-  return DEFAULT_SIDEBAR_WIDTH;
-}
-
-function resolveSidebarResizeWidth(
-  width: number,
-  viewportWidth: number,
-): SidebarResizeWidthDecision {
-  const nextWidth = Math.round(width);
-  if (nextWidth <= getSidebarCollapseThreshold(viewportWidth)) {
-    return { action: "close" };
-  }
-  return { action: "resize", width: nextWidth };
+  const rect = element.getBoundingClientRect();
+  return rect.width > 8 && rect.height > 8;
 }
 
 function buildPromptWithSourceRefs(
@@ -1675,6 +1671,19 @@ function buildPromptWithSourceRefs(
     JSON.stringify(sourceRefs),
     "When using paper_read for this question, pass sourceIds exactly as listed above.",
   ].join("\n");
+}
+
+function buildPromptWithMode(promptText: string, mode: SidebarMode): string {
+  const modeInstruction =
+    mode === "agent"
+      ? "Zopilot mode: agent. You may plan multi-step work and use available tools when useful. Ask for confirmation before destructive or external side effects."
+      : "Zopilot mode: ask. Focus on reading, explanation, and direct answers. Avoid taking tool-driven actions unless they are needed to answer from the current evidence.";
+  return [modeInstruction, "", promptText].join("\n");
+}
+
+function readSavedMode(): SidebarMode {
+  const value = getPref("codex.mode");
+  return value === "agent" || value === "ask" ? value : "ask";
 }
 
 function formatCodexError(error: unknown): string {

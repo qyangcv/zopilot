@@ -9,6 +9,8 @@ import type {
   SidebarActions,
   SidebarState,
 } from "../../../src/modules/sidebar/app/types.ts";
+import { DEFAULT_PROMPTS } from "../../../src/modules/sidebar/app/commandRegistry.ts";
+import { DEFAULT_SKILLS } from "../../../src/modules/sidebar/skillRegistry.ts";
 import type { Conversation } from "../../../src/shared/conversation.ts";
 
 describe("SidebarApp", function () {
@@ -115,6 +117,7 @@ describe("SidebarApp", function () {
       onCopy: () => undefined,
       onInsert: (text) => inserted.push(text),
       onOpenLink: () => undefined,
+      onOpenLocator: () => undefined,
       onSubmit: (text) => submitted.push(text),
     });
 
@@ -287,7 +290,7 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zopilot-sidebar-no-sessions");
   });
 
-  it("sizes model and effort selectors from the selected labels", function () {
+  it("renders model and effort selectors without native select sizing", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -313,8 +316,11 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.include(html, "inline-size:calc(7ch + 12px)");
-    assert.include(html, "inline-size:calc(4ch + 12px)");
+    assert.include(html, 'aria-haspopup="listbox"');
+    assert.include(html, "GPT-5.5");
+    assert.include(html, "High");
+    assert.notInclude(html, "<select");
+    assert.notInclude(html, "inline-size:calc(");
     assert.notInclude(html, 'data-icon-name="model"');
     assert.notInclude(html, 'data-icon-name="reason"');
     assert.notInclude(html, 'data-icon-name="select"');
@@ -352,6 +358,11 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zp-codex-status");
     assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
+    assert.include(html, 'aria-label="zopilot-sidebar-mode"');
+    assert.include(html, 'aria-label="zopilot-sidebar-command-menu"');
+    assert.include(html, 'aria-label="zopilot-sidebar-prompts"');
+    assert.include(html, 'aria-label="zopilot-sidebar-skills"');
+    assert.include(html, 'aria-label="zopilot-sidebar-attachment-upload"');
   });
 
   it("shows a Codex diagnostic without model controls after a failed connection", function () {
@@ -426,9 +437,14 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     ],
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
+    selectedMode: "ask",
     availableReasoningEfforts: ["medium"],
     codexStatus: "connected",
     focusToken: 0,
+    sourceCandidates: [],
+    collectionOptions: [],
+    prompts: DEFAULT_PROMPTS,
+    skills: DEFAULT_SKILLS,
     ...patch,
   };
 }
@@ -441,10 +457,15 @@ function createActions(): SidebarActions {
     hideSessions: () => undefined,
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,
+    openReaderLocator: () => undefined,
+    createPrompt: () => undefined,
+    deletePrompt: () => undefined,
     selectModel: () => undefined,
+    selectMode: () => undefined,
     selectReasoningEffort: () => undefined,
-    startResize: () => undefined,
+    setSkillEnabled: () => undefined,
     submitPrompt: () => undefined,
+    uploadAttachment: () => undefined,
     restoreSession: () => undefined,
     switchSession: () => undefined,
     toggleArchivedSessions: () => undefined,

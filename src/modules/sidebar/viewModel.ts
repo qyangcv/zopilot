@@ -5,6 +5,9 @@ import type {
   SidebarModelView,
   SidebarState,
 } from "./app/types";
+import { DEFAULT_PROMPTS } from "./app/commandRegistry";
+import { extractReaderLocators } from "./readerNavigation";
+import { DEFAULT_SKILLS } from "./skillRegistry";
 
 export {
   DEFAULT_MODEL,
@@ -46,12 +49,15 @@ function createInitialSidebarState(label: string): SidebarState {
     models: [DEFAULT_MODEL],
     selectedModel: DEFAULT_MODEL.slug,
     selectedReasoningEffort: "medium",
+    selectedMode: "ask",
     availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,
     codexStatus: "checking",
     codexDiagnostic: undefined,
     focusToken: 0,
     sourceCandidates: [],
     collectionOptions: [],
+    prompts: DEFAULT_PROMPTS,
+    skills: DEFAULT_SKILLS,
   };
 }
 
@@ -114,6 +120,8 @@ function toMessageView(
     completedAt: formatBeijingTimestamp(
       message.completedAt || message.createdAt,
     ),
+    locators:
+      message.role === "assistant" ? extractReaderLocators(message.text) : [],
   };
 }
 

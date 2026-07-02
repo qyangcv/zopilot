@@ -692,13 +692,13 @@ Integration service 将 Zopilot locator 转换为 Zotero reader location。
 已有 reader 时使用：
 
 ```ts
-reader.navigate(location)
+reader.navigate(location);
 ```
 
 需要打开 reader 时使用：
 
 ```ts
-Zotero.Reader.open(itemID, location, options)
+Zotero.Reader.open(itemID, location, options);
 ```
 
 UI 只暴露 action，不理解 Zotero reader location 内部细节。

@@ -1,13 +1,17 @@
 import {
   Archive,
   ArchiveX,
+  Bot,
   Check,
   ChevronDown,
   ChevronRight,
   CircleAlert,
+  Command,
   Copy,
   CornerDownLeft,
+  FilePlus,
   FileText,
+  HelpCircle,
   History,
   LoaderCircle,
   MessageCircle,
@@ -23,10 +27,14 @@ import type { ReactElement } from "react";
 
 const ICONS = {
   add: Plus,
+  agentMode: Bot,
   archive: Archive,
   archiveRestore: ArchiveX,
+  askMode: HelpCircle,
+  attachment: FilePlus,
   brand: MessageCircle,
   checking: LoaderCircle,
+  command: Command,
   collapse: ChevronDown,
   close: X,
   context: FileText,
@@ -38,10 +46,13 @@ const ICONS = {
   history: History,
   insert: CornerDownLeft,
   newChat: Plus,
+  prompt: FileText,
+  reader: FileText,
   resend: RotateCcw,
   retry: RotateCcw,
   send: SendHorizontal,
   stop: Square,
+  skill: Bot,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;
