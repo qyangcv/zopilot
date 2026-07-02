@@ -5,6 +5,8 @@ import {
   useRef,
   useState,
   type ChangeEventHandler,
+  type KeyboardEvent,
+  type MouseEvent,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -13,7 +15,23 @@ import { getCodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import { copyText } from "./clipboard";
 import { Icon, type IconName } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
-import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
+import type {
+  SidebarActions,
+  SidebarCollectionOption,
+  SidebarMessageView,
+  SidebarState,
+} from "./types";
+import {
+  MAX_SOURCE_MENTIONS,
+  findMentionQuery,
+  matchMentionCandidates,
+  sourceToMention,
+} from "./mentions";
+import type {
+  PaperSourceRef,
+  SourceMention,
+  WorkspaceType,
+} from "../../../shared/conversation";
 
 export function SidebarApp({
   actions,
@@ -23,6 +41,10 @@ export function SidebarApp({
   state: SidebarState;
 }): ReactElement {
   const [draft, setDraft] = useState("");
+  const [mentions, setMentions] = useState<SourceMention[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<ReturnType<
+    typeof findMentionQuery
+  > | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const logRef = useRef<HTMLElement | null>(null);
@@ -39,6 +61,17 @@ export function SidebarApp({
   const selectedEffortLabel = state.selectedReasoningEffort
     ? formatEffortLabel(state.selectedReasoningEffort)
     : "";
+  const sourceCandidates = state.sourceCandidates || [];
+  const currentSourceId = sourceCandidates.find(
+    (source) => source.paperKey === state.context.paperKey,
+  )?.sourceId;
+  const mentionCandidates = mentionQuery
+    ? matchMentionCandidates(
+        mentionQuery.query,
+        sourceCandidates,
+        currentSourceId,
+      )
+    : [];
 
   useLayoutEffect(() => {
     const log = logRef.current;
@@ -61,13 +94,53 @@ export function SidebarApp({
     }
   }, [state.context.workspaceKey]);
 
-  const submit = (text = draft) => {
+  const updateDraft = (text: string, cursor?: number) => {
+    setDraft(text);
+    setMentions((items) =>
+      items.filter((mention) => text.includes(`@${mention.title}`)),
+    );
+    setMentionQuery(findMentionQuery(text, cursor ?? text.length));
+  };
+
+  const submit = (text = draft, nextMentions = mentions) => {
     const trimmed = text.trim();
     if (!trimmed || state.busy || !state.composerEnabled) {
       return;
     }
-    actions.submitPrompt(trimmed);
+    actions.submitPrompt({
+      text: trimmed,
+      mentions: nextMentions.filter((mention) =>
+        trimmed.includes(`@${mention.title}`),
+      ),
+    });
     setDraft("");
+    setMentions([]);
+    setMentionQuery(null);
+  };
+
+  const selectMention = (source: PaperSourceRef) => {
+    if (!mentionQuery || mentions.length >= MAX_SOURCE_MENTIONS) {
+      return;
+    }
+    const inserted = `@${source.title}`;
+    const nextDraft =
+      draft.slice(0, mentionQuery.start) +
+      inserted +
+      draft.slice(mentionQuery.end);
+    const nextMentions = mentions.some(
+      (mention) => mention.sourceId === source.sourceId,
+    )
+      ? mentions
+      : [...mentions, sourceToMention(source)];
+    setDraft(nextDraft);
+    setMentions(nextMentions);
+    setMentionQuery(null);
+    globalThis.setTimeout(() => {
+      const nextCursor = mentionQuery.start + inserted.length;
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+      resizeTextarea(textareaRef.current);
+    }, 0);
   };
 
   const copyMessage = (message: SidebarMessageView) => {
@@ -208,11 +281,11 @@ export function SidebarApp({
             message={message}
             onCopy={copyMessage}
             onInsert={(text) => {
-              setDraft(text);
+              updateDraft(text);
               globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
             }}
             onOpenLink={actions.openExternalLink}
-            onSubmit={submit}
+            onSubmit={(text) => submit(text, [])}
           />
         ))}
       </main>
@@ -225,6 +298,7 @@ export function SidebarApp({
         }}
       >
         <div className="zp-context-row">
+          <WorkspaceSelector actions={actions} state={state} />
           <button
             className="zp-context-chip"
             disabled={!state.context.workspaceKey}
@@ -239,12 +313,44 @@ export function SidebarApp({
             <span className="zp-context-chip-text">{state.context.label}</span>
           </button>
         </div>
+        {mentionCandidates.length ? (
+          <MentionPopover
+            candidates={mentionCandidates}
+            disabled={mentions.length >= MAX_SOURCE_MENTIONS}
+            onSelect={selectMention}
+          />
+        ) : null}
         <textarea
           className="zp-composer-input"
           disabled={!state.composerEnabled}
-          onChange={(event) => setDraft(event.currentTarget.value)}
+          onChange={(event) =>
+            updateDraft(
+              event.currentTarget.value,
+              event.currentTarget.selectionStart ?? undefined,
+            )
+          }
+          onClick={(event) =>
+            setMentionQuery(
+              findMentionQuery(
+                event.currentTarget.value,
+                event.currentTarget.selectionStart ?? 0,
+              ),
+            )
+          }
           onInput={(event) => resizeTextarea(event.currentTarget)}
           onKeyDown={(event) => {
+            if (mentionCandidates.length) {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setMentionQuery(null);
+                return;
+              }
+              if (event.key === "Tab" || event.key === "Enter") {
+                event.preventDefault();
+                selectMention(mentionCandidates[0]!);
+                return;
+              }
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               submit();
@@ -353,6 +459,331 @@ export function SidebarApp({
         </div>
       </form>
     </aside>
+  );
+}
+
+function WorkspaceSelector({
+  actions,
+  state,
+}: {
+  actions: SidebarActions;
+  state: SidebarState;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const libraryExpanded = true;
+  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const workspaceType = state.context.workspaceType || "item";
+  const collectionOptions = state.collectionOptions || [];
+  const currentCollection = collectionOptions.find(
+    (collection) => collection.key === state.context.collectionKey,
+  );
+  const itemLabel =
+    state.context.paperTitle ||
+    state.context.label ||
+    state.context.paperKey ||
+    getString("sidebar-unavailable-context");
+  const libraryLabel = getString("sidebar-workspace-my-library");
+  const workspaceLabel =
+    workspaceType === "library"
+      ? libraryLabel
+      : workspaceType === "collection"
+        ? currentCollection?.label || state.context.label
+        : itemLabel;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setExpandedCollections(
+      getSelectedCollectionExpansion(
+        collectionOptions,
+        state.context.collectionKey,
+      ),
+    );
+  }, [collectionOptions, open, state.context.collectionKey]);
+
+  const selectMode = (type: WorkspaceType) => {
+    setOpen(false);
+    actions.selectWorkspaceMode(type);
+  };
+
+  const selectCollection = (collectionKey: string) => {
+    setOpen(false);
+    actions.selectCollectionWorkspace(collectionKey);
+  };
+  const selectLibrary = () => {
+    setOpen(false);
+    actions.selectWorkspaceMode("library");
+  };
+  const expandCollection = (collectionKey: string) => {
+    setExpandedCollections((current) => {
+      if (current.has(collectionKey)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(collectionKey);
+      return next;
+    });
+  };
+  const onMenuRowKeyDown =
+    (action: () => void) => (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      action();
+    };
+  const onMenuRowMouseDown =
+    (action: () => void) => (event: MouseEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      action();
+    };
+  const collectionChildren = buildCollectionChildren(collectionOptions);
+  const renderCollectionRows = (
+    collections: SidebarCollectionOption[],
+  ): ReactNode[] =>
+    collections.flatMap((collection) => {
+      const children = collectionChildren.get(collection.key) || [];
+      const expanded = expandedCollections.has(collection.key);
+      const selectCollectionRow = () => {
+        selectCollection(collection.key);
+      };
+      return [
+        <div
+          aria-expanded={collection.hasChildren ? expanded : undefined}
+          className="zp-workspace-menu-row zp-workspace-menu-action zp-workspace-menu-collection"
+          data-active={
+            workspaceType === "collection" &&
+            state.context.collectionKey === collection.key
+              ? true
+              : undefined
+          }
+          key={collection.key}
+          onFocus={() => {
+            if (collection.hasChildren) {
+              expandCollection(collection.key);
+            }
+          }}
+          onKeyDown={onMenuRowKeyDown(selectCollectionRow)}
+          onMouseDown={onMenuRowMouseDown(selectCollectionRow)}
+          onMouseEnter={() => {
+            if (collection.hasChildren) {
+              expandCollection(collection.key);
+            }
+          }}
+          role="menuitem"
+          tabIndex={0}
+          title={collection.path.join(" / ")}
+        >
+          <span
+            className="zp-workspace-menu-label"
+            style={{
+              paddingInlineStart: `${10 + collection.level * 18}px`,
+            }}
+          >
+            {formatWorkspaceMenuLabel(collection.label)}
+          </span>
+          <WorkspaceDisclosure
+            expanded={expanded}
+            visible={collection.hasChildren}
+          />
+        </div>,
+        ...(expanded ? renderCollectionRows(children) : []),
+      ];
+    });
+
+  return (
+    <div
+      className="zp-workspace-selector"
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (
+          nextTarget instanceof Node &&
+          event.currentTarget.contains(nextTarget)
+        ) {
+          return;
+        }
+        setOpen(false);
+      }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        aria-label={getString("sidebar-workspace-level")}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="zp-composer-select zp-workspace-trigger"
+        disabled={!state.context.workspaceKey}
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+          }
+        }}
+        style={{ inlineSize: getComposerSelectInlineSize(workspaceLabel) }}
+        title={getString("sidebar-workspace-level")}
+        type="button"
+      >
+        <span className="zp-workspace-trigger-text">{workspaceLabel}</span>
+        <Icon name={open ? "collapse" : "expand"} size={12} />
+      </button>
+      {open ? (
+        <div className="zp-workspace-menu" role="menu">
+          <div
+            className="zp-workspace-menu-row zp-workspace-menu-action"
+            data-active={workspaceType === "item" || undefined}
+            onKeyDown={onMenuRowKeyDown(() => selectMode("item"))}
+            onMouseDown={onMenuRowMouseDown(() => selectMode("item"))}
+            role="menuitem"
+            tabIndex={0}
+            title={itemLabel}
+          >
+            <span className="zp-workspace-menu-label">
+              {formatWorkspaceMenuLabel(itemLabel)}
+            </span>
+            <WorkspaceDisclosure expanded={false} visible={false} />
+          </div>
+          <div
+            aria-expanded={
+              collectionOptions.length ? libraryExpanded : undefined
+            }
+            className="zp-workspace-menu-row zp-workspace-menu-action"
+            data-active={workspaceType === "library" || undefined}
+            onKeyDown={onMenuRowKeyDown(selectLibrary)}
+            onMouseDown={onMenuRowMouseDown(selectLibrary)}
+            role="menuitem"
+            tabIndex={0}
+            title={libraryLabel}
+          >
+            <span className="zp-workspace-menu-label">
+              {formatWorkspaceMenuLabel(libraryLabel)}
+            </span>
+            <WorkspaceDisclosure
+              expanded={libraryExpanded}
+              visible={Boolean(collectionOptions.length)}
+            />
+          </div>
+          {libraryExpanded
+            ? renderCollectionRows(
+                collectionChildren.get(ROOT_COLLECTION_KEY) || [],
+              )
+            : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkspaceDisclosure({
+  expanded,
+  visible,
+}: {
+  expanded: boolean;
+  visible: boolean;
+}): ReactElement {
+  return (
+    <span
+      aria-hidden="true"
+      className="zp-workspace-menu-expander"
+      title={
+        visible ? getString("sidebar-workspace-toggle-collections") : undefined
+      }
+    >
+      {visible ? (
+        <Icon name={expanded ? "collapse" : "expand"} size={13} />
+      ) : null}
+    </span>
+  );
+}
+
+const ROOT_COLLECTION_KEY = "";
+
+function formatWorkspaceMenuLabel(label: string): string {
+  const maxLength = 42;
+  return label.length > maxLength
+    ? `${label.slice(0, maxLength - 3)}...`
+    : label;
+}
+
+function buildCollectionChildren(
+  collections: SidebarCollectionOption[],
+): Map<string, SidebarCollectionOption[]> {
+  const byParent = new Map<string, SidebarCollectionOption[]>();
+  for (const collection of collections) {
+    const parentKey = collection.parentKey || ROOT_COLLECTION_KEY;
+    const children = byParent.get(parentKey) || [];
+    children.push(collection);
+    byParent.set(parentKey, children);
+  }
+  return byParent;
+}
+
+function getSelectedCollectionExpansion(
+  collections: SidebarCollectionOption[],
+  selectedKey?: string,
+): Set<string> {
+  const expanded = new Set<string>();
+  if (!selectedKey) {
+    return expanded;
+  }
+  const byKey = new Map(
+    collections.map((collection) => [collection.key, collection]),
+  );
+  let current = byKey.get(selectedKey);
+  while (current) {
+    if (current.hasChildren) {
+      expanded.add(current.key);
+    }
+    if (current.parentKey) {
+      expanded.add(current.parentKey);
+    }
+    current = current.parentKey ? byKey.get(current.parentKey) : undefined;
+  }
+  return expanded;
+}
+
+function MentionPopover({
+  candidates,
+  disabled,
+  onSelect,
+}: {
+  candidates: PaperSourceRef[];
+  disabled: boolean;
+  onSelect: (source: PaperSourceRef) => void;
+}): ReactElement {
+  return (
+    <div className="zp-mention-popover" role="listbox">
+      {disabled ? (
+        <div className="zp-mention-limit">
+          {getString("sidebar-mention-limit")}
+        </div>
+      ) : null}
+      {candidates.map((source, index) => (
+        <div
+          aria-disabled={disabled || undefined}
+          className="zp-mention-option"
+          data-active={index === 0 || undefined}
+          key={source.sourceId}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            if (disabled) {
+              return;
+            }
+            onSelect(source);
+          }}
+          role="option"
+          tabIndex={-1}
+          title={source.title}
+        >
+          <span className="zp-mention-title">{source.title}</span>
+          <span className="zp-mention-meta">
+            {[source.year, source.creators?.[0]].filter(Boolean).join(" · ")}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

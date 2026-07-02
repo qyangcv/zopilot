@@ -152,6 +152,7 @@ class ConversationStore {
       completedAt?: string;
       model?: string;
       reasoningEffort?: string;
+      mentions?: ConversationMessage["mentions"];
     },
   ): Promise<Conversation> {
     const messages = await this.readMessages(metadata);
@@ -168,6 +169,7 @@ class ConversationStore {
       status: input.status || "complete",
       model: input.model,
       reasoningEffort: input.reasoningEffort,
+      mentions: input.mentions,
     };
     messages.push(message);
 
@@ -212,6 +214,10 @@ class ConversationStore {
       metadata.workspaceTitle === workspace.workspaceTitle &&
       metadata.workspaceType === workspace.workspaceType &&
       metadata.libraryID === workspace.libraryID &&
+      metadata.collectionKey === workspace.collectionKey &&
+      JSON.stringify(metadata.collectionPath || []) ===
+        JSON.stringify(workspace.collectionPath || []) &&
+      metadata.itemKey === workspace.itemKey &&
       currentSource?.paperKey === source?.paperKey &&
       currentSource?.title === source?.title &&
       currentSource?.parentItemID === source?.parentItemID &&
@@ -441,6 +447,12 @@ function isConversationMetadata(value: unknown): value is ConversationMetadata {
     typeof item.workspaceLabel === "string" &&
     typeof item.workspaceTitle === "string" &&
     typeof item.libraryID === "number" &&
+    (item.collectionKey === undefined ||
+      typeof item.collectionKey === "string") &&
+    (item.collectionPath === undefined ||
+      (Array.isArray(item.collectionPath) &&
+        item.collectionPath.every((entry) => typeof entry === "string"))) &&
+    (item.itemKey === undefined || typeof item.itemKey === "string") &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
   );
@@ -457,7 +469,37 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     typeof item.createdAt === "string" &&
     (item.status === "complete" ||
       item.status === "error" ||
-      item.status === "interrupted")
+      item.status === "interrupted") &&
+    (item.mentions === undefined ||
+      (Array.isArray(item.mentions) &&
+        item.mentions.every((mention) => isSourceMention(mention))))
+  );
+}
+
+function isSourceMention(value: unknown): boolean {
+  const item = value as {
+    id?: unknown;
+    sourceId?: unknown;
+    paperKey?: unknown;
+    libraryID?: unknown;
+    parentItemID?: unknown;
+    parentItemKey?: unknown;
+    attachmentItemID?: unknown;
+    attachmentKey?: unknown;
+    title?: unknown;
+  };
+  return (
+    Boolean(item) &&
+    typeof item.id === "string" &&
+    typeof item.sourceId === "string" &&
+    typeof item.paperKey === "string" &&
+    typeof item.libraryID === "number" &&
+    (item.parentItemID === undefined ||
+      typeof item.parentItemID === "number") &&
+    typeof item.parentItemKey === "string" &&
+    typeof item.attachmentItemID === "number" &&
+    typeof item.attachmentKey === "string" &&
+    typeof item.title === "string"
   );
 }
 

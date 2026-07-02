@@ -177,6 +177,69 @@ describe("sidebar controller resize", function () {
     assert.equal(controller.viewState.context.attachmentKey, "PDF");
   });
 
+  it("switches from an item workspace to its containing collection", async function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paper = createPaperIdentity();
+    const itemWorkspace = {
+      ...createItemWorkspaceIdentity(paper),
+      collectionKey: "COLL",
+    };
+    const collectionWorkspace = {
+      workspaceKey: "collection:1:COLL",
+      workspaceType: "collection" as const,
+      libraryID: 1,
+      workspaceLabel: "Large Language Models",
+      workspaceTitle: "Large Language Models",
+      collectionKey: "COLL",
+      collectionPath: ["Large Language Models"],
+      defaultSource: paper,
+    };
+    let loadedWorkspaceKey = "";
+    controller.sourceUniverse = {
+      createCollectionWorkspace(input: {
+        libraryID: number;
+        collectionKey: string;
+        currentSource?: typeof paper;
+      }) {
+        assert.equal(input.libraryID, 1);
+        assert.equal(input.collectionKey, "COLL");
+        assert.strictEqual(input.currentSource, paper);
+        return collectionWorkspace;
+      },
+    };
+    controller.loadWorkspaceConversation = async (input: {
+      workspace: typeof collectionWorkspace;
+    }) => {
+      loadedWorkspaceKey = input.workspace.workspaceKey;
+    };
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      reader: createPDFReader(11, "tab-a"),
+      workspace: itemWorkspace,
+      conversation: {
+        metadata: {
+          ...itemWorkspace,
+          id: "conv-1",
+          scope: "workspace" as const,
+          label: "总结一下这篇论文",
+          createdAt: "2026-06-16T00:00:00.000Z",
+          updatedAt: "2026-06-16T00:01:00.000Z",
+        },
+        messages: [],
+      },
+    });
+
+    await controller.selectCollectionWorkspace("COLL");
+
+    assert.equal(loadedWorkspaceKey, "collection:1:COLL");
+  });
+
   it("keeps background streaming turns from repainting after switching papers", function () {
     const win = new FakeWindow(1200);
     const controller = new (

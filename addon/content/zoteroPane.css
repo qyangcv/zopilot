@@ -776,6 +776,7 @@
 }
 
 .zp-composer {
+  position: relative;
   flex: 0 0 auto;
   margin: 0 10px 10px;
   border: 1px solid var(--zp-border);
@@ -787,8 +788,137 @@
 .zp-context-row {
   display: flex;
   align-items: center;
+  gap: 5px;
   min-height: 28px;
   padding: 6px 8px 0;
+}
+
+.zp-workspace-selector {
+  display: inline-flex;
+  position: relative;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zp-workspace-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  text-align: start;
+  cursor: default;
+}
+
+.zp-workspace-trigger-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu {
+  position: absolute;
+  z-index: 7;
+  inset-block-end: calc(100% + 6px);
+  inset-inline-start: 0;
+  width: min(260px, calc(100vw - 24px));
+  max-height: min(300px, 45vh);
+  overflow: auto;
+  border: 1px solid var(--zp-border);
+  border-radius: 7px;
+  background: var(--zp-popover);
+  color: CanvasText;
+  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
+  font: menu;
+  font-size: 12px;
+}
+
+.zp-workspace-menu-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.zp-workspace-menu-action {
+  appearance: none;
+  -moz-appearance: none;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-option,
+.zp-workspace-menu-expander {
+  appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+}
+
+.zp-workspace-menu-option {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-expander {
+  display: inline-flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--zp-muted-strong);
+  pointer-events: none;
+}
+
+.zp-workspace-menu-option:hover,
+.zp-workspace-menu-action:hover,
+.zp-workspace-menu-option[data-active],
+.zp-workspace-menu-action[data-active] {
+  background: var(--zp-panel-strong);
+}
+
+.zp-workspace-menu-option[data-active],
+.zp-workspace-menu-action[data-active] {
+  color: var(--zp-accent-strong);
+  font-weight: 600;
+}
+
+.zp-workspace-menu-collection {
+  color: var(--zp-muted-strong);
 }
 
 .zp-context-add {
@@ -802,6 +932,7 @@
 
 .zp-context-chip {
   display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -855,6 +986,70 @@
   opacity: 1;
 }
 
+.zp-mention-popover {
+  position: absolute;
+  z-index: 6;
+  inset-inline: 8px;
+  inset-block-end: calc(100% + 6px);
+  max-height: min(260px, 42vh);
+  overflow: auto;
+  padding-block: 4px;
+  border: 1px solid var(--zp-border);
+  border-radius: 7px;
+  background: var(--zp-popover);
+  color: CanvasText;
+  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
+  font: menu;
+  font-size: 12px;
+}
+
+.zp-mention-limit {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--zp-subtle-border);
+  color: var(--zp-muted);
+}
+
+.zp-mention-option {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  overflow: hidden;
+  padding: 7px 10px;
+}
+
+.zp-mention-option:hover,
+.zp-mention-option[data-active] {
+  background: var(--zp-panel-strong);
+}
+
+.zp-mention-option[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.zp-mention-title,
+.zp-mention-meta {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-mention-title {
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.zp-mention-meta {
+  color: var(--zp-muted);
+  font-size: 11px;
+  line-height: 14px;
+  margin-block-start: 2px;
+}
+
 .zp-composer-footer {
   display: flex;
   align-items: center;
@@ -869,7 +1064,6 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-  overflow: hidden;
 }
 
 .zp-codex-status {

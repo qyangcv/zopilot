@@ -213,6 +213,35 @@ describe("SidebarApp", function () {
     );
   });
 
+  it("labels the workspace trigger with the current item title", function () {
+    const paperTitle =
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning";
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          context: {
+            label: paperTitle,
+            workspaceKey: "item:1:AAA",
+            workspaceType: "item",
+            paperTitle,
+            paperKey: "1:AAA",
+          },
+        })}
+      />,
+    );
+
+    assert.include(html, "zp-workspace-trigger");
+    assert.include(
+      html,
+      `<span class="zp-workspace-trigger-text">${paperTitle}</span>`,
+    );
+    assert.notInclude(
+      html,
+      '<span class="zp-workspace-trigger-text">zopilot-sidebar-workspace-item</span>',
+    );
+  });
+
   it("renders the archived session entry and archive popover mode", function () {
     const html = renderToStaticMarkup(
       <SidebarApp

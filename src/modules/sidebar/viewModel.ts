@@ -50,6 +50,8 @@ function createInitialSidebarState(label: string): SidebarState {
     codexStatus: "checking",
     codexDiagnostic: undefined,
     focusToken: 0,
+    sourceCandidates: [],
+    collectionOptions: [],
   };
 }
 

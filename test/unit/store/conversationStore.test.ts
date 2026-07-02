@@ -193,6 +193,69 @@ describe("ConversationStore", function () {
     assert.strictEqual(reloaded?.messages[0]?.reasoningEffort, "medium");
   });
 
+  it("persists structured source mentions on user messages", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
+    const store = new ConversationStore(rootDir);
+    const conversation = await store.createWorkspaceConversation(workspace);
+
+    await store.addMessage(conversation.metadata, {
+      role: "user",
+      text: "Compare @Paper A",
+      mentions: [
+        {
+          id: "mention-a",
+          sourceId: "1-AAA-pdf",
+          paperKey: "1:AAA",
+          libraryID: 1,
+          parentItemID: 10,
+          parentItemKey: "AAA",
+          attachmentItemID: 11,
+          attachmentKey: "AAA-pdf",
+          title: "Paper A",
+        },
+      ],
+    });
+
+    const reloaded = await new ConversationStore(
+      rootDir,
+    ).getLatestWorkspaceConversation(workspace.workspaceKey);
+
+    assert.deepEqual(
+      reloaded?.messages[0]?.mentions?.map((item) => item.sourceId),
+      ["1-AAA-pdf"],
+    );
+  });
+
+  it("keeps old messages without mentions valid", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
+    const store = new ConversationStore(rootDir);
+    await store.createWorkspaceConversation(workspace);
+    const { messagesPath } = await getConversationFilePaths(
+      workspace.workspaceKey,
+    );
+
+    await writeFile(
+      messagesPath,
+      `${JSON.stringify({
+        id: "msg-old",
+        conversationId: "conv-old",
+        role: "user",
+        text: "Old question",
+        createdAt: "2026-07-01T00:00:00.000Z",
+        status: "complete",
+      })}\n`,
+      "utf8",
+    );
+
+    const reloaded = await store.getLatestWorkspaceConversation(
+      workspace.workspaceKey,
+    );
+
+    assert.isUndefined(reloaded?.messages[0]?.mentions);
+  });
+
   it("fails loudly on invalid conversation metadata", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const workspace = createItemWorkspaceIdentity(paper);

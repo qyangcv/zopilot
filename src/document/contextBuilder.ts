@@ -2,6 +2,7 @@ import { MaterialCache } from "./materialCache";
 import { routeQuery } from "./query";
 import { retrieveContextCandidates } from "./retrieval";
 import { ZoteroPdfSourceResolver } from "./sourceResolver";
+import type { PaperSourceRef } from "../shared/conversation";
 import type {
   BuiltContext,
   ContextEvidence,
@@ -25,10 +26,14 @@ type DocumentContextBuilderOptions = {
   };
 };
 
+type ContextSourceResolver = NonNullable<
+  DocumentContextBuilderOptions["sourceResolver"]
+> & {
+  resolveSourceRef?(source: PaperSourceRef): Promise<SourceIdentity | null>;
+};
+
 class DocumentContextBuilder {
-  private readonly sourceResolver: NonNullable<
-    DocumentContextBuilderOptions["sourceResolver"]
-  >;
+  private readonly sourceResolver: ContextSourceResolver;
   private readonly materialCache: NonNullable<
     DocumentContextBuilderOptions["materialCache"]
   >;
@@ -43,6 +48,7 @@ class DocumentContextBuilder {
     scope?: WorkspaceQueryScope;
     bindingError?: string;
     question?: string;
+    sources?: PaperSourceRef[];
   }): Promise<BuiltContext> {
     const plan = routeQuery(input.question);
     if (!input.scope) {
@@ -65,8 +71,14 @@ class DocumentContextBuilder {
       type: input.scope.workspaceType,
       label: input.scope.workspaceLabel,
     };
-    const source = await this.sourceResolver.resolveDefaultSource(input.scope);
-    if (!source) {
+    const requestedSources = input.sources || [];
+    const sourceResults = requestedSources.length
+      ? await this.resolveSelectedSources(requestedSources)
+      : [await this.sourceResolver.resolveDefaultSource(input.scope)];
+    const sources = sourceResults.filter((source): source is SourceIdentity =>
+      Boolean(source),
+    );
+    if (!sources.length) {
       return {
         status: "no_source",
         workspace,
@@ -77,30 +89,82 @@ class DocumentContextBuilder {
       };
     }
 
-    let material: Material;
-    try {
-      material = await this.materialCache.getOrBuild(source);
-    } catch (error) {
+    const materials: Material[] = [];
+    const warnings: string[] = [];
+    for (const source of sources) {
+      try {
+        materials.push(await this.materialCache.getOrBuild(source));
+      } catch (error) {
+        warnings.push(`${source.title}: ${String(error)}`);
+      }
+    }
+    if (!materials.length) {
       return {
         status: "material_error",
         workspace,
-        sources: [source],
+        sources,
         query: plan,
         evidence: [],
-        warnings: [String(error)],
+        warnings,
       };
     }
 
-    const evidence = packEvidence(material, plan);
+    const evidence = packEvidenceAcrossSources(materials, plan);
     return {
       status: evidence.length ? "ready" : "no_match",
       workspace,
-      sources: [source],
+      sources,
       query: plan,
       evidence,
-      warnings: material.manifest.warnings,
+      warnings: [
+        ...warnings,
+        ...materials.flatMap((material) => material.manifest.warnings),
+      ],
     };
   }
+
+  private async resolveSelectedSources(
+    sources: PaperSourceRef[],
+  ): Promise<Array<SourceIdentity | null>> {
+    if (!this.sourceResolver.resolveSourceRef) {
+      return [];
+    }
+    return Promise.all(
+      sources.map((source) => this.sourceResolver.resolveSourceRef!(source)),
+    );
+  }
+}
+
+function packEvidenceAcrossSources(
+  materials: Material[],
+  plan: QueryPlan,
+): ContextEvidence[] {
+  const bySource = materials.map((material) => packEvidence(material, plan));
+  const selected: ContextEvidence[] = [];
+  for (const evidence of bySource) {
+    if (evidence[0]) {
+      selected.push(evidence[0]);
+    }
+  }
+  for (const evidence of bySource) {
+    for (const item of evidence.slice(1)) {
+      if (selected.length >= 10) {
+        return selected;
+      }
+      if (!selected.some((existing) => sameEvidence(existing, item))) {
+        selected.push(item);
+      }
+    }
+  }
+  return selected.slice(0, 10);
+}
+
+function sameEvidence(left: ContextEvidence, right: ContextEvidence): boolean {
+  return (
+    left.sourceId === right.sourceId &&
+    left.chunkId === right.chunkId &&
+    left.artifactId === right.artifactId
+  );
 }
 
 function packEvidence(material: Material, plan: QueryPlan): ContextEvidence[] {
@@ -138,11 +202,11 @@ function packEvidence(material: Material, plan: QueryPlan): ContextEvidence[] {
         (pageCounts.get(candidate.chunk.pageStart) || 0) + 1,
       );
     }
-    if (evidence.length >= 8) {
+    if (evidence.length >= 10) {
       break;
     }
   }
-  return evidence.slice(0, 8);
+  return evidence.slice(0, 10);
 }
 
 function packDocumentMapEvidence(

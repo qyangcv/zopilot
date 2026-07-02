@@ -8,7 +8,11 @@ import {
 import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
 import type {
   Conversation,
+  PaperIdentity,
+  PaperSourceRef,
+  SourceMention,
   WorkspaceIdentity,
+  WorkspaceType,
 } from "../../shared/conversation";
 import {
   createItemWorkspaceIdentity,
@@ -19,6 +23,10 @@ import { getPref, setPref } from "../../utils/prefs";
 import { createLogger } from "../../utils/logger";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import {
+  ZoteroSourceUniverse,
+  paperSourceRefToIdentity,
+} from "../../zotero/sourceUniverse";
+import {
   getSelectedPDFReader,
   getSelectedPDFReaderAsync,
   isPDFReader,
@@ -27,6 +35,7 @@ import { copyText } from "./app/clipboard";
 import { createSidebarReactHost, type SidebarReactHost } from "./app/reactHost";
 import type {
   SidebarModelView,
+  SidebarPromptSubmission,
   SidebarSessionMode,
   SidebarState,
 } from "./app/types";
@@ -131,12 +140,16 @@ class SidebarController {
   private displayState: DisplayState = { kind: "closed", token: 0 };
   private viewState: SidebarState;
   private readonly readerToolbar: ReaderToolbarController;
+  private readonly sourceUniverse: ZoteroSourceUniverse;
   private readonly runningTurns = new Map<string, RunningTurn>();
   private readonly listeners: Array<() => void> = [];
 
   constructor(win: Window) {
     this.win = win;
     this.doc = win.document;
+    this.sourceUniverse = new ZoteroSourceUniverse(
+      (win as Window & { Zotero?: typeof Zotero }).Zotero || Zotero,
+    );
     const label = getSelectedItemTitle(this.win);
     this.viewState = createInitialSidebarState(label);
     this.readerToolbar = new ReaderToolbarController({
@@ -278,19 +291,11 @@ class SidebarController {
     }
 
     try {
-      const conversation =
-        await getConversationStore().getOrCreateLatestWorkspaceConversation(
-          workspace,
-        );
-      if (!this.canCommitSelection(token)) {
-        return;
-      }
-      this.setDisplayState({
-        kind: "ready",
+      await this.loadWorkspaceConversation({
         token,
         reader,
         workspace,
-        conversation,
+        currentSource: paper,
       });
     } catch (error) {
       if (!this.canCommitSelection(token)) {
@@ -307,6 +312,58 @@ class SidebarController {
         label: workspace.workspaceLabel,
         message: formatCodexError(error),
       });
+    }
+  }
+
+  private async loadWorkspaceConversation(input: {
+    token: number;
+    reader: _ZoteroTypes.ReaderInstance<"pdf">;
+    workspace: WorkspaceIdentity;
+    currentSource?: PaperIdentity | null;
+  }): Promise<void> {
+    const conversation =
+      await getConversationStore().getOrCreateLatestWorkspaceConversation(
+        input.workspace,
+      );
+    if (!this.canCommitSelection(input.token)) {
+      return;
+    }
+    this.setDisplayState({
+      kind: "ready",
+      token: input.token,
+      reader: input.reader,
+      workspace: input.workspace,
+      conversation,
+    });
+    this.updateViewState({ sourceCandidates: [] });
+
+    try {
+      const snapshot = await this.sourceUniverse.getSnapshot({
+        workspace: input.workspace,
+        currentSource: input.currentSource || input.workspace.defaultSource,
+      });
+      if (!this.canCommitSelection(input.token)) {
+        return;
+      }
+      this.setDisplayState({
+        kind: "ready",
+        token: input.token,
+        reader: input.reader,
+        workspace: snapshot.workspace,
+        conversation,
+      });
+      this.updateViewState({
+        sourceCandidates: snapshot.sources,
+        collectionOptions: snapshot.collections,
+      });
+    } catch (error) {
+      logger.warn("failed to refresh workspace source universe", {
+        error,
+        workspaceKey: input.workspace.workspaceKey,
+      });
+      if (this.canCommitSelection(input.token)) {
+        this.updateViewState({ sourceCandidates: [] });
+      }
     }
   }
 
@@ -690,8 +747,10 @@ class SidebarController {
     await this.showSessionPopover("archive");
   }
 
-  private async submitPromptAsync(value: string): Promise<void> {
-    const promptText = value.trim();
+  private async submitPromptAsync(
+    submission: SidebarPromptSubmission,
+  ): Promise<void> {
+    const promptText = submission.text.trim();
     if (!promptText) {
       return;
     }
@@ -710,6 +769,7 @@ class SidebarController {
       {
         role: "user",
         text: promptText,
+        mentions: submission.mentions,
       },
     );
     this.setReadyConversation(conversation);
@@ -727,44 +787,47 @@ class SidebarController {
     try {
       const bridge = getCodexBridge();
       let pendingToolBoundary = false;
-      const result = await bridge.sendPrompt(promptText, {
-        conversation: conversation.metadata,
-        model: runningTurn.model,
-        effort: runningTurn.reasoningEffort,
-        onTurnStarted: (threadId, turnId) => {
-          runningTurn.threadId = threadId;
-          runningTurn.turnId = turnId;
-          if (runningTurn.interrupting) {
-            this.interruptRunningTurn(runningTurn);
-          }
-        },
-        onDelta: (delta) => {
-          if (runningTurn.interrupted) {
-            return;
-          }
-          if (
-            pendingToolBoundary &&
-            runningTurn.assistantOutput.trim() &&
-            delta.trim()
-          ) {
-            runningTurn.assistantOutput += CODEX_TOOL_OUTPUT_SEPARATOR;
-            pendingToolBoundary = false;
-          }
-          runningTurn.assistantOutput += delta;
-          this.refreshRunningTurnView(runningTurn);
-        },
-        onToolActivity: () => {
-          if (runningTurn.assistantOutput.trim()) {
-            pendingToolBoundary = true;
-          }
-        },
-        onNotice: (notice) => {
-          if (!runningTurn.assistantOutput && !runningTurn.interrupted) {
-            runningTurn.assistantOutput = notice;
+      const result = await bridge.sendPrompt(
+        buildPromptWithSourceRefs(promptText, submission.mentions),
+        {
+          conversation: conversation.metadata,
+          model: runningTurn.model,
+          effort: runningTurn.reasoningEffort,
+          onTurnStarted: (threadId, turnId) => {
+            runningTurn.threadId = threadId;
+            runningTurn.turnId = turnId;
+            if (runningTurn.interrupting) {
+              this.interruptRunningTurn(runningTurn);
+            }
+          },
+          onDelta: (delta) => {
+            if (runningTurn.interrupted) {
+              return;
+            }
+            if (
+              pendingToolBoundary &&
+              runningTurn.assistantOutput.trim() &&
+              delta.trim()
+            ) {
+              runningTurn.assistantOutput += CODEX_TOOL_OUTPUT_SEPARATOR;
+              pendingToolBoundary = false;
+            }
+            runningTurn.assistantOutput += delta;
             this.refreshRunningTurnView(runningTurn);
-          }
+          },
+          onToolActivity: () => {
+            if (runningTurn.assistantOutput.trim()) {
+              pendingToolBoundary = true;
+            }
+          },
+          onNotice: (notice) => {
+            if (!runningTurn.assistantOutput && !runningTurn.interrupted) {
+              runningTurn.assistantOutput = notice;
+              this.refreshRunningTurnView(runningTurn);
+            }
+          },
         },
-      });
+      );
       runningTurn.threadId = result.threadId;
       runningTurn.turnId = result.turnId;
       this.updateViewState({
@@ -983,6 +1046,105 @@ class SidebarController {
     this.updateViewState({ selectedReasoningEffort: effort });
   }
 
+  private async selectWorkspaceMode(type: WorkspaceType): Promise<void> {
+    const ready = this.getReadyDisplayState();
+    if (!ready || ready.workspace.workspaceType === type) {
+      return;
+    }
+    const currentSource = ready.workspace.defaultSource;
+    let workspace: WorkspaceIdentity | null = null;
+    if (type === "library") {
+      workspace = await this.sourceUniverse.createLibraryWorkspace({
+        libraryID: ready.workspace.libraryID,
+        currentSource,
+      });
+    } else if (type === "collection") {
+      const collectionKey =
+        this.viewState.collectionOptions[0]?.key ||
+        ready.workspace.collectionKey;
+      workspace = collectionKey
+        ? await this.sourceUniverse.createCollectionWorkspace({
+            libraryID: ready.workspace.libraryID,
+            collectionKey,
+            currentSource,
+          })
+        : null;
+    } else {
+      const source = this.findSourceForItemMode(currentSource);
+      workspace = source
+        ? await this.sourceUniverse.createItemWorkspace(source)
+        : currentSource
+          ? createItemWorkspaceIdentity(currentSource)
+          : null;
+    }
+    if (!workspace) {
+      return;
+    }
+    await this.loadWorkspaceConversation({
+      token: ready.token,
+      reader: ready.reader,
+      workspace,
+      currentSource,
+    });
+  }
+
+  private async selectCollectionWorkspace(
+    collectionKey: string,
+  ): Promise<void> {
+    const ready = this.getReadyDisplayState();
+    if (
+      !ready ||
+      (ready.workspace.workspaceType === "collection" &&
+        ready.workspace.collectionKey === collectionKey)
+    ) {
+      return;
+    }
+    const workspace = await this.sourceUniverse.createCollectionWorkspace({
+      libraryID: ready.workspace.libraryID,
+      collectionKey,
+      currentSource: ready.workspace.defaultSource,
+    });
+    if (!workspace) {
+      return;
+    }
+    await this.loadWorkspaceConversation({
+      token: ready.token,
+      reader: ready.reader,
+      workspace,
+      currentSource: ready.workspace.defaultSource,
+    });
+  }
+
+  private async selectItemWorkspace(sourceId: string): Promise<void> {
+    const ready = this.getReadyDisplayState();
+    const source = this.viewState.sourceCandidates.find(
+      (item) => item.sourceId === sourceId,
+    );
+    if (!ready || !source) {
+      return;
+    }
+    const workspace = await this.sourceUniverse.createItemWorkspace(source);
+    await this.loadWorkspaceConversation({
+      token: ready.token,
+      reader: ready.reader,
+      workspace,
+      currentSource: paperSourceRefToIdentity(source),
+    });
+  }
+
+  private findSourceForItemMode(
+    currentSource?: PaperIdentity,
+  ): PaperSourceRef | undefined {
+    const currentSourceId = currentSource
+      ? `${currentSource.libraryID}-${currentSource.attachmentKey}`
+      : "";
+    return (
+      this.viewState.sourceCandidates.find(
+        (source) => source.sourceId === currentSourceId,
+      ) || this.viewState.sourceCandidates[0]
+    );
+  }
+
   private updateModelSelection(
     models: SidebarModelView[],
     selectedModel: string,
@@ -1113,6 +1275,8 @@ class SidebarController {
           label: state.workspace.workspaceLabel,
           workspaceKey: state.workspace.workspaceKey,
           workspaceType: state.workspace.workspaceType,
+          collectionKey: state.workspace.collectionKey,
+          itemKey: state.workspace.itemKey,
           paperTitle: source?.title,
           paperKey: source?.paperKey,
           parentItemKey: source?.parentItemKey,
@@ -1157,6 +1321,8 @@ class SidebarController {
       busy: false,
       sessionsOpen: false,
       sessions: [],
+      sourceCandidates: [],
+      collectionOptions: [],
       messages: [
         {
           id: `zp-status-${state.token}`,
@@ -1398,9 +1564,18 @@ class SidebarController {
       },
       selectModel: (model) => this.selectModel(model),
       selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
+      selectWorkspaceMode: (type) => {
+        void this.selectWorkspaceMode(type);
+      },
+      selectCollectionWorkspace: (collectionKey) => {
+        void this.selectCollectionWorkspace(collectionKey);
+      },
+      selectItemWorkspace: (sourceId) => {
+        void this.selectItemWorkspace(sourceId);
+      },
       startResize: (event) => this.startResize(event),
-      submitPrompt: (text) => {
-        void this.submitPromptAsync(text);
+      submitPrompt: (submission) => {
+        void this.submitPromptAsync(submission);
       },
       switchSession: (conversation) => {
         void this.switchSession(conversation);
@@ -1479,6 +1654,27 @@ function resolveSidebarResizeWidth(
     return { action: "close" };
   }
   return { action: "resize", width: nextWidth };
+}
+
+function buildPromptWithSourceRefs(
+  promptText: string,
+  mentions: SourceMention[],
+): string {
+  if (!mentions.length) {
+    return promptText;
+  }
+  const sourceRefs = mentions.map((mention) => ({
+    sourceId: mention.sourceId,
+    title: mention.title,
+    paperKey: mention.paperKey,
+  }));
+  return [
+    promptText,
+    "",
+    "Zopilot selected sources from @ mentions:",
+    JSON.stringify(sourceRefs),
+    "When using paper_read for this question, pass sourceIds exactly as listed above.",
+  ].join("\n");
 }
 
 function formatCodexError(error: unknown): string {

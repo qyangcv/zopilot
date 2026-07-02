@@ -91,6 +91,61 @@ describe("paper_read MCP tool", function () {
     assert.include(result.content[0].text, "PyMuPDF4LLM");
   });
 
+  it("passes validated selected sourceIds to the context builder", async function () {
+    const source = createSourceRef("1-PDF-B", "Paper B");
+    let observedSources = 0;
+    const tool = createPaperReadTool({
+      sourceUniverse: {
+        async resolveSources() {
+          return [source];
+        },
+      },
+      contextBuilder: {
+        async build(input) {
+          observedSources = input.sources?.length || 0;
+          return createContext("ready");
+        },
+      },
+    });
+
+    const result = await tool.call(
+      {
+        question: "Compare methods",
+        sourceIds: ["1-PDF-B"],
+      },
+      { workspaceScope: createScope() },
+    );
+
+    assert.isFalse(result.isError);
+    assert.equal(observedSources, 1);
+  });
+
+  it("rejects selected sourceIds outside the bound workspace", async function () {
+    const tool = createPaperReadTool({
+      sourceUniverse: {
+        async resolveSources() {
+          return [createSourceRef("1-PDF-A", "Paper A")];
+        },
+      },
+      contextBuilder: {
+        async build() {
+          return createContext("ready");
+        },
+      },
+    });
+
+    const result = await tool.call(
+      {
+        question: "Compare methods",
+        sourceIds: ["1-PDF-B"],
+      },
+      { workspaceScope: createScope() },
+    );
+
+    assert.isTrue(result.isError);
+    assert.include(result.content[0].text, "outside the current workspace");
+  });
+
   it("rejects unsupported paper_read input fields", async function () {
     const tool = createTool(createContext("ready"));
 
@@ -119,6 +174,19 @@ function createTool(context: BuiltContext) {
       },
     },
   });
+}
+
+function createSourceRef(sourceId: string, title: string) {
+  return {
+    sourceId,
+    paperKey: `1:${title.replace(/\s+/g, "-").toUpperCase()}`,
+    libraryID: 1,
+    parentItemID: 30,
+    parentItemKey: title.replace(/\s+/g, "-").toUpperCase(),
+    attachmentItemID: 31,
+    attachmentKey: sourceId.slice(2),
+    title,
+  };
 }
 
 function createScope(): BoundWorkspaceScope {

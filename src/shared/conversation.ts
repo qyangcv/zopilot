@@ -14,12 +14,34 @@ export type PaperIdentity = {
   title: string;
 };
 
+export type PaperSourceRef = PaperIdentity & {
+  sourceId: string;
+  creators?: string[];
+  year?: string;
+  collectionKeys?: string[];
+};
+
+export type SourceMention = {
+  id: string;
+  sourceId: string;
+  paperKey: string;
+  libraryID: number;
+  parentItemID?: number;
+  parentItemKey: string;
+  attachmentItemID: number;
+  attachmentKey: string;
+  title: string;
+};
+
 export type WorkspaceIdentity = {
   workspaceKey: string;
   workspaceType: WorkspaceType;
   libraryID: number;
   workspaceLabel: string;
   workspaceTitle: string;
+  collectionKey?: string;
+  collectionPath?: string[];
+  itemKey?: string;
   defaultSource?: PaperIdentity;
 };
 
@@ -46,6 +68,7 @@ export type ConversationMessage = {
   status: ConversationMessageStatus;
   model?: string;
   reasoningEffort?: string;
+  mentions?: SourceMention[];
 };
 
 export type Conversation = {
@@ -87,6 +110,7 @@ export function createItemWorkspaceIdentity(
     libraryID: paper.libraryID,
     workspaceLabel: paper.title,
     workspaceTitle: paper.title,
+    itemKey: paper.parentItemKey,
     defaultSource: paper,
   };
 }
@@ -109,6 +133,8 @@ export function createCollectionWorkspaceIdentity(input: {
   libraryID: number;
   collectionKey: string;
   label: string;
+  path?: string[];
+  defaultSource?: PaperIdentity;
 }): WorkspaceIdentity {
   return {
     workspaceKey: `collection:${input.libraryID}:${input.collectionKey}`,
@@ -116,5 +142,8 @@ export function createCollectionWorkspaceIdentity(input: {
     libraryID: input.libraryID,
     workspaceLabel: input.label,
     workspaceTitle: input.label,
+    collectionKey: input.collectionKey,
+    collectionPath: input.path,
+    defaultSource: input.defaultSource,
   };
 }

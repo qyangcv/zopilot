@@ -1,4 +1,9 @@
 import type { Conversation } from "../../../shared/conversation";
+import type {
+  PaperSourceRef,
+  SourceMention,
+  WorkspaceType,
+} from "../../../shared/conversation";
 import type { CodexDiagnosticCode } from "../../../codex/diagnostics";
 
 export type SidebarMessageView = {
@@ -21,11 +26,22 @@ export type SidebarModelView = {
 export type SidebarContextView = {
   label: string;
   workspaceKey?: string;
-  workspaceType?: "item" | "collection" | "library";
+  workspaceType?: WorkspaceType;
+  collectionKey?: string;
+  itemKey?: string;
   paperTitle?: string;
   paperKey?: string;
   parentItemKey?: string;
   attachmentKey?: string;
+};
+
+export type SidebarCollectionOption = {
+  key: string;
+  label: string;
+  path: string[];
+  level: number;
+  parentKey?: string;
+  hasChildren: boolean;
 };
 
 type SidebarSessionView = {
@@ -54,6 +70,13 @@ export type SidebarState = {
   codexStatus: "checking" | "connected" | "disconnected";
   codexDiagnostic?: CodexDiagnosticCode;
   focusToken: number;
+  sourceCandidates: PaperSourceRef[];
+  collectionOptions: SidebarCollectionOption[];
+};
+
+export type SidebarPromptSubmission = {
+  text: string;
+  mentions: SourceMention[];
 };
 
 export type SidebarActions = {
@@ -64,8 +87,11 @@ export type SidebarActions = {
   openExternalLink: (url: string) => void;
   selectModel: (model: string) => void;
   selectReasoningEffort: (effort: string) => void;
+  selectWorkspaceMode: (type: WorkspaceType) => void;
+  selectCollectionWorkspace: (collectionKey: string) => void;
+  selectItemWorkspace: (sourceId: string) => void;
   startResize: (event: PointerEvent) => void;
-  submitPrompt: (text: string) => void;
+  submitPrompt: (submission: SidebarPromptSubmission) => void;
   interruptActiveTurn: () => void;
   restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;

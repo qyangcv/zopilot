@@ -1,4 +1,5 @@
 import type { WorkspaceType } from "../shared/conversation";
+import type { PaperSourceRef } from "../shared/conversation";
 
 export type SourceIdentity = {
   sourceId: string;
@@ -18,11 +19,18 @@ export type WorkspaceQueryScope = {
   workspaceKey: string;
   workspaceType: WorkspaceType;
   workspaceLabel: string;
+  libraryID: number;
+  collectionKey?: string;
+  collectionPath?: string[];
+  itemKey?: string;
   defaultSource?: {
     paperKey: string;
     libraryID: number;
+    parentItemID?: number;
+    parentItemKey?: string;
     attachmentItemID: number;
     attachmentKey: string;
+    title?: string;
   };
 };
 
@@ -35,6 +43,11 @@ export type MaterialManifest = {
   pageCount: number;
   status: "ready" | "failed";
   warnings: string[];
+};
+
+export type ContextSourceSelection = {
+  sourceIds?: string[];
+  sources?: PaperSourceRef[];
 };
 
 export type MaterialPage = {

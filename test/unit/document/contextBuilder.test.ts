@@ -62,6 +62,60 @@ describe("DocumentContextBuilder", function () {
     assert.notInclude(context.evidence[0]?.text || "", "specialized rl");
     assert.notInclude(context.evidence[0]?.text || "", "unified rft");
   });
+
+  it("packs evidence from multiple selected sources", async function () {
+    const sourceA = createSource();
+    const sourceB = {
+      ...createSource(),
+      sourceId: "1-PDF-B",
+      paperKey: "1:PAPER-B",
+      title: "Paper B",
+      attachmentItemID: 20,
+      attachmentKey: "PDF-B",
+    };
+    const builder = new DocumentContextBuilder({
+      sourceResolver: {
+        async resolveDefaultSource() {
+          return sourceA;
+        },
+        async resolveSourceRef(source) {
+          return source.sourceId === sourceB.sourceId ? sourceB : sourceA;
+        },
+      },
+      materialCache: {
+        async getOrBuild(source) {
+          return createMaterial(source);
+        },
+      },
+    });
+
+    const context = await builder.build({
+      scope: createScope(),
+      question: "What retrieval method does the paper use?",
+      sources: [
+        {
+          ...sourceA,
+          parentItemKey: "PAPER-A",
+          parentItemID: 10,
+        },
+        {
+          ...sourceB,
+          parentItemKey: "PAPER-B",
+          parentItemID: 20,
+        },
+      ],
+    });
+
+    assert.equal(context.status, "ready");
+    assert.sameMembers(
+      context.sources.map((source) => source.sourceId),
+      ["1-PDF", "1-PDF-B"],
+    );
+    assert.includeMembers(
+      context.evidence.map((item) => item.sourceId),
+      ["1-PDF", "1-PDF-B"],
+    );
+  });
 });
 
 function createBuilder(): DocumentContextBuilder {
@@ -111,6 +165,7 @@ function createSource(): SourceIdentity {
 }
 
 function createMaterial(source: SourceIdentity): Material {
+  const sid = source.sourceId;
   return {
     dir: "/cache",
     manifest: {
@@ -135,8 +190,8 @@ function createMaterial(source: SourceIdentity): Material {
     ],
     chunks: [
       {
-        id: "1-PDF:chunk:0",
-        sourceId: "1-PDF",
+        id: `${sid}:chunk:0`,
+        sourceId: sid,
         index: 0,
         kind: "abstract",
         title: "Abstract",
@@ -147,8 +202,8 @@ function createMaterial(source: SourceIdentity): Material {
         artifactIds: [],
       },
       {
-        id: "1-PDF:chunk:1",
-        sourceId: "1-PDF",
+        id: `${sid}:chunk:1`,
+        sourceId: sid,
         index: 1,
         kind: "body",
         title: "Method",
@@ -159,8 +214,8 @@ function createMaterial(source: SourceIdentity): Material {
         artifactIds: [],
       },
       {
-        id: "1-PDF:chunk:2",
-        sourceId: "1-PDF",
+        id: `${sid}:chunk:2`,
+        sourceId: sid,
         index: 2,
         kind: "caption",
         title: "Experiments",
@@ -168,18 +223,18 @@ function createMaterial(source: SourceIdentity): Material {
         pageStart: 5,
         pageEnd: 5,
         text: "Figure 2: The retrieval pipeline combines chunks and artifacts.",
-        artifactIds: ["1-PDF:figure:2"],
+        artifactIds: [`${sid}:figure:2`],
       },
     ],
     artifacts: [
       {
-        id: "1-PDF:figure:2",
+        id: `${sid}:figure:2`,
         type: "figure",
         label: "Figure 2",
         page: 5,
         caption: "The retrieval pipeline combines chunks and artifacts.",
         imagePath: "/cache/page-0005.png",
-        surroundingChunkIds: ["1-PDF:chunk:2"],
+        surroundingChunkIds: [`${sid}:chunk:2`],
         confidence: 0.9,
       },
     ],

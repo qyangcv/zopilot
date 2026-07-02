@@ -32,6 +32,7 @@ export type FluentMessageId =
   | 'sidebar-input-placeholder'
   | 'sidebar-insert-composer'
   | 'sidebar-loading-conversation'
+  | 'sidebar-mention-limit'
   | 'sidebar-model-name'
   | 'sidebar-multiple-items-selected'
   | 'sidebar-new-chat'
@@ -53,4 +54,10 @@ export type FluentMessageId =
   | 'sidebar-unavailable-context'
   | 'sidebar-unavailable-message'
   | 'sidebar-untitled-item'
-  | 'sidebar-welcome-message';
+  | 'sidebar-welcome-message'
+  | 'sidebar-workspace-collection'
+  | 'sidebar-workspace-item'
+  | 'sidebar-workspace-level'
+  | 'sidebar-workspace-library'
+  | 'sidebar-workspace-my-library'
+  | 'sidebar-workspace-toggle-collections';

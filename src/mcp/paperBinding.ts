@@ -17,7 +17,13 @@ const PAPER_BINDING_HEADERS = {
   workspaceKey: "X-Zopilot-Workspace-Key",
   workspaceType: "X-Zopilot-Workspace-Type",
   workspaceLabel: "X-Zopilot-Workspace-Label",
+  collectionKey: "X-Zopilot-Collection-Key",
+  collectionPath: "X-Zopilot-Collection-Path",
+  itemKey: "X-Zopilot-Item-Key",
   paperKey: "X-Zopilot-Paper-Key",
+  parentItemID: "X-Zopilot-Parent-Item-ID",
+  parentItemKey: "X-Zopilot-Parent-Item-Key",
+  paperTitle: "X-Zopilot-Paper-Title",
   attachmentItemID: "X-Zopilot-Attachment-Item-ID",
   attachmentKey: "X-Zopilot-Attachment-Key",
   libraryID: "X-Zopilot-Library-ID",
@@ -28,8 +34,13 @@ type BoundWorkspaceScope = {
   workspaceKey: string;
   workspaceType: WorkspaceType;
   workspaceLabel: string;
+  libraryID: number;
+  collectionKey?: string;
+  collectionPath?: string[];
+  itemKey?: string;
   defaultSource?: PaperScope & {
     paperKey: string;
+    title?: string;
   };
 };
 
@@ -43,9 +54,25 @@ function createPaperBindingHeaders(
     [PAPER_BINDING_HEADERS.workspaceLabel]: conversation.workspaceLabel,
     [PAPER_BINDING_HEADERS.libraryID]: String(conversation.libraryID),
   };
+  if (conversation.collectionKey) {
+    headers[PAPER_BINDING_HEADERS.collectionKey] = conversation.collectionKey;
+  }
+  if (conversation.collectionPath?.length) {
+    headers[PAPER_BINDING_HEADERS.collectionPath] = JSON.stringify(
+      conversation.collectionPath,
+    );
+  }
+  if (conversation.itemKey) {
+    headers[PAPER_BINDING_HEADERS.itemKey] = conversation.itemKey;
+  }
   const source = conversation.defaultSource;
   if (source) {
     headers[PAPER_BINDING_HEADERS.paperKey] = source.paperKey;
+    if (source.parentItemID !== undefined) {
+      headers[PAPER_BINDING_HEADERS.parentItemID] = String(source.parentItemID);
+    }
+    headers[PAPER_BINDING_HEADERS.parentItemKey] = source.parentItemKey;
+    headers[PAPER_BINDING_HEADERS.paperTitle] = source.title;
     headers[PAPER_BINDING_HEADERS.attachmentItemID] = String(
       source.attachmentItemID,
     );
@@ -69,6 +96,11 @@ function parsePaperBindingHeaders(
   const workspaceLabel =
     readHeader(headers, PAPER_BINDING_HEADERS.workspaceLabel) || workspaceKey;
   const rawLibraryID = readHeader(headers, PAPER_BINDING_HEADERS.libraryID);
+  const collectionKey = readHeader(
+    headers,
+    PAPER_BINDING_HEADERS.collectionKey,
+  );
+  const itemKey = readHeader(headers, PAPER_BINDING_HEADERS.itemKey);
 
   if (!conversationId || !workspaceKey || !workspaceType || !rawLibraryID) {
     return {
@@ -91,6 +123,15 @@ function parsePaperBindingHeaders(
   }
 
   const paperKey = readHeader(headers, PAPER_BINDING_HEADERS.paperKey);
+  const rawParentItemID = readHeader(
+    headers,
+    PAPER_BINDING_HEADERS.parentItemID,
+  );
+  const parentItemKey = readHeader(
+    headers,
+    PAPER_BINDING_HEADERS.parentItemKey,
+  );
+  const paperTitle = readHeader(headers, PAPER_BINDING_HEADERS.paperTitle);
   const rawAttachmentItemID = readHeader(
     headers,
     PAPER_BINDING_HEADERS.attachmentItemID,
@@ -108,6 +149,10 @@ function parsePaperBindingHeaders(
         workspaceKey,
         workspaceType,
         workspaceLabel: workspaceLabel || workspaceKey,
+        libraryID: libraryID.value,
+        collectionKey,
+        collectionPath: parseCollectionPath(headers),
+        itemKey,
       },
     };
   }
@@ -125,6 +170,12 @@ function parsePaperBindingHeaders(
   if (!attachmentItemID.ok) {
     return attachmentItemID;
   }
+  const parentItemID = rawParentItemID
+    ? parseIntegerHeader(PAPER_BINDING_HEADERS.parentItemID, rawParentItemID)
+    : undefined;
+  if (parentItemID && !parentItemID.ok) {
+    return parentItemID;
+  }
 
   return {
     ok: true,
@@ -133,14 +184,42 @@ function parsePaperBindingHeaders(
       workspaceKey,
       workspaceType,
       workspaceLabel: workspaceLabel || workspaceKey,
+      libraryID: libraryID.value,
+      collectionKey,
+      collectionPath: parseCollectionPath(headers),
+      itemKey,
       defaultSource: {
         paperKey,
+        parentItemID: parentItemID?.value,
+        parentItemKey,
         attachmentItemID: attachmentItemID.value,
         attachmentKey,
         libraryID: libraryID.value,
+        title: paperTitle,
       },
     },
   };
+}
+
+function parseCollectionPath(
+  headers: Record<string, string>,
+): string[] | undefined {
+  const raw = readHeader(headers, PAPER_BINDING_HEADERS.collectionPath);
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      Array.isArray(parsed) &&
+      parsed.every((item) => typeof item === "string")
+    ) {
+      return parsed;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function isWorkspaceType(value: string): value is WorkspaceType {
