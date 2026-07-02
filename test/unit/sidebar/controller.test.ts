@@ -122,6 +122,7 @@ describe("sidebar controller", function () {
       defaultSource: paper,
     };
     let loadedWorkspaceKey = "";
+    controller.selectionToken = 1;
     controller.sourceUniverse = {
       createCollectionWorkspace(input: {
         libraryID: number;
@@ -160,6 +161,68 @@ describe("sidebar controller", function () {
     await controller.selectCollectionWorkspace("COLL");
 
     assert.equal(loadedWorkspaceKey, "collection:1:COLL");
+    assert.equal(controller.selectionToken, 2);
+  });
+
+  it("uses a fresh commit token for manual workspace switches", async function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paper = createPaperIdentity();
+    const itemWorkspace = {
+      ...createItemWorkspaceIdentity(paper),
+      collectionKey: "COLL",
+    };
+    const collectionWorkspace = {
+      workspaceKey: "collection:1:COLL",
+      workspaceType: "collection" as const,
+      libraryID: 1,
+      workspaceLabel: "Large Language Models",
+      workspaceTitle: "Large Language Models",
+      collectionKey: "COLL",
+      collectionPath: ["Large Language Models"],
+      defaultSource: paper,
+    };
+    let loadToken = 0;
+    controller.open = true;
+    controller.selectionToken = 8;
+    controller.sourceUniverse = {
+      createCollectionWorkspace() {
+        return collectionWorkspace;
+      },
+    };
+    controller.loadWorkspaceConversation = async (input: {
+      token: number;
+      workspace: typeof collectionWorkspace;
+    }) => {
+      loadToken = input.token;
+      assert.equal(input.workspace.workspaceKey, "collection:1:COLL");
+    };
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      reader: createPDFReader(11, "tab-a"),
+      workspace: itemWorkspace,
+      conversation: {
+        metadata: {
+          ...itemWorkspace,
+          id: "conv-1",
+          scope: "workspace" as const,
+          label: "Question",
+          createdAt: "2026-06-16T00:00:00.000Z",
+          updatedAt: "2026-06-16T00:01:00.000Z",
+        },
+        messages: [],
+      },
+    });
+
+    await controller.selectCollectionWorkspace("COLL");
+
+    assert.equal(loadToken, 9);
+    assert.equal(controller.selectionToken, 9);
   });
 
   it("keeps background streaming turns from repainting after switching papers", function () {
@@ -343,6 +406,40 @@ describe("sidebar controller", function () {
 
     assert.equal(ready?.workspace.workspaceKey, "item:1:BBB");
     assert.equal(controller.viewState.context.label, "Paper B");
+  });
+
+  it("does not invalidate ready state when syncing the already selected reader", async function () {
+    const win = new FakeWindow(1200) as FakeWindow & {
+      Zotero_Tabs: { selectedID: string; selectedType: string };
+    };
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paper = createPaperIdentity();
+    const reader = createPDFReader(11, "tab-a");
+
+    controller.open = true;
+    controller.selectionToken = 1;
+    win.Zotero_Tabs = { selectedID: "tab-a", selectedType: "reader" };
+    (globalThis as unknown as { Zotero: Record<string, any> }).Zotero.Reader = {
+      getByTabID(tabID: string) {
+        return tabID === "tab-a" ? reader : undefined;
+      },
+    };
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      reader,
+      workspace: createItemWorkspaceIdentity(paper),
+      conversation: createConversation(paper, "conv-a", "Question A"),
+    });
+
+    await controller.syncWithSelectedPDFReader();
+
+    assert.equal(controller.selectionToken, 1);
+    assert.equal(controller.getReadyDisplayState()?.token, 1);
   });
 });
 

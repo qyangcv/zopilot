@@ -227,6 +227,41 @@ describe("ConversationStore", function () {
     );
   });
 
+  it("persists local attachment paths on user messages", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
+    const store = new ConversationStore(rootDir);
+    const conversation = await store.createWorkspaceConversation(workspace);
+
+    await store.addMessage(conversation.metadata, {
+      role: "user",
+      text: "Read this figure",
+      localAttachments: [
+        {
+          id: "local-figure",
+          path: "/tmp/figure.png",
+          filename: "figure.png",
+          kind: "image",
+          mimeType: "image/png",
+        },
+      ],
+    });
+
+    const reloaded = await new ConversationStore(
+      rootDir,
+    ).getLatestWorkspaceConversation(workspace.workspaceKey);
+
+    assert.deepEqual(reloaded?.messages[0]?.localAttachments, [
+      {
+        id: "local-figure",
+        path: "/tmp/figure.png",
+        filename: "figure.png",
+        kind: "image",
+        mimeType: "image/png",
+      },
+    ]);
+  });
+
   it("keeps old messages without mentions valid", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const workspace = createItemWorkspaceIdentity(paper);

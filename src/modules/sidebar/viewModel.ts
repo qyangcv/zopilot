@@ -49,7 +49,6 @@ function createInitialSidebarState(label: string): SidebarState {
     models: [DEFAULT_MODEL],
     selectedModel: DEFAULT_MODEL.slug,
     selectedReasoningEffort: "medium",
-    selectedMode: "ask",
     availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,
     codexStatus: "checking",
     codexDiagnostic: undefined,
@@ -116,6 +115,7 @@ function toMessageView(
     id: message.id,
     role: message.role,
     text: message.text,
+    localAttachments: message.localAttachments,
     status: message.status,
     completedAt: formatBeijingTimestamp(
       message.completedAt || message.createdAt,

@@ -1,5 +1,5 @@
 import { getPref, setPref } from "../../utils/prefs";
-import type { SidebarMode, SidebarSkillView } from "./app/types";
+import type { SidebarSkillView } from "./app/types";
 
 export {
   DEFAULT_SKILL_DEFINITIONS,
@@ -16,7 +16,6 @@ type SkillDefinition = {
   category: string;
   defaultEnabled: boolean;
   requiredContext: Array<"workspace" | "reader">;
-  compatibleModes: SidebarMode[];
 };
 
 const DEFAULT_SKILL_DEFINITIONS: SkillDefinition[] = [
@@ -27,7 +26,6 @@ const DEFAULT_SKILL_DEFINITIONS: SkillDefinition[] = [
     category: "research",
     defaultEnabled: false,
     requiredContext: ["workspace"],
-    compatibleModes: ["agent"],
   },
   {
     id: "skill-method-check",
@@ -36,7 +34,6 @@ const DEFAULT_SKILL_DEFINITIONS: SkillDefinition[] = [
     category: "review",
     defaultEnabled: true,
     requiredContext: ["reader"],
-    compatibleModes: ["ask", "agent"],
   },
 ];
 
@@ -62,7 +59,6 @@ function createSkillViews(
       enabled: skillEnabled,
       status: resolveSkillStatus(definition, skillEnabled, input),
       requiredContext: definition.requiredContext,
-      compatibleModes: definition.compatibleModes,
     };
   });
 }

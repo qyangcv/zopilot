@@ -1,4 +1,4 @@
-import type { SidebarCommandView, SidebarMode, SidebarState } from "./types";
+import type { SidebarCommandView, SidebarState } from "./types";
 
 export { DEFAULT_PROMPTS, buildSidebarCommands, filterSidebarCommands };
 
@@ -9,7 +9,6 @@ const DEFAULT_PROMPTS = [
     body: "Summarize this paper with problem, method, evidence, and limitations.",
     variables: [],
     scope: "global" as const,
-    compatibleModes: ["ask", "agent"] satisfies SidebarMode[],
     updatedAt: "2026-07-02T00:00:00.000Z",
   },
   {
@@ -18,7 +17,6 @@ const DEFAULT_PROMPTS = [
     body: "Evaluate the paper's evidence quality, missing controls, and strongest counterarguments.",
     variables: [],
     scope: "global" as const,
-    compatibleModes: ["ask"] satisfies SidebarMode[],
     updatedAt: "2026-07-02T00:00:00.000Z",
   },
 ];
@@ -28,31 +26,21 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
   const canUseComposer = state.composerEnabled && !state.busy;
   return [
     {
-      id: "mode.ask",
-      title: "Ask mode",
-      description: "Answer from the current reading context.",
-      keywords: ["ask", "qa", "read", "问答", "阅读"],
-      category: "mode",
-      icon: "askMode",
-      available: state.selectedMode !== "ask",
-    },
-    {
-      id: "mode.agent",
-      title: "Agent mode",
-      description: "Let Codex plan actions and use available tools.",
-      keywords: ["agent", "tools", "plan", "代理", "工具"],
-      category: "mode",
-      icon: "agentMode",
-      available: state.selectedMode !== "agent",
-    },
-    {
       id: "source.add",
-      title: "Add source context",
-      description: "Open the source context picker.",
-      keywords: ["source", "context", "paper", "上下文", "来源"],
+      title: "Add local attachment",
+      description: "Choose a PDF or image path for the next message.",
+      keywords: [
+        "source",
+        "context",
+        "paper",
+        "attachment",
+        "file",
+        "上下文",
+        "文件",
+      ],
       category: "source",
       icon: "context",
-      available: hasWorkspace,
+      available: hasWorkspace && !state.busy,
       disabledReason: hasWorkspace
         ? undefined
         : "Open a paper workspace first.",
@@ -69,9 +57,17 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
     },
     {
       id: "attachment.upload",
-      title: "Attach PDF",
-      description: "Import or link a PDF through Zotero attachment APIs.",
-      keywords: ["attachment", "upload", "pdf", "附件", "上传"],
+      title: "Add attachment",
+      description: "Choose a PDF or image path for the next message.",
+      keywords: [
+        "attachment",
+        "upload",
+        "pdf",
+        "image",
+        "附件",
+        "上传",
+        "图片",
+      ],
       category: "attachment",
       icon: "attachment",
       available: hasWorkspace && !state.busy,
@@ -102,8 +98,7 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
       keywords: ["prompt", prompt.title, ...prompt.variables, "提示词"],
       category: "prompt" as const,
       icon: "prompt",
-      available:
-        canUseComposer && prompt.compatibleModes.includes(state.selectedMode),
+      available: canUseComposer,
       disabledReason: canUseComposer
         ? undefined
         : "Composer is not ready for prompt insertion.",
@@ -121,27 +116,20 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
       ],
       category: "skill" as const,
       icon: "skill",
-      available:
-        skill.enabled &&
-        skill.status === "available" &&
-        skill.compatibleModes.includes(state.selectedMode),
-      disabledReason: resolveSkillDisabledReason(skill, state.selectedMode),
+      available: skill.enabled && skill.status === "available",
+      disabledReason: resolveSkillDisabledReason(skill),
     })),
   ];
 }
 
 function resolveSkillDisabledReason(
   skill: SidebarState["skills"][number],
-  mode: SidebarMode,
 ): string | undefined {
   if (!skill.enabled) {
     return "Skill is disabled.";
   }
   if (skill.status === "requires-context") {
     return "Skill requires more Zotero context.";
-  }
-  if (!skill.compatibleModes.includes(mode)) {
-    return "Skill is not compatible with this mode.";
   }
   return undefined;
 }

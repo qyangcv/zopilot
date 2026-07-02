@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { pickAndImportAttachment } from "../../../src/modules/sidebar/attachmentUpload.ts";
+import { pickLocalAttachment } from "../../../src/modules/sidebar/attachmentUpload.ts";
 
 describe("sidebar attachment upload", function () {
   before(function () {
@@ -9,49 +9,82 @@ describe("sidebar attachment upload", function () {
   it("returns cancelled when the Zotero file picker is cancelled", async function () {
     const picker = createPicker({ result: 1 });
 
-    const result = await pickAndImportAttachment({
-      libraryID: 1,
+    const result = await pickLocalAttachment({
       win: createWindow(),
       deps: {
         createFilePicker: () => picker,
-        importFromFile: async () => {
-          throw new Error("should not import cancelled file");
-        },
       },
     });
 
     assert.deepEqual(result, { status: "cancelled" });
   });
 
-  it("imports the chosen PDF into the active Zotero parent item", async function () {
+  it("returns the chosen PDF as a local attachment path", async function () {
     const picker = createPicker({
       result: 0,
       file: { path: "/tmp/paper.pdf" },
     });
-    let importedOptions: Record<string, unknown> | undefined;
 
-    const result = await pickAndImportAttachment({
-      libraryID: 3,
-      parentItemID: 42,
+    const result = await pickLocalAttachment({
       win: createWindow(),
       deps: {
         createFilePicker: () => picker,
-        importFromFile: async (options: Record<string, unknown>) => {
-          importedOptions = options;
-          return { id: 9 } as Zotero.Item;
-        },
       },
     });
 
-    assert.equal(result.status, "imported");
-    assert.deepInclude(importedOptions, {
-      file: picker.file,
-      libraryID: 3,
-      parentItemID: 42,
-      contentType: "application/pdf",
+    assert.equal(result.status, "selected");
+    assert.deepInclude(result.status === "selected" && result.attachment, {
+      path: "/tmp/paper.pdf",
+      filename: "paper.pdf",
+      kind: "pdf",
+      mimeType: "application/pdf",
+    });
+  });
+
+  it("returns common images as local attachment paths", async function () {
+    const picker = createPicker({
+      result: 0,
+      file: { path: "/tmp/figure.jpeg" },
+    });
+
+    const result = await pickLocalAttachment({
+      win: createWindow(),
+      deps: {
+        createFilePicker: () => picker,
+      },
+    });
+
+    assert.equal(result.status, "selected");
+    assert.deepInclude(result.status === "selected" && result.attachment, {
+      path: "/tmp/figure.jpeg",
+      filename: "figure.jpeg",
+      kind: "image",
+      mimeType: "image/jpeg",
+    });
+  });
+
+  it("uses a combined default picker filter so images are selectable immediately", async function () {
+    const picker = createPicker({
+      result: 1,
+    });
+
+    await pickLocalAttachment({
+      win: createWindow(),
+      deps: {
+        createFilePicker: () => picker,
+      },
+    });
+
+    assert.deepEqual(picker.appendedFilters[0], {
+      title: "PDF or Images",
+      pattern: "*.pdf;*.png;*.jpg;*.jpeg;*.gif;*.webp;*.tif;*.tiff;*.bmp",
     });
   });
 });
+
+type FakeFilePicker = nsIFilePicker & {
+  appendedFilters: Array<{ title: string; pattern: string }>;
+};
 
 function createPicker({
   file,
@@ -59,7 +92,8 @@ function createPicker({
 }: {
   file?: unknown;
   result: number;
-}): nsIFilePicker {
+}): FakeFilePicker {
+  const appendedFilters: Array<{ title: string; pattern: string }> = [];
   return {
     modeOpen: 0,
     returnOK: 0,
@@ -67,11 +101,14 @@ function createPicker({
     file,
     init: () => undefined,
     appendFilters: () => undefined,
-    appendFilter: () => undefined,
+    appendFilter(title: string, pattern: string) {
+      appendedFilters.push({ title, pattern });
+    },
+    appendedFilters,
     open(callback: { done: (result: number) => void }) {
       callback.done(result);
     },
-  } as unknown as nsIFilePicker;
+  } as unknown as FakeFilePicker;
 }
 
 function createWindow(): Window {

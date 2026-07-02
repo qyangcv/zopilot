@@ -46,7 +46,12 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
       item.status === "interrupted") &&
     (item.mentions === undefined ||
       (Array.isArray(item.mentions) &&
-        item.mentions.every((mention) => isSourceMention(mention))))
+        item.mentions.every((mention) => isSourceMention(mention)))) &&
+    (item.localAttachments === undefined ||
+      (Array.isArray(item.localAttachments) &&
+        item.localAttachments.every((attachment) =>
+          isLocalAttachmentRef(attachment),
+        )))
   );
 }
 
@@ -74,6 +79,24 @@ function isSourceMention(value: unknown): boolean {
     typeof item.attachmentItemID === "number" &&
     typeof item.attachmentKey === "string" &&
     typeof item.title === "string"
+  );
+}
+
+function isLocalAttachmentRef(value: unknown): boolean {
+  const item = value as {
+    id?: unknown;
+    path?: unknown;
+    filename?: unknown;
+    kind?: unknown;
+    mimeType?: unknown;
+  };
+  return (
+    Boolean(item) &&
+    typeof item.id === "string" &&
+    typeof item.path === "string" &&
+    typeof item.filename === "string" &&
+    (item.kind === "pdf" || item.kind === "image") &&
+    (item.mimeType === undefined || typeof item.mimeType === "string")
   );
 }
 

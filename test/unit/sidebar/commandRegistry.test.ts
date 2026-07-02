@@ -5,7 +5,10 @@ import {
   filterSidebarCommands,
 } from "../../../src/modules/sidebar/app/commandRegistry.ts";
 import type { SidebarState } from "../../../src/modules/sidebar/app/types.ts";
-import { DEFAULT_SKILLS } from "../../../src/modules/sidebar/skillRegistry.ts";
+import {
+  DEFAULT_SKILLS,
+  createSkillViews,
+} from "../../../src/modules/sidebar/skillRegistry.ts";
 
 describe("sidebar command registry", function () {
   it("builds commands across the required product categories", function () {
@@ -14,7 +17,6 @@ describe("sidebar command registry", function () {
 
     assert.deepEqual([...categories].sort(), [
       "attachment",
-      "mode",
       "prompt",
       "reader",
       "session",
@@ -35,24 +37,22 @@ describe("sidebar command registry", function () {
     );
   });
 
-  it("makes mode-specific prompts and skills available only in compatible modes", function () {
-    const askCommands = buildSidebarCommands(
-      createState({ selectedMode: "ask" }),
-    );
-    const agentCommands = buildSidebarCommands(
-      createState({ selectedMode: "agent" }),
+  it("makes prompts and context-ready skills available", function () {
+    const commands = buildSidebarCommands(
+      createState({
+        skills: createSkillViews(
+          { "skill-literature-map": true },
+          { hasWorkspace: true, hasReader: true },
+        ),
+      }),
     );
 
     assert.isTrue(
-      askCommands.find((command) => command.id === "prompt.prompt-critique")
+      commands.find((command) => command.id === "prompt.prompt-critique")
         ?.available,
     );
-    assert.isFalse(
-      agentCommands.find((command) => command.id === "prompt.prompt-critique")
-        ?.available,
-    );
-    assert.isFalse(
-      askCommands.find((command) => command.id === "skill.skill-literature-map")
+    assert.isTrue(
+      commands.find((command) => command.id === "skill.skill-literature-map")
         ?.available,
     );
   });
@@ -75,7 +75,6 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     models: [],
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
-    selectedMode: "ask",
     availableReasoningEfforts: ["medium"],
     codexStatus: "connected",
     focusToken: 0,

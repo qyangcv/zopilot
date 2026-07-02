@@ -1,6 +1,6 @@
 import { getPref, setPref } from "../../utils/prefs";
 import { DEFAULT_PROMPTS } from "./app/commandRegistry";
-import type { SidebarMode, SidebarPromptView } from "./app/types";
+import type { SidebarPromptView } from "./app/types";
 import { extractPromptVariables, validatePromptInput } from "./promptSchema";
 
 export { createCustomPrompt, deleteCustomPrompt, loadPromptViews };
@@ -11,7 +11,6 @@ type StoredPrompt = {
   body: string;
   variables: string[];
   scope: "global";
-  compatibleModes: SidebarMode[];
   updatedAt: string;
   custom: true;
 };
@@ -33,7 +32,6 @@ function createCustomPrompt(input: PromptInput): SidebarPromptView {
     body: validated.body,
     variables: extractPromptVariables(validated.body),
     scope: "global",
-    compatibleModes: ["ask", "agent"],
     updatedAt: new Date().toISOString(),
     custom: true,
   };
@@ -61,7 +59,17 @@ function loadCustomPrompts(): StoredPrompt[] {
       if (!isStoredPrompt(item)) {
         return [];
       }
-      return [item];
+      return [
+        {
+          id: item.id,
+          title: item.title,
+          body: item.body,
+          variables: item.variables,
+          scope: item.scope,
+          updatedAt: item.updatedAt,
+          custom: item.custom,
+        },
+      ];
     });
   } catch {
     return [];
@@ -81,8 +89,6 @@ function isStoredPrompt(value: unknown): value is StoredPrompt {
     typeof item.body === "string" &&
     Array.isArray(item.variables) &&
     item.scope === "global" &&
-    Array.isArray(item.compatibleModes) &&
-    item.compatibleModes.every((mode) => mode === "ask" || mode === "agent") &&
     typeof item.updatedAt === "string" &&
     item.custom === true
   );

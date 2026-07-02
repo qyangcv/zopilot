@@ -157,6 +157,7 @@ class ConversationStore {
       model?: string;
       reasoningEffort?: string;
       mentions?: ConversationMessage["mentions"];
+      localAttachments?: ConversationMessage["localAttachments"];
     },
   ): Promise<Conversation> {
     const messages = await this.readMessages(metadata);
@@ -174,6 +175,7 @@ class ConversationStore {
       model: input.model,
       reasoningEffort: input.reasoningEffort,
       mentions: input.mentions,
+      localAttachments: input.localAttachments,
     };
     messages.push(message);
 

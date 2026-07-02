@@ -3,6 +3,23 @@
 /* Context pane host */
 
 #zopilot-context-pane-deck {
+  --zp-composer-height: 112px;
+  --zp-header-height: 39px;
+  --zp-app-bg: color-mix(in srgb, Canvas 78%, Field 22%);
+  --zp-header-bg: color-mix(in srgb, Canvas 72%, Field 28%);
+  --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
+  --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
+  --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
+  --zp-composer-bg: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+  --zp-bubble: color-mix(in srgb, Canvas 91%, CanvasText 9%);
+  --zp-border: color-mix(in srgb, CanvasText 10%, transparent);
+  --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
+  --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);
+  --zp-muted-strong: color-mix(in srgb, CanvasText 64%, Canvas);
+  --zp-accent: var(--accent-blue, AccentColor);
+  --zp-danger: #c9342f;
+  --zp-accent-text: AccentColorText;
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -60,23 +77,6 @@
 /* Sidebar shell and shared tokens */
 
 .zp-sidebar {
-  --zp-composer-height: 112px;
-  --zp-header-height: 39px;
-  --zp-app-bg: color-mix(in srgb, Canvas 78%, Field 22%);
-  --zp-header-bg: color-mix(in srgb, Canvas 72%, Field 28%);
-  --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
-  --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
-  --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
-  --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
-  --zp-composer-bg: color-mix(in srgb, Canvas 94%, CanvasText 6%);
-  --zp-bubble: color-mix(in srgb, Canvas 91%, CanvasText 9%);
-  --zp-border: color-mix(in srgb, CanvasText 10%, transparent);
-  --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
-  --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);
-  --zp-muted-strong: color-mix(in srgb, CanvasText 64%, Canvas);
-  --zp-accent: var(--accent-blue, AccentColor);
-  --zp-danger: #c9342f;
-  --zp-accent-text: AccentColorText;
   box-sizing: border-box;
   display: block;
   inset: 0;
@@ -110,6 +110,8 @@
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+  color: CanvasText;
+  font: menu;
 }
 
 .zp-portal-root > * {
@@ -119,6 +121,12 @@
 .zp-dismiss-layer {
   position: absolute;
   inset: 0;
+  pointer-events: auto;
+}
+
+.zp-floating-layer {
+  position: absolute;
+  min-width: 0;
   pointer-events: auto;
 }
 
@@ -214,7 +222,7 @@
 .zp-icon-button,
 .zp-context-add,
 .zp-send-button,
-.zp-context-chip,
+.zp-workspace-trigger,
 .zp-message-action,
 .zp-inline-copy {
   appearance: none;
@@ -243,7 +251,8 @@
 }
 
 .zp-icon-button:hover,
-.zp-context-chip:hover,
+.zp-workspace-trigger:hover,
+.zp-workspace-trigger[data-popup-open],
 .zp-message-action:hover,
 .zp-inline-copy:hover {
   background: var(--zp-panel-strong);
@@ -255,7 +264,7 @@
 
 .zp-icon-button:disabled,
 .zp-context-add:disabled,
-.zp-context-chip:disabled,
+.zp-workspace-trigger:disabled,
 .zp-message-action:disabled,
 .zp-send-button:disabled {
   opacity: 0.45;
@@ -264,11 +273,8 @@
 /* Header popovers */
 
 .zp-session-popover {
-  position: absolute;
-  z-index: 4;
-  inset-block-start: 42px;
-  inset-inline: 8px;
-  max-height: min(360px, 58vh);
+  width: 100%;
+  max-height: inherit;
   overflow: auto;
   border: 1px solid var(--zp-border);
   border-radius: 8px;
@@ -277,59 +283,6 @@
   box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 10%, transparent);
   font: menu;
   font-size: 13px;
-}
-
-.zp-session-popover[hidden] {
-  display: none;
-}
-
-.zp-context-popover {
-  position: absolute;
-  z-index: 5;
-  inset-block-start: 42px;
-  inset-inline: 8px;
-  max-height: min(360px, 58vh);
-  overflow: auto;
-  border: 1px solid var(--zp-border);
-  border-radius: 8px;
-  background-color: var(--zp-popover);
-  color: CanvasText;
-  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 10%, transparent);
-  font: menu;
-  font-size: 12px;
-}
-
-.zp-context-popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 8px 6px 10px;
-  border-bottom: 1px solid var(--zp-subtle-border);
-  color: var(--zp-muted-strong);
-  font-weight: 600;
-}
-
-.zp-context-details {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 9px 10px 11px;
-}
-
-.zp-context-details div {
-  min-width: 0;
-}
-
-.zp-context-details dt {
-  margin: 0 0 2px;
-  color: var(--zp-muted);
-  font-size: 11px;
-}
-
-.zp-context-details dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .zp-session-popover-header {
@@ -772,6 +725,21 @@
   color: CanvasText;
 }
 
+.zp-message-user-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zp-message-attachments {
+  max-width: 100%;
+}
+
+.zp-message-attachment {
+  background: color-mix(in srgb, Canvas 78%, CanvasText 8%);
+  padding-inline-start: 7px;
+}
+
 .zp-message-actions {
   display: inline-flex;
   gap: 1px;
@@ -836,11 +804,18 @@
 
 /* Composer and workspace controls */
 
-.zp-composer {
+.zp-bottom-dock {
   position: absolute;
   z-index: 2;
   inset-block-end: 10px;
   inset-inline: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zp-composer {
   margin: 0;
   border: 1px solid var(--zp-border);
   border-radius: 8px;
@@ -848,46 +823,84 @@
   box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 5%, transparent);
 }
 
-.zp-context-row {
+.zp-workspace-status-row {
   display: flex;
   align-items: center;
-  gap: 5px;
   min-height: 28px;
-  padding: 6px 8px 0;
+  min-width: 0;
 }
 
 .zp-workspace-selector {
   display: inline-flex;
-  position: relative;
   flex: 0 1 auto;
   align-items: center;
-  gap: 3px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .zp-workspace-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 3px;
+  gap: 6px;
+  max-width: min(100%, 460px);
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 7px;
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1.25;
   text-align: start;
-  cursor: default;
+}
+
+.zp-workspace-trigger-icon {
+  color: color-mix(in srgb, CanvasText 68%, Canvas);
+}
+
+.zp-workspace-trigger-main {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zp-workspace-trigger-label {
+  flex: 0 0 auto;
+  color: CanvasText;
+  font-weight: 600;
 }
 
 .zp-workspace-trigger-text {
+  display: block;
   min-width: 0;
   overflow: hidden;
+  color: var(--zp-muted-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.zp-workspace-type-badge {
+  flex: 0 0 auto;
+  max-width: 82px;
+  overflow: hidden;
+  border: 1px solid var(--zp-subtle-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: color-mix(in srgb, Canvas 82%, CanvasText 4%);
+  color: var(--zp-muted);
+  font-size: 11px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-trigger-chevron {
+  color: var(--zp-muted);
+}
+
 .zp-workspace-menu {
-  position: absolute;
-  z-index: 7;
-  inset-block-end: calc(100% + 6px);
-  inset-inline-start: 0;
-  width: min(260px, calc(100vw - 24px));
-  max-height: min(300px, 45vh);
+  width: 100%;
+  max-height: inherit;
   overflow: auto;
   border: 1px solid var(--zp-border);
   border-radius: 7px;
@@ -898,9 +911,50 @@
   font-size: 12px;
 }
 
-.zp-workspace-menu-row {
+.zp-workspace-menu-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px 6px;
+  border-bottom: 1px solid var(--zp-subtle-border);
+  color: var(--zp-muted-strong);
+  font-weight: 600;
+}
+
+.zp-workspace-menu-header-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.zp-workspace-menu-header-action {
+  appearance: none;
+  -moz-appearance: none;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--zp-muted-strong);
+  cursor: default;
+  margin: 0;
+  padding: 0;
+}
+
+.zp-workspace-menu-header-action:hover {
+  background: var(--zp-panel-strong);
+}
+
+.zp-workspace-menu-header-action:disabled {
+  opacity: 0.45;
+}
+
+.zp-workspace-menu-row {
   min-width: 0;
 }
 
@@ -909,7 +963,7 @@
   -moz-appearance: none;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
+  grid-template-columns: minmax(0, 1fr) 20px 24px;
   align-items: center;
   width: 100%;
   min-width: 0;
@@ -925,7 +979,6 @@
   white-space: nowrap;
 }
 
-.zp-workspace-menu-option,
 .zp-workspace-menu-expander {
   appearance: none;
   -moz-appearance: none;
@@ -937,25 +990,51 @@
   margin: 0;
 }
 
-.zp-workspace-menu-option {
-  display: block;
-  flex: 1 1 auto;
-  width: 100%;
+.zp-workspace-menu-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
   overflow: hidden;
-  padding: 7px 10px;
-  text-align: start;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 6px 0;
+}
+
+.zp-workspace-menu-icon {
+  color: var(--zp-muted-strong);
+}
+
+.zp-workspace-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .zp-workspace-menu-label {
   display: block;
   min-width: 0;
   overflow: hidden;
-  padding: 7px 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zp-workspace-menu-meta {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zp-muted);
+  font-size: 11px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--zp-accent);
 }
 
 .zp-workspace-menu-expander {
@@ -964,19 +1043,16 @@
   align-items: center;
   justify-content: center;
   color: var(--zp-muted-strong);
-  pointer-events: none;
 }
 
-.zp-workspace-menu-option:hover,
 .zp-workspace-menu-action:hover,
-.zp-workspace-menu-option[data-active],
+.zp-workspace-menu-expander:hover,
 .zp-workspace-menu-action[data-active] {
   background: var(--zp-panel-strong);
 }
 
-.zp-workspace-menu-option[data-active],
 .zp-workspace-menu-action[data-active] {
-  color: var(--zp-accent-strong);
+  color: CanvasText;
   font-weight: 600;
 }
 
@@ -993,32 +1069,70 @@
   line-height: 1;
 }
 
-.zp-context-chip {
-  display: inline-flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 5px;
+.zp-context-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 8px 0;
   min-width: 0;
-  max-width: 100%;
-  border: 1px dashed var(--zp-border);
-  border-radius: 6px;
-  padding: 3px 7px;
-  color: var(--zp-muted-strong);
-  font-size: 12px;
-  line-height: 1.25;
 }
 
-.zp-context-chip-icon {
-  width: 13px;
-  height: 13px;
+.zp-local-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.zp-local-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(100%, 340px);
+  height: 28px;
+  border: 1px solid var(--zp-subtle-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, Canvas 86%, CanvasText 7%);
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 8px 0 3px;
+}
+
+.zp-local-attachment-icon {
+  flex: 0 0 auto;
   color: var(--zp-accent);
 }
 
-.zp-context-chip-text {
+.zp-local-attachment-name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zp-local-attachment-remove {
+  appearance: none;
+  -moz-appearance: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--zp-muted);
+  margin: 0;
+  padding: 0;
+}
+
+.zp-local-attachment-remove:hover {
+  background: var(--zp-panel-strong);
+  color: CanvasText;
 }
 
 .zp-composer-input {
@@ -1052,11 +1166,8 @@
 /* Composer popovers and command menu */
 
 .zp-mention-popover {
-  position: absolute;
-  z-index: 6;
-  inset-inline: 8px;
-  inset-block-end: 92px;
-  max-height: min(260px, 42vh);
+  width: 100%;
+  max-height: inherit;
   overflow: auto;
   padding-block: 4px;
   border: 1px solid var(--zp-border);
@@ -1069,11 +1180,8 @@
 }
 
 .zp-command-menu {
-  position: absolute;
-  z-index: 8;
-  inset-inline: 8px;
-  inset-block-end: 110px;
-  max-height: min(360px, 52vh);
+  width: 100%;
+  max-height: inherit;
   overflow: hidden;
   border: 1px solid var(--zp-border);
   border-radius: 7px;
@@ -1108,10 +1216,11 @@
   -moz-appearance: none;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 8px;
   width: 100%;
   min-width: 0;
+  min-height: 52px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -1137,6 +1246,7 @@
   min-width: 0;
   flex-direction: column;
   gap: 2px;
+  line-height: 1.25;
 }
 
 .zp-command-title,
@@ -1150,6 +1260,7 @@
 
 .zp-command-title {
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .zp-command-description,
@@ -1160,7 +1271,10 @@
 }
 
 .zp-command-category {
+  align-self: start;
   justify-self: end;
+  line-height: 1.25;
+  padding-block-start: 1px;
 }
 
 .zp-command-empty {
@@ -1170,11 +1284,8 @@
 /* Prompt and skill panels */
 
 .zp-floating-panel {
-  position: absolute;
-  z-index: 9;
-  inset-block-start: 100px;
-  inset-inline: 8px;
-  max-height: min(360px, 58vh);
+  width: 100%;
+  max-height: inherit;
   overflow: hidden;
   border: 1px solid var(--zp-border);
   border-radius: 8px;
@@ -1431,40 +1542,6 @@
   min-width: 0;
 }
 
-.zp-mode-switch {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 1px;
-  min-width: 0;
-  border: 1px solid var(--zp-subtle-border);
-  border-radius: 5px;
-  padding: 1px;
-}
-
-.zp-mode-option {
-  appearance: none;
-  -moz-appearance: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 20px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--zp-muted-strong);
-  cursor: default;
-  font: menu;
-  font-size: 11px;
-  margin: 0;
-  padding: 0 5px;
-}
-
-.zp-mode-option[data-active] {
-  background: var(--zp-panel-strong);
-  color: CanvasText;
-}
-
 .zp-codex-status {
   display: inline-flex;
   flex: 0 1 auto;
@@ -1549,19 +1626,9 @@
   flex: 0 0 auto;
 }
 
-.zp-ui-select-positioner {
-  z-index: 7;
-  max-width: min(280px, calc(100vw - 24px));
-}
-
 .zp-ui-select-popup {
-  position: absolute;
-  z-index: 7;
-  inset-inline: 8px;
-  inset-block-end: 50px;
-  min-width: 160px;
-  max-width: min(280px, calc(100vw - 24px));
-  max-height: min(300px, 45vh);
+  width: 100%;
+  max-height: inherit;
   overflow: auto;
   padding-block: 4px;
   border: 1px solid var(--zp-border);

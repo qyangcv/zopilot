@@ -45,6 +45,20 @@ describe("sidebar view model", function () {
     });
   });
 
+  it("keeps local attachments on user message views", function () {
+    const messages = createConversationMessages(createConversation());
+
+    assert.deepEqual(messages[0].localAttachments, [
+      {
+        id: "local-figure",
+        path: "/tmp/figure.png",
+        filename: "figure.png",
+        kind: "image",
+        mimeType: "image/png",
+      },
+    ]);
+  });
+
   it("creates compact session rows with active state", function () {
     const view = createSessionView(createConversation(), "conv-a");
 
@@ -79,6 +93,15 @@ function createConversation(): Conversation {
         text: "Summarize the method section in two paragraphs.",
         createdAt: "2026-06-13T07:00:00.000Z",
         status: "complete",
+        localAttachments: [
+          {
+            id: "local-figure",
+            path: "/tmp/figure.png",
+            filename: "figure.png",
+            kind: "image",
+            mimeType: "image/png",
+          },
+        ],
       },
       {
         id: "msg-assistant",

@@ -56,6 +56,16 @@ export function Message({
               onOpenLink={onOpenLink}
             />
           </div>
+        ) : message.localAttachments?.length ? (
+          <div className="zp-message-bubble zp-message-user-content">
+            <MessageAttachments attachments={message.localAttachments} />
+            <MarkdownView
+              className="zp-message-markdown"
+              markdown={message.text}
+              onOpenLink={onOpenLink}
+              unwrapSingleParagraph
+            />
+          </div>
         ) : (
           <MarkdownView
             className="zp-message-bubble zp-message-markdown"
@@ -97,6 +107,35 @@ export function Message({
         )}
       </div>
     </article>
+  );
+}
+
+function MessageAttachments({
+  attachments,
+}: {
+  attachments: NonNullable<SidebarMessageView["localAttachments"]>;
+}): ReactElement {
+  return (
+    <div className="zp-local-attachments zp-message-attachments">
+      {attachments.map((attachment) => (
+        <div
+          className="zp-local-attachment zp-message-attachment"
+          key={attachment.id}
+          title={attachment.path}
+        >
+          <Icon
+            className="zp-local-attachment-icon"
+            name={
+              attachment.kind === "pdf" ? "attachmentPdf" : "attachmentImage"
+            }
+            size={13}
+          />
+          <span className="zp-local-attachment-name">
+            {attachment.filename}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

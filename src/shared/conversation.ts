@@ -33,6 +33,14 @@ export type SourceMention = {
   title: string;
 };
 
+export type LocalAttachmentRef = {
+  id: string;
+  path: string;
+  filename: string;
+  kind: "pdf" | "image";
+  mimeType?: string;
+};
+
 export type WorkspaceIdentity = {
   workspaceKey: string;
   workspaceType: WorkspaceType;
@@ -69,6 +77,7 @@ export type ConversationMessage = {
   model?: string;
   reasoningEffort?: string;
   mentions?: SourceMention[];
+  localAttachments?: LocalAttachmentRef[];
 };
 
 export type Conversation = {

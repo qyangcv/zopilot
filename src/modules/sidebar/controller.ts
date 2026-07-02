@@ -8,6 +8,7 @@ import {
 import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
 import type {
   Conversation,
+  LocalAttachmentRef,
   PaperIdentity,
   PaperSourceRef,
   SourceMention,
@@ -31,12 +32,11 @@ import {
   getSelectedPDFReaderAsync,
   isPDFReader,
 } from "../../zotero/reader";
-import { pickAndImportAttachment } from "./attachmentUpload";
+import { pickLocalAttachment } from "./attachmentUpload";
 import { copyText } from "./app/clipboard";
 import type { ReaderLocator } from "./readerNavigation";
 import { navigateReaderLocator } from "./readerNavigation";
 import type {
-  SidebarMode,
   SidebarPromptSubmission,
   SidebarSessionMode,
   SidebarState,
@@ -79,7 +79,6 @@ type RunningTurn = {
   conversation: Conversation;
   assistantOutput: string;
   model?: string;
-  mode: SidebarMode;
   reasoningEffort?: string;
   threadId?: string;
   turnId?: string;
@@ -166,7 +165,6 @@ class SidebarController {
     });
     const label = getSelectedItemTitle(this.win);
     this.viewState = createInitialSidebarState(label);
-    this.viewState.selectedMode = readSavedMode();
     this.viewState.prompts = loadPromptViews();
     this.readerToolbar = new ReaderToolbarController({
       pluginID: config.addonID,
@@ -660,6 +658,7 @@ class SidebarController {
         role: "user",
         text: promptText,
         mentions: submission.mentions,
+        localAttachments: submission.localAttachments,
       },
     );
     this.setReadyConversation(conversation);
@@ -667,7 +666,6 @@ class SidebarController {
       conversation,
       assistantOutput: "",
       model: this.viewState.selectedModel,
-      mode: this.viewState.selectedMode,
       reasoningEffort: this.viewState.selectedReasoningEffort,
       interrupting: false,
       interrupted: false,
@@ -679,9 +677,9 @@ class SidebarController {
       const bridge = getCodexBridge();
       let pendingToolBoundary = false;
       const result = await bridge.sendPrompt(
-        buildPromptWithMode(
+        buildPromptWithLocalAttachments(
           buildPromptWithSourceRefs(promptText, submission.mentions),
-          runningTurn.mode,
+          submission.localAttachments,
         ),
         {
           conversation: conversation.metadata,
@@ -940,14 +938,6 @@ class SidebarController {
     this.updateViewState({ selectedReasoningEffort: effort });
   }
 
-  private selectMode(mode: SidebarMode): void {
-    if (mode !== "ask" && mode !== "agent") {
-      return;
-    }
-    setPref("codex.mode", mode);
-    this.updateViewState({ selectedMode: mode });
-  }
-
   private createPrompt(input: { title: string; body: string }): void {
     try {
       createCustomPrompt(input);
@@ -978,6 +968,7 @@ class SidebarController {
     if (!ready || ready.workspace.workspaceType === type) {
       return;
     }
+    const token = ++this.selectionToken;
     const currentSource = ready.workspace.defaultSource;
     let workspace: WorkspaceIdentity | null = null;
     if (type === "library") {
@@ -1008,7 +999,7 @@ class SidebarController {
       return;
     }
     await this.loadWorkspaceConversation({
-      token: ready.token,
+      token,
       reader: ready.reader,
       workspace,
       currentSource,
@@ -1026,6 +1017,7 @@ class SidebarController {
     ) {
       return;
     }
+    const token = ++this.selectionToken;
     const workspace = await this.sourceUniverse.createCollectionWorkspace({
       libraryID: ready.workspace.libraryID,
       collectionKey,
@@ -1035,7 +1027,7 @@ class SidebarController {
       return;
     }
     await this.loadWorkspaceConversation({
-      token: ready.token,
+      token,
       reader: ready.reader,
       workspace,
       currentSource: ready.workspace.defaultSource,
@@ -1050,38 +1042,31 @@ class SidebarController {
     if (!ready || !source) {
       return;
     }
+    const token = ++this.selectionToken;
     const workspace = await this.sourceUniverse.createItemWorkspace(source);
     await this.loadWorkspaceConversation({
-      token: ready.token,
+      token,
       reader: ready.reader,
       workspace,
       currentSource: paperSourceRefToIdentity(source),
     });
   }
 
-  private async uploadAttachment(): Promise<void> {
+  private async uploadAttachment(): Promise<LocalAttachmentRef | undefined> {
     const ready = this.getReadyDisplayState();
     if (!ready) {
-      return;
+      return undefined;
     }
     try {
-      const result = await pickAndImportAttachment({
+      const result = await pickLocalAttachment({
         win: this.win,
-        libraryID: ready.workspace.libraryID,
-        parentItemID: ready.workspace.defaultSource?.parentItemID,
       });
-      if (result.status === "imported") {
-        await this.loadWorkspaceConversation({
-          token: ready.token,
-          reader: ready.reader,
-          workspace: ready.workspace,
-          currentSource: ready.workspace.defaultSource,
-        });
-      }
+      return result.status === "selected" ? result.attachment : undefined;
     } catch (error) {
-      logger.error("failed to upload Zotero attachment", error, {
+      logger.error("failed to choose local attachment", error, {
         workspaceKey: ready.workspace.workspaceKey,
       });
+      return undefined;
     }
   }
 
@@ -1456,9 +1441,9 @@ class SidebarController {
   }
 
   private async syncWithSelectedPDFReader(): Promise<void> {
-    const token = ++this.selectionToken;
     const selectedReader = getSelectedPDFReader(this.win);
     if (!selectedReader) {
+      const token = ++this.selectionToken;
       if (this.open) {
         await this.loadSelectedReader(token);
       } else {
@@ -1480,8 +1465,10 @@ class SidebarController {
         this.readerToolbar.refresh();
         return;
       }
+      const token = ++this.selectionToken;
       await this.loadReaderConversation(selectedReader, token);
     } else {
+      const token = ++this.selectionToken;
       this.displayState = { kind: "closed", token };
       this.renderDisplayState();
     }
@@ -1550,7 +1537,6 @@ class SidebarController {
       createPrompt: (input) => this.createPrompt(input),
       deletePrompt: (promptId) => this.deletePrompt(promptId),
       selectModel: (model) => this.selectModel(model),
-      selectMode: (mode) => this.selectMode(mode),
       selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
       setSkillEnabled: (skillId, enabled) =>
         this.setSkillEnabled(skillId, enabled),
@@ -1566,9 +1552,7 @@ class SidebarController {
       submitPrompt: (submission) => {
         void this.submitPromptAsync(submission);
       },
-      uploadAttachment: () => {
-        void this.uploadAttachment();
-      },
+      uploadAttachment: () => this.uploadAttachment(),
       switchSession: (conversation) => {
         void this.switchSession(conversation);
       },
@@ -1644,17 +1628,26 @@ function buildPromptWithSourceRefs(
   ].join("\n");
 }
 
-function buildPromptWithMode(promptText: string, mode: SidebarMode): string {
-  const modeInstruction =
-    mode === "agent"
-      ? "Zopilot mode: agent. You may plan multi-step work and use available tools when useful. Ask for confirmation before destructive or external side effects."
-      : "Zopilot mode: ask. Focus on reading, explanation, and direct answers. Avoid taking tool-driven actions unless they are needed to answer from the current evidence.";
-  return [modeInstruction, "", promptText].join("\n");
-}
-
-function readSavedMode(): SidebarMode {
-  const value = getPref("codex.mode");
-  return value === "agent" || value === "ask" ? value : "ask";
+function buildPromptWithLocalAttachments(
+  promptText: string,
+  attachments: LocalAttachmentRef[],
+): string {
+  if (!attachments.length) {
+    return promptText;
+  }
+  const attachmentRefs = attachments.map((attachment) => ({
+    filename: attachment.filename,
+    kind: attachment.kind,
+    path: attachment.path,
+    mimeType: attachment.mimeType,
+  }));
+  return [
+    promptText,
+    "",
+    "Zopilot local attachments selected by the user:",
+    JSON.stringify(attachmentRefs),
+    "Use these absolute file paths directly when reading the PDF or image files. Do not route these files through Zopilot paper processing or paper_read.",
+  ].join("\n");
 }
 
 function formatCodexError(error: unknown): string {

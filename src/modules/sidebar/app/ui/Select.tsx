@@ -1,6 +1,6 @@
-import { useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import { Icon } from "../Icon";
-import { DismissLayer, Portal } from "./Provider";
+import { FloatingPortal } from "./Provider";
 
 export { Select };
 
@@ -25,6 +25,7 @@ function Select({
   value: string;
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const selected = options.find((option) => option.value === value);
 
   return (
@@ -45,6 +46,7 @@ function Select({
             setOpen(false);
           }
         }}
+        ref={triggerRef}
         title={title}
         type="button"
       >
@@ -54,35 +56,41 @@ function Select({
         <Icon className="zp-ui-select-icon" name="expand" size={11} />
       </button>
       {open ? (
-        <Portal>
-          <DismissLayer onDismiss={() => setOpen(false)}>
-            <div
-              aria-label={ariaLabel}
-              className="zp-ui-select-popup"
-              role="listbox"
-            >
-              {options.map((option) => (
-                <button
-                  aria-selected={option.value === value}
-                  className="zp-ui-select-option"
-                  data-selected={option.value === value || undefined}
-                  key={option.value}
-                  onClick={() => {
-                    setOpen(false);
-                    if (option.value !== value) {
-                      onChange(option.value);
-                    }
-                  }}
-                  role="option"
-                  title={option.label}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </DismissLayer>
-        </Portal>
+        <FloatingPortal
+          align="end"
+          anchorRef={triggerRef}
+          maxWidth={280}
+          minWidth={160}
+          onDismiss={() => setOpen(false)}
+          preferredSide="above"
+          zIndex={7}
+        >
+          <div
+            aria-label={ariaLabel}
+            className="zp-ui-select-popup"
+            role="listbox"
+          >
+            {options.map((option) => (
+              <button
+                aria-selected={option.value === value}
+                className="zp-ui-select-option"
+                data-selected={option.value === value || undefined}
+                key={option.value}
+                onClick={() => {
+                  setOpen(false);
+                  if (option.value !== value) {
+                    onChange(option.value);
+                  }
+                }}
+                role="option"
+                title={option.label}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </FloatingPortal>
       ) : null}
     </span>
   );

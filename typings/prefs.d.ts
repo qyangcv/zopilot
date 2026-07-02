@@ -9,7 +9,6 @@ declare namespace _ZoteroTypes {
     PluginPrefsMap: {
       "codex.timeoutMs": number;
       "codex.model": string;
-      "codex.mode": string;
       "codex.reasoningEfforts": string;
       "prompts.custom": string;
       "skills.enabled": string;

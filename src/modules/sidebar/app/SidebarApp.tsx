@@ -14,14 +14,13 @@ import { getCodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import { copyText } from "./clipboard";
 import { Icon, type IconName } from "./Icon";
 import { Message } from "./Message";
-import { DismissLayer, Portal, Select } from "./ui/index";
+import { FloatingPortal, Select } from "./ui/index";
 import { buildSidebarCommands, filterSidebarCommands } from "./commandRegistry";
 import type {
   SidebarActions,
   SidebarCollectionOption,
   SidebarCommandView,
   SidebarMessageView,
-  SidebarMode,
   SidebarState,
 } from "./types";
 import {
@@ -31,6 +30,7 @@ import {
   sourceToMention,
 } from "./mentions";
 import type {
+  LocalAttachmentRef,
   PaperSourceRef,
   SourceMention,
   WorkspaceType,
@@ -48,20 +48,31 @@ export function SidebarApp({
 }): ReactElement {
   const [draft, setDraft] = useState("");
   const [mentions, setMentions] = useState<SourceMention[]>([]);
+  const [localAttachments, setLocalAttachments] = useState<
+    LocalAttachmentRef[]
+  >([]);
   const [mentionQuery, setMentionQuery] = useState<ReturnType<
     typeof findMentionQuery
   > | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
-  const [contextOpen, setContextOpen] = useState(false);
   const [promptPickerOpen, setPromptPickerOpen] = useState(false);
   const [skillListOpen, setSkillListOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const logRef = useRef<HTMLElement | null>(null);
   const autoScrollRef = useRef(true);
   const headerRef = useRef<HTMLElement | null>(null);
+  const bottomDockRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const archiveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const commandButtonRef = useRef<HTMLButtonElement | null>(null);
+  const historyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const promptButtonRef = useRef<HTMLButtonElement | null>(null);
+  const skillButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [commandAnchor, setCommandAnchor] = useState<"button" | "input">(
+    "input",
+  );
   const lastUserMessage = useMemo(
     () =>
       [...state.messages].reverse().find((message) => message.role === "user"),
@@ -92,10 +103,10 @@ export function SidebarApp({
   }, [state.messages]);
 
   useLayoutEffect(() => {
-    const composer = composerRef.current;
+    const bottomDock = bottomDockRef.current;
     const header = headerRef.current;
-    const root = composer?.closest(".zp-sidebar") as HTMLElement | null;
-    if (!root || !composer || !header) {
+    const root = bottomDock?.closest(".zp-sidebar") as HTMLElement | null;
+    if (!root || !bottomDock || !header) {
       return;
     }
     const updateLayoutBounds = () => {
@@ -105,7 +116,7 @@ export function SidebarApp({
       );
       root.style.setProperty(
         "--zp-composer-height",
-        `${Math.ceil(composer.getBoundingClientRect().height)}px`,
+        `${Math.ceil(bottomDock.getBoundingClientRect().height)}px`,
       );
     };
     updateLayoutBounds();
@@ -115,7 +126,7 @@ export function SidebarApp({
     }
     const resizeObserver = new ResizeObserverCtor(updateLayoutBounds);
     resizeObserver.observe(header);
-    resizeObserver.observe(composer);
+    resizeObserver.observe(bottomDock);
     return () => resizeObserver.disconnect();
   }, []);
 
@@ -127,12 +138,6 @@ export function SidebarApp({
     resizeTextarea(textareaRef.current);
   }, [draft, state.busy, state.composerEnabled]);
 
-  useEffect(() => {
-    if (!state.context.workspaceKey) {
-      setContextOpen(false);
-    }
-  }, [state.context.workspaceKey]);
-
   const updateDraft = (text: string, cursor?: number) => {
     setDraft(text);
     setMentions((items) =>
@@ -140,6 +145,7 @@ export function SidebarApp({
     );
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
     if (text.startsWith("/")) {
+      setCommandAnchor("input");
       setCommandOpen(true);
       setCommandQuery(text.slice(1));
     } else {
@@ -148,7 +154,11 @@ export function SidebarApp({
     }
   };
 
-  const submit = (text = draft, nextMentions = mentions) => {
+  const submit = (
+    text = draft,
+    nextMentions = mentions,
+    nextLocalAttachments = localAttachments,
+  ) => {
     const trimmed = text.trim();
     if (!trimmed || state.busy || !state.composerEnabled) {
       return;
@@ -158,9 +168,11 @@ export function SidebarApp({
       mentions: nextMentions.filter((mention) =>
         trimmed.includes(`@${mention.title}`),
       ),
+      localAttachments: nextLocalAttachments,
     });
     setDraft("");
     setMentions([]);
+    setLocalAttachments([]);
     setMentionQuery(null);
   };
 
@@ -201,22 +213,37 @@ export function SidebarApp({
     globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
+  const addLocalAttachment = () => {
+    void actions
+      .uploadAttachment()
+      .then((attachment) => {
+        if (!attachment) {
+          return;
+        }
+        setLocalAttachments((items) =>
+          items.some((item) => item.path === attachment.path)
+            ? items
+            : [...items, attachment],
+        );
+        globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+      })
+      .catch(() => undefined);
+  };
+
+  const removeLocalAttachment = (attachmentId: string) => {
+    setLocalAttachments((items) =>
+      items.filter((attachment) => attachment.id !== attachmentId),
+    );
+  };
+
   const executeCommand = (command: SidebarCommandView) => {
     if (!command.available) {
       return;
     }
     setCommandOpen(false);
     setCommandQuery("");
-    if (command.id === "mode.ask") {
-      actions.selectMode("ask");
-      return;
-    }
-    if (command.id === "mode.agent") {
-      actions.selectMode("agent");
-      return;
-    }
     if (command.id === "source.add") {
-      setContextOpen(true);
+      addLocalAttachment();
       return;
     }
     if (command.id === "session.new") {
@@ -234,7 +261,7 @@ export function SidebarApp({
       return;
     }
     if (command.id === "attachment.upload") {
-      actions.uploadAttachment();
+      addLocalAttachment();
       return;
     }
     if (command.id.startsWith("prompt.")) {
@@ -247,9 +274,14 @@ export function SidebarApp({
       return;
     }
     if (command.id.startsWith("skill.")) {
+      setPromptPickerOpen(false);
       setSkillListOpen(true);
     }
   };
+  const commandAnchorRef =
+    commandAnchor === "button" ? commandButtonRef : textareaRef;
+  const sessionAnchorRef =
+    state.sessionsMode === "archive" ? archiveButtonRef : historyButtonRef;
 
   return (
     <aside
@@ -258,22 +290,14 @@ export function SidebarApp({
       role="complementary"
     >
       <header className="zp-sidebar-header" ref={headerRef}>
-        <button
-          className="zp-sidebar-identity"
-          onClick={(event) => {
-            event.stopPropagation();
-            setContextOpen((open) => !open);
-          }}
-          title={state.title}
-          type="button"
-        >
+        <div className="zp-sidebar-identity" title={state.title}>
           <span className="zp-sidebar-title-block">
             <span className="zp-sidebar-title">
               {getString("sidebar-title")}
             </span>
             <span className="zp-sidebar-selected-title">{state.title}</span>
           </span>
-        </button>
+        </div>
         <div className="zp-sidebar-actions">
           <button
             aria-expanded={
@@ -287,6 +311,7 @@ export function SidebarApp({
               event.stopPropagation();
               actions.toggleSessions();
             }}
+            ref={historyButtonRef}
             title={getString("sidebar-history")}
             type="button"
           >
@@ -304,6 +329,7 @@ export function SidebarApp({
               event.stopPropagation();
               actions.toggleArchivedSessions();
             }}
+            ref={archiveButtonRef}
             title={getString("sidebar-archived-sessions")}
             type="button"
           >
@@ -333,61 +359,64 @@ export function SidebarApp({
           </button>
         </div>
       </header>
-      {contextOpen ? (
-        <Portal>
-          <DismissLayer onDismiss={() => setContextOpen(false)}>
-            <ContextPopover
-              label={state.context.label}
-              onClose={() => setContextOpen(false)}
-              paperKey={state.context.paperKey}
-              paperTitle={state.context.paperTitle}
-              parentItemKey={state.context.parentItemKey}
-              attachmentKey={state.context.attachmentKey}
-              workspaceKey={state.context.workspaceKey}
-              workspaceType={state.context.workspaceType}
-            />
-          </DismissLayer>
-        </Portal>
-      ) : null}
       {state.sessionsOpen ? (
-        <Portal>
-          <DismissLayer onDismiss={actions.hideSessions}>
-            <SessionPopover
-              actions={actions}
-              mode={state.sessionsMode}
-              sessions={state.sessions}
-            />
-          </DismissLayer>
-        </Portal>
+        <FloatingPortal
+          align="end"
+          anchorRef={sessionAnchorRef}
+          maxWidth={420}
+          minWidth={240}
+          onDismiss={actions.hideSessions}
+          preferredSide="below"
+          width={300}
+          zIndex={8}
+        >
+          <SessionPopover
+            actions={actions}
+            mode={state.sessionsMode}
+            sessions={state.sessions}
+          />
+        </FloatingPortal>
       ) : null}
       {promptPickerOpen ? (
-        <Portal>
-          <DismissLayer onDismiss={() => setPromptPickerOpen(false)}>
-            <PromptPicker
-              onCreate={actions.createPrompt}
-              mode={state.selectedMode}
-              onClose={() => setPromptPickerOpen(false)}
-              onDelete={actions.deletePrompt}
-              onInsert={(body) => {
-                setPromptPickerOpen(false);
-                insertPrompt(body);
-              }}
-              prompts={state.prompts}
-            />
-          </DismissLayer>
-        </Portal>
+        <FloatingPortal
+          align="start"
+          anchorRef={promptButtonRef}
+          maxWidth={420}
+          minWidth={300}
+          onDismiss={() => setPromptPickerOpen(false)}
+          preferredSide="above"
+          width={380}
+          zIndex={9}
+        >
+          <PromptPicker
+            onCreate={actions.createPrompt}
+            onClose={() => setPromptPickerOpen(false)}
+            onDelete={actions.deletePrompt}
+            onInsert={(body) => {
+              setPromptPickerOpen(false);
+              insertPrompt(body);
+            }}
+            prompts={state.prompts}
+          />
+        </FloatingPortal>
       ) : null}
       {skillListOpen ? (
-        <Portal>
-          <DismissLayer onDismiss={() => setSkillListOpen(false)}>
-            <SkillList
-              mode={state.selectedMode}
-              onClose={() => setSkillListOpen(false)}
-              onToggle={actions.setSkillEnabled}
-              skills={state.skills}
-            />
-          </DismissLayer>
-        </Portal>
+        <FloatingPortal
+          align="start"
+          anchorRef={skillButtonRef}
+          maxWidth={420}
+          minWidth={300}
+          onDismiss={() => setSkillListOpen(false)}
+          preferredSide="above"
+          width={380}
+          zIndex={9}
+        >
+          <SkillList
+            onClose={() => setSkillListOpen(false)}
+            onToggle={actions.setSkillEnabled}
+            skills={state.skills}
+          />
+        </FloatingPortal>
       ) : null}
       <main
         aria-live="polite"
@@ -412,298 +441,301 @@ export function SidebarApp({
             }}
             onOpenLink={actions.openExternalLink}
             onOpenLocator={actions.openReaderLocator}
-            onSubmit={(text) => submit(text, [])}
+            onSubmit={(text) => submit(text, [], [])}
           />
         ))}
       </main>
-      <form
-        aria-busy={state.busy}
-        className="zp-composer"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-        ref={composerRef}
-      >
-        <div className="zp-context-row">
-          <WorkspaceSelector actions={actions} state={state} />
-          <button
-            className="zp-context-chip"
-            disabled={!state.context.workspaceKey}
-            onClick={(event) => {
-              event.stopPropagation();
-              setContextOpen((open) => !open);
-            }}
-            title={state.context.paperTitle || state.context.label}
-            type="button"
-          >
-            <Icon className="zp-context-chip-icon" name="context" size={13} />
-            <span className="zp-context-chip-text">{state.context.label}</span>
-          </button>
-        </div>
-        {mentionCandidates.length ? (
-          <Portal>
-            <DismissLayer onDismiss={() => setMentionQuery(null)}>
+      <div className="zp-bottom-dock" ref={bottomDockRef}>
+        <form
+          aria-busy={state.busy}
+          className="zp-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+          ref={composerRef}
+        >
+          {localAttachments.length ? (
+            <div className="zp-context-row">
+              <div
+                aria-label={getString("sidebar-attachment-context")}
+                className="zp-local-attachments"
+              >
+                {localAttachments.map((attachment) => (
+                  <div className="zp-local-attachment" key={attachment.id}>
+                    <button
+                      aria-label={getString("sidebar-attachment-remove")}
+                      className="zp-local-attachment-remove"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        removeLocalAttachment(attachment.id);
+                      }}
+                      title={getString("sidebar-attachment-remove")}
+                      type="button"
+                    >
+                      <Icon name="close" size={13} />
+                    </button>
+                    <Icon
+                      className="zp-local-attachment-icon"
+                      name={
+                        attachment.kind === "pdf"
+                          ? "attachmentPdf"
+                          : "attachmentImage"
+                      }
+                      size={13}
+                    />
+                    <span
+                      className="zp-local-attachment-name"
+                      title={attachment.path}
+                    >
+                      {attachment.filename}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {mentionCandidates.length ? (
+            <FloatingPortal
+              align="stretch"
+              anchorRef={textareaRef}
+              maxWidth={720}
+              minWidth={0}
+              onDismiss={() => setMentionQuery(null)}
+              preferredSide="above"
+              zIndex={7}
+            >
               <MentionPopover
                 candidates={mentionCandidates}
                 disabled={mentions.length >= MAX_SOURCE_MENTIONS}
                 onClose={() => setMentionQuery(null)}
                 onSelect={selectMention}
               />
-            </DismissLayer>
-          </Portal>
-        ) : null}
-        {commandOpen ? (
-          <Portal>
-            <DismissLayer onDismiss={() => setCommandOpen(false)}>
+            </FloatingPortal>
+          ) : null}
+          {commandOpen ? (
+            <FloatingPortal
+              align={commandAnchor === "input" ? "stretch" : "start"}
+              anchorRef={commandAnchorRef}
+              maxWidth={520}
+              minWidth={commandAnchor === "input" ? 0 : 280}
+              onDismiss={() => setCommandOpen(false)}
+              preferredSide="above"
+              width={commandAnchor === "input" ? undefined : 360}
+              zIndex={8}
+            >
               <CommandMenu
                 commands={visibleCommands}
                 onClose={() => setCommandOpen(false)}
                 onSelect={executeCommand}
               />
-            </DismissLayer>
-          </Portal>
-        ) : null}
-        <textarea
-          className="zp-composer-input"
-          disabled={!state.composerEnabled}
-          onChange={(event) =>
-            updateDraft(
-              event.currentTarget.value,
-              event.currentTarget.selectionStart ?? undefined,
-            )
-          }
-          onClick={(event) =>
-            setMentionQuery(
-              findMentionQuery(
+            </FloatingPortal>
+          ) : null}
+          <textarea
+            className="zp-composer-input"
+            disabled={!state.composerEnabled}
+            onChange={(event) =>
+              updateDraft(
                 event.currentTarget.value,
-                event.currentTarget.selectionStart ?? 0,
-              ),
-            )
-          }
-          onInput={(event) => resizeTextarea(event.currentTarget)}
-          onKeyDown={(event) => {
-            if (mentionCandidates.length) {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setMentionQuery(null);
-                return;
-              }
-              if (event.key === "Tab" || event.key === "Enter") {
-                event.preventDefault();
-                selectMention(mentionCandidates[0]!);
-                return;
-              }
+                event.currentTarget.selectionStart ?? undefined,
+              )
             }
-            if (commandOpen) {
-              if (event.key === "Escape") {
+            onClick={(event) =>
+              setMentionQuery(
+                findMentionQuery(
+                  event.currentTarget.value,
+                  event.currentTarget.selectionStart ?? 0,
+                ),
+              )
+            }
+            onInput={(event) => resizeTextarea(event.currentTarget)}
+            onKeyDown={(event) => {
+              if (mentionCandidates.length) {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setMentionQuery(null);
+                  return;
+                }
+                if (event.key === "Tab" || event.key === "Enter") {
+                  event.preventDefault();
+                  selectMention(mentionCandidates[0]!);
+                  return;
+                }
+              }
+              if (commandOpen) {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setCommandOpen(false);
+                  return;
+                }
+                if (
+                  (event.key === "Tab" || event.key === "Enter") &&
+                  visibleCommands[0]?.available
+                ) {
+                  event.preventDefault();
+                  executeCommand(visibleCommands[0]!);
+                  return;
+                }
+              }
+              if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                setCommandOpen(false);
-                return;
+                submit();
               }
-              if (
-                (event.key === "Tab" || event.key === "Enter") &&
-                visibleCommands[0]?.available
-              ) {
-                event.preventDefault();
-                executeCommand(visibleCommands[0]!);
-                return;
-              }
-            }
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={getString("sidebar-input-placeholder")}
-          ref={textareaRef}
-          rows={1}
-          value={draft}
-        />
-        <div className="zp-composer-footer">
-          <div className="zp-composer-meta">
-            <button
-              aria-label={getString("sidebar-command-menu")}
-              aria-expanded={commandOpen}
-              aria-haspopup="dialog"
-              className="zp-context-add"
-              disabled={!state.composerEnabled}
-              onClick={(event) => {
-                event.stopPropagation();
-                setCommandOpen((open) => !open);
-                setCommandQuery("");
-              }}
-              title={getString("sidebar-command-menu")}
-              type="button"
-            >
-              <Icon name="command" size={15} />
-            </button>
-            <button
-              aria-label={getString("sidebar-prompts")}
-              className="zp-context-add"
-              disabled={!state.composerEnabled}
-              onClick={(event) => {
-                event.stopPropagation();
-                setPromptPickerOpen((open) => !open);
-                setSkillListOpen(false);
-              }}
-              title={getString("sidebar-prompts")}
-              type="button"
-            >
-              <Icon name="prompt" size={15} />
-            </button>
-            <button
-              aria-label={getString("sidebar-skills")}
-              className="zp-context-add"
-              disabled={!state.context.workspaceKey}
-              onClick={(event) => {
-                event.stopPropagation();
-                setSkillListOpen((open) => !open);
-                setPromptPickerOpen(false);
-              }}
-              title={getString("sidebar-skills")}
-              type="button"
-            >
-              <Icon name="skill" size={15} />
-            </button>
-            <button
-              aria-label={getString("sidebar-attachment-upload")}
-              className="zp-context-add"
-              disabled={!state.context.workspaceKey || state.busy}
-              onClick={(event) => {
-                event.stopPropagation();
-                actions.uploadAttachment();
-              }}
-              title={getString("sidebar-attachment-upload")}
-              type="button"
-            >
-              <Icon name="attachment" size={15} />
-            </button>
-            <button
-              aria-label={getString("sidebar-add-context")}
-              className="zp-context-add"
-              disabled={!state.context.workspaceKey}
-              onClick={(event) => {
-                event.stopPropagation();
-                setContextOpen((open) => !open);
-              }}
-              title={getString("sidebar-add-context")}
-              type="button"
-            >
-              <Icon name="add" size={15} />
-            </button>
-            {state.codexStatus !== "connected" ? (
-              <span className="zp-codex-status" data-status={state.codexStatus}>
-                <Icon
-                  className="zp-status-icon"
-                  name={
-                    state.codexStatus === "checking"
-                      ? "checking"
-                      : "disconnected"
-                  }
-                  size={13}
-                />
-                {state.codexStatus === "checking"
-                  ? getString("sidebar-codex-status-checking")
-                  : getString(
-                      state.codexDiagnostic
-                        ? getCodexDiagnosticMessageKey(state.codexDiagnostic)
-                        : "sidebar-codex-status-disconnected",
-                    )}
-              </span>
-            ) : null}
-            {state.codexStatus === "connected" ? (
-              <>
-                <ModeSwitch
-                  mode={state.selectedMode}
-                  onChange={actions.selectMode}
-                />
-                <Select
-                  aria-label={getString("sidebar-model-name")}
-                  disabled={!state.models.length}
-                  onChange={actions.selectModel}
-                  options={state.models.map((model) => ({
-                    label: model.displayName,
-                    value: model.slug,
-                  }))}
-                  title={getString("sidebar-model-name")}
-                  value={state.selectedModel}
-                />
-                {state.availableReasoningEfforts.length ? (
-                  <Select
-                    aria-label={getString("sidebar-reasoning-depth")}
-                    onChange={actions.selectReasoningEffort}
-                    options={state.availableReasoningEfforts.map((effort) => ({
-                      label: formatEffortLabel(effort),
-                      value: effort,
-                    }))}
-                    title={getString("sidebar-reasoning-depth")}
-                    value={state.selectedReasoningEffort || ""}
-                  />
-                ) : null}
-              </>
-            ) : null}
-          </div>
-          <button
-            aria-label={
-              state.busy ? getString("sidebar-stop") : getString("sidebar-send")
-            }
-            className="zp-send-button"
-            disabled={!state.composerEnabled || (!state.busy && !draft.trim())}
-            onClick={(event) => {
-              if (!state.busy) {
-                return;
-              }
-              event.preventDefault();
-              actions.interruptActiveTurn();
             }}
-            title={
-              state.busy ? getString("sidebar-stop") : getString("sidebar-send")
-            }
-            type={state.busy ? "button" : "submit"}
-          >
-            <Icon name={state.busy ? "stop" : "send"} size={15} />
-          </button>
+            placeholder={getString("sidebar-input-placeholder")}
+            ref={textareaRef}
+            rows={1}
+            value={draft}
+          />
+          <div className="zp-composer-footer">
+            <div className="zp-composer-meta">
+              <button
+                aria-label={getString("sidebar-command-menu")}
+                aria-expanded={commandOpen}
+                aria-haspopup="dialog"
+                className="zp-context-add"
+                disabled={!state.composerEnabled}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setCommandAnchor("button");
+                  setCommandOpen((open) => !open);
+                  setCommandQuery("");
+                }}
+                ref={commandButtonRef}
+                title={getString("sidebar-command-menu")}
+                type="button"
+              >
+                <Icon name="command" size={15} />
+              </button>
+              <button
+                aria-label={getString("sidebar-prompts")}
+                className="zp-context-add"
+                disabled={!state.composerEnabled}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPromptPickerOpen((open) => !open);
+                  setSkillListOpen(false);
+                }}
+                ref={promptButtonRef}
+                title={getString("sidebar-prompts")}
+                type="button"
+              >
+                <Icon name="prompt" size={15} />
+              </button>
+              <button
+                aria-label={getString("sidebar-skills")}
+                className="zp-context-add"
+                disabled={!state.context.workspaceKey}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSkillListOpen((open) => !open);
+                  setPromptPickerOpen(false);
+                }}
+                ref={skillButtonRef}
+                title={getString("sidebar-skills")}
+                type="button"
+              >
+                <Icon name="skill" size={15} />
+              </button>
+              <button
+                aria-label={getString("sidebar-add-context")}
+                className="zp-context-add"
+                disabled={!state.context.workspaceKey || state.busy}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  addLocalAttachment();
+                }}
+                title={getString("sidebar-add-context")}
+                type="button"
+              >
+                <Icon name="add" size={15} />
+              </button>
+              {state.codexStatus !== "connected" ? (
+                <span
+                  className="zp-codex-status"
+                  data-status={state.codexStatus}
+                >
+                  <Icon
+                    className="zp-status-icon"
+                    name={
+                      state.codexStatus === "checking"
+                        ? "checking"
+                        : "disconnected"
+                    }
+                    size={13}
+                  />
+                  {state.codexStatus === "checking"
+                    ? getString("sidebar-codex-status-checking")
+                    : getString(
+                        state.codexDiagnostic
+                          ? getCodexDiagnosticMessageKey(state.codexDiagnostic)
+                          : "sidebar-codex-status-disconnected",
+                      )}
+                </span>
+              ) : null}
+              {state.codexStatus === "connected" ? (
+                <>
+                  <Select
+                    aria-label={getString("sidebar-model-name")}
+                    disabled={!state.models.length}
+                    onChange={actions.selectModel}
+                    options={state.models.map((model) => ({
+                      label: model.displayName,
+                      value: model.slug,
+                    }))}
+                    title={getString("sidebar-model-name")}
+                    value={state.selectedModel}
+                  />
+                  {state.availableReasoningEfforts.length ? (
+                    <Select
+                      aria-label={getString("sidebar-reasoning-depth")}
+                      onChange={actions.selectReasoningEffort}
+                      options={state.availableReasoningEfforts.map(
+                        (effort) => ({
+                          label: formatEffortLabel(effort),
+                          value: effort,
+                        }),
+                      )}
+                      title={getString("sidebar-reasoning-depth")}
+                      value={state.selectedReasoningEffort || ""}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+            <button
+              aria-label={
+                state.busy
+                  ? getString("sidebar-stop")
+                  : getString("sidebar-send")
+              }
+              className="zp-send-button"
+              disabled={
+                !state.composerEnabled || (!state.busy && !draft.trim())
+              }
+              onClick={(event) => {
+                if (!state.busy) {
+                  return;
+                }
+                event.preventDefault();
+                actions.interruptActiveTurn();
+              }}
+              title={
+                state.busy
+                  ? getString("sidebar-stop")
+                  : getString("sidebar-send")
+              }
+              type={state.busy ? "button" : "submit"}
+            >
+              <Icon name={state.busy ? "stop" : "send"} size={15} />
+            </button>
+          </div>
+        </form>
+        <div className="zp-workspace-status-row">
+          <WorkspaceSelector actions={actions} state={state} />
         </div>
-      </form>
+      </div>
     </aside>
-  );
-}
-
-function ModeSwitch({
-  mode,
-  onChange,
-}: {
-  mode: SidebarMode;
-  onChange: (mode: SidebarMode) => void;
-}): ReactElement {
-  return (
-    <span
-      aria-label={getString("sidebar-mode")}
-      className="zp-mode-switch"
-      role="group"
-    >
-      {(["ask", "agent"] as const).map((item) => (
-        <button
-          aria-pressed={mode === item}
-          className="zp-mode-option"
-          data-active={mode === item || undefined}
-          key={item}
-          onClick={() => onChange(item)}
-          title={getString(
-            item === "ask" ? "sidebar-mode-ask" : "sidebar-mode-agent",
-          )}
-          type="button"
-        >
-          <Icon name={item === "ask" ? "askMode" : "agentMode"} size={12} />
-          <span>
-            {getString(
-              item === "ask" ? "sidebar-mode-ask" : "sidebar-mode-agent",
-            )}
-          </span>
-        </button>
-      ))}
-    </span>
   );
 }
 
@@ -775,14 +807,12 @@ function CommandMenu({
 }
 
 function PromptPicker({
-  mode,
   onCreate,
   onClose,
   onDelete,
   onInsert,
   prompts,
 }: {
-  mode: SidebarMode;
   onCreate: (input: { title: string; body: string }) => void;
   onClose: () => void;
   onDelete: (promptId: string) => void;
@@ -851,50 +881,42 @@ function PromptPicker({
         </div>
       </form>
       <div className="zp-panel-list">
-        {prompts.map((prompt) => {
-          const compatible = prompt.compatibleModes.includes(mode);
-          return (
-            <div className="zp-panel-row" key={prompt.id} title={prompt.body}>
+        {prompts.map((prompt) => (
+          <div className="zp-panel-row" key={prompt.id} title={prompt.body}>
+            <button
+              className="zp-panel-row-main zp-prompt-insert-row"
+              onClick={() => onInsert(prompt.body)}
+              type="button"
+            >
+              <span className="zp-panel-row-title">{prompt.title}</span>
+              <span className="zp-panel-row-description">{prompt.body}</span>
+            </button>
+            <span className="zp-panel-row-meta">
+              {getString("sidebar-prompt-insert")}
+            </span>
+            {prompt.custom ? (
               <button
-                className="zp-panel-row-main zp-prompt-insert-row"
-                disabled={!compatible}
-                onClick={() => onInsert(prompt.body)}
+                aria-label={getString("sidebar-prompt-delete")}
+                className="zp-inline-copy"
+                onClick={() => onDelete(prompt.id)}
+                title={getString("sidebar-prompt-delete")}
                 type="button"
               >
-                <span className="zp-panel-row-title">{prompt.title}</span>
-                <span className="zp-panel-row-description">{prompt.body}</span>
+                <Icon name="close" size={13} />
               </button>
-              <span className="zp-panel-row-meta">
-                {compatible
-                  ? getString("sidebar-prompt-insert")
-                  : getString("sidebar-mode-incompatible")}
-              </span>
-              {prompt.custom ? (
-                <button
-                  aria-label={getString("sidebar-prompt-delete")}
-                  className="zp-inline-copy"
-                  onClick={() => onDelete(prompt.id)}
-                  title={getString("sidebar-prompt-delete")}
-                  type="button"
-                >
-                  <Icon name="close" size={13} />
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
+            ) : null}
+          </div>
+        ))}
       </div>
     </section>
   );
 }
 
 function SkillList({
-  mode,
   onClose,
   onToggle,
   skills,
 }: {
-  mode: SidebarMode;
   onClose: () => void;
   onToggle: (skillId: string, enabled: boolean) => void;
   skills: SidebarState["skills"];
@@ -943,9 +965,7 @@ function SkillList({
       />
       <div className="zp-panel-list">
         {visibleSkills.map((skill) => {
-          const compatible = skill.compatibleModes.includes(mode);
-          const active =
-            skill.enabled && compatible && skill.status === "available";
+          const active = skill.enabled && skill.status === "available";
           const contextLabel = skill.requiredContext
             .map((context) =>
               context === "reader"
@@ -973,9 +993,7 @@ function SkillList({
                   ? getString("sidebar-skill-enabled")
                   : skill.status === "requires-context"
                     ? getString("sidebar-skill-requires-context")
-                    : !compatible
-                      ? getString("sidebar-mode-incompatible")
-                      : getString("sidebar-skill-disabled")}
+                    : getString("sidebar-skill-disabled")}
               </span>
               <label className="zp-skill-toggle">
                 <input
@@ -1035,10 +1053,12 @@ function WorkspaceSelector({
   state: SidebarState;
 }): ReactElement {
   const [open, setOpen] = useState(false);
-  const libraryExpanded = true;
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
     () => new Set(),
   );
+  const hasWorkspace = Boolean(state.context.workspaceKey);
   const workspaceType = state.context.workspaceType || "item";
   const collectionOptions = state.collectionOptions || [];
   const currentCollection = collectionOptions.find(
@@ -1050,26 +1070,29 @@ function WorkspaceSelector({
     state.context.paperKey ||
     getString("sidebar-unavailable-context");
   const libraryLabel = getString("sidebar-workspace-my-library");
-  const workspaceLabel =
-    workspaceType === "library"
+  const workspaceLabel = !hasWorkspace
+    ? getString("sidebar-workspace-unavailable")
+    : workspaceType === "library"
       ? libraryLabel
       : workspaceType === "collection"
         ? currentCollection?.label || state.context.label
         : itemLabel;
+  const workspaceTypeLabel = getWorkspaceTypeLabel(workspaceType);
+  const workspaceTooltip = hasWorkspace
+    ? `${getString("sidebar-workspace-current")}: ${workspaceTypeLabel} - ${
+        workspaceLabel
+      }`
+    : getString("sidebar-workspace-unavailable");
 
   useEffect(() => {
     if (!open) {
       return;
     }
-    setExpandedCollections(
-      getSelectedCollectionExpansion(
-        collectionOptions,
-        state.context.collectionKey,
-      ),
-    );
-  }, [collectionOptions, open, state.context.collectionKey]);
+    setLibraryExpanded(false);
+    setExpandedCollections(new Set());
+  }, [collectionOptions, open]);
 
-  const selectMode = (type: WorkspaceType) => {
+  const selectWorkspaceType = (type: WorkspaceType) => {
     setOpen(false);
     actions.selectWorkspaceMode(type);
   };
@@ -1082,16 +1105,50 @@ function WorkspaceSelector({
     setOpen(false);
     actions.selectWorkspaceMode("library");
   };
-  const expandCollection = (collectionKey: string) => {
+  const toggleCollection = (collectionKey: string) => {
     setExpandedCollections((current) => {
-      if (current.has(collectionKey)) {
-        return current;
-      }
       const next = new Set(current);
-      next.add(collectionKey);
+      if (current.has(collectionKey)) {
+        next.delete(collectionKey);
+      } else {
+        next.add(collectionKey);
+      }
       return next;
     });
   };
+  const expandAllCollections = () => {
+    setLibraryExpanded(true);
+    setExpandedCollections(
+      new Set(
+        collectionOptions
+          .filter((collection) => collection.hasChildren)
+          .map((collection) => collection.key),
+      ),
+    );
+  };
+  const collapseAllCollections = () => {
+    setLibraryExpanded(false);
+    setExpandedCollections(new Set());
+  };
+  const expandableCollectionKeys = collectionOptions
+    .filter((collection) => collection.hasChildren)
+    .map((collection) => collection.key);
+  const allCollectionsExpanded =
+    Boolean(collectionOptions.length) &&
+    libraryExpanded &&
+    expandableCollectionKeys.every((key) => expandedCollections.has(key));
+  const toggleAllCollections = () => {
+    if (allCollectionsExpanded) {
+      collapseAllCollections();
+    } else {
+      expandAllCollections();
+    }
+  };
+  const toggleAllLabel = getString(
+    allCollectionsExpanded
+      ? "sidebar-workspace-collapse-all"
+      : "sidebar-workspace-expand-all",
+  );
   const onMenuRowKeyDown =
     (action: () => void) => (event: KeyboardEvent<HTMLElement>) => {
       if (event.key !== "Enter" && event.key !== " ") {
@@ -1117,45 +1174,24 @@ function WorkspaceSelector({
         selectCollection(collection.key);
       };
       return [
-        <div
-          aria-expanded={collection.hasChildren ? expanded : undefined}
-          className="zp-workspace-menu-row zp-workspace-menu-action zp-workspace-menu-collection"
-          data-active={
+        <WorkspaceMenuRow
+          active={
             workspaceType === "collection" &&
             state.context.collectionKey === collection.key
-              ? true
-              : undefined
           }
+          className="zp-workspace-menu-collection"
+          expanded={expanded}
+          hasChildren={collection.hasChildren}
+          iconName="workspaceCollection"
+          indent={(collection.level + 1) * 18}
           key={collection.key}
-          onFocus={() => {
-            if (collection.hasChildren) {
-              expandCollection(collection.key);
-            }
-          }}
+          label={collection.label}
+          meta={getString("sidebar-workspace-collection")}
           onKeyDown={onMenuRowKeyDown(selectCollectionRow)}
           onMouseDown={onMenuRowMouseDown(selectCollectionRow)}
-          onMouseEnter={() => {
-            if (collection.hasChildren) {
-              expandCollection(collection.key);
-            }
-          }}
-          role="menuitem"
-          tabIndex={0}
+          onToggleDisclosure={() => toggleCollection(collection.key)}
           title={collection.path.join(" / ")}
-        >
-          <span
-            className="zp-workspace-menu-label"
-            style={{
-              paddingInlineStart: `${10 + collection.level * 18}px`,
-            }}
-          >
-            {formatWorkspaceMenuLabel(collection.label)}
-          </span>
-          <WorkspaceDisclosure
-            expanded={expanded}
-            visible={collection.hasChildren}
-          />
-        </div>,
+        />,
         ...(expanded ? renderCollectionRows(children) : []),
       ];
     });
@@ -1163,103 +1199,248 @@ function WorkspaceSelector({
   return (
     <div
       className="zp-workspace-selector"
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget;
-        if (
-          nextTarget instanceof Node &&
-          event.currentTarget.contains(nextTarget)
-        ) {
-          return;
-        }
-        setOpen(false);
-      }}
       onClick={(event) => event.stopPropagation()}
     >
       <button
-        aria-label={getString("sidebar-workspace-level")}
+        aria-label={getString("sidebar-workspace-current")}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="zp-composer-select zp-workspace-trigger"
-        disabled={!state.context.workspaceKey}
-        onClick={() => setOpen((value) => !value)}
+        className="zp-workspace-trigger"
+        data-popup-open={open || undefined}
+        data-workspace-type={workspaceType}
+        disabled={!hasWorkspace}
+        onClick={() => {
+          if (!open) {
+            collapseAllCollections();
+          }
+          setOpen((value) => !value);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setOpen(false);
           }
         }}
-        title={getString("sidebar-workspace-level")}
+        ref={triggerRef}
+        title={workspaceTooltip}
         type="button"
       >
-        <span className="zp-workspace-trigger-text">{workspaceLabel}</span>
-        <Icon name={open ? "collapse" : "expand"} size={12} />
+        <Icon
+          className="zp-workspace-trigger-icon"
+          name="workspace"
+          size={15}
+        />
+        <span className="zp-workspace-trigger-main">
+          <span className="zp-workspace-trigger-label">
+            {getString("sidebar-chat-workspace")}
+          </span>
+          <span className="zp-workspace-trigger-text">{workspaceLabel}</span>
+        </span>
+        <span className="zp-workspace-type-badge">{workspaceTypeLabel}</span>
+        <Icon
+          className="zp-workspace-trigger-chevron"
+          name={open ? "collapse" : "expand"}
+          size={12}
+        />
       </button>
       {open ? (
-        <div className="zp-workspace-menu" role="menu">
+        <FloatingPortal
+          align="start"
+          anchorRef={triggerRef}
+          maxWidth={420}
+          minWidth={280}
+          onDismiss={() => setOpen(false)}
+          preferredSide="above"
+          width={320}
+          zIndex={8}
+        >
           <div
-            className="zp-workspace-menu-row zp-workspace-menu-action"
-            data-active={workspaceType === "item" || undefined}
-            onKeyDown={onMenuRowKeyDown(() => selectMode("item"))}
-            onMouseDown={onMenuRowMouseDown(() => selectMode("item"))}
-            role="menuitem"
-            tabIndex={0}
-            title={itemLabel}
+            className="zp-workspace-menu"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setOpen(false);
+              }
+            }}
+            role="menu"
           >
-            <span className="zp-workspace-menu-label">
-              {formatWorkspaceMenuLabel(itemLabel)}
-            </span>
-            <WorkspaceDisclosure expanded={false} visible={false} />
-          </div>
-          <div
-            aria-expanded={
-              collectionOptions.length ? libraryExpanded : undefined
-            }
-            className="zp-workspace-menu-row zp-workspace-menu-action"
-            data-active={workspaceType === "library" || undefined}
-            onKeyDown={onMenuRowKeyDown(selectLibrary)}
-            onMouseDown={onMenuRowMouseDown(selectLibrary)}
-            role="menuitem"
-            tabIndex={0}
-            title={libraryLabel}
-          >
-            <span className="zp-workspace-menu-label">
-              {formatWorkspaceMenuLabel(libraryLabel)}
-            </span>
-            <WorkspaceDisclosure
-              expanded={libraryExpanded}
-              visible={Boolean(collectionOptions.length)}
+            <div className="zp-workspace-menu-header">
+              <span>{getString("sidebar-workspace-choose")}</span>
+              <span className="zp-workspace-menu-header-actions">
+                <button
+                  aria-label={toggleAllLabel}
+                  className="zp-workspace-menu-header-action"
+                  disabled={!collectionOptions.length}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleAllCollections();
+                  }}
+                  title={toggleAllLabel}
+                  type="button"
+                >
+                  <Icon
+                    name={
+                      allCollectionsExpanded
+                        ? "chevrons-down-up"
+                        : "chevrons-up-down"
+                    }
+                    size={15}
+                  />
+                </button>
+              </span>
+            </div>
+            <WorkspaceMenuRow
+              active={workspaceType === "item"}
+              iconName="workspaceItem"
+              label={itemLabel}
+              meta={getString("sidebar-workspace-item")}
+              onKeyDown={onMenuRowKeyDown(() => selectWorkspaceType("item"))}
+              onMouseDown={onMenuRowMouseDown(() => selectWorkspaceType("item"))}
+              title={itemLabel}
             />
+            <WorkspaceMenuRow
+              active={workspaceType === "library"}
+              expanded={libraryExpanded}
+              hasChildren={Boolean(collectionOptions.length)}
+              iconName="workspaceLibrary"
+              label={libraryLabel}
+              meta={getString("sidebar-workspace-library")}
+              onKeyDown={onMenuRowKeyDown(selectLibrary)}
+              onMouseDown={onMenuRowMouseDown(selectLibrary)}
+              onToggleDisclosure={() =>
+                setLibraryExpanded((expanded) => !expanded)
+              }
+              title={libraryLabel}
+            />
+            {libraryExpanded
+              ? renderCollectionRows(
+                  collectionChildren.get(ROOT_COLLECTION_KEY) || [],
+                )
+              : null}
           </div>
-          {libraryExpanded
-            ? renderCollectionRows(
-                collectionChildren.get(ROOT_COLLECTION_KEY) || [],
-              )
-            : null}
-        </div>
+        </FloatingPortal>
       ) : null}
+    </div>
+  );
+}
+
+function WorkspaceMenuRow({
+  active,
+  className,
+  expanded = false,
+  hasChildren = false,
+  iconName,
+  indent = 0,
+  label,
+  meta,
+  onKeyDown,
+  onMouseDown,
+  onToggleDisclosure,
+  title,
+}: {
+  active: boolean;
+  className?: string;
+  expanded?: boolean;
+  hasChildren?: boolean;
+  iconName: IconName;
+  indent?: number;
+  label: string;
+  meta: string;
+  onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
+  onMouseDown: (event: MouseEvent<HTMLElement>) => void;
+  onToggleDisclosure?: () => void;
+  title: string;
+}): ReactElement {
+  return (
+    <div
+      aria-expanded={hasChildren ? expanded : undefined}
+      className={[
+        "zp-workspace-menu-row",
+        "zp-workspace-menu-action",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      data-active={active || undefined}
+      onKeyDown={onKeyDown}
+      onMouseDown={onMouseDown}
+      role="menuitem"
+      tabIndex={0}
+      title={title}
+    >
+      <span
+        className="zp-workspace-menu-main"
+        style={{ paddingInlineStart: `${10 + indent}px` }}
+      >
+        <Icon className="zp-workspace-menu-icon" name={iconName} size={14} />
+        <span className="zp-workspace-menu-text">
+          <span className="zp-workspace-menu-label">
+            {formatWorkspaceMenuLabel(label)}
+          </span>
+          <span className="zp-workspace-menu-meta">{meta}</span>
+        </span>
+      </span>
+      <span className="zp-workspace-menu-check">
+        {active ? <Icon name="check" size={13} /> : null}
+      </span>
+      <WorkspaceDisclosure
+        expanded={expanded}
+        onToggle={onToggleDisclosure}
+        visible={hasChildren}
+      />
     </div>
   );
 }
 
 function WorkspaceDisclosure({
   expanded,
+  onToggle,
   visible,
 }: {
   expanded: boolean;
+  onToggle?: () => void;
   visible: boolean;
 }): ReactElement {
+  const title = visible
+    ? getString("sidebar-workspace-toggle-collections")
+    : undefined;
+  if (!visible) {
+    return <span className="zp-workspace-menu-expander" />;
+  }
   return (
-    <span
-      aria-hidden="true"
+    <button
+      aria-expanded={expanded}
+      aria-label={title}
       className="zp-workspace-menu-expander"
-      title={
-        visible ? getString("sidebar-workspace-toggle-collections") : undefined
-      }
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle?.();
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+      }}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      title={title}
+      type="button"
     >
-      {visible ? (
-        <Icon name={expanded ? "collapse" : "expand"} size={13} />
-      ) : null}
-    </span>
+      <Icon name={expanded ? "collapse" : "expand"} size={13} />
+    </button>
   );
+}
+
+function getWorkspaceTypeLabel(type: WorkspaceType): string {
+  if (type === "library") {
+    return getString("sidebar-workspace-library");
+  }
+  if (type === "collection") {
+    return getString("sidebar-workspace-collection");
+  }
+  return getString("sidebar-workspace-item");
 }
 
 const ROOT_COLLECTION_KEY = "";
@@ -1282,30 +1463,6 @@ function buildCollectionChildren(
     byParent.set(parentKey, children);
   }
   return byParent;
-}
-
-function getSelectedCollectionExpansion(
-  collections: SidebarCollectionOption[],
-  selectedKey?: string,
-): Set<string> {
-  const expanded = new Set<string>();
-  if (!selectedKey) {
-    return expanded;
-  }
-  const byKey = new Map(
-    collections.map((collection) => [collection.key, collection]),
-  );
-  let current = byKey.get(selectedKey);
-  while (current) {
-    if (current.hasChildren) {
-      expanded.add(current.key);
-    }
-    if (current.parentKey) {
-      expanded.add(current.parentKey);
-    }
-    current = current.parentKey ? byKey.get(current.parentKey) : undefined;
-  }
-  return expanded;
 }
 
 function MentionPopover({
@@ -1429,75 +1586,6 @@ function SessionPopover({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function ContextPopover({
-  attachmentKey,
-  label,
-  onClose,
-  paperKey,
-  paperTitle,
-  parentItemKey,
-  workspaceKey,
-  workspaceType,
-}: {
-  attachmentKey?: string;
-  label: string;
-  onClose: () => void;
-  paperKey?: string;
-  paperTitle?: string;
-  parentItemKey?: string;
-  workspaceKey?: string;
-  workspaceType?: string;
-}): ReactElement {
-  return (
-    <div
-      className="zp-context-popover"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <div className="zp-context-popover-header">
-        <span>{getString("sidebar-context-details")}</span>
-        <button
-          aria-label={getString("sidebar-close")}
-          className="zp-message-action"
-          onClick={onClose}
-          title={getString("sidebar-close")}
-          type="button"
-        >
-          <Icon name="close" size={14} />
-        </button>
-      </div>
-      <dl className="zp-context-details">
-        <div>
-          <dt>{getString("sidebar-current-context")}</dt>
-          <dd>{paperTitle || label}</dd>
-        </div>
-        <div>
-          <dt>Workspace</dt>
-          <dd>
-            {workspaceType ? `${workspaceType}: ` : ""}
-            {workspaceKey || getString("sidebar-unavailable-context")}
-          </dd>
-        </div>
-        <div>
-          <dt>{getString("sidebar-paper-key")}</dt>
-          <dd>{paperKey || getString("sidebar-unavailable-context")}</dd>
-        </div>
-        {parentItemKey ? (
-          <div>
-            <dt>{getString("sidebar-parent-key")}</dt>
-            <dd>{parentItemKey}</dd>
-          </div>
-        ) : null}
-        {attachmentKey ? (
-          <div>
-            <dt>{getString("sidebar-attachment-key")}</dt>
-            <dd>{attachmentKey}</dd>
-          </div>
-        ) : null}
-      </dl>
     </div>
   );
 }

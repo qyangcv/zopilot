@@ -1,5 +1,6 @@
 import type { Conversation } from "../../../shared/conversation";
 import type {
+  LocalAttachmentRef,
   PaperSourceRef,
   SourceMention,
   WorkspaceType,
@@ -11,6 +12,7 @@ export type SidebarMessageView = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  localAttachments?: LocalAttachmentRef[];
   status?: "complete" | "error" | "interrupted";
   completedAt?: string;
   transient?: boolean;
@@ -55,7 +57,6 @@ type SidebarSessionView = {
 };
 
 export type SidebarSessionMode = "history" | "archive";
-export type SidebarMode = "ask" | "agent";
 
 export type SidebarCommandCategory =
   | "source"
@@ -63,8 +64,7 @@ export type SidebarCommandCategory =
   | "attachment"
   | "prompt"
   | "skill"
-  | "session"
-  | "mode";
+  | "session";
 
 export type SidebarCommandView = {
   id: string;
@@ -83,7 +83,6 @@ export type SidebarPromptView = {
   body: string;
   variables: string[];
   scope: "workspace" | "global";
-  compatibleModes: SidebarMode[];
   updatedAt: string;
   custom?: boolean;
 };
@@ -96,7 +95,6 @@ export type SidebarSkillView = {
   enabled: boolean;
   status: "available" | "disabled" | "requires-context";
   requiredContext: Array<"workspace" | "reader">;
-  compatibleModes: SidebarMode[];
 };
 
 export type SidebarState = {
@@ -111,7 +109,6 @@ export type SidebarState = {
   models: SidebarModelView[];
   selectedModel: string;
   selectedReasoningEffort?: string;
-  selectedMode: SidebarMode;
   availableReasoningEfforts: string[];
   codexStatus: "checking" | "connected" | "disconnected";
   codexDiagnostic?: CodexDiagnosticCode;
@@ -125,6 +122,7 @@ export type SidebarState = {
 export type SidebarPromptSubmission = {
   text: string;
   mentions: SourceMention[];
+  localAttachments: LocalAttachmentRef[];
 };
 
 export type SidebarActions = {
@@ -141,10 +139,9 @@ export type SidebarActions = {
   selectWorkspaceMode: (type: WorkspaceType) => void;
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
-  selectMode: (mode: SidebarMode) => void;
   setSkillEnabled: (skillId: string, enabled: boolean) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
-  uploadAttachment: () => void;
+  uploadAttachment: () => Promise<LocalAttachmentRef | undefined>;
   interruptActiveTurn: () => void;
   restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;

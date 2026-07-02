@@ -128,6 +128,38 @@ describe("SidebarApp", function () {
     assert.deepEqual(submitted, [rawText]);
   });
 
+  it("renders sent user message attachments inside the message bubble", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "user-with-attachment",
+              role: "user",
+              text: "Read this figure",
+              localAttachments: [
+                {
+                  id: "local-figure",
+                  path: "/tmp/figure.png",
+                  filename: "figure.png",
+                  kind: "image",
+                  mimeType: "image/png",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, 'class="zp-message-bubble zp-message-user-content"');
+    assert.include(html, 'class="zp-local-attachments zp-message-attachments"');
+    assert.include(html, 'data-icon-name="attachmentImage"');
+    assert.include(html, "figure.png");
+    assert.notInclude(html, "zopilot-sidebar-attachment-remove");
+  });
+
   it("hides the assistant footer for welcome messages without a completion time", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
@@ -178,7 +210,7 @@ describe("SidebarApp", function () {
     assert.include(html, "2026-06-13 15:30");
   });
 
-  it("uses only the paper title for the context chip text and tooltip", function () {
+  it("does not render the paper context chip above the composer", function () {
     const paperTitle =
       "DeepSeekMath: Pushing the Limits of Mathematical Reasoning";
     const sessionTitle = `${paperTitle} / 总结一下这篇论文`;
@@ -202,21 +234,14 @@ describe("SidebarApp", function () {
       html,
       'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
     );
-    assert.include(
-      html,
-      '<button class="zp-context-chip" title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning" type="button"',
-    );
-    assert.include(
-      html,
-      '<span class="zp-context-chip-text">DeepSeekMath: Pushing the Limits of Mathematical Reasoning</span>',
-    );
-    assert.notInclude(
-      html,
-      '<button class="zp-context-chip" title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
-    );
+    assert.notInclude(html, "zp-context-row");
+    assert.notInclude(html, "zp-context-chip");
+    assert.notInclude(html, "zp-context-chip-text");
+    assert.notInclude(html, "zopilot-sidebar-context-details");
+    assert.notInclude(html, "zopilot-sidebar-current-context");
   });
 
-  it("labels the workspace trigger with the current item title", function () {
+  it("renders the workspace selector in the bottom status row", function () {
     const paperTitle =
       "DeepSeekMath: Pushing the Limits of Mathematical Reasoning";
     const html = renderToStaticMarkup(
@@ -234,11 +259,24 @@ describe("SidebarApp", function () {
       />,
     );
 
+    assert.include(html, 'class="zp-workspace-status-row"');
     assert.include(html, "zp-workspace-trigger");
+    assert.include(html, 'aria-label="zopilot-sidebar-workspace-current"');
+    assert.include(html, 'data-icon-name="workspace"');
+    assert.include(
+      html,
+      '<span class="zp-workspace-trigger-label">zopilot-sidebar-chat-workspace</span>',
+    );
     assert.include(
       html,
       `<span class="zp-workspace-trigger-text">${paperTitle}</span>`,
     );
+    assert.include(
+      html,
+      '<span class="zp-workspace-type-badge">zopilot-sidebar-workspace-item</span>',
+    );
+    assert.notInclude(html, "zp-context-row");
+    assert.notInclude(html, "zp-context-chip");
     assert.notInclude(
       html,
       '<span class="zp-workspace-trigger-text">zopilot-sidebar-workspace-item</span>',
@@ -358,11 +396,10 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zp-codex-status");
     assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
-    assert.include(html, 'aria-label="zopilot-sidebar-mode"');
     assert.include(html, 'aria-label="zopilot-sidebar-command-menu"');
     assert.include(html, 'aria-label="zopilot-sidebar-prompts"');
     assert.include(html, 'aria-label="zopilot-sidebar-skills"');
-    assert.include(html, 'aria-label="zopilot-sidebar-attachment-upload"');
+    assert.include(html, 'aria-label="zopilot-sidebar-add-context"');
   });
 
   it("shows a Codex diagnostic without model controls after a failed connection", function () {
@@ -437,7 +474,6 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     ],
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
-    selectedMode: "ask",
     availableReasoningEfforts: ["medium"],
     codexStatus: "connected",
     focusToken: 0,
@@ -461,11 +497,13 @@ function createActions(): SidebarActions {
     createPrompt: () => undefined,
     deletePrompt: () => undefined,
     selectModel: () => undefined,
-    selectMode: () => undefined,
     selectReasoningEffort: () => undefined,
+    selectWorkspaceMode: () => undefined,
+    selectCollectionWorkspace: () => undefined,
+    selectItemWorkspace: () => undefined,
     setSkillEnabled: () => undefined,
     submitPrompt: () => undefined,
-    uploadAttachment: () => undefined,
+    uploadAttachment: async () => undefined,
     restoreSession: () => undefined,
     switchSession: () => undefined,
     toggleArchivedSessions: () => undefined,
