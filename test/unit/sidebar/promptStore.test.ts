@@ -3,6 +3,7 @@ import {
   createCustomPrompt,
   deleteCustomPrompt,
   loadPromptViews,
+  updateCustomPrompt,
 } from "../../../src/modules/sidebar/promptStore.ts";
 import {
   extractPromptVariables,
@@ -58,10 +59,68 @@ describe("sidebar prompt store", function () {
       prompt.id,
     );
   });
+
+  it("updates custom prompts and recalculates variables", function () {
+    const prompt = createCustomPrompt({
+      title: "Evidence table",
+      body: "Make a table for {{paper}}.",
+    });
+
+    const updated = updateCustomPrompt(prompt.id, {
+      title: "  Method audit  ",
+      body: "Check {{method}} against {{ paper }}.",
+    });
+
+    assert.equal(updated.id, prompt.id);
+    assert.equal(updated.title, "Method audit");
+    assert.deepEqual(updated.variables, ["method", "paper"]);
+    assert.deepInclude(loadPromptViews(), updated);
+  });
+
+  it("ignores malformed stored prompts", function () {
+    installZoteroMock(
+      JSON.stringify([
+        {
+          id: "custom-valid",
+          title: "Valid",
+          body: "Read {{paper}}.",
+          variables: ["paper"],
+          scope: "global",
+          updatedAt: "2026-06-13T07:00:00.000Z",
+          custom: true,
+        },
+        {
+          id: "prompt-old-default",
+          title: "Old default",
+          body: "This came from a removed default prompt.",
+          variables: [],
+          scope: "global",
+          updatedAt: "2026-06-13T07:00:00.000Z",
+          custom: false,
+        },
+      ]),
+    );
+
+    assert.deepEqual(
+      loadPromptViews().map((prompt) => prompt.id),
+      ["custom-valid"],
+    );
+  });
+
+  it("throws when updating a missing custom prompt", function () {
+    assert.throws(
+      () =>
+        updateCustomPrompt("custom-missing", {
+          title: "Missing",
+          body: "Body",
+        }),
+      /Prompt not found/,
+    );
+  });
 });
 
-function installZoteroMock(): void {
-  let customPrompts = "[]";
+function installZoteroMock(initialValue = "[]"): void {
+  let customPrompts = initialValue;
   (
     globalThis as typeof globalThis & {
       Zotero: {

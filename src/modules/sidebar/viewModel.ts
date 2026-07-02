@@ -5,9 +5,7 @@ import type {
   SidebarModelView,
   SidebarState,
 } from "./app/types";
-import { DEFAULT_PROMPTS } from "./app/commandRegistry";
 import { extractReaderLocators } from "./readerNavigation";
-import { DEFAULT_SKILLS } from "./skillRegistry";
 
 export {
   DEFAULT_MODEL,
@@ -55,8 +53,7 @@ function createInitialSidebarState(label: string): SidebarState {
     focusToken: 0,
     sourceCandidates: [],
     collectionOptions: [],
-    prompts: DEFAULT_PROMPTS,
-    skills: DEFAULT_SKILLS,
+    prompts: [],
   };
 }
 

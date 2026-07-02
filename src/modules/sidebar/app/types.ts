@@ -63,7 +63,6 @@ export type SidebarCommandCategory =
   | "reader"
   | "attachment"
   | "prompt"
-  | "skill"
   | "session";
 
 export type SidebarCommandView = {
@@ -87,16 +86,6 @@ export type SidebarPromptView = {
   custom?: boolean;
 };
 
-export type SidebarSkillView = {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  enabled: boolean;
-  status: "available" | "disabled" | "requires-context";
-  requiredContext: Array<"workspace" | "reader">;
-};
-
 export type SidebarState = {
   title: string;
   context: SidebarContextView;
@@ -116,7 +105,6 @@ export type SidebarState = {
   sourceCandidates: PaperSourceRef[];
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
-  skills: SidebarSkillView[];
 };
 
 export type SidebarPromptSubmission = {
@@ -132,14 +120,11 @@ export type SidebarActions = {
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
   openReaderLocator: (locator: ReaderLocator) => void;
-  createPrompt: (input: { title: string; body: string }) => void;
-  deletePrompt: (promptId: string) => void;
   selectModel: (model: string) => void;
   selectReasoningEffort: (effort: string) => void;
   selectWorkspaceMode: (type: WorkspaceType) => void;
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
-  setSkillEnabled: (skillId: string, enabled: boolean) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   uploadAttachment: () => Promise<LocalAttachmentRef | undefined>;
   interruptActiveTurn: () => void;

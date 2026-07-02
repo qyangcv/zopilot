@@ -37,7 +37,7 @@
     "@mdit/plugin-tex": "^0.24.2",
     "flexsearch": "^0.8.212",
     "katex": "^0.17.0",
-    "lucide-react": "^1.18.0",
+    "lucide-react": "^1.23.0",
     "markdown-it": "^14.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

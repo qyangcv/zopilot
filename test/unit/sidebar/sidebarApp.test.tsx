@@ -7,10 +7,9 @@ import {
 } from "../../../src/modules/sidebar/app/SidebarApp.tsx";
 import type {
   SidebarActions,
+  SidebarPromptView,
   SidebarState,
 } from "../../../src/modules/sidebar/app/types.ts";
-import { DEFAULT_PROMPTS } from "../../../src/modules/sidebar/app/commandRegistry.ts";
-import { DEFAULT_SKILLS } from "../../../src/modules/sidebar/skillRegistry.ts";
 import type { Conversation } from "../../../src/shared/conversation.ts";
 
 describe("SidebarApp", function () {
@@ -398,7 +397,6 @@ describe("SidebarApp", function () {
     assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
     assert.include(html, 'aria-label="zopilot-sidebar-command-menu"');
     assert.include(html, 'aria-label="zopilot-sidebar-prompts"');
-    assert.include(html, 'aria-label="zopilot-sidebar-skills"');
     assert.include(html, 'aria-label="zopilot-sidebar-add-context"');
   });
 
@@ -451,6 +449,18 @@ describe("SidebarApp", function () {
   });
 });
 
+const TEST_PROMPTS: SidebarPromptView[] = [
+  {
+    id: "custom-critique",
+    title: "Critique paper",
+    body: "Critique {{paper}}.",
+    variables: ["paper"],
+    scope: "global",
+    updatedAt: "2026-06-13T07:00:00.000Z",
+    custom: true,
+  },
+];
+
 function createState(patch: Partial<SidebarState> = {}): SidebarState {
   return {
     title: "Paper",
@@ -479,8 +489,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     focusToken: 0,
     sourceCandidates: [],
     collectionOptions: [],
-    prompts: DEFAULT_PROMPTS,
-    skills: DEFAULT_SKILLS,
+    prompts: TEST_PROMPTS,
     ...patch,
   };
 }
@@ -494,14 +503,11 @@ function createActions(): SidebarActions {
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,
     openReaderLocator: () => undefined,
-    createPrompt: () => undefined,
-    deletePrompt: () => undefined,
     selectModel: () => undefined,
     selectReasoningEffort: () => undefined,
     selectWorkspaceMode: () => undefined,
     selectCollectionWorkspace: () => undefined,
     selectItemWorkspace: () => undefined,
-    setSkillEnabled: () => undefined,
     submitPrompt: () => undefined,
     uploadAttachment: async () => undefined,
     restoreSession: () => undefined,

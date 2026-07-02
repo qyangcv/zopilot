@@ -49,15 +49,7 @@ import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
 import { STYLE_URI } from "./constants";
 import { ReaderToolbarController } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
-import {
-  createCustomPrompt,
-  deleteCustomPrompt,
-  loadPromptViews,
-} from "./promptStore";
-import {
-  loadSkillViews,
-  setSkillEnabled as saveSkillEnabled,
-} from "./skillRegistry";
+import { loadPromptViews } from "./promptStore";
 import {
   DEFAULT_MODEL,
   createConversationMessages,
@@ -938,31 +930,6 @@ class SidebarController {
     this.updateViewState({ selectedReasoningEffort: effort });
   }
 
-  private createPrompt(input: { title: string; body: string }): void {
-    try {
-      createCustomPrompt(input);
-      this.updateViewState({ prompts: loadPromptViews() });
-    } catch (error) {
-      logger.warn("failed to create custom prompt", { error: String(error) });
-    }
-  }
-
-  private deletePrompt(promptId: string): void {
-    deleteCustomPrompt(promptId);
-    this.updateViewState({ prompts: loadPromptViews() });
-  }
-
-  private setSkillEnabled(skillId: string, enabled: boolean): void {
-    try {
-      saveSkillEnabled(skillId, enabled);
-      this.updateViewState({
-        skills: this.loadSkillViewsForDisplayState(this.displayState),
-      });
-    } catch (error) {
-      logger.warn("failed to update skill setting", { error: String(error) });
-    }
-  }
-
   private async selectWorkspaceMode(type: WorkspaceType): Promise<void> {
     const ready = this.getReadyDisplayState();
     if (!ready || ready.workspace.workspaceType === type) {
@@ -1215,7 +1182,7 @@ class SidebarController {
             : undefined,
         ),
         busy: Boolean(runningTurn),
-        skills: this.loadSkillViewsForDisplayState(state),
+        prompts: loadPromptViews(),
         sessions: this.viewState.sessions.map((session) =>
           createSessionView(
             session.conversation,
@@ -1245,7 +1212,7 @@ class SidebarController {
       sessions: [],
       sourceCandidates: [],
       collectionOptions: [],
-      skills: this.loadSkillViewsForDisplayState(state),
+      prompts: loadPromptViews(),
       messages: [
         {
           id: `zp-status-${state.token}`,
@@ -1255,18 +1222,6 @@ class SidebarController {
           transient: true,
         },
       ],
-    });
-  }
-
-  private loadSkillViewsForDisplayState(
-    state: DisplayState,
-  ): SidebarState["skills"] {
-    return loadSkillViews({
-      hasReader:
-        state.kind === "loading" ||
-        state.kind === "ready" ||
-        (state.kind === "error" && Boolean(state.reader)),
-      hasWorkspace: state.kind === "ready",
     });
   }
 
@@ -1534,12 +1489,8 @@ class SidebarController {
       openReaderLocator: (locator) => {
         void this.openReaderLocator(locator);
       },
-      createPrompt: (input) => this.createPrompt(input),
-      deletePrompt: (promptId) => this.deletePrompt(promptId),
       selectModel: (model) => this.selectModel(model),
       selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
-      setSkillEnabled: (skillId, enabled) =>
-        this.setSkillEnabled(skillId, enabled),
       selectWorkspaceMode: (type) => {
         void this.selectWorkspaceMode(type);
       },

@@ -1,9 +1,14 @@
 import { getPref, setPref } from "../../utils/prefs";
-import { DEFAULT_PROMPTS } from "./app/commandRegistry";
 import type { SidebarPromptView } from "./app/types";
 import { extractPromptVariables, validatePromptInput } from "./promptSchema";
 
-export { createCustomPrompt, deleteCustomPrompt, loadPromptViews };
+export {
+  createCustomPrompt,
+  deleteCustomPrompt,
+  loadCustomPrompts,
+  loadPromptViews,
+  updateCustomPrompt,
+};
 
 type StoredPrompt = {
   id: string;
@@ -21,7 +26,7 @@ type PromptInput = {
 };
 
 function loadPromptViews(): SidebarPromptView[] {
-  return [...DEFAULT_PROMPTS, ...loadCustomPrompts()];
+  return loadCustomPrompts();
 }
 
 function createCustomPrompt(input: PromptInput): SidebarPromptView {
@@ -43,6 +48,31 @@ function deleteCustomPrompt(promptId: string): void {
   saveCustomPrompts(
     loadCustomPrompts().filter((prompt) => prompt.id !== promptId),
   );
+}
+
+function updateCustomPrompt(
+  promptId: string,
+  input: PromptInput,
+): SidebarPromptView {
+  const validated = validatePromptInput(input);
+  const prompts = loadCustomPrompts();
+  const promptIndex = prompts.findIndex((prompt) => prompt.id === promptId);
+  if (promptIndex < 0) {
+    throw new Error("Prompt not found.");
+  }
+  const updated: StoredPrompt = {
+    ...prompts[promptIndex],
+    title: validated.title,
+    body: validated.body,
+    variables: extractPromptVariables(validated.body),
+    updatedAt: new Date().toISOString(),
+  };
+  saveCustomPrompts([
+    ...prompts.slice(0, promptIndex),
+    updated,
+    ...prompts.slice(promptIndex + 1),
+  ]);
+  return updated;
 }
 
 function loadCustomPrompts(): StoredPrompt[] {

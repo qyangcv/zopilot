@@ -35,7 +35,6 @@ import type {
   SourceMention,
   WorkspaceType,
 } from "../../../shared/conversation";
-import { extractPromptVariables } from "../promptSchema";
 
 export { Message } from "./Message";
 
@@ -57,7 +56,6 @@ export function SidebarApp({
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [promptPickerOpen, setPromptPickerOpen] = useState(false);
-  const [skillListOpen, setSkillListOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const logRef = useRef<HTMLElement | null>(null);
   const autoScrollRef = useRef(true);
@@ -69,7 +67,6 @@ export function SidebarApp({
   const commandButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const promptButtonRef = useRef<HTMLButtonElement | null>(null);
-  const skillButtonRef = useRef<HTMLButtonElement | null>(null);
   const [commandAnchor, setCommandAnchor] = useState<"button" | "input">(
     "input",
   );
@@ -273,10 +270,6 @@ export function SidebarApp({
       }
       return;
     }
-    if (command.id.startsWith("skill.")) {
-      setPromptPickerOpen(false);
-      setSkillListOpen(true);
-    }
   };
   const commandAnchorRef =
     commandAnchor === "button" ? commandButtonRef : textareaRef;
@@ -389,32 +382,12 @@ export function SidebarApp({
           zIndex={9}
         >
           <PromptPicker
-            onCreate={actions.createPrompt}
             onClose={() => setPromptPickerOpen(false)}
-            onDelete={actions.deletePrompt}
             onInsert={(body) => {
               setPromptPickerOpen(false);
               insertPrompt(body);
             }}
             prompts={state.prompts}
-          />
-        </FloatingPortal>
-      ) : null}
-      {skillListOpen ? (
-        <FloatingPortal
-          align="start"
-          anchorRef={skillButtonRef}
-          maxWidth={420}
-          minWidth={300}
-          onDismiss={() => setSkillListOpen(false)}
-          preferredSide="above"
-          width={380}
-          zIndex={9}
-        >
-          <SkillList
-            onClose={() => setSkillListOpen(false)}
-            onToggle={actions.setSkillEnabled}
-            skills={state.skills}
           />
         </FloatingPortal>
       ) : null}
@@ -614,28 +587,12 @@ export function SidebarApp({
                 onClick={(event) => {
                   event.stopPropagation();
                   setPromptPickerOpen((open) => !open);
-                  setSkillListOpen(false);
                 }}
                 ref={promptButtonRef}
                 title={getString("sidebar-prompts")}
                 type="button"
               >
                 <Icon name="prompt" size={15} />
-              </button>
-              <button
-                aria-label={getString("sidebar-skills")}
-                className="zp-context-add"
-                disabled={!state.context.workspaceKey}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setSkillListOpen((open) => !open);
-                  setPromptPickerOpen(false);
-                }}
-                ref={skillButtonRef}
-                title={getString("sidebar-skills")}
-                type="button"
-              >
-                <Icon name="skill" size={15} />
               </button>
               <button
                 aria-label={getString("sidebar-add-context")}
@@ -807,22 +764,14 @@ function CommandMenu({
 }
 
 function PromptPicker({
-  onCreate,
   onClose,
-  onDelete,
   onInsert,
   prompts,
 }: {
-  onCreate: (input: { title: string; body: string }) => void;
   onClose: () => void;
-  onDelete: (promptId: string) => void;
   onInsert: (body: string) => void;
   prompts: SidebarState["prompts"];
 }): ReactElement {
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const variables = useMemo(() => extractPromptVariables(body), [body]);
-  const canCreate = Boolean(title.trim() && body.trim());
   return (
     <section
       aria-label={getString("sidebar-prompts")}
@@ -838,48 +787,6 @@ function PromptPicker({
         onClose={onClose}
         title={getString("sidebar-prompts")}
       />
-      <form
-        className="zp-prompt-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!canCreate) {
-            return;
-          }
-          onCreate({ title, body });
-          setTitle("");
-          setBody("");
-        }}
-      >
-        <input
-          aria-label={getString("sidebar-prompt-title")}
-          className="zp-prompt-title-input"
-          onChange={(event) => setTitle(event.currentTarget.value)}
-          placeholder={getString("sidebar-prompt-title")}
-          value={title}
-        />
-        <textarea
-          aria-label={getString("sidebar-prompt-body")}
-          className="zp-prompt-body-input"
-          onChange={(event) => setBody(event.currentTarget.value)}
-          placeholder={getString("sidebar-prompt-body")}
-          rows={3}
-          value={body}
-        />
-        <div className="zp-prompt-form-footer">
-          <span className="zp-prompt-variable-preview">
-            {variables.length
-              ? variables.map((variable) => `{{${variable}}}`).join(" ")
-              : getString("sidebar-prompt-no-variables")}
-          </span>
-          <button
-            className="zp-prompt-save"
-            disabled={!canCreate}
-            type="submit"
-          >
-            {getString("sidebar-prompt-save")}
-          </button>
-        </div>
-      </form>
       <div className="zp-panel-list">
         {prompts.map((prompt) => (
           <div className="zp-panel-row" key={prompt.id} title={prompt.body}>
@@ -894,127 +801,11 @@ function PromptPicker({
             <span className="zp-panel-row-meta">
               {getString("sidebar-prompt-insert")}
             </span>
-            {prompt.custom ? (
-              <button
-                aria-label={getString("sidebar-prompt-delete")}
-                className="zp-inline-copy"
-                onClick={() => onDelete(prompt.id)}
-                title={getString("sidebar-prompt-delete")}
-                type="button"
-              >
-                <Icon name="close" size={13} />
-              </button>
-            ) : null}
           </div>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function SkillList({
-  onClose,
-  onToggle,
-  skills,
-}: {
-  onClose: () => void;
-  onToggle: (skillId: string, enabled: boolean) => void;
-  skills: SidebarState["skills"];
-}): ReactElement {
-  const [query, setQuery] = useState("");
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visibleSkills = useMemo(
-    () =>
-      normalizedQuery
-        ? skills.filter((skill) =>
-            [
-              skill.title,
-              skill.description,
-              skill.category,
-              skill.status,
-              ...skill.requiredContext,
-            ]
-              .join(" ")
-              .toLocaleLowerCase()
-              .includes(normalizedQuery),
-          )
-        : skills,
-    [normalizedQuery, skills],
-  );
-  return (
-    <section
-      aria-label={getString("sidebar-skills")}
-      className="zp-floating-panel zp-skill-list"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <FloatingPanelHeader
-        onClose={onClose}
-        title={getString("sidebar-skills")}
-      />
-      <input
-        aria-label={getString("sidebar-skill-search")}
-        className="zp-skill-filter"
-        onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder={getString("sidebar-skill-search")}
-        value={query}
-      />
-      <div className="zp-panel-list">
-        {visibleSkills.map((skill) => {
-          const active = skill.enabled && skill.status === "available";
-          const contextLabel = skill.requiredContext
-            .map((context) =>
-              context === "reader"
-                ? getString("sidebar-skill-reader-context")
-                : getString("sidebar-skill-workspace-context"),
-            )
-            .join(", ");
-          return (
-            <div className="zp-panel-row" key={skill.id}>
-              <span className="zp-panel-row-main">
-                <span className="zp-panel-row-title">{skill.title}</span>
-                <span className="zp-panel-row-description">
-                  {skill.description}
-                </span>
-                <span className="zp-panel-row-description">
-                  {skill.category}
-                  {contextLabel ? ` · ${contextLabel}` : ""}
-                </span>
-              </span>
-              <span
-                className="zp-skill-status"
-                data-active={active || undefined}
-              >
-                {active
-                  ? getString("sidebar-skill-enabled")
-                  : skill.status === "requires-context"
-                    ? getString("sidebar-skill-requires-context")
-                    : getString("sidebar-skill-disabled")}
-              </span>
-              <label className="zp-skill-toggle">
-                <input
-                  checked={skill.enabled}
-                  onChange={(event) =>
-                    onToggle(skill.id, event.currentTarget.checked)
-                  }
-                  type="checkbox"
-                />
-                <span>
-                  {skill.enabled
-                    ? getString("sidebar-skill-enabled")
-                    : getString("sidebar-skill-disabled")}
-                </span>
-              </label>
-            </div>
-          );
-        })}
-        {visibleSkills.length === 0 ? (
+        {prompts.length === 0 ? (
           <div className="zp-command-empty">
-            {getString("sidebar-skill-empty")}
+            {getString("sidebar-prompt-empty")}
           </div>
         ) : null}
       </div>
@@ -1296,7 +1087,9 @@ function WorkspaceSelector({
               label={itemLabel}
               meta={getString("sidebar-workspace-item")}
               onKeyDown={onMenuRowKeyDown(() => selectWorkspaceType("item"))}
-              onMouseDown={onMenuRowMouseDown(() => selectWorkspaceType("item"))}
+              onMouseDown={onMenuRowMouseDown(() =>
+                selectWorkspaceType("item"),
+              )}
               title={itemLabel}
             />
             <WorkspaceMenuRow

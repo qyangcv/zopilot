@@ -11,7 +11,6 @@ declare namespace _ZoteroTypes {
       "codex.model": string;
       "codex.reasoningEfforts": string;
       "prompts.custom": string;
-      "skills.enabled": string;
       "log.verbose": boolean;
     };
   }

@@ -1,25 +1,6 @@
 import type { SidebarCommandView, SidebarState } from "./types";
 
-export { DEFAULT_PROMPTS, buildSidebarCommands, filterSidebarCommands };
-
-const DEFAULT_PROMPTS = [
-  {
-    id: "prompt-summarize",
-    title: "Summarize paper",
-    body: "Summarize this paper with problem, method, evidence, and limitations.",
-    variables: [],
-    scope: "global" as const,
-    updatedAt: "2026-07-02T00:00:00.000Z",
-  },
-  {
-    id: "prompt-critique",
-    title: "Critique evidence",
-    body: "Evaluate the paper's evidence quality, missing controls, and strongest counterarguments.",
-    variables: [],
-    scope: "global" as const,
-    updatedAt: "2026-07-02T00:00:00.000Z",
-  },
-];
+export { buildSidebarCommands, filterSidebarCommands };
 
 function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
   const hasWorkspace = Boolean(state.context.workspaceKey);
@@ -103,35 +84,7 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
         ? undefined
         : "Composer is not ready for prompt insertion.",
     })),
-    ...state.skills.map((skill) => ({
-      id: `skill.${skill.id}`,
-      title: skill.title,
-      description: `${skill.description} · ${skill.status}`,
-      keywords: [
-        "skill",
-        skill.title,
-        skill.description,
-        skill.category,
-        "技能",
-      ],
-      category: "skill" as const,
-      icon: "skill",
-      available: skill.enabled && skill.status === "available",
-      disabledReason: resolveSkillDisabledReason(skill),
-    })),
   ];
-}
-
-function resolveSkillDisabledReason(
-  skill: SidebarState["skills"][number],
-): string | undefined {
-  if (!skill.enabled) {
-    return "Skill is disabled.";
-  }
-  if (skill.status === "requires-context") {
-    return "Skill requires more Zotero context.";
-  }
-  return undefined;
 }
 
 function filterSidebarCommands(

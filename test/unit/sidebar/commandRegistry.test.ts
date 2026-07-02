@@ -1,14 +1,12 @@
 import { assert } from "chai";
 import {
-  DEFAULT_PROMPTS,
   buildSidebarCommands,
   filterSidebarCommands,
 } from "../../../src/modules/sidebar/app/commandRegistry.ts";
-import type { SidebarState } from "../../../src/modules/sidebar/app/types.ts";
-import {
-  DEFAULT_SKILLS,
-  createSkillViews,
-} from "../../../src/modules/sidebar/skillRegistry.ts";
+import type {
+  SidebarPromptView,
+  SidebarState,
+} from "../../../src/modules/sidebar/app/types.ts";
 
 describe("sidebar command registry", function () {
   it("builds commands across the required product categories", function () {
@@ -20,7 +18,6 @@ describe("sidebar command registry", function () {
       "prompt",
       "reader",
       "session",
-      "skill",
       "source",
     ]);
   });
@@ -37,26 +34,49 @@ describe("sidebar command registry", function () {
     );
   });
 
-  it("makes prompts and context-ready skills available", function () {
+  it("makes custom prompts available when the composer is ready", function () {
     const commands = buildSidebarCommands(
       createState({
-        skills: createSkillViews(
-          { "skill-literature-map": true },
-          { hasWorkspace: true, hasReader: true },
-        ),
+        prompts: TEST_PROMPTS,
       }),
     );
 
     assert.isTrue(
-      commands.find((command) => command.id === "prompt.prompt-critique")
-        ?.available,
-    );
-    assert.isTrue(
-      commands.find((command) => command.id === "skill.skill-literature-map")
+      commands.find((command) => command.id === "prompt.custom-critique")
         ?.available,
     );
   });
+
+  it("disables prompt commands while the composer is unavailable", function () {
+    const commands = buildSidebarCommands(
+      createState({
+        composerEnabled: false,
+        prompts: TEST_PROMPTS,
+      }),
+    );
+
+    const promptCommand = commands.find(
+      (command) => command.id === "prompt.custom-critique",
+    );
+    assert.isFalse(promptCommand?.available);
+    assert.equal(
+      promptCommand?.disabledReason,
+      "Composer is not ready for prompt insertion.",
+    );
+  });
 });
+
+const TEST_PROMPTS: SidebarPromptView[] = [
+  {
+    id: "custom-critique",
+    title: "Critique paper",
+    body: "Critique {{paper}}.",
+    variables: ["paper"],
+    scope: "global",
+    updatedAt: "2026-06-13T07:00:00.000Z",
+    custom: true,
+  },
+];
 
 function createState(patch: Partial<SidebarState> = {}): SidebarState {
   return {
@@ -80,8 +100,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     focusToken: 0,
     sourceCandidates: [],
     collectionOptions: [],
-    prompts: DEFAULT_PROMPTS,
-    skills: DEFAULT_SKILLS,
+    prompts: TEST_PROMPTS,
     ...patch,
   };
 }

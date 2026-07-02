@@ -811,7 +811,7 @@
   inset-inline: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -826,7 +826,7 @@
 .zp-workspace-status-row {
   display: flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 22px;
   min-width: 0;
 }
 
@@ -842,25 +842,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 5px;
   max-width: min(100%, 460px);
   min-width: 0;
-  min-height: 28px;
-  padding: 3px 7px;
+  min-height: 22px;
+  padding: 2px 6px;
   color: var(--zp-muted-strong);
-  font-size: 12px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.2;
   text-align: start;
 }
 
 .zp-workspace-trigger-icon {
   color: color-mix(in srgb, CanvasText 68%, Canvas);
+  width: 14px;
+  height: 14px;
 }
 
 .zp-workspace-trigger-main {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -881,21 +883,23 @@
 
 .zp-workspace-type-badge {
   flex: 0 0 auto;
-  max-width: 82px;
+  max-width: 72px;
   overflow: hidden;
   border: 1px solid var(--zp-subtle-border);
   border-radius: 4px;
-  padding: 1px 5px;
+  padding: 0 5px;
   background: color-mix(in srgb, Canvas 82%, CanvasText 4%);
   color: var(--zp-muted);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: 10.5px;
+  line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .zp-workspace-trigger-chevron {
   color: var(--zp-muted);
+  width: 11px;
+  height: 11px;
 }
 
 .zp-workspace-menu {
@@ -1138,7 +1142,7 @@
 .zp-composer-input {
   display: block;
   width: 100%;
-  min-height: 28px;
+  min-height: 34px;
   resize: none;
   border: 0;
   outline: 0;
@@ -1146,7 +1150,7 @@
   appearance: none;
   background: transparent;
   color: CanvasText;
-  padding: 9px 12px 7px;
+  padding: 12px 12px 9px;
   font: menu;
   font-size: 13px;
   line-height: 1.45;
@@ -1281,7 +1285,7 @@
   padding: 10px;
 }
 
-/* Prompt and skill panels */
+/* Prompt panel */
 
 .zp-floating-panel {
   width: 100%;
@@ -1305,73 +1309,6 @@
   border-bottom: 1px solid var(--zp-subtle-border);
   color: var(--zp-muted-strong);
   font-weight: 600;
-}
-
-.zp-prompt-form {
-  display: grid;
-  gap: 6px;
-  padding: 8px;
-  border-bottom: 1px solid var(--zp-subtle-border);
-}
-
-.zp-skill-filter,
-.zp-prompt-title-input,
-.zp-prompt-body-input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--zp-subtle-border);
-  border-radius: 6px;
-  background: var(--zp-composer-bg);
-  color: CanvasText;
-  font: menu;
-  font-size: 12px;
-  padding: 6px 7px;
-}
-
-.zp-skill-filter {
-  border-width: 0 0 1px;
-  border-radius: 0;
-  padding: 8px 9px;
-}
-
-.zp-prompt-body-input {
-  resize: vertical;
-  min-height: 54px;
-}
-
-.zp-prompt-form-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.zp-prompt-variable-preview {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--zp-muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zp-prompt-save {
-  appearance: none;
-  -moz-appearance: none;
-  border: 1px solid var(--zp-subtle-border);
-  border-radius: 5px;
-  background: var(--zp-panel);
-  color: CanvasText;
-  cursor: default;
-  font: menu;
-  font-size: 12px;
-  margin: 0;
-  padding: 4px 8px;
-}
-
-.zp-prompt-save:disabled {
-  opacity: 0.48;
 }
 
 .zp-panel-list {
@@ -1448,33 +1385,13 @@
 }
 
 .zp-panel-row-description,
-.zp-panel-row-meta,
-.zp-skill-status {
+.zp-panel-row-meta {
   color: var(--zp-muted);
   font-size: 11px;
 }
 
-.zp-panel-row-meta,
-.zp-skill-status {
+.zp-panel-row-meta {
   flex: 0 0 auto;
-}
-
-.zp-skill-status[data-active] {
-  color: var(--zp-accent);
-}
-
-.zp-skill-toggle {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px;
-  color: var(--zp-muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.zp-skill-toggle input {
-  margin: 0;
 }
 
 .zp-mention-limit {
@@ -1528,11 +1445,11 @@
 
 .zp-composer-footer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
-  min-height: 34px;
-  padding: 0 8px 8px;
+  min-height: 30px;
+  padding: 0 8px 4px;
 }
 
 .zp-composer-meta {
@@ -1681,6 +1598,7 @@
   color: var(--zp-accent-text);
   font-size: 18px;
   line-height: 1;
+  margin-block-end: 2px;
 }
 
 .zp-send-button:hover {

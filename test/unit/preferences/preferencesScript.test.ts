@@ -4,6 +4,7 @@ import { initPreferencesPane } from "../../../src/modules/preferences/preference
 describe("preferences pane script", function () {
   afterEach(function () {
     delete (globalThis as unknown as { IOUtils?: unknown }).IOUtils;
+    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
   });
 
   it("waits for the preference pane markup before initializing", function () {
@@ -139,11 +140,60 @@ describe("preferences pane script", function () {
     assert.equal(statusElement.dataset.status, "missing");
     assert.isEmpty(calls);
   });
+
+  it("creates, edits, and deletes custom prompts in preferences", function () {
+    const timers: Array<() => void> = [];
+    const statusElement = createElement("span");
+    const document = createPromptDocument(statusElement);
+    const promptPrefs = installPromptPrefMock();
+
+    initPreferencesPane({
+      document,
+      schedule: createQueuedScheduler(timers),
+      getSubprocess() {
+        throw new Error("Subprocess unavailable in this test");
+      },
+    });
+    timers.shift()?.();
+
+    document.elements.title.value = " Evidence table ";
+    document.elements.body.value = "Make a table for {{paper}}.";
+    document.elements.form.dispatch("submit");
+
+    let prompts = promptPrefs.read();
+    assert.lengthOf(prompts, 1);
+    assert.equal(prompts[0].title, "Evidence table");
+    assert.deepEqual(prompts[0].variables, ["paper"]);
+
+    document.elements.title.value = "Method audit";
+    document.elements.body.value = "Check {{method}}.";
+    document.elements.form.dispatch("submit");
+
+    prompts = promptPrefs.read();
+    assert.lengthOf(prompts, 1);
+    assert.equal(prompts[0].title, "Method audit");
+    assert.deepEqual(prompts[0].variables, ["method"]);
+
+    document.elements.deleteButton.dispatch("click");
+    assert.deepEqual(promptPrefs.read(), []);
+  });
 });
 
 type StatusElement = {
+  addEventListener?: (
+    type: string,
+    listener: (event: { preventDefault(): void }) => void,
+  ) => void;
+  append?: (...nodes: StatusElement[]) => void;
+  className?: string;
   dataset: Record<string, string>;
+  disabled?: boolean;
+  dispatch?: (type: string) => void;
+  replaceChildren?: (...nodes: StatusElement[]) => void;
+  setAttribute?: (name: string, value: string) => void;
+  title?: string;
   textContent: string | null;
+  value?: string;
 };
 
 type SubprocessCall = {
@@ -161,6 +211,7 @@ function createQueuedScheduler(timers: Array<() => void>) {
 
 function createDocument(statusElement: StatusElement, l10nIds: string[] = []) {
   return {
+    createElement,
     getElementById(id: string) {
       return id === "zopilot-codex-status-value" ? statusElement : null;
     },
@@ -169,6 +220,98 @@ function createDocument(statusElement: StatusElement, l10nIds: string[] = []) {
         l10nIds.push(id);
       },
       translateElements: async () => undefined,
+    },
+  };
+}
+
+function createPromptDocument(statusElement: StatusElement) {
+  const elements = {
+    body: createElement("textarea"),
+    deleteButton: createElement("button"),
+    error: createElement("div"),
+    form: createElement("form"),
+    list: createElement("div"),
+    newButton: createElement("button"),
+    status: statusElement,
+    title: createElement("input"),
+  };
+  return {
+    elements,
+    createElement,
+    getElementById(id: string) {
+      return (
+        {
+          "zopilot-codex-status-value": elements.status,
+          "zopilot-prompt-body": elements.body,
+          "zopilot-prompt-delete": elements.deleteButton,
+          "zopilot-prompt-error": elements.error,
+          "zopilot-prompt-form": elements.form,
+          "zopilot-prompt-list": elements.list,
+          "zopilot-prompt-new": elements.newButton,
+          "zopilot-prompt-title": elements.title,
+        } satisfies Record<string, StatusElement>
+      )[id];
+    },
+    l10n: {
+      setAttributes: () => undefined,
+      translateElements: async () => undefined,
+    },
+  };
+}
+
+function createElement(_tagName: string): StatusElement {
+  const listeners = new Map<
+    string,
+    Array<(event: { preventDefault(): void }) => void>
+  >();
+  const element: StatusElement = {
+    dataset: {},
+    textContent: "",
+    value: "",
+    addEventListener(type, listener) {
+      listeners.set(type, [...(listeners.get(type) || []), listener]);
+    },
+    append: () => undefined,
+    dispatch(type) {
+      for (const listener of listeners.get(type) || []) {
+        listener({ preventDefault: () => undefined });
+      }
+    },
+    replaceChildren: () => undefined,
+    setAttribute: () => undefined,
+  };
+  return element;
+}
+
+function installPromptPrefMock() {
+  let customPrompts = "[]";
+  (
+    globalThis as typeof globalThis & {
+      Zotero: {
+        Prefs: {
+          get: (key: string) => unknown;
+          set: (key: string, value: unknown) => void;
+        };
+      };
+    }
+  ).Zotero = {
+    Prefs: {
+      get(key) {
+        return key.endsWith("prompts.custom") ? customPrompts : undefined;
+      },
+      set(key, value) {
+        if (key.endsWith("prompts.custom")) {
+          customPrompts = String(value);
+        }
+      },
+    },
+  };
+  return {
+    read() {
+      return JSON.parse(customPrompts) as Array<{
+        title: string;
+        variables: string[];
+      }>;
     },
   };
 }
