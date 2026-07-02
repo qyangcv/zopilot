@@ -44,6 +44,10 @@ type CodexConnectionState =
   | { status: "checking" }
   | { status: "connected" }
   | { status: "missing"; messageKey: CodexDiagnosticMessageKey };
+type PromptMessage = {
+  kind: "error" | "success";
+  text: string;
+};
 
 function PreferencesApp({
   getSubprocess,
@@ -62,10 +66,7 @@ function PreferencesApp({
   );
   const [promptTitle, setPromptTitle] = useState("");
   const [promptBody, setPromptBody] = useState("");
-  const [promptMessage, setPromptMessage] = useState<{
-    kind: "error" | "success";
-    text: string;
-  }>();
+  const [promptMessage, setPromptMessage] = useState<PromptMessage>();
 
   useEffect(() => {
     translate();
@@ -126,11 +127,11 @@ function PreferencesApp({
           })
         : createCustomPrompt({ title: promptTitle, body: promptBody });
       refreshPrompts(saved.id);
-      setPromptMessage({ kind: "success", text: "Saved." });
+      setPromptMessage({ kind: "success", text: "已保存。" });
     } catch (error) {
       setPromptMessage({
         kind: "error",
-        text: error instanceof Error ? error.message : "Save failed.",
+        text: getPromptErrorMessage(error),
       });
     }
   };
@@ -140,12 +141,12 @@ function PreferencesApp({
     }
     deleteCustomPrompt(selectedPromptId);
     refreshPrompts();
-    setPromptMessage({ kind: "success", text: "Deleted." });
+    setPromptMessage({ kind: "success", text: "已删除。" });
   };
 
   return (
     <main className="zp-pref-shell">
-      <aside className="zp-pref-sidebar" aria-label="Zopilot preference groups">
+      <aside className="zp-pref-sidebar" aria-label="Zopilot 偏好设置分组">
         <div className="zp-pref-brand">
           <MessageSquareText size={18} />
           <span>Zopilot</span>
@@ -155,14 +156,14 @@ function PreferencesApp({
             active={activeSection === "connection"}
             count={connection.status === "connected" ? undefined : 1}
             icon={<PlugZap size={16} />}
-            label={<T id="pref-nav-connection">Connection</T>}
+            label={<T id="pref-nav-connection">连接</T>}
             onClick={() => setActiveSection("connection")}
           />
           <NavButton
             active={activeSection === "prompts"}
             count={prompts.length || undefined}
             icon={<FileText size={16} />}
-            label={<T id="pref-nav-prompts">Prompts</T>}
+            label={<T id="pref-nav-prompts">Prompt</T>}
             onClick={() => setActiveSection("prompts")}
           />
         </nav>
@@ -213,10 +214,10 @@ function ConnectionPanel({
       <PageHeader
         description={
           <T id="pref-connection-description">
-            Check whether Zopilot can reach the local Codex app-server.
+            检查 Zopilot 是否能连接本地 Codex app-server。
           </T>
         }
-        title={<T id="pref-connection-title">Connection</T>}
+        title={<T id="pref-connection-title">连接</T>}
       />
       <div className="zp-pref-card">
         <div className="zp-pref-card-header">
@@ -225,9 +226,7 @@ function ConnectionPanel({
               <T id="pref-codex-card-title">Codex CLI</T>
             </h3>
             <p>
-              <T id="pref-codex-card-description">
-                Used as the current local agent runtime.
-              </T>
+              <T id="pref-codex-card-description">当前作为本地智能体运行时。</T>
             </p>
           </div>
           <button
@@ -237,7 +236,7 @@ function ConnectionPanel({
             type="button"
           >
             <RotateCcw size={14} />
-            <T id="pref-codex-check">Check again</T>
+            <T id="pref-codex-check">重新检查</T>
           </button>
         </div>
         <div className={statusClass}>
@@ -248,7 +247,7 @@ function ConnectionPanel({
           ) : (
             <CircleAlert size={16} />
           )}
-          <T id={statusLabel}>Status</T>
+          <T id={statusLabel}>状态</T>
         </div>
       </div>
     </section>
@@ -270,7 +269,7 @@ function PromptPanel({
   variables,
 }: {
   body: string;
-  message?: { kind: "error" | "success"; text: string };
+  message?: PromptMessage;
   onBodyChange: (body: string) => void;
   onDelete: () => void;
   onNew: () => void;
@@ -292,16 +291,15 @@ function PromptPanel({
             type="button"
           >
             <Plus size={14} />
-            <T id="pref-prompt-new">New prompt</T>
+            <T id="pref-prompt-new">新建 Prompt</T>
           </button>
         }
         description={
           <T id="pref-prompts-description">
-            Create reusable template questions that can be inserted from the
-            Zopilot side panel.
+            创建可从 Zopilot 侧边栏快速插入的模板问题。
           </T>
         }
-        title={<T id="pref-prompts-title">Prompts</T>}
+        title={<T id="pref-prompts-title">Prompt</T>}
       />
       <div className="zp-pref-prompt-grid">
         <div className="zp-pref-list-card">
@@ -328,7 +326,7 @@ function PromptPanel({
             ))
           ) : (
             <div className="zp-pref-empty">
-              <T id="pref-prompt-empty">No custom prompts yet</T>
+              <T id="pref-prompt-empty">暂无自定义 Prompt</T>
             </div>
           )}
         </div>
@@ -341,7 +339,7 @@ function PromptPanel({
         >
           <label className="zp-pref-field">
             <span>
-              <T id="pref-prompt-title-label">Prompt title</T>
+              <T id="pref-prompt-title-label">Prompt 标题</T>
             </span>
             <input
               className="zp-pref-input"
@@ -351,7 +349,7 @@ function PromptPanel({
           </label>
           <label className="zp-pref-field">
             <span>
-              <T id="pref-prompt-body-label">Template question</T>
+              <T id="pref-prompt-body-label">模板问题</T>
             </span>
             <textarea
               className="zp-pref-textarea"
@@ -365,7 +363,7 @@ function PromptPanel({
                 {variables.map((variable) => `{{${variable}}}`).join(" ")}
               </span>
             ) : (
-              <T id="pref-prompt-no-variables">No variables</T>
+              <T id="pref-prompt-no-variables">无变量</T>
             )}
           </div>
           {message ? (
@@ -383,7 +381,7 @@ function PromptPanel({
               type="submit"
             >
               <Save size={14} />
-              <T id="pref-prompt-save">Save prompt</T>
+              <T id="pref-prompt-save">保存 Prompt</T>
             </button>
             <button
               className="zp-pref-button zp-pref-button-danger"
@@ -392,7 +390,7 @@ function PromptPanel({
               type="button"
             >
               <Trash2 size={14} />
-              <T id="pref-prompt-delete">Delete prompt</T>
+              <T id="pref-prompt-delete">删除 Prompt</T>
             </button>
           </div>
         </form>
@@ -456,6 +454,28 @@ function T({
   id: string;
 }): ReactElement {
   return <span data-l10n-id={id}>{children}</span>;
+}
+
+function getPromptErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "保存失败。";
+  }
+  if (error.message === "Prompt title is required.") {
+    return "Prompt 标题不能为空。";
+  }
+  if (error.message === "Prompt body is required.") {
+    return "模板问题不能为空。";
+  }
+  if (error.message === "Prompt not found.") {
+    return "未找到该 Prompt。";
+  }
+  const invalidVariable = error.message.match(
+    /^Invalid prompt variable: (.+)$/,
+  );
+  if (invalidVariable?.[1]) {
+    return `无效的 Prompt 变量：${invalidVariable[1]}`;
+  }
+  return "保存失败。";
 }
 
 async function detectCodexConnection(

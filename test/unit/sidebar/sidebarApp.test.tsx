@@ -429,6 +429,7 @@ describe("SidebarApp", function () {
     assert.notInclude(html, 'data-icon-name="model"');
     assert.notInclude(html, 'data-icon-name="reason"');
     assert.notInclude(html, 'data-icon-name="select"');
+    assert.notInclude(html, "zp-ui-select-icon");
   });
 
   it("shows a non-blocking Codex CLI status while checking", function () {

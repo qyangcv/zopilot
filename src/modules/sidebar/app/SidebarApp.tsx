@@ -632,6 +632,7 @@ export function SidebarApp({
                       label: model.displayName,
                       value: model.slug,
                     }))}
+                    showIndicator={false}
                     title={getString("sidebar-model-name")}
                     value={state.selectedModel}
                   />
@@ -645,6 +646,7 @@ export function SidebarApp({
                           value: effort,
                         }),
                       )}
+                      showIndicator={false}
                       title={getString("sidebar-reasoning-depth")}
                       value={state.selectedReasoningEffort || ""}
                     />
@@ -785,15 +787,24 @@ function PromptPicker({
       />
       <div className="zp-panel-list">
         {prompts.map((prompt) => (
-          <div className="zp-panel-row" key={prompt.id} title={prompt.body}>
-            <button
-              className="zp-panel-row-main zp-prompt-insert-row"
-              onClick={() => onInsert(prompt.body)}
-              type="button"
-            >
+          <div
+            className="zp-panel-row zp-prompt-insert-row"
+            key={prompt.id}
+            onClick={() => onInsert(prompt.body)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onInsert(prompt.body);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            title={prompt.body}
+          >
+            <div className="zp-panel-row-main">
               <span className="zp-panel-row-title">{prompt.title}</span>
               <span className="zp-panel-row-description">{prompt.body}</span>
-            </button>
+            </div>
             <span className="zp-panel-row-meta">
               {getString("sidebar-prompt-insert")}
             </span>

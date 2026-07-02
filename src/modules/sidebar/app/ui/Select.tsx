@@ -14,6 +14,7 @@ function Select({
   disabled,
   onChange,
   options,
+  showIndicator = true,
   title,
   value,
 }: {
@@ -21,6 +22,7 @@ function Select({
   disabled?: boolean;
   onChange: (value: string) => void;
   options: SelectOption[];
+  showIndicator?: boolean;
   title: string;
   value: string;
 }): ReactElement {
@@ -35,6 +37,7 @@ function Select({
         aria-expanded={open}
         aria-haspopup="listbox"
         className="zp-composer-select"
+        data-indicator-hidden={!showIndicator || undefined}
         data-popup-open={open || undefined}
         disabled={disabled}
         onClick={(event) => {
@@ -53,7 +56,9 @@ function Select({
         <span className="zp-ui-select-label">
           {selected?.label || value || title}
         </span>
-        <Icon className="zp-ui-select-icon" name="expand" size={11} />
+        {showIndicator ? (
+          <Icon className="zp-ui-select-icon" name="expand" size={11} />
+        ) : null}
       </button>
       {open ? (
         <FloatingPortal

@@ -273,9 +273,12 @@
 /* Header popovers */
 
 .zp-session-popover {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-height: inherit;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--zp-border);
   border-radius: 8px;
   background-color: var(--zp-popover);
@@ -299,14 +302,37 @@
 }
 
 .zp-session-list {
+  box-sizing: border-box;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 2px;
+  max-height: 248px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 5px;
+  scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.zp-session-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zp-session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zp-session-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, CanvasText 28%, transparent);
 }
 
 .zp-session-row {
   display: flex;
+  flex: 0 0 auto;
   align-items: stretch;
   gap: 2px;
   min-height: 46px;
@@ -1363,6 +1389,11 @@
   background: var(--zp-panel-strong);
 }
 
+.zp-panel-row:focus-visible {
+  outline: 2px solid var(--zp-focus-ring);
+  outline-offset: -2px;
+}
+
 .zp-panel-row:disabled {
   opacity: 0.5;
 }
@@ -1372,19 +1403,19 @@
   flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .zp-prompt-insert-row {
   appearance: none;
   -moz-appearance: none;
+  align-items: center;
   border: 0;
   background: transparent;
   color: inherit;
   cursor: default;
   font: inherit;
   margin: 0;
-  padding: 0;
   text-align: start;
 }
 
@@ -1403,12 +1434,14 @@
 
 .zp-panel-row-title {
   font-weight: 600;
+  line-height: 1.45;
 }
 
 .zp-panel-row-description,
 .zp-panel-row-meta {
   color: var(--zp-muted);
   font-size: 11px;
+  line-height: 1.45;
 }
 
 .zp-panel-row-meta {
@@ -1519,6 +1552,7 @@
   height: 22px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   min-width: 0;
   max-width: min(180px, 100%);
@@ -1535,7 +1569,7 @@
   margin: 0;
   outline: 0;
   padding: 1px 4px;
-  text-align: start;
+  text-align: center;
 }
 
 .zp-composer-select:hover {
@@ -1555,6 +1589,7 @@
   display: block;
   min-width: 0;
   overflow: hidden;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

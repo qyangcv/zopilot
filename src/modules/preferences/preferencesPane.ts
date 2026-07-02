@@ -100,7 +100,7 @@ function renderMountError(root: HTMLElement, error: unknown): void {
   message.style.borderRadius = "8px";
   message.style.margin = "24px";
   message.style.padding = "16px";
-  message.textContent = `Zopilot preferences failed to load: ${
+  message.textContent = `Zopilot 偏好设置加载失败：${
     error instanceof Error ? error.message : String(error)
   }`;
   root.append(message);
@@ -121,7 +121,7 @@ function translatePreferenceElements(
 
 function getGlobalDependencies(): PreferencePaneDependencies {
   if (!document) {
-    throw new Error("Preference pane document is unavailable.");
+    throw new Error("偏好设置面板文档对象不可用。");
   }
   return {
     document,
