@@ -11,10 +11,10 @@
   --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
   --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
   --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
-  --zp-composer-bg: color-mix(in srgb, Field 92%, transparent);
+  --zp-composer-bg: color-mix(in srgb, Field 84%, CanvasText 8%);
   --zp-chip-bg: color-mix(in srgb, Canvas 82%, CanvasText 7%);
   --zp-chip-border: color-mix(in srgb, CanvasText 9%, transparent);
-  --zp-bubble: color-mix(in srgb, Field 82%, CanvasText 5%);
+  --zp-bubble: color-mix(in srgb, Field 76%, CanvasText 8%);
   --zp-bubble-border: color-mix(in srgb, CanvasText 6%, transparent);
   --zp-border: color-mix(in srgb, CanvasText 7%, transparent);
   --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
@@ -97,16 +97,6 @@
   user-select: text;
 }
 
-@supports (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .zp-sidebar {
-    background: color-mix(in srgb, Field 62%, transparent);
-    backdrop-filter: blur(10px) saturate(1.05);
-    -webkit-backdrop-filter: blur(10px) saturate(1.05);
-  }
-}
-
 .zp-react-root {
   display: flex;
   position: absolute;
@@ -167,7 +157,6 @@
   padding: 6px 8px;
   border-bottom: 1px solid var(--zp-border);
   background: var(--zp-header-bg);
-  box-shadow: 0 1px 0 color-mix(in srgb, Canvas 58%, transparent);
 }
 
 .zp-sidebar-identity {
@@ -770,19 +759,6 @@
   background: var(--zp-bubble);
   padding: 7px 9px;
   color: CanvasText;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, Canvas 62%, transparent),
-    0 3px 10px color-mix(in srgb, CanvasText 4%, transparent);
-}
-
-@supports (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .zp-message-bubble {
-    background: color-mix(in srgb, Field 64%, transparent);
-    backdrop-filter: blur(12px) saturate(1.12);
-    -webkit-backdrop-filter: blur(12px) saturate(1.12);
-  }
 }
 
 .zp-message-user-content {
@@ -881,19 +857,6 @@
   border: 1px solid var(--zp-border);
   border-radius: 8px;
   background: var(--zp-composer-bg);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, Canvas 76%, transparent),
-    0 8px 22px color-mix(in srgb, CanvasText 7%, transparent);
-}
-
-@supports (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .zp-composer {
-    background: color-mix(in srgb, Field 78%, transparent);
-    backdrop-filter: blur(18px) saturate(1.2);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  }
 }
 
 .zp-workspace-status-row {
@@ -1177,18 +1140,6 @@
   font-size: 12px;
   line-height: 1;
   padding: 0 8px 0 3px;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, Canvas 46%, transparent);
-}
-
-@supports (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .zp-context-row .zp-context-chip,
-  .zp-context-row .zp-local-attachment {
-    background: color-mix(in srgb, Canvas 58%, transparent);
-    backdrop-filter: blur(12px) saturate(1.12);
-    -webkit-backdrop-filter: blur(12px) saturate(1.12);
-  }
 }
 
 .zp-context-chip-icon,

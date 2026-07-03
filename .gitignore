@@ -13,6 +13,7 @@ tsconfig.tsbuildinfo
 .env
 .scaffold
 build
+dist
 logs
 
 notes/*
@@ -21,6 +22,7 @@ notes/*
 !notes/sidebar-ui.md
 !notes/v0.3.0.md
 !notes/v0.3.0-light.md
+!notes/pdf-helper-distribution.md
 !notes/solution-for-doc.md
 !notes/light-solution-for-doc.md
 doc/

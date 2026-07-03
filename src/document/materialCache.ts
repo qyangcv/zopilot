@@ -7,63 +7,13 @@ import type {
   MaterialPage,
   SourceIdentity,
 } from "./types";
+import { ensurePdfHelperExecutable } from "./pdfHelper";
 import { createLogger } from "../utils/logger";
 
 export { MaterialCache, MATERIAL_SCHEMA_VERSION, MATERIAL_PARSER_VERSION };
 
 const MATERIAL_SCHEMA_VERSION = 1;
-const MATERIAL_PARSER_VERSION = "pymupdf4llm-light-3";
-const PARSER_SCRIPT = String.raw`
-import json
-import os
-import sys
-
-pdf_path, out_dir = sys.argv[1], sys.argv[2]
-assets_dir = os.path.join(out_dir, "assets")
-os.makedirs(assets_dir, exist_ok=True)
-
-warnings = []
-markdown = ""
-
-try:
-    import pymupdf4llm
-    markdown = pymupdf4llm.to_markdown(pdf_path, page_chunks=False)
-except Exception as exc:
-    warnings.append("Markdown extraction failed; page text extraction was used.")
-
-try:
-    import fitz
-except Exception as exc:
-    raise SystemExit("PyMuPDF import failed: " + repr(exc))
-
-doc = fitz.open(pdf_path)
-pages = []
-texts = []
-for index, page in enumerate(doc, start=1):
-    text = page.get_text("text") or ""
-    texts.append(text)
-    image_path = os.path.join(assets_dir, "page-%04d.png" % index)
-    try:
-        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
-        pix.save(image_path)
-    except Exception as exc:
-        image_path = None
-        warnings.append("Page render failed for page %d: %r" % (index, exc))
-    pages.append({"page": index, "text": text, "imagePath": image_path})
-
-if not markdown.strip():
-    markdown = "\n\n".join("# Page %d\n\n%s" % (page["page"], page["text"]) for page in pages)
-
-with open(os.path.join(out_dir, "paper.md"), "w", encoding="utf-8") as fh:
-    fh.write(markdown)
-with open(os.path.join(out_dir, "paper.txt"), "w", encoding="utf-8") as fh:
-    fh.write("\n\n".join(texts))
-with open(os.path.join(out_dir, "pages.jsonl"), "w", encoding="utf-8") as fh:
-    for page in pages:
-        fh.write(json.dumps(page, ensure_ascii=False) + "\n")
-with open(os.path.join(out_dir, "parser-output.json"), "w", encoding="utf-8") as fh:
-    json.dump({"pageCount": len(doc), "warnings": warnings}, fh, ensure_ascii=False, indent=2)
-`;
+const MATERIAL_PARSER_VERSION = "zopilot-pdf-helper-0.1.0";
 
 const logger = createLogger("document.materialCache");
 
@@ -77,6 +27,8 @@ type SubprocessModule = {
   call(options: {
     command: string;
     arguments?: string[];
+    environment?: Record<string, string>;
+    environmentAppend?: boolean;
     stdout?: "ignore" | "pipe";
     stderr?: "ignore" | "stdout" | "pipe";
   }): Promise<SubprocessProcess>;
@@ -120,7 +72,7 @@ class MaterialCache {
     } catch (error) {
       const manifest: MaterialManifest = {
         schemaVersion: MATERIAL_SCHEMA_VERSION,
-        parser: "PyMuPDF4LLM/PyMuPDF",
+        parser: "Zopilot PDF Helper/PyMuPDF",
         parserVersion: MATERIAL_PARSER_VERSION,
         source,
         builtAt: new Date().toISOString(),
@@ -145,7 +97,7 @@ class MaterialCache {
 
     const manifest: MaterialManifest = {
       schemaVersion: MATERIAL_SCHEMA_VERSION,
-      parser: "PyMuPDF4LLM/PyMuPDF",
+      parser: "Zopilot PDF Helper/PyMuPDF",
       parserVersion: MATERIAL_PARSER_VERSION,
       source,
       builtAt: new Date().toISOString(),
@@ -170,10 +122,14 @@ class MaterialCache {
     dir: string,
   ): Promise<{ pageCount: number; warnings: string[] }> {
     const subprocess = this.getSubprocess();
-    const python = await resolvePythonCommand();
+    const executable = await ensurePdfHelperExecutable(subprocess);
     const proc = await subprocess.call({
-      command: python,
-      arguments: ["-c", PARSER_SCRIPT, filePath, dir],
+      command: executable,
+      arguments: [filePath, dir],
+      environment: {
+        PYTHONNOUSERSITE: "1",
+      },
+      environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -184,7 +140,7 @@ class MaterialCache {
     ]);
     if (wait.exitCode !== 0) {
       throw new Error(
-        `PDF material parser failed (${wait.exitCode}): ${stderr || stdout}`,
+        `PDF material helper failed (${wait.exitCode}): ${stderr || stdout}`,
       );
     }
     const output = (await IOUtils.readJSON(
@@ -300,23 +256,6 @@ function getDefaultMaterialRootDir(): string {
     "materials",
     "sources",
   );
-}
-
-async function resolvePythonCommand(): Promise<string> {
-  for (const command of [
-    "/opt/homebrew/bin/python3",
-    "/usr/local/bin/python3",
-    "/usr/bin/python3",
-  ]) {
-    try {
-      if (await IOUtils.exists(command)) {
-        return command;
-      }
-    } catch {
-      // Keep probing known Python locations.
-    }
-  }
-  return "python3";
 }
 
 function encodePathSegment(value: string): string {

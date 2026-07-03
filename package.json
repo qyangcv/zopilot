@@ -23,6 +23,7 @@
   "scripts": {
     "start": "zotero-plugin serve",
     "build": "zotero-plugin build && tsc --noEmit",
+    "build:pdf-helper:macos-arm64": "bash scripts/build-pdf-helper-macos-arm64.sh",
     "lint:check": "prettier --check . && eslint .",
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",

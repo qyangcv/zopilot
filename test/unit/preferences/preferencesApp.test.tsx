@@ -23,9 +23,11 @@ describe("PreferencesApp", function () {
 
     assert.include(html, "zp-pref-shell");
     assert.include(html, 'data-l10n-id="pref-nav-connection"');
+    assert.include(html, 'data-l10n-id="pref-nav-dependencies"');
     assert.include(html, 'data-l10n-id="pref-nav-prompts"');
     assert.include(html, 'data-l10n-id="pref-codex-card-title"');
     assert.include(html, 'data-l10n-id="pref-codex-check"');
+    assert.notInclude(html, "zp-pref-brand");
   });
 });
 
