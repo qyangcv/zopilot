@@ -28,16 +28,18 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
         : getString("sidebar-command-source-add-disabled"),
     },
     {
-      id: "reader.navigate",
-      title: getString("sidebar-command-reader-navigate-title"),
-      description: getString("sidebar-command-reader-navigate-description"),
-      keywords: ["reader", "page", "evidence", "定位", "跳转"],
+      id: "reader.evidencePrompt",
+      title: getString("sidebar-command-reader-evidence-prompt-title"),
+      description: getString(
+        "sidebar-command-reader-evidence-prompt-description",
+      ),
+      keywords: ["reader", "page", "evidence", "prompt", "证据", "页码"],
       category: "reader",
       icon: "reader",
-      available: hasWorkspace,
-      disabledReason: hasWorkspace
+      available: canUseComposer,
+      disabledReason: canUseComposer
         ? undefined
-        : getString("sidebar-command-reader-navigate-disabled"),
+        : getString("sidebar-command-reader-evidence-prompt-disabled"),
     },
     {
       id: "attachment.upload",
@@ -81,7 +83,7 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
       id: `prompt.${prompt.id}`,
       title: prompt.title,
       description: prompt.body,
-      keywords: ["prompt", prompt.title, ...prompt.variables, "提示词"],
+      keywords: ["prompt", prompt.title, "提示词"],
       category: "prompt" as const,
       icon: "prompt",
       available: canUseComposer,

@@ -81,7 +81,6 @@ export type SidebarPromptView = {
   id: string;
   title: string;
   body: string;
-  variables: string[];
   scope: "workspace" | "global";
   updatedAt: string;
   custom?: boolean;

@@ -46,7 +46,7 @@ import { STYLE_URI } from "./constants";
 import { ReaderToolbarController } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
 import { SidebarSessionCoordinator } from "./sessionCoordinator";
-import { loadPromptViews } from "./promptStore";
+import { loadPromptViews, subscribePromptViews } from "./promptStore";
 import {
   DEFAULT_MODEL,
   createConversationMessages,
@@ -186,6 +186,7 @@ class SidebarController {
     this.ensureMountedSurfaces();
     this.bindContextRefresh();
     this.bindLayoutRefresh();
+    this.bindPromptRefresh();
     this.bindSelectionCopy();
     this.bindSessionPopoverDismiss();
     this.refreshContext();
@@ -1183,6 +1184,16 @@ class SidebarController {
         tabContainer.removeEventListener("TabSelect", reloadConversationSoon);
       });
     }
+  }
+
+  private bindPromptRefresh(): void {
+    this.listeners.push(
+      subscribePromptViews((prompts) => {
+        if (!this.destroyed) {
+          this.updateViewState({ prompts });
+        }
+      }),
+    );
   }
 
   private async syncWithSelectedPDFReader(): Promise<void> {

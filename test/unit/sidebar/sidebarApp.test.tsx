@@ -547,7 +547,6 @@ const TEST_PROMPTS: SidebarPromptView[] = [
     id: "custom-critique",
     title: "Critique paper",
     body: "Critique {{paper}}.",
-    variables: ["paper"],
     scope: "global",
     updatedAt: "2026-06-13T07:00:00.000Z",
     custom: true,

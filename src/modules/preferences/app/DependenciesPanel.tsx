@@ -1,6 +1,9 @@
 import {
   CircleAlert,
+  Copy,
   Download,
+  ExternalLink,
+  FolderOpen,
   LoaderCircle,
   PackageCheck,
   RotateCcw,
@@ -11,6 +14,7 @@ import type {
   PdfHelperInstallProgress,
   PdfHelperStatus,
 } from "../../../document/pdfHelper";
+import { copyText } from "../../sidebar/app/clipboard";
 import type { DependencyState } from "./types";
 import { PageHeader, T } from "./shared";
 
@@ -47,12 +51,21 @@ function DependenciesPanel({
         }
         title={<T id="pref-dependencies-title">依赖管理</T>}
       />
-      <div className="zp-pref-card">
-        <div className="zp-pref-card-header">
-          <div>
-            <h3>
-              <T id="pref-pdf-helper-card-title">PDF 解析 helper</T>
-            </h3>
+      <div className="zp-pref-card zp-pref-dependency-card">
+        <div className="zp-pref-dependency-header">
+          <div className="zp-pref-dependency-heading">
+            <div className="zp-pref-dependency-title-row">
+              <h3>
+                <T id="pref-pdf-helper-card-title">PDF 解析 helper</T>
+              </h3>
+              <DependencyStatus state={state} />
+              {helper ? (
+                <span className="zp-pref-dependency-meta">
+                  <span>{helperPlatformLabel(helper)}</span>
+                  <span>v{helper.version}</span>
+                </span>
+              ) : null}
+            </div>
             <p>
               <T id="pref-pdf-helper-card-description">
                 用于解析 PDF、提取文本并渲染页面图片。
@@ -97,7 +110,6 @@ function DependenciesPanel({
             </button>
           </div>
         </div>
-        <DependencyStatus state={state} />
         {state.status === "installing" ? (
           <DependencyProgress progress={state.progress} />
         ) : null}
@@ -201,22 +213,20 @@ function DependencyPathList({
 }): ReactElement {
   const rows = [
     {
-      label: <T id="pref-dependencies-platform">平台</T>,
-      value: helper.status === "unsupported" ? "unsupported" : helper.platform,
-    },
-    {
-      label: <T id="pref-dependencies-version">版本</T>,
-      value: helper.version,
-    },
-    {
+      action: "reveal" as const,
+      key: "installDir",
       label: <T id="pref-dependencies-install-dir">安装目录</T>,
       value: helper.installDir,
     },
     {
+      action: "reveal" as const,
+      key: "executablePath",
       label: <T id="pref-dependencies-executable-path">可执行文件</T>,
       value: helper.executablePath,
     },
     {
+      action: "open-url" as const,
+      key: "manifestUrl",
       label: <T id="pref-dependencies-manifest-url">Manifest</T>,
       value: helper.manifestUrl,
     },
@@ -224,9 +234,35 @@ function DependencyPathList({
   return (
     <dl className="zp-pref-path-list">
       {rows.map((row) => (
-        <div className="zp-pref-path-row" key={row.value}>
+        <div className="zp-pref-path-row" key={row.key}>
           <dt>{row.label}</dt>
           <dd>{row.value}</dd>
+          <div className="zp-pref-path-actions">
+            <button
+              className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
+              onClick={() => copyDependencyValue(row.value)}
+              type="button"
+            >
+              <Copy size={13} />
+              <T id="pref-dependencies-copy">复制</T>
+            </button>
+            <button
+              className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
+              onClick={() => openDependencyValue(row.value, row.action)}
+              type="button"
+            >
+              {row.action === "open-url" ? (
+                <ExternalLink size={13} />
+              ) : (
+                <FolderOpen size={13} />
+              )}
+              {row.action === "open-url" ? (
+                <T id="pref-dependencies-open-url">打开链接</T>
+              ) : (
+                <T id="pref-dependencies-reveal">在访达中打开</T>
+              )}
+            </button>
+          </div>
         </div>
       ))}
       {helper.status === "unsupported" ? (
@@ -234,11 +270,30 @@ function DependencyPathList({
           <dt>
             <T id="pref-dependencies-unsupported-reason">原因</T>
           </dt>
-          <dd>{helper.reason}</dd>
+          <dd title={helper.reason}>{helper.reason}</dd>
         </div>
       ) : null}
     </dl>
   );
+}
+
+function helperPlatformLabel(helper: PdfHelperStatus): string {
+  return helper.status === "unsupported" ? "unsupported" : helper.platform;
+}
+
+function copyDependencyValue(value: string): void {
+  void copyText(value).catch(() => undefined);
+}
+
+function openDependencyValue(
+  value: string,
+  action: "open-url" | "reveal",
+): void {
+  if (action === "open-url") {
+    Zotero.launchURL(value);
+    return;
+  }
+  void Zotero.File.reveal(value).catch(() => undefined);
 }
 
 function normalizeInstallPercent(percent?: number): number {

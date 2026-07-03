@@ -5,34 +5,36 @@ import {
   loadCustomPrompts,
   updateCustomPrompt,
 } from "../../sidebar/promptStore";
-import { extractPromptVariables } from "../../sidebar/promptSchema";
-import type { PromptMessage, PromptView } from "./types";
+import type { PromptEditorMode, PromptMessage, PromptView } from "./types";
 
 export { usePromptEditor };
 
 function usePromptEditor(): {
   body: string;
-  createBlankPrompt: () => void;
+  mode: PromptEditorMode;
   message?: PromptMessage;
+  openNewPromptEditor: () => void;
+  openPromptEditor: (promptId: string) => void;
   prompts: PromptView[];
   removePrompt: () => void;
+  returnToPromptList: () => void;
   savePrompt: () => void;
-  selectPrompt: (promptId: string) => void;
   selectedPromptId?: string;
   setBody: (body: string) => void;
   setTitle: (title: string) => void;
   title: string;
-  variables: string[];
 } {
   const [promptState, setPromptState] = useState(() => {
     const prompts = loadCustomPrompts();
     return {
       prompts,
-      selectedPromptId: prompts[0]?.id as string | undefined,
+      selectedPromptId: undefined as string | undefined,
     };
   });
+  const [mode, setMode] = useState<PromptEditorMode>("list");
   const [promptTitle, setPromptTitle] = useState("");
   const [promptBody, setPromptBody] = useState("");
+  const [savedDraft, setSavedDraft] = useState({ title: "", body: "" });
   const [promptMessage, setPromptMessage] = useState<PromptMessage>();
 
   const selectedPrompt = useMemo(
@@ -42,20 +44,24 @@ function usePromptEditor(): {
       ),
     [promptState.prompts, promptState.selectedPromptId],
   );
-  const variables = useMemo(
-    () => extractPromptVariables(promptBody),
-    [promptBody],
-  );
+  const hasUnsavedChanges =
+    mode === "edit" &&
+    (promptTitle !== savedDraft.title || promptBody !== savedDraft.body);
 
   useEffect(() => {
+    if (mode !== "edit") {
+      return;
+    }
     if (!selectedPrompt) {
       setPromptTitle("");
       setPromptBody("");
+      setSavedDraft({ title: "", body: "" });
       return;
     }
     setPromptTitle(selectedPrompt.title);
     setPromptBody(selectedPrompt.body);
-  }, [selectedPrompt]);
+    setSavedDraft({ title: selectedPrompt.title, body: selectedPrompt.body });
+  }, [mode, selectedPrompt]);
 
   const refreshPrompts = useCallback(
     (nextSelectedId?: string) => {
@@ -73,23 +79,48 @@ function usePromptEditor(): {
     [promptState.selectedPromptId],
   );
 
-  const selectPrompt = useCallback((promptId: string) => {
-    setPromptState((current) => ({
-      ...current,
-      selectedPromptId: promptId,
-    }));
-    setPromptMessage(undefined);
-  }, []);
+  const openPromptEditor = useCallback(
+    (promptId: string) => {
+      const prompt = promptState.prompts.find((item) => item.id === promptId);
+      if (!prompt) {
+        setPromptMessage({ kind: "error", text: "未找到该 Prompt。" });
+        return;
+      }
+      setPromptState((current) => ({
+        ...current,
+        selectedPromptId: promptId,
+      }));
+      setPromptTitle(prompt.title);
+      setPromptBody(prompt.body);
+      setSavedDraft({ title: prompt.title, body: prompt.body });
+      setPromptMessage(undefined);
+      setMode("edit");
+    },
+    [promptState.prompts],
+  );
 
-  const createBlankPrompt = useCallback(() => {
+  const openNewPromptEditor = useCallback(() => {
     setPromptState((current) => ({
       ...current,
       selectedPromptId: undefined,
     }));
     setPromptTitle("");
     setPromptBody("");
+    setSavedDraft({ title: "", body: "" });
     setPromptMessage(undefined);
+    setMode("edit");
   }, []);
+
+  const returnToPromptList = useCallback(() => {
+    if (
+      hasUnsavedChanges &&
+      !confirmPromptAction("当前 Prompt 有未保存修改，确定返回列表？")
+    ) {
+      return;
+    }
+    setMode("list");
+    setPromptMessage(undefined);
+  }, [hasUnsavedChanges]);
 
   const savePrompt = useCallback(() => {
     try {
@@ -100,6 +131,7 @@ function usePromptEditor(): {
           })
         : createCustomPrompt({ title: promptTitle, body: promptBody });
       refreshPrompts(saved.id);
+      setSavedDraft({ title: saved.title, body: saved.body });
       setPromptMessage({ kind: "success", text: "已保存。" });
     } catch (error) {
       setPromptMessage({
@@ -113,24 +145,36 @@ function usePromptEditor(): {
     if (!promptState.selectedPromptId) {
       return;
     }
+    if (!confirmPromptAction("确定删除这个 Prompt？")) {
+      return;
+    }
     deleteCustomPrompt(promptState.selectedPromptId);
     refreshPrompts();
+    setPromptState((current) => ({
+      ...current,
+      selectedPromptId: undefined,
+    }));
+    setPromptTitle("");
+    setPromptBody("");
+    setSavedDraft({ title: "", body: "" });
+    setMode("list");
     setPromptMessage({ kind: "success", text: "已删除。" });
   }, [promptState.selectedPromptId, refreshPrompts]);
 
   return {
     body: promptBody,
-    createBlankPrompt,
+    mode,
     message: promptMessage,
+    openNewPromptEditor,
+    openPromptEditor,
     prompts: promptState.prompts,
     removePrompt,
+    returnToPromptList,
     savePrompt,
-    selectPrompt,
     selectedPromptId: promptState.selectedPromptId,
     setBody: setPromptBody,
     setTitle: setPromptTitle,
     title: promptTitle,
-    variables,
   };
 }
 
@@ -147,11 +191,12 @@ function getPromptErrorMessage(error: unknown): string {
   if (error.message === "Prompt not found.") {
     return "未找到该 Prompt。";
   }
-  const invalidVariable = error.message.match(
-    /^Invalid prompt variable: (.+)$/,
-  );
-  if (invalidVariable?.[1]) {
-    return `无效的 Prompt 变量：${invalidVariable[1]}`;
-  }
   return "保存失败。";
+}
+
+function confirmPromptAction(message: string): boolean {
+  const host = globalThis as typeof globalThis & {
+    confirm?: (message?: string) => boolean;
+  };
+  return typeof host.confirm !== "function" || host.confirm(message);
 }

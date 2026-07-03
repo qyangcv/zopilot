@@ -13,6 +13,8 @@ type PreferencesAppProps = {
 
 type PreferenceSection = "connection" | "dependencies" | "prompts";
 
+type PromptEditorMode = "list" | "edit";
+
 type PromptView = SidebarPromptView;
 
 type CodexConnectionState =
@@ -36,6 +38,7 @@ export type {
   CodexConnectionState,
   DependencyState,
   PreferenceSection,
+  PromptEditorMode,
   PreferencesAppProps,
   PromptMessage,
   PromptView,

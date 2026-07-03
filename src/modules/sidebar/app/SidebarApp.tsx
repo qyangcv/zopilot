@@ -260,7 +260,7 @@ export function SidebarApp({
       actions.toggleSessions();
       return;
     }
-    if (command.id === "reader.navigate") {
+    if (command.id === "reader.evidencePrompt") {
       insertPrompt(
         "Find the strongest evidence in this paper and include page or section locators.",
       );

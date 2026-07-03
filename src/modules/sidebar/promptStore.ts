@@ -1,12 +1,14 @@
+import { config } from "../../../package.json";
 import { getPref, setPref } from "../../utils/prefs";
 import type { SidebarPromptView } from "./app/types";
-import { extractPromptVariables, validatePromptInput } from "./promptSchema";
+import { validatePromptInput } from "./promptSchema";
 
 export {
   createCustomPrompt,
   deleteCustomPrompt,
   loadCustomPrompts,
   loadPromptViews,
+  subscribePromptViews,
   updateCustomPrompt,
 };
 
@@ -14,7 +16,6 @@ type StoredPrompt = {
   id: string;
   title: string;
   body: string;
-  variables: string[];
   scope: "global";
   updatedAt: string;
   custom: true;
@@ -25,8 +26,27 @@ type PromptInput = {
   body: string;
 };
 
+type PromptViewListener = (prompts: SidebarPromptView[]) => void;
+
+type PromptSyncBus = {
+  listeners: PromptViewListener[];
+};
+
+const PROMPT_SYNC_BUS_KEY = "__zopilotPromptSyncBus";
+
 function loadPromptViews(): SidebarPromptView[] {
   return loadCustomPrompts();
+}
+
+function subscribePromptViews(listener: PromptViewListener): () => void {
+  const bus = getPromptSyncBus();
+  bus.listeners.push(listener);
+  return () => {
+    const index = bus.listeners.indexOf(listener);
+    if (index >= 0) {
+      bus.listeners.splice(index, 1);
+    }
+  };
 }
 
 function createCustomPrompt(input: PromptInput): SidebarPromptView {
@@ -35,7 +55,6 @@ function createCustomPrompt(input: PromptInput): SidebarPromptView {
     id: `custom-${Date.now().toString(36)}`,
     title: validated.title,
     body: validated.body,
-    variables: extractPromptVariables(validated.body),
     scope: "global",
     updatedAt: new Date().toISOString(),
     custom: true,
@@ -64,7 +83,6 @@ function updateCustomPrompt(
     ...prompts[promptIndex],
     title: validated.title,
     body: validated.body,
-    variables: extractPromptVariables(validated.body),
     updatedAt: new Date().toISOString(),
   };
   saveCustomPrompts([
@@ -94,7 +112,6 @@ function loadCustomPrompts(): StoredPrompt[] {
           id: item.id,
           title: item.title,
           body: item.body,
-          variables: item.variables,
           scope: item.scope,
           updatedAt: item.updatedAt,
           custom: item.custom,
@@ -108,6 +125,7 @@ function loadCustomPrompts(): StoredPrompt[] {
 
 function saveCustomPrompts(prompts: StoredPrompt[]): void {
   setPref("prompts.custom", JSON.stringify(prompts));
+  notifyPromptViewsChanged();
 }
 
 function isStoredPrompt(value: unknown): value is StoredPrompt {
@@ -117,9 +135,37 @@ function isStoredPrompt(value: unknown): value is StoredPrompt {
     item.id.startsWith("custom-") &&
     typeof item.title === "string" &&
     typeof item.body === "string" &&
-    Array.isArray(item.variables) &&
     item.scope === "global" &&
     typeof item.updatedAt === "string" &&
     item.custom === true
   );
+}
+
+function notifyPromptViewsChanged(): void {
+  const prompts = loadPromptViews();
+  for (const listener of [...getPromptSyncBus().listeners]) {
+    try {
+      listener(prompts);
+    } catch {
+      // Keep one stale sidebar listener from blocking prompt sync elsewhere.
+    }
+  }
+}
+
+function getPromptSyncBus(): PromptSyncBus {
+  const host = getPromptSyncHost();
+  const record = host as Record<string, PromptSyncBus | undefined>;
+  record[PROMPT_SYNC_BUS_KEY] ??= { listeners: [] };
+  return record[PROMPT_SYNC_BUS_KEY]!;
+}
+
+function getPromptSyncHost(): object {
+  const root = globalThis as typeof globalThis & {
+    Zotero?: typeof Zotero & Record<string, unknown>;
+    addon?: unknown;
+  };
+  const addonInstance = root.Zotero?.[config.addonInstance] || root.addon;
+  return addonInstance && typeof addonInstance === "object"
+    ? addonInstance
+    : globalThis;
 }

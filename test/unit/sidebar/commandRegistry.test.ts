@@ -35,9 +35,9 @@ describe("sidebar command registry", function () {
       description: "为下一条消息选择 PDF 或图片路径。",
     });
     assert.deepInclude(commands[1], {
-      id: "reader.navigate",
-      title: "跳转到阅读器证据",
-      description: "当回复包含证据定位时，跳转到对应位置。",
+      id: "reader.evidencePrompt",
+      title: "插入证据 Prompt",
+      description: "插入一个要求 Codex 查找证据并返回页码或章节定位的 Prompt。",
     });
   });
 
@@ -87,7 +87,6 @@ const TEST_PROMPTS: SidebarPromptView[] = [
     id: "custom-critique",
     title: "Critique paper",
     body: "Critique {{paper}}.",
-    variables: ["paper"],
     scope: "global",
     updatedAt: "2026-06-13T07:00:00.000Z",
     custom: true,
@@ -129,12 +128,15 @@ function installLocaleMock(): void {
       "为下一条消息选择 PDF 或图片路径。",
     ],
     ["sidebar-command-source-add-disabled", "请先打开论文工作区。"],
-    ["sidebar-command-reader-navigate-title", "跳转到阅读器证据"],
+    ["sidebar-command-reader-evidence-prompt-title", "插入证据 Prompt"],
     [
-      "sidebar-command-reader-navigate-description",
-      "当回复包含证据定位时，跳转到对应位置。",
+      "sidebar-command-reader-evidence-prompt-description",
+      "插入一个要求 Codex 查找证据并返回页码或章节定位的 Prompt。",
     ],
-    ["sidebar-command-reader-navigate-disabled", "请先打开 PDF 阅读器。"],
+    [
+      "sidebar-command-reader-evidence-prompt-disabled",
+      "当前无法插入证据 Prompt。",
+    ],
     ["sidebar-command-attachment-upload-title", "添加附件"],
     [
       "sidebar-command-attachment-upload-description",

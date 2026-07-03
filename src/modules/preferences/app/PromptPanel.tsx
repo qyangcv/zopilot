@@ -1,13 +1,27 @@
-import { Plus, Save, Trash2 } from "lucide-react";
-import type { ReactElement } from "react";
-import type { PromptMessage, PromptView } from "./types";
+import { ArrowLeft, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ReactElement,
+} from "react";
+import type { PromptEditorMode, PromptMessage, PromptView } from "./types";
 import { PageHeader, T } from "./shared";
 
 export { PromptPanel };
 
+const useBrowserLayoutEffect =
+  typeof (globalThis as unknown as { document?: unknown }).document ===
+  "undefined"
+    ? useEffect
+    : useLayoutEffect;
+
 function PromptPanel({
   body,
   message,
+  mode,
+  onBack,
   onBodyChange,
   onDelete,
   onNew,
@@ -17,10 +31,11 @@ function PromptPanel({
   prompts,
   selectedPromptId,
   title,
-  variables,
 }: {
   body: string;
   message?: PromptMessage;
+  mode: PromptEditorMode;
+  onBack: () => void;
   onBodyChange: (body: string) => void;
   onDelete: () => void;
   onNew: () => void;
@@ -30,21 +45,78 @@ function PromptPanel({
   prompts: PromptView[];
   selectedPromptId?: string;
   title: string;
-  variables: string[];
 }): ReactElement {
+  if (mode === "edit") {
+    return (
+      <PromptEditPage
+        body={body}
+        message={message}
+        onBack={onBack}
+        onBodyChange={onBodyChange}
+        onDelete={onDelete}
+        onSave={onSave}
+        onTitleChange={onTitleChange}
+        selectedPromptId={selectedPromptId}
+        title={title}
+      />
+    );
+  }
+
+  return (
+    <PromptListPage
+      message={message}
+      onNew={onNew}
+      onSelect={onSelect}
+      prompts={prompts}
+      selectedPromptId={selectedPromptId}
+    />
+  );
+}
+
+function PromptListPage({
+  message,
+  onNew,
+  onSelect,
+  prompts,
+  selectedPromptId,
+}: {
+  message?: PromptMessage;
+  onNew: () => void;
+  onSelect: (promptId: string) => void;
+  prompts: PromptView[];
+  selectedPromptId?: string;
+}): ReactElement {
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+  const listPanelRef = useRef<HTMLDivElement>(null);
+  const alignNewButtonToList = useCallback(() => {
+    const button = newButtonRef.current;
+    const listPanel = listPanelRef.current;
+    if (!button || !listPanel) {
+      return;
+    }
+    button.style.transform = "";
+    const offset = Math.round(
+      listPanel.getBoundingClientRect().right -
+        button.getBoundingClientRect().right,
+    );
+    button.style.transform = offset ? `translateX(${offset}px)` : "";
+  }, []);
+
+  useBrowserLayoutEffect(() => {
+    const resizeTarget = globalThis as unknown as {
+      addEventListener?: (type: "resize", listener: () => void) => void;
+      removeEventListener?: (type: "resize", listener: () => void) => void;
+    };
+    alignNewButtonToList();
+    resizeTarget.addEventListener?.("resize", alignNewButtonToList);
+    return () => {
+      resizeTarget.removeEventListener?.("resize", alignNewButtonToList);
+    };
+  }, [alignNewButtonToList, prompts.length]);
+
   return (
     <section className="zp-pref-page">
       <PageHeader
-        action={
-          <button
-            className="zp-pref-button zp-pref-button-primary"
-            onClick={onNew}
-            type="button"
-          >
-            <Plus size={14} />
-            <T id="pref-prompt-new">新建 Prompt</T>
-          </button>
-        }
         description={
           <T id="pref-prompts-description">
             创建可从 Zopilot 侧边栏快速插入的模板问题。
@@ -52,45 +124,131 @@ function PromptPanel({
         }
         title={<T id="pref-prompts-title">Prompt</T>}
       />
-      <div className="zp-pref-prompt-grid">
-        <div className="zp-pref-list-card">
-          {prompts.length ? (
-            prompts.map((prompt) => (
-              <div
-                className="zp-pref-prompt-row"
-                data-selected={prompt.id === selectedPromptId || undefined}
-                key={prompt.id}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelect(prompt.id);
-                  }
-                }}
-                onClick={() => onSelect(prompt.id)}
-                role="button"
-                tabIndex={0}
-                title={prompt.body}
-              >
+      <div className="zp-pref-prompt-list-actions">
+        <button
+          className="zp-pref-button zp-pref-button-primary"
+          onClick={onNew}
+          ref={newButtonRef}
+          type="button"
+        >
+          <Plus size={14} />
+          <T id="pref-prompt-new">新建 Prompt</T>
+        </button>
+      </div>
+      <div className="zp-pref-prompt-list-panel" ref={listPanelRef}>
+        {prompts.length ? (
+          prompts.map((prompt) => (
+            <div
+              className="zp-pref-prompt-row"
+              data-selected={prompt.id === selectedPromptId || undefined}
+              key={prompt.id}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(prompt.id);
+                }
+              }}
+              onClick={() => onSelect(prompt.id)}
+              role="button"
+              tabIndex={0}
+              title={prompt.body}
+            >
+              <span className="zp-pref-prompt-row-content">
                 <span className="zp-pref-prompt-row-title">{prompt.title}</span>
                 <span className="zp-pref-prompt-row-body">{prompt.body}</span>
-              </div>
-            ))
-          ) : (
-            <div className="zp-pref-empty">
-              <T id="pref-prompt-empty">暂无自定义 Prompt</T>
+              </span>
+              <ChevronRight size={16} />
             </div>
-          )}
+          ))
+        ) : (
+          <div className="zp-pref-empty">
+            <T id="pref-prompt-empty">暂无自定义 Prompt</T>
+          </div>
+        )}
+      </div>
+      {message ? (
+        <div className="zp-pref-message" data-kind={message.kind} role="status">
+          {message.text}
         </div>
-        <form
-          className="zp-pref-editor-card"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSave();
-          }}
-        >
+      ) : null}
+    </section>
+  );
+}
+
+function PromptEditPage({
+  body,
+  message,
+  onBack,
+  onBodyChange,
+  onDelete,
+  onSave,
+  onTitleChange,
+  selectedPromptId,
+  title,
+}: {
+  body: string;
+  message?: PromptMessage;
+  onBack: () => void;
+  onBodyChange: (body: string) => void;
+  onDelete: () => void;
+  onSave: () => void;
+  onTitleChange: (title: string) => void;
+  selectedPromptId?: string;
+  title: string;
+}): ReactElement {
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const alignActionsToTextarea = useCallback(() => {
+    const textarea = bodyTextareaRef.current;
+    const actions = actionsRef.current;
+    if (!textarea || !actions) {
+      return;
+    }
+    actions.style.paddingInlineEnd = "0px";
+    // Align to the textarea's rendered border, not the surrounding card edge.
+    const offset = Math.ceil(
+      actions.getBoundingClientRect().right -
+        textarea.getBoundingClientRect().right,
+    );
+    actions.style.paddingInlineEnd = offset > 0 ? `${offset}px` : "";
+  }, []);
+
+  useBrowserLayoutEffect(() => {
+    const resizeTarget = globalThis as unknown as {
+      addEventListener?: (type: "resize", listener: () => void) => void;
+      removeEventListener?: (type: "resize", listener: () => void) => void;
+    };
+    alignActionsToTextarea();
+    resizeTarget.addEventListener?.("resize", alignActionsToTextarea);
+    return () => {
+      resizeTarget.removeEventListener?.("resize", alignActionsToTextarea);
+    };
+  }, [alignActionsToTextarea, body, message, selectedPromptId, title]);
+
+  return (
+    <section className="zp-pref-page zp-pref-prompt-edit-page">
+      <form
+        className="zp-pref-prompt-editor"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <header className="zp-pref-prompt-edit-header">
+          <button
+            aria-label="返回 Prompt 列表"
+            className="zp-pref-back-button"
+            onClick={onBack}
+            title="返回 Prompt 列表"
+            type="button"
+          >
+            <ArrowLeft size={15} />
+          </button>
+        </header>
+        <div className="zp-pref-editor-card">
           <label className="zp-pref-field">
             <span>
-              <T id="pref-prompt-title-label">Prompt 标题</T>
+              <T id="pref-prompt-title-label">名称</T>
             </span>
             <input
               className="zp-pref-input"
@@ -100,23 +258,15 @@ function PromptPanel({
           </label>
           <label className="zp-pref-field">
             <span>
-              <T id="pref-prompt-body-label">模板问题</T>
+              <T id="pref-prompt-body-label">内容</T>
             </span>
             <textarea
               className="zp-pref-textarea"
               onChange={(event) => onBodyChange(event.currentTarget.value)}
+              ref={bodyTextareaRef}
               value={body}
             />
           </label>
-          <div className="zp-pref-editor-meta">
-            {variables.length ? (
-              <span>
-                {variables.map((variable) => `{{${variable}}}`).join(" ")}
-              </span>
-            ) : (
-              <T id="pref-prompt-no-variables">无变量</T>
-            )}
-          </div>
           {message ? (
             <div
               className="zp-pref-message"
@@ -126,13 +276,16 @@ function PromptPanel({
               {message.text}
             </div>
           ) : null}
-          <div className="zp-pref-actions">
+          <div
+            className="zp-pref-actions zp-pref-prompt-edit-actions"
+            ref={actionsRef}
+          >
             <button
               className="zp-pref-button zp-pref-button-primary"
               type="submit"
             >
               <Save size={14} />
-              <T id="pref-prompt-save">保存 Prompt</T>
+              <T id="pref-prompt-save">保存</T>
             </button>
             <button
               className="zp-pref-button zp-pref-button-danger"
@@ -141,11 +294,11 @@ function PromptPanel({
               type="button"
             >
               <Trash2 size={14} />
-              <T id="pref-prompt-delete">删除 Prompt</T>
+              <T id="pref-prompt-delete">删除</T>
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </section>
   );
 }

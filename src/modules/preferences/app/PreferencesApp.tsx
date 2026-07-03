@@ -78,16 +78,17 @@ function PreferencesApp({
           <PromptPanel
             body={promptEditor.body}
             message={promptEditor.message}
+            mode={promptEditor.mode}
+            onBack={promptEditor.returnToPromptList}
             onBodyChange={promptEditor.setBody}
             onDelete={promptEditor.removePrompt}
-            onNew={promptEditor.createBlankPrompt}
+            onNew={promptEditor.openNewPromptEditor}
             onSave={promptEditor.savePrompt}
-            onSelect={promptEditor.selectPrompt}
+            onSelect={promptEditor.openPromptEditor}
             onTitleChange={promptEditor.setTitle}
             prompts={promptEditor.prompts}
             selectedPromptId={promptEditor.selectedPromptId}
             title={promptEditor.title}
-            variables={promptEditor.variables}
           />
         )}
       </section>

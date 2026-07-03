@@ -3,12 +3,9 @@ import {
   createCustomPrompt,
   deleteCustomPrompt,
   loadPromptViews,
+  subscribePromptViews,
   updateCustomPrompt,
 } from "../../../src/modules/sidebar/promptStore.ts";
-import {
-  extractPromptVariables,
-  validatePromptInput,
-} from "../../../src/modules/sidebar/promptSchema.ts";
 
 describe("sidebar prompt store", function () {
   beforeEach(function () {
@@ -17,26 +14,6 @@ describe("sidebar prompt store", function () {
 
   afterEach(function () {
     delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
-  });
-
-  it("extracts unique prompt variables", function () {
-    assert.deepEqual(
-      extractPromptVariables(
-        "Compare {{paper}} with {{ paper }} for {{goal_1}}.",
-      ),
-      ["paper", "goal_1"],
-    );
-  });
-
-  it("rejects invalid variable names", function () {
-    assert.throws(
-      () =>
-        validatePromptInput({
-          title: "Bad",
-          body: "Use {{1bad}}",
-        }),
-      /Invalid prompt variable/,
-    );
   });
 
   it("persists and deletes custom prompts", function () {
@@ -60,7 +37,30 @@ describe("sidebar prompt store", function () {
     );
   });
 
-  it("updates custom prompts and recalculates variables", function () {
+  it("notifies prompt view subscribers when prompts change", function () {
+    const snapshots: string[][] = [];
+    const unsubscribe = subscribePromptViews((prompts) => {
+      snapshots.push(prompts.map((prompt) => prompt.title));
+    });
+
+    try {
+      const prompt = createCustomPrompt({
+        title: "Evidence table",
+        body: "Make a table.",
+      });
+      updateCustomPrompt(prompt.id, {
+        title: "Method audit",
+        body: "Check the method.",
+      });
+      deleteCustomPrompt(prompt.id);
+    } finally {
+      unsubscribe();
+    }
+
+    assert.deepEqual(snapshots, [["Evidence table"], ["Method audit"], []]);
+  });
+
+  it("updates custom prompts and treats template markers as plain text", function () {
     const prompt = createCustomPrompt({
       title: "Evidence table",
       body: "Make a table for {{paper}}.",
@@ -73,7 +73,7 @@ describe("sidebar prompt store", function () {
 
     assert.equal(updated.id, prompt.id);
     assert.equal(updated.title, "Method audit");
-    assert.deepEqual(updated.variables, ["method", "paper"]);
+    assert.equal(updated.body, "Check {{method}} against {{ paper }}.");
     assert.deepInclude(loadPromptViews(), updated);
   });
 
@@ -84,7 +84,6 @@ describe("sidebar prompt store", function () {
           id: "custom-valid",
           title: "Valid",
           body: "Read {{paper}}.",
-          variables: ["paper"],
           scope: "global",
           updatedAt: "2026-06-13T07:00:00.000Z",
           custom: true,
@@ -93,7 +92,6 @@ describe("sidebar prompt store", function () {
           id: "prompt-old-default",
           title: "Old default",
           body: "This came from a removed default prompt.",
-          variables: [],
           scope: "global",
           updatedAt: "2026-06-13T07:00:00.000Z",
           custom: false,
