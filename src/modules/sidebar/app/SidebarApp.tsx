@@ -502,6 +502,9 @@ export function SidebarApp({
             </FloatingPortal>
           ) : null}
           <textarea
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
             className="zp-composer-input"
             disabled={!state.composerEnabled}
             onChange={(event) => {
@@ -557,6 +560,7 @@ export function SidebarApp({
             placeholder={getString("sidebar-input-placeholder")}
             ref={textareaRef}
             rows={1}
+            spellCheck={false}
             value={draft}
           />
           <div className="zp-composer-footer">
