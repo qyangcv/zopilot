@@ -411,10 +411,28 @@ export function SidebarApp({
         role="log"
       >
         {showWelcome ? (
-          <p className="zp-empty-welcome">
-            <span>How should we</span>
-            <span>make sense of this paper?</span>
-          </p>
+          <div className="zp-empty-welcome">
+            <p className="zp-empty-welcome-title">
+              How should we approach this paper?
+            </p>
+            <div className="zp-empty-welcome-hints">
+              <p className="zp-empty-welcome-hint">
+                <span>使用</span>
+                <Icon name="command" size={14} />
+                <span>来查看所有可用命令</span>
+              </p>
+              <p className="zp-empty-welcome-hint">
+                <span>使用</span>
+                <Icon name="prompt" size={14} />
+                <span>插入自定义 prompt</span>
+              </p>
+              <p className="zp-empty-welcome-hint">
+                <span>使用</span>
+                <Icon name="add" size={14} />
+                <span>添加 PDF 或图片附件</span>
+              </p>
+            </div>
+          </div>
         ) : null}
         {state.messages.map((message) => (
           <Message
@@ -760,7 +778,9 @@ function CommandMenu({
                   {command.disabledReason || command.description}
                 </span>
               </span>
-              <span className="zp-command-category">{command.category}</span>
+              <span className="zp-command-category">
+                {getCommandCategoryLabel(command.category)}
+              </span>
             </button>
           ))
         ) : (
@@ -771,6 +791,23 @@ function CommandMenu({
       </div>
     </div>
   );
+}
+
+function getCommandCategoryLabel(
+  category: SidebarCommandView["category"],
+): string {
+  switch (category) {
+    case "source":
+      return getString("sidebar-command-category-source");
+    case "reader":
+      return getString("sidebar-command-category-reader");
+    case "attachment":
+      return getString("sidebar-command-category-attachment");
+    case "session":
+      return getString("sidebar-command-category-session");
+    case "prompt":
+      return getString("sidebar-command-category-prompt");
+  }
 }
 
 function PromptPicker({

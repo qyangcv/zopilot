@@ -423,13 +423,43 @@
 .zp-empty-welcome {
   display: flex;
   flex-direction: column;
-  max-width: 280px;
+  align-items: center;
+  gap: 18px;
+  max-width: 310px;
+  color: var(--zp-muted);
+}
+
+.zp-empty-welcome-title {
   margin: 0;
   color: var(--zp-muted);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.45;
   text-align: center;
+}
+
+.zp-empty-welcome-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-start;
+  color: var(--zp-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.zp-empty-welcome-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.zp-empty-welcome-hint .zp-icon {
+  color: var(--zp-muted-strong);
 }
 
 .zp-message {

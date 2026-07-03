@@ -144,8 +144,14 @@ describe("SidebarApp", function () {
     getIconAction(element, "edit").onClick();
     getIconAction(element, "resend").onClick();
 
-    assert.deepEqual(inserted.map((message) => message.text), [rawText]);
-    assert.deepEqual(submitted.map((message) => message.text), [rawText]);
+    assert.deepEqual(
+      inserted.map((message) => message.text),
+      [rawText],
+    );
+    assert.deepEqual(
+      submitted.map((message) => message.text),
+      [rawText],
+    );
     assert.deepEqual(inserted[0]?.mentions, [mention]);
     assert.deepEqual(submitted[0]?.mentions, [mention]);
     assert.deepEqual(inserted[0]?.localAttachments, [attachment]);
@@ -240,8 +246,13 @@ describe("SidebarApp", function () {
 
     assert.include(html, 'class="zp-chat-log" data-empty="true"');
     assert.include(html, 'class="zp-empty-welcome"');
-    assert.include(html, "<span>How should we</span>");
-    assert.include(html, "<span>make sense of this paper?</span>");
+    assert.include(html, "How should we approach this paper?");
+    assert.include(html, "插入自定义 prompt");
+    assert.include(html, "来查看所有可用命令");
+    assert.include(html, "添加 PDF 或图片附件");
+    assert.include(html, 'data-icon-name="prompt"');
+    assert.include(html, 'data-icon-name="command"');
+    assert.include(html, 'data-icon-name="add"');
     assert.notInclude(html, "zp-message-assistant");
     assert.notInclude(html, 'data-icon-name="brand"');
   });

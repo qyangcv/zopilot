@@ -9,6 +9,10 @@ import type {
 } from "../../../src/modules/sidebar/app/types.ts";
 
 describe("sidebar command registry", function () {
+  before(function () {
+    installLocaleMock();
+  });
+
   it("builds commands across the required product categories", function () {
     const commands = buildSidebarCommands(createState());
     const categories = new Set(commands.map((command) => command.category));
@@ -22,6 +26,21 @@ describe("sidebar command registry", function () {
     ]);
   });
 
+  it("localizes built-in command text", function () {
+    const commands = buildSidebarCommands(createState());
+
+    assert.deepInclude(commands[0], {
+      id: "source.add",
+      title: "添加本地附件",
+      description: "为下一条消息选择 PDF 或图片路径。",
+    });
+    assert.deepInclude(commands[1], {
+      id: "reader.navigate",
+      title: "跳转到阅读器证据",
+      description: "当回复包含证据定位时，跳转到对应位置。",
+    });
+  });
+
   it("filters commands with Chinese aliases", function () {
     const matches = filterSidebarCommands(
       buildSidebarCommands(createState()),
@@ -30,7 +49,7 @@ describe("sidebar command registry", function () {
 
     assert.deepEqual(
       matches.map((command) => command.id),
-      ["attachment.upload"],
+      ["source.add", "attachment.upload"],
     );
   });
 
@@ -59,10 +78,7 @@ describe("sidebar command registry", function () {
       (command) => command.id === "prompt.custom-critique",
     );
     assert.isFalse(promptCommand?.available);
-    assert.equal(
-      promptCommand?.disabledReason,
-      "Composer is not ready for prompt insertion.",
-    );
+    assert.equal(promptCommand?.disabledReason, "当前无法插入 Prompt。");
   });
 });
 
@@ -102,5 +118,61 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     collectionOptions: [],
     prompts: TEST_PROMPTS,
     ...patch,
+  };
+}
+
+function installLocaleMock(): void {
+  const messages = new Map([
+    ["sidebar-command-source-add-title", "添加本地附件"],
+    [
+      "sidebar-command-source-add-description",
+      "为下一条消息选择 PDF 或图片路径。",
+    ],
+    ["sidebar-command-source-add-disabled", "请先打开论文工作区。"],
+    ["sidebar-command-reader-navigate-title", "跳转到阅读器证据"],
+    [
+      "sidebar-command-reader-navigate-description",
+      "当回复包含证据定位时，跳转到对应位置。",
+    ],
+    ["sidebar-command-reader-navigate-disabled", "请先打开 PDF 阅读器。"],
+    ["sidebar-command-attachment-upload-title", "添加附件"],
+    [
+      "sidebar-command-attachment-upload-description",
+      "为下一条消息选择 PDF 或图片路径。",
+    ],
+    ["sidebar-command-attachment-upload-disabled", "请先选择工作区。"],
+    ["sidebar-command-session-new-title", "新建会话"],
+    ["sidebar-command-session-new-description", "在当前工作区开始新的对话。"],
+    ["sidebar-command-session-history-title", "会话历史"],
+    ["sidebar-command-session-history-description", "浏览之前的会话。"],
+    ["sidebar-command-prompt-disabled", "当前无法插入 Prompt。"],
+  ]);
+  (
+    globalThis as typeof globalThis & {
+      addon: {
+        data: {
+          locale: {
+            current: {
+              formatMessagesSync: (
+                items: Array<{ id: string }>,
+              ) => Array<{ value: string }>;
+            };
+          };
+        };
+      };
+    }
+  ).addon = {
+    data: {
+      locale: {
+        current: {
+          formatMessagesSync(items) {
+            return items.map((item) => {
+              const key = item.id.replace(/^zopilot-/, "");
+              return { value: messages.get(key) || item.id };
+            });
+          },
+        },
+      },
+    },
   };
 }

@@ -1,3 +1,4 @@
+import { getString } from "../../../utils/locale";
 import type { SidebarCommandView, SidebarState } from "./types";
 
 export { buildSidebarCommands, filterSidebarCommands };
@@ -8,8 +9,8 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
   return [
     {
       id: "source.add",
-      title: "Add local attachment",
-      description: "Choose a PDF or image path for the next message.",
+      title: getString("sidebar-command-source-add-title"),
+      description: getString("sidebar-command-source-add-description"),
       keywords: [
         "source",
         "context",
@@ -24,22 +25,24 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
       available: hasWorkspace && !state.busy,
       disabledReason: hasWorkspace
         ? undefined
-        : "Open a paper workspace first.",
+        : getString("sidebar-command-source-add-disabled"),
     },
     {
       id: "reader.navigate",
-      title: "Navigate reader evidence",
-      description: "Jump to evidence locators when a response provides them.",
+      title: getString("sidebar-command-reader-navigate-title"),
+      description: getString("sidebar-command-reader-navigate-description"),
       keywords: ["reader", "page", "evidence", "定位", "跳转"],
       category: "reader",
       icon: "reader",
       available: hasWorkspace,
-      disabledReason: hasWorkspace ? undefined : "Open a PDF reader first.",
+      disabledReason: hasWorkspace
+        ? undefined
+        : getString("sidebar-command-reader-navigate-disabled"),
     },
     {
       id: "attachment.upload",
-      title: "Add attachment",
-      description: "Choose a PDF or image path for the next message.",
+      title: getString("sidebar-command-attachment-upload-title"),
+      description: getString("sidebar-command-attachment-upload-description"),
       keywords: [
         "attachment",
         "upload",
@@ -52,12 +55,14 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
       category: "attachment",
       icon: "attachment",
       available: hasWorkspace && !state.busy,
-      disabledReason: hasWorkspace ? undefined : "Select a workspace first.",
+      disabledReason: hasWorkspace
+        ? undefined
+        : getString("sidebar-command-attachment-upload-disabled"),
     },
     {
       id: "session.new",
-      title: "New chat",
-      description: "Start a new conversation in this workspace.",
+      title: getString("sidebar-command-session-new-title"),
+      description: getString("sidebar-command-session-new-description"),
       keywords: ["session", "new", "chat", "新建", "会话"],
       category: "session",
       icon: "newChat",
@@ -65,8 +70,8 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
     },
     {
       id: "session.history",
-      title: "Conversation history",
-      description: "Browse previous conversations.",
+      title: getString("sidebar-command-session-history-title"),
+      description: getString("sidebar-command-session-history-description"),
       keywords: ["history", "session", "archive", "历史", "会话"],
       category: "session",
       icon: "history",
@@ -82,7 +87,7 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
       available: canUseComposer,
       disabledReason: canUseComposer
         ? undefined
-        : "Composer is not ready for prompt insertion.",
+        : getString("sidebar-command-prompt-disabled"),
     })),
   ];
 }

@@ -31,7 +31,26 @@ sidebar-multiple-items-selected =
         [one] 1 item selected
        *[other] { $count } items selected
     }
-sidebar-welcome-message = How should we make sense of this paper?
+sidebar-welcome-message = How should we approach this paper?
+sidebar-command-source-add-title = Add local attachment
+sidebar-command-source-add-description = Choose a PDF or image path for the next message.
+sidebar-command-source-add-disabled = Open a paper workspace first.
+sidebar-command-reader-navigate-title = Navigate reader evidence
+sidebar-command-reader-navigate-description = Jump to evidence locators when a response provides them.
+sidebar-command-reader-navigate-disabled = Open a PDF reader first.
+sidebar-command-attachment-upload-title = Add attachment
+sidebar-command-attachment-upload-description = Choose a PDF or image path for the next message.
+sidebar-command-attachment-upload-disabled = Select a workspace first.
+sidebar-command-session-new-title = New chat
+sidebar-command-session-new-description = Start a new conversation in this workspace.
+sidebar-command-session-history-title = Conversation history
+sidebar-command-session-history-description = Browse previous conversations.
+sidebar-command-prompt-disabled = Composer is not ready for prompt insertion.
+sidebar-command-category-source = source
+sidebar-command-category-reader = reader
+sidebar-command-category-attachment = attachment
+sidebar-command-category-session = session
+sidebar-command-category-prompt = prompt
 sidebar-loading-conversation = Loading paper chat...
 sidebar-unavailable-message = Open a PDF reader tab to use paper chat.
 sidebar-codex-starting = Starting local Codex...
