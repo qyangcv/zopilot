@@ -20,11 +20,10 @@ notes/*
 !notes/ui-macro-plan.md
 !notes/ui-detailed-plan.md
 !notes/sidebar-ui.md
-!notes/v0.3.0.md
 !notes/v0.3.0-light.md
 !notes/pdf-helper-distribution.md
-!notes/solution-for-doc.md
 !notes/light-solution-for-doc.md
+!notes/PUBLIC_INTERFACE_AUDIT.md
 doc/
 .agents/
 .vscode/
