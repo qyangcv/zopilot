@@ -250,6 +250,7 @@ describe("SidebarApp", function () {
     assert.include(html, "插入自定义 prompt");
     assert.include(html, "来查看所有可用命令");
     assert.include(html, "添加 PDF 或图片附件");
+    assert.include(html, "使用 @ 在文库/合集中选择论文");
     assert.include(html, 'data-icon-name="prompt"');
     assert.include(html, 'data-icon-name="command"');
     assert.include(html, 'data-icon-name="add"');
