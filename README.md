@@ -12,11 +12,22 @@ Zopilot is a information-dense plugin that brings Codex into Zotero.
 
 ## Preview
 
-![Ask a question](./assets/snapshot_qa.png)
+<!-- ![Ask a question](./assets/snapshot_qa.png)
 
-![Markdown rendering](./assets/snapshot_render.png)
+![Markdown rendering](./assets/snapshot_render.png) -->
 
-## Gratitude
+To be supplemented
+
+## Feature
+
+- Native Codex integration in Zotero.
+- Workspace-scoped chats for libraries, collections, and papers.
+- Persistent session history across Zotero workspaces.
+- PDF and image attachments for richer research context.
+- Paper-aware retrieval with page-level evidence.
+- Custom prompt templates from the sidebar.
+
+<!-- ## Gratitude
 
 Thanks to the following projects that make Zopilot possible:
 
@@ -24,4 +35,4 @@ Thanks to the following projects that make Zopilot possible:
 - [llm-for-zotero](https://github.com/yilewang/llm-for-zotero): Inspired the creation of this plugin.
 - [markdown-it](https://github.com/markdown-it/markdown-it): The Markdown parser used to render Codex responses.
 - [mdit-plugins](https://github.com/mdit-plugins/mdit-plugins): Markdown-it extensions used for task lists, footnotes, and TeX blocks.
-- [Shiki](https://github.com/shikijs/shiki): Syntax highlighting for code blocks in Codex responses.
+- [Shiki](https://github.com/shikijs/shiki): Syntax highlighting for code blocks in Codex responses. -->
