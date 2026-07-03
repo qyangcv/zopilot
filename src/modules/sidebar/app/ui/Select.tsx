@@ -14,6 +14,7 @@ function Select({
   disabled,
   onChange,
   options,
+  popupMinWidth = 160,
   showIndicator = true,
   title,
   value,
@@ -22,6 +23,7 @@ function Select({
   disabled?: boolean;
   onChange: (value: string) => void;
   options: SelectOption[];
+  popupMinWidth?: number;
   showIndicator?: boolean;
   title: string;
   value: string;
@@ -62,10 +64,9 @@ function Select({
       </button>
       {open ? (
         <FloatingPortal
-          align="end"
           anchorRef={triggerRef}
           maxWidth={280}
-          minWidth={160}
+          minWidth={popupMinWidth}
           onDismiss={() => setOpen(false)}
           preferredSide="above"
           zIndex={7}

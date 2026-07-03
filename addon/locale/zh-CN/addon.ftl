@@ -31,7 +31,7 @@ sidebar-multiple-items-selected =
         [one] 已选中 1 个条目
        *[other] 已选中 { $count } 个条目
     }
-sidebar-welcome-message = **Ask Any Question.** 
+sidebar-welcome-message = How should we make sense of this paper?
 sidebar-loading-conversation = 正在加载当前论文会话...
 sidebar-unavailable-message = 打开 PDF 阅读器标签页后即可使用 paper chat。
 sidebar-codex-starting = Working...

@@ -18,10 +18,16 @@ describe("sidebar view model", function () {
     assert.equal(state.codexStatus, "checking");
     assert.isFalse(state.composerEnabled);
     assert.equal(state.sessionsMode, "history");
-    assert.deepEqual(
-      state.messages.map((message) => message.id),
-      ["zp-welcome-message"],
-    );
+    assert.deepEqual(state.messages, []);
+  });
+
+  it("keeps empty conversations message-free for the UI empty state", function () {
+    const messages = createConversationMessages({
+      ...createConversation(),
+      messages: [],
+    });
+
+    assert.deepEqual(messages, []);
   });
 
   it("formats saved messages and appends the active streaming message", function () {

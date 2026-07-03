@@ -792,13 +792,14 @@ function parseModelInfo(value: JsonValue): CodexModelInfo | null {
   if (!slug) {
     return null;
   }
+  const displayName =
+    stringProperty(value, "displayName") ||
+    stringProperty(value, "display_name") ||
+    stringProperty(value, "name") ||
+    slug;
   return {
     slug,
-    displayName:
-      stringProperty(value, "displayName") ||
-      stringProperty(value, "display_name") ||
-      stringProperty(value, "name") ||
-      slug,
+    displayName: formatModelDisplayName(displayName),
     defaultReasoningEffort:
       stringProperty(value, "defaultReasoningEffort") ||
       stringProperty(value, "default_reasoning_level"),
@@ -807,6 +808,24 @@ function parseModelInfo(value: JsonValue): CodexModelInfo | null {
       arrayOfStringsProperty(value, "supported_reasoning_levels") ||
       [],
   };
+}
+
+function formatModelDisplayName(value: string): string {
+  if (!/^gpt(?:-|$)/i.test(value)) {
+    return value;
+  }
+  return value
+    .split("-")
+    .map((part) => {
+      if (/^gpt$/i.test(part)) {
+        return "GPT";
+      }
+      if (/^[a-z]+$/i.test(part)) {
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      }
+      return part;
+    })
+    .join("-");
 }
 
 function stringProperty(

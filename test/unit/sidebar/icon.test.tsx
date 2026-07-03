@@ -40,4 +40,11 @@ describe("sidebar Icon", function () {
     assert.include(archiveRestore, "lucide-archive-x");
     assert.include(archiveRestore, 'data-icon-name="archiveRestore"');
   });
+
+  it("uses the closed folder icon for workspace", function () {
+    const workspace = renderToStaticMarkup(<Icon name="workspace" size={15} />);
+
+    assert.include(workspace, "lucide-folder-closed");
+    assert.include(workspace, 'data-icon-name="workspace"');
+  });
 });

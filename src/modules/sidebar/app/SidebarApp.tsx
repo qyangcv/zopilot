@@ -284,6 +284,7 @@ export function SidebarApp({
     commandAnchor === "button" ? commandButtonRef : textareaRef;
   const sessionAnchorRef =
     state.sessionsMode === "archive" ? archiveButtonRef : historyButtonRef;
+  const showWelcome = state.messages.length === 0;
 
   return (
     <aside
@@ -297,7 +298,6 @@ export function SidebarApp({
             <span className="zp-sidebar-title">
               {getString("sidebar-title")}
             </span>
-            <span className="zp-sidebar-selected-title">{state.title}</span>
           </span>
         </div>
         <div className="zp-sidebar-actions">
@@ -403,12 +403,19 @@ export function SidebarApp({
       <main
         aria-live="polite"
         className="zp-chat-log"
+        data-empty={showWelcome || undefined}
         onScroll={(event) => {
           autoScrollRef.current = isNearScrollBottom(event.currentTarget);
         }}
         ref={logRef}
         role="log"
       >
+        {showWelcome ? (
+          <p className="zp-empty-welcome">
+            <span>How should we</span>
+            <span>make sense of this paper?</span>
+          </p>
+        ) : null}
         {state.messages.map((message) => (
           <Message
             busy={state.busy}
@@ -646,6 +653,7 @@ export function SidebarApp({
                           value: effort,
                         }),
                       )}
+                      popupMinWidth={96}
                       showIndicator={false}
                       title={getString("sidebar-reasoning-depth")}
                       value={state.selectedReasoningEffort || ""}

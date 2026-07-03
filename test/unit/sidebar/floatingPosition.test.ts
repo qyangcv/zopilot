@@ -2,9 +2,9 @@ import { assert } from "chai";
 import { calculateFloatingPosition } from "../../../src/modules/sidebar/app/ui/floatingPosition.ts";
 
 describe("floating popover positioning", function () {
-  it("anchors a select popup above the trigger and aligns its trailing edge", function () {
+  it("anchors a select popup above the trigger and aligns its leading edge", function () {
     const position = calculateFloatingPosition({
-      align: "end",
+      align: "start",
       anchorRect: rect({ bottom: 582, left: 300, right: 360, top: 560 }),
       maxWidth: 280,
       minWidth: 160,
@@ -14,21 +14,21 @@ describe("floating popover positioning", function () {
 
     assert.equal(position.side, "above");
     assert.equal(position.width, 160);
-    assert.equal(position.left, 200);
+    assert.equal(position.left, 232);
     assert.equal(position.bottom, 46);
   });
 
-  it("keeps a popup inside the portal margin when an end-aligned trigger is near the left edge", function () {
+  it("keeps a popup inside the portal margin when a start-aligned trigger is near the right edge", function () {
     const position = calculateFloatingPosition({
-      align: "end",
-      anchorRect: rect({ bottom: 582, left: 30, right: 90, top: 560 }),
+      align: "start",
+      anchorRect: rect({ bottom: 582, left: 360, right: 390, top: 560 }),
       maxWidth: 280,
       minWidth: 160,
       preferredSide: "above",
       rootRect: rect({ bottom: 600, left: 0, right: 400, top: 0 }),
     });
 
-    assert.equal(position.left, 8);
+    assert.equal(position.left, 232);
   });
 
   it("opens below when the preferred side has too little room", function () {

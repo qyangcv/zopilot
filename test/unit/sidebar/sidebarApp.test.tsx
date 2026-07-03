@@ -233,6 +233,19 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "@CodeV: Code with Images");
   });
 
+  it("renders the new-chat welcome as a centered empty state", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp actions={createActions()} state={createState()} />,
+    );
+
+    assert.include(html, 'class="zp-chat-log" data-empty="true"');
+    assert.include(html, 'class="zp-empty-welcome"');
+    assert.include(html, "<span>How should we</span>");
+    assert.include(html, "<span>make sense of this paper?</span>");
+    assert.notInclude(html, "zp-message-assistant");
+    assert.notInclude(html, 'data-icon-name="brand"');
+  });
+
   it("hides the assistant footer for welcome messages without a completion time", function () {
     const html = renderToStaticMarkup(
       <SidebarApp

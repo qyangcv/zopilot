@@ -5,15 +5,18 @@
 #zopilot-context-pane-deck {
   --zp-composer-height: 112px;
   --zp-header-height: 39px;
-  --zp-app-bg: color-mix(in srgb, Canvas 78%, Field 22%);
-  --zp-header-bg: color-mix(in srgb, Canvas 72%, Field 28%);
+  --zp-app-bg: color-mix(in srgb, Field 74%, Canvas 26%);
+  --zp-header-bg: color-mix(in srgb, Field 82%, Canvas 18%);
   --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
   --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
   --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
   --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
-  --zp-composer-bg: color-mix(in srgb, Canvas 94%, CanvasText 6%);
-  --zp-bubble: color-mix(in srgb, Canvas 91%, CanvasText 9%);
-  --zp-border: color-mix(in srgb, CanvasText 10%, transparent);
+  --zp-composer-bg: color-mix(in srgb, Field 92%, transparent);
+  --zp-chip-bg: color-mix(in srgb, Canvas 82%, CanvasText 7%);
+  --zp-chip-border: color-mix(in srgb, CanvasText 9%, transparent);
+  --zp-bubble: color-mix(in srgb, Field 82%, CanvasText 5%);
+  --zp-bubble-border: color-mix(in srgb, CanvasText 6%, transparent);
+  --zp-border: color-mix(in srgb, CanvasText 7%, transparent);
   --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
   --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);
   --zp-muted-strong: color-mix(in srgb, CanvasText 64%, Canvas);
@@ -94,6 +97,16 @@
   user-select: text;
 }
 
+@supports (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .zp-sidebar {
+    background: color-mix(in srgb, Field 62%, transparent);
+    backdrop-filter: blur(10px) saturate(1.05);
+    -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  }
+}
+
 .zp-react-root {
   display: flex;
   position: absolute;
@@ -150,10 +163,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  min-height: 38px;
+  min-height: 41px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--zp-border);
   background: var(--zp-header-bg);
+  box-shadow: 0 1px 0 color-mix(in srgb, Canvas 58%, transparent);
 }
 
 .zp-sidebar-identity {
@@ -196,18 +210,6 @@
   overflow: hidden;
   font-weight: 600;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zp-sidebar .zp-sidebar-selected-title {
-  display: block !important;
-  margin-top: 2px;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--zp-muted);
-  font-size: 11px;
-  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -420,7 +422,25 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 12px 12px 10px;
-  background: var(--zp-app-bg);
+  background: transparent;
+}
+
+.zp-chat-log[data-empty] {
+  align-items: center;
+  justify-content: center;
+  padding-inline: 28px;
+}
+
+.zp-empty-welcome {
+  display: flex;
+  flex-direction: column;
+  max-width: 280px;
+  margin: 0;
+  color: var(--zp-muted);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: center;
 }
 
 .zp-message {
@@ -745,10 +765,24 @@
 .zp-message-bubble {
   max-width: 100%;
   overflow-wrap: anywhere;
+  border: 1px solid var(--zp-bubble-border);
   border-radius: 8px;
   background: var(--zp-bubble);
   padding: 7px 9px;
   color: CanvasText;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, Canvas 62%, transparent),
+    0 3px 10px color-mix(in srgb, CanvasText 4%, transparent);
+}
+
+@supports (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .zp-message-bubble {
+    background: color-mix(in srgb, Field 64%, transparent);
+    backdrop-filter: blur(12px) saturate(1.12);
+    -webkit-backdrop-filter: blur(12px) saturate(1.12);
+  }
 }
 
 .zp-message-user-content {
@@ -763,7 +797,7 @@
 
 .zp-message-attachments .zp-context-chip,
 .zp-message-attachment {
-  background: color-mix(in srgb, Canvas 78%, CanvasText 8%);
+  background: color-mix(in srgb, Canvas 70%, CanvasText 6%);
   padding-inline-start: 7px;
 }
 
@@ -847,7 +881,19 @@
   border: 1px solid var(--zp-border);
   border-radius: 8px;
   background: var(--zp-composer-bg);
-  box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 5%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, Canvas 76%, transparent),
+    0 8px 22px color-mix(in srgb, CanvasText 7%, transparent);
+}
+
+@supports (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .zp-composer {
+    background: color-mix(in srgb, Field 78%, transparent);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  }
 }
 
 .zp-workspace-status-row {
@@ -1124,13 +1170,25 @@
   min-width: 0;
   max-width: min(100%, 340px);
   height: 28px;
-  border: 1px solid var(--zp-subtle-border);
+  border: 1px solid var(--zp-chip-border);
   border-radius: 6px;
-  background: color-mix(in srgb, Canvas 86%, CanvasText 7%);
+  background: var(--zp-chip-bg);
   color: var(--zp-muted-strong);
   font-size: 12px;
   line-height: 1;
   padding: 0 8px 0 3px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, Canvas 46%, transparent);
+}
+
+@supports (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .zp-context-row .zp-context-chip,
+  .zp-context-row .zp-local-attachment {
+    background: color-mix(in srgb, Canvas 58%, transparent);
+    backdrop-filter: blur(12px) saturate(1.12);
+    -webkit-backdrop-filter: blur(12px) saturate(1.12);
+  }
 }
 
 .zp-context-chip-icon,
@@ -1672,11 +1730,5 @@
 @media (prefers-reduced-motion: reduce) {
   .zp-codex-status[data-status="checking"] .zp-status-icon {
     animation: none;
-  }
-}
-
-@media (max-width: 860px) {
-  .zp-sidebar-selected-title {
-    max-width: 210px;
   }
 }

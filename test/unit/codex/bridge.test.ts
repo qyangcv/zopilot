@@ -56,6 +56,10 @@ describe("CodexBridge", function () {
             { effort: "high", description: "Deep" },
           ],
         },
+        {
+          model: "gpt-5.3-codex",
+          name: "gpt-5.3-codex",
+        },
       ],
     });
 
@@ -71,6 +75,12 @@ describe("CodexBridge", function () {
         displayName: "GPT-5.5",
         defaultReasoningEffort: "high",
         supportedReasoningEfforts: ["low", "high"],
+      },
+      {
+        slug: "gpt-5.3-codex",
+        displayName: "GPT-5.3-Codex",
+        defaultReasoningEffort: undefined,
+        supportedReasoningEfforts: [],
       },
     ]);
   });

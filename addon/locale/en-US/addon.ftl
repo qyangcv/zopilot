@@ -31,7 +31,7 @@ sidebar-multiple-items-selected =
         [one] 1 item selected
        *[other] { $count } items selected
     }
-sidebar-welcome-message = **Ready.** Select an item and ask a question.
+sidebar-welcome-message = How should we make sense of this paper?
 sidebar-loading-conversation = Loading paper chat...
 sidebar-unavailable-message = Open a PDF reader tab to use paper chat.
 sidebar-codex-starting = Starting local Codex...

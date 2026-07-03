@@ -31,14 +31,7 @@ function createInitialSidebarState(label: string): SidebarState {
   return {
     title: label,
     context: { label },
-    messages: [
-      {
-        id: "zp-welcome-message",
-        role: "assistant",
-        text: getString("sidebar-welcome-message"),
-        status: "complete",
-      },
-    ],
+    messages: [],
     sessions: [],
     sessionsOpen: false,
     sessionsMode: "history",
@@ -61,16 +54,7 @@ function createConversationMessages(
   conversation: Conversation,
   streaming?: StreamingMessage,
 ): SidebarMessageView[] {
-  const messages = conversation.messages.length
-    ? conversation.messages.map(toMessageView)
-    : [
-        {
-          id: "zp-welcome-message",
-          role: "assistant" as const,
-          text: getString("sidebar-welcome-message"),
-          status: "complete" as const,
-        },
-      ];
+  const messages = conversation.messages.map(toMessageView);
 
   if (!streaming) {
     return messages;
