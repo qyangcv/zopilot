@@ -36,11 +36,7 @@ import { pickLocalAttachment } from "./attachmentUpload";
 import { copyText } from "./app/clipboard";
 import type { ReaderLocator } from "./readerNavigation";
 import { navigateReaderLocator } from "./readerNavigation";
-import type {
-  SidebarPromptSubmission,
-  SidebarSessionMode,
-  SidebarState,
-} from "./app/types";
+import type { SidebarPromptSubmission, SidebarState } from "./app/types";
 import {
   ContextPaneDeckAdapter,
   type ContextPaneActiveState,
@@ -49,6 +45,7 @@ import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
 import { STYLE_URI } from "./constants";
 import { ReaderToolbarController } from "./readerToolbar";
 import { getSelectedItemTitle } from "./selectedItem";
+import { SidebarSessionCoordinator } from "./sessionCoordinator";
 import { loadPromptViews } from "./promptStore";
 import {
   DEFAULT_MODEL,
@@ -142,6 +139,7 @@ class SidebarController {
   private displayState: DisplayState = { kind: "closed", token: 0 };
   private viewState: SidebarState;
   private readonly readerToolbar: ReaderToolbarController;
+  private readonly sessions: SidebarSessionCoordinator;
   private readonly sourceUniverse: ZoteroSourceUniverse;
   private readonly runningTurns = new Map<string, RunningTurn>();
   private readonly listeners: Array<() => void> = [];
@@ -160,6 +158,24 @@ class SidebarController {
     this.viewState.prompts = loadPromptViews();
     this.readerToolbar = new ReaderToolbarController({
       pluginID: config.addonID,
+    });
+    this.sessions = new SidebarSessionCoordinator({
+      getReadyDisplayState: () => this.getReadyDisplayState(),
+      getReadyStateForSelectedReader: () =>
+        this.getReadyStateForSelectedReader(),
+      getViewState: () => this.viewState,
+      updateViewState: (patch) => this.updateViewState(patch),
+      setReadyConversation: (conversation) =>
+        this.setReadyConversation(conversation),
+      focusComposer: () => this.focusComposer(),
+      interruptConversationTurn: (conversationId) => {
+        const runningTurn = this.runningTurns.get(conversationId);
+        if (runningTurn) {
+          this.interruptRunningTurn(runningTurn);
+        }
+      },
+      isDestroyed: () => this.destroyed,
+      isOpen: () => this.open,
     });
   }
 
@@ -417,216 +433,6 @@ class SidebarController {
     }
   }
 
-  private async toggleSessionPopover(
-    mode: SidebarSessionMode = "history",
-  ): Promise<void> {
-    const ready = this.getReadyDisplayState();
-    if (!ready) {
-      return;
-    }
-    if (this.viewState.sessionsOpen && this.viewState.sessionsMode === mode) {
-      this.hideSessionPopover();
-      return;
-    }
-    await this.showSessionPopover(mode);
-  }
-
-  private async showSessionPopover(
-    mode: SidebarSessionMode = this.viewState.sessionsMode,
-  ): Promise<void> {
-    const ready = this.getReadyDisplayState();
-    if (!ready) {
-      return;
-    }
-    const workspaceKey = ready.workspace.workspaceKey;
-    let conversations: Conversation[];
-    try {
-      conversations =
-        mode === "archive"
-          ? await getConversationStore().listArchivedWorkspaceConversations(
-              workspaceKey,
-            )
-          : await getConversationStore().listWorkspaceConversations(
-              workspaceKey,
-            );
-    } catch (error) {
-      logger.error("failed to list workspace conversations", error, {
-        workspaceKey,
-        mode,
-      });
-      return;
-    }
-    if (
-      this.destroyed ||
-      !this.open ||
-      this.getReadyDisplayState()?.workspace.workspaceKey !== workspaceKey
-    ) {
-      return;
-    }
-    this.updateViewState({
-      sessions: conversations.map((conversation) =>
-        createSessionView(
-          conversation,
-          this.getReadyDisplayState()?.conversation.metadata.id,
-        ),
-      ),
-      sessionsOpen: true,
-      sessionsMode: mode,
-    });
-  }
-
-  private hideSessionPopover(): void {
-    if (!this.viewState.sessionsOpen && !this.viewState.sessions.length) {
-      return;
-    }
-    this.updateViewState({ sessionsOpen: false, sessions: [] });
-  }
-
-  private async createNewSession(): Promise<void> {
-    const ready = await this.getReadyStateForSelectedReader();
-    if (!ready) {
-      return;
-    }
-    const workspace = ready.workspace;
-    let conversation: Conversation;
-    try {
-      conversation =
-        await getConversationStore().createWorkspaceConversation(workspace);
-    } catch (error) {
-      logger.error("failed to create workspace conversation", error, {
-        workspaceKey: workspace.workspaceKey,
-        attachmentKey: workspace.defaultSource?.attachmentKey,
-      });
-      return;
-    }
-    this.setReadyConversation(conversation);
-    this.hideSessionPopover();
-    this.focusComposer();
-  }
-
-  private async switchSession(conversation: Conversation): Promise<void> {
-    const ready = this.getReadyDisplayState();
-    if (!ready) {
-      return;
-    }
-    let active: Conversation;
-    try {
-      active = await getConversationStore().activateWorkspaceConversation(
-        conversation.metadata,
-      );
-    } catch (error) {
-      logger.error("failed to switch workspace conversation", error, {
-        conversationId: conversation.metadata.id,
-        workspaceKey: conversation.metadata.workspaceKey,
-      });
-      return;
-    }
-    if (
-      this.destroyed ||
-      !this.open ||
-      this.getReadyDisplayState()?.workspace.workspaceKey !==
-        active.metadata.workspaceKey
-    ) {
-      return;
-    }
-    this.setReadyConversation(active);
-    this.hideSessionPopover();
-    this.focusComposer();
-  }
-
-  private async archiveSession(conversation: Conversation): Promise<void> {
-    const ready = this.getReadyDisplayState();
-    if (!ready) {
-      return;
-    }
-    const workspace = ready.workspace;
-    const running = this.runningTurns.get(conversation.metadata.id);
-    if (running) {
-      this.interruptRunningTurn(running);
-    }
-    try {
-      await getConversationStore().archiveWorkspaceConversation(
-        conversation.metadata,
-      );
-    } catch (error) {
-      logger.error("failed to archive workspace conversation", error, {
-        conversationId: conversation.metadata.id,
-        workspaceKey: conversation.metadata.workspaceKey,
-      });
-      return;
-    }
-    if (
-      this.destroyed ||
-      !this.open ||
-      this.getReadyDisplayState()?.workspace.workspaceKey !==
-        workspace.workspaceKey
-    ) {
-      return;
-    }
-
-    if (
-      this.getReadyDisplayState()?.conversation.metadata.id ===
-      conversation.metadata.id
-    ) {
-      let next: Conversation;
-      try {
-        next =
-          (await getConversationStore().getLatestWorkspaceConversation(
-            workspace.workspaceKey,
-          )) ||
-          (await getConversationStore().createWorkspaceConversation(workspace));
-      } catch (error) {
-        logger.error("failed to select next workspace conversation", error, {
-          archivedConversationId: conversation.metadata.id,
-          workspaceKey: workspace.workspaceKey,
-        });
-        return;
-      }
-      this.setReadyConversation(next);
-    }
-
-    await this.showSessionPopover();
-  }
-
-  private async restoreSession(conversation: Conversation): Promise<void> {
-    const ready = this.getReadyDisplayState();
-    if (!ready) {
-      return;
-    }
-    const workspace = ready.workspace;
-    let restoredMetadata: Conversation["metadata"];
-    try {
-      restoredMetadata =
-        await getConversationStore().restoreWorkspaceConversation(
-          conversation.metadata,
-        );
-    } catch (error) {
-      logger.error("failed to restore workspace conversation", error, {
-        conversationId: conversation.metadata.id,
-        workspaceKey: conversation.metadata.workspaceKey,
-      });
-      return;
-    }
-    if (
-      this.destroyed ||
-      !this.open ||
-      this.getReadyDisplayState()?.workspace.workspaceKey !==
-        workspace.workspaceKey
-    ) {
-      return;
-    }
-
-    const current = this.getReadyDisplayState();
-    if (current?.conversation.metadata.id === conversation.metadata.id) {
-      this.setReadyConversation({
-        ...current.conversation,
-        metadata: restoredMetadata,
-      });
-    }
-
-    await this.showSessionPopover("archive");
-  }
-
   private async submitPromptAsync(
     submission: SidebarPromptSubmission,
   ): Promise<void> {
@@ -791,7 +597,7 @@ class SidebarController {
       this.setReadyConversation(conversation);
     }
     if (this.viewState.sessionsOpen) {
-      void this.showSessionPopover();
+      void this.sessions.showPopover();
     }
   }
 
@@ -1094,22 +900,6 @@ class SidebarController {
     });
   }
 
-  private updateSessionControls(): void {
-    const ready = this.getReadyDisplayState();
-    if (!ready) {
-      this.hideSessionPopover();
-    } else if (this.viewState.sessionsOpen) {
-      this.updateViewState({
-        sessions: this.viewState.sessions.map((session) =>
-          createSessionView(
-            session.conversation,
-            ready.conversation.metadata.id,
-          ),
-        ),
-      });
-    }
-  }
-
   private getReadyDisplayState():
     | Extract<DisplayState, { kind: "ready" }>
     | undefined {
@@ -1256,7 +1046,7 @@ class SidebarController {
     this.open = false;
     this.selectionToken++;
     this.displayState = { kind: "closed", token: this.selectionToken };
-    this.hideSessionPopover();
+    this.sessions.hidePopover();
     this.updateViewState({ busy: false, composerEnabled: false });
     this.deckHost?.destroy();
     this.deckHost = undefined;
@@ -1439,7 +1229,7 @@ class SidebarController {
       if (target && this.deckPanel?.contains(target)) {
         return;
       }
-      this.hideSessionPopover();
+      this.sessions.hidePopover();
     };
     this.doc.addEventListener("click", dismiss);
     this.listeners.push(() => this.doc.removeEventListener("click", dismiss));
@@ -1473,13 +1263,13 @@ class SidebarController {
   private renderApp(): void {
     this.deckHost?.render(this.viewState, {
       archiveSession: (conversation) => {
-        void this.archiveSession(conversation);
+        void this.sessions.archiveSession(conversation);
       },
       close: () => this.setOpen(false),
       createNewSession: () => {
-        void this.createNewSession();
+        void this.sessions.createNewSession();
       },
-      hideSessions: () => this.hideSessionPopover(),
+      hideSessions: () => this.sessions.hidePopover(),
       interruptActiveTurn: () => this.interruptActiveTurn(),
       openExternalLink: (url) => {
         if (isSafeExternalURL(url, this.win)) {
@@ -1505,16 +1295,16 @@ class SidebarController {
       },
       uploadAttachment: () => this.uploadAttachment(),
       switchSession: (conversation) => {
-        void this.switchSession(conversation);
+        void this.sessions.switchSession(conversation);
       },
       restoreSession: (conversation) => {
-        void this.restoreSession(conversation);
+        void this.sessions.restoreSession(conversation);
       },
       toggleArchivedSessions: () => {
-        void this.toggleSessionPopover("archive");
+        void this.sessions.togglePopover("archive");
       },
       toggleSessions: () => {
-        void this.toggleSessionPopover("history");
+        void this.sessions.togglePopover("history");
       },
     });
   }

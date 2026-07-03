@@ -6,6 +6,25 @@ import { createSourceId } from "../shared/sourceIdentity";
 export { ZoteroPdfSourceResolver };
 export { createSourceId } from "../shared/sourceIdentity";
 
+type PdfSourceInput = {
+  paperKey: string;
+  libraryID: number;
+  attachmentItemID: number;
+  attachmentKey: string;
+  title?: string;
+};
+
+type ZoteroPdfAttachment = {
+  key: string;
+  libraryID: number;
+  parentItem?: {
+    getField?: (field: string) => string;
+  };
+  getField?: (field: string) => string;
+  isAttachment?: () => boolean;
+  isPDFAttachment?: () => boolean;
+};
+
 class ZoteroPdfSourceResolver {
   async resolveDefaultSource(
     scope: WorkspaceQueryScope,
@@ -15,48 +34,18 @@ class ZoteroPdfSourceResolver {
       return null;
     }
 
-    const attachment = Zotero.Items.get(source.attachmentItemID);
-    if (!attachment?.isAttachment?.() || !attachment.isPDFAttachment?.()) {
-      return null;
-    }
-    if (
-      attachment.key !== source.attachmentKey ||
-      attachment.libraryID !== source.libraryID
-    ) {
-      throw new Error("Bound Zotero attachment no longer matches this thread.");
-    }
-
-    const filePath = await resolveAttachmentFilePath(attachment);
-    if (!filePath) {
-      return null;
-    }
-    const stat = await IOUtils.stat(filePath);
-    const bytes = await IOUtils.read(filePath);
-    const pdfHash = await sha256Hex(bytes);
-    const parent = attachment.parentItem;
-    const title =
-      parent?.getField?.("title") ||
-      attachment.getField?.("title") ||
-      source.paperKey;
-
-    return {
-      sourceId: createSourceId(source.libraryID, source.attachmentKey),
+    return resolvePdfSourceIdentity({
       paperKey: source.paperKey,
       libraryID: source.libraryID,
       attachmentItemID: source.attachmentItemID,
       attachmentKey: source.attachmentKey,
-      title,
-      filePath,
-      mtime: stat.lastModified || 0,
-      size: stat.size || bytes.byteLength,
-      pdfHash,
-    };
+    });
   }
 
   async resolveSourceRef(
     source: PaperSourceRef,
   ): Promise<SourceIdentity | null> {
-    return this.resolveZoteroPdf({
+    return resolvePdfSourceIdentity({
       paperKey: source.paperKey,
       libraryID: source.libraryID,
       attachmentItemID: source.attachmentItemID,
@@ -64,52 +53,83 @@ class ZoteroPdfSourceResolver {
       title: source.title,
     });
   }
+}
 
-  private async resolveZoteroPdf(source: {
-    paperKey: string;
-    libraryID: number;
-    attachmentItemID: number;
-    attachmentKey: string;
-    title?: string;
-  }): Promise<SourceIdentity | null> {
-    const attachment = Zotero.Items.get(source.attachmentItemID);
-    if (!attachment?.isAttachment?.() || !attachment.isPDFAttachment?.()) {
-      return null;
-    }
-    if (
-      attachment.key !== source.attachmentKey ||
-      attachment.libraryID !== source.libraryID
-    ) {
-      throw new Error("Bound Zotero attachment no longer matches this thread.");
-    }
-
-    const filePath = await resolveAttachmentFilePath(attachment);
-    if (!filePath) {
-      return null;
-    }
-    const stat = await IOUtils.stat(filePath);
-    const bytes = await IOUtils.read(filePath);
-    const pdfHash = await sha256Hex(bytes);
-    const parent = attachment.parentItem;
-    const title =
-      source.title ||
-      parent?.getField?.("title") ||
-      attachment.getField?.("title") ||
-      source.paperKey;
-
-    return {
-      sourceId: createSourceId(source.libraryID, source.attachmentKey),
-      paperKey: source.paperKey,
-      libraryID: source.libraryID,
-      attachmentItemID: source.attachmentItemID,
-      attachmentKey: source.attachmentKey,
-      title,
-      filePath,
-      mtime: stat.lastModified || 0,
-      size: stat.size || bytes.byteLength,
-      pdfHash,
-    };
+async function resolvePdfSourceIdentity(
+  source: PdfSourceInput,
+): Promise<SourceIdentity | null> {
+  const attachment = resolvePdfAttachment(source);
+  if (!attachment) {
+    return null;
   }
+
+  const file = await readPdfFileMetadata(attachment);
+  if (!file) {
+    return null;
+  }
+
+  return {
+    sourceId: createSourceId(source.libraryID, source.attachmentKey),
+    paperKey: source.paperKey,
+    libraryID: source.libraryID,
+    attachmentItemID: source.attachmentItemID,
+    attachmentKey: source.attachmentKey,
+    title: resolveSourceTitle(source, attachment),
+    filePath: file.path,
+    mtime: file.mtime,
+    size: file.size,
+    pdfHash: file.pdfHash,
+  };
+}
+
+function resolvePdfAttachment(
+  source: PdfSourceInput,
+): ZoteroPdfAttachment | null {
+  const attachment = Zotero.Items.get(source.attachmentItemID) as
+    | ZoteroPdfAttachment
+    | undefined;
+  if (!attachment?.isAttachment?.() || !attachment.isPDFAttachment?.()) {
+    return null;
+  }
+  if (
+    attachment.key !== source.attachmentKey ||
+    attachment.libraryID !== source.libraryID
+  ) {
+    throw new Error("Bound Zotero attachment no longer matches this thread.");
+  }
+  return attachment;
+}
+
+async function readPdfFileMetadata(attachment: ZoteroPdfAttachment): Promise<{
+  path: string;
+  mtime: number;
+  size: number;
+  pdfHash: string;
+} | null> {
+  const filePath = await resolveAttachmentFilePath(attachment);
+  if (!filePath) {
+    return null;
+  }
+  const stat = await IOUtils.stat(filePath);
+  const bytes = await IOUtils.read(filePath);
+  return {
+    path: filePath,
+    mtime: stat.lastModified || 0,
+    size: stat.size || bytes.byteLength,
+    pdfHash: await sha256Hex(bytes),
+  };
+}
+
+function resolveSourceTitle(
+  source: PdfSourceInput,
+  attachment: ZoteroPdfAttachment,
+): string {
+  return (
+    source.title ||
+    attachment.parentItem?.getField?.("title") ||
+    attachment.getField?.("title") ||
+    source.paperKey
+  );
 }
 
 async function resolveAttachmentFilePath(attachment: unknown): Promise<string> {

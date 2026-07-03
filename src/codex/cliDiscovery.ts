@@ -1,3 +1,5 @@
+import { waitForSubprocessResult } from "../utils/subprocess";
+
 export {
   buildCodexSubprocessEnvironment,
   resolveCodexBinaryPath,
@@ -138,39 +140,14 @@ async function getShellCandidates(
 async function waitForPathProbe(
   proc: CodexDiscoverySubprocessProcess,
 ): Promise<{ exitCode: number; stdout: string }> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<{ exitCode: number; stdout: string }>(
-    (resolve) => {
-      timer = setTimeout(async () => {
-        await proc.kill(500).catch(() => undefined);
-        resolve({ exitCode: 124, stdout: "" });
-      }, SHELL_PATH_TIMEOUT_MS);
-    },
-  );
-  const completed = Promise.all([proc.wait(), readStream(proc.stdout)]).then(
-    ([waitResult, stdout]) => ({
-      exitCode: waitResult.exitCode,
-      stdout,
-    }),
-  );
-  const result = await Promise.race([completed, timeout]);
-  if (timer) {
-    clearTimeout(timer);
-  }
-  return result;
-}
-
-async function readStream(
-  stream: CodexDiscoverySubprocessProcess["stdout"],
-): Promise<string> {
-  let output = "";
-  while (true) {
-    const chunk = await stream.readString().catch(() => "");
-    if (!chunk) {
-      return output;
-    }
-    output += chunk;
-  }
+  const result = await waitForSubprocessResult(proc, {
+    timeoutMs: SHELL_PATH_TIMEOUT_MS,
+    killTimeoutMs: 500,
+  });
+  return {
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+  };
 }
 
 function extractMarkedPath(output: string): string | undefined {

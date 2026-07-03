@@ -1,0 +1,76 @@
+/* Context pane host */
+
+#zopilot-context-pane-deck {
+  --zp-composer-height: 112px;
+  --zp-header-height: 39px;
+  --zp-app-bg: color-mix(in srgb, Field 74%, Canvas 26%);
+  --zp-header-bg: color-mix(in srgb, Field 82%, Canvas 18%);
+  --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
+  --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
+  --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
+  --zp-composer-bg: color-mix(in srgb, Field 84%, CanvasText 8%);
+  --zp-chip-bg: color-mix(in srgb, Canvas 82%, CanvasText 7%);
+  --zp-chip-border: color-mix(in srgb, CanvasText 9%, transparent);
+  --zp-bubble: color-mix(in srgb, Field 76%, CanvasText 8%);
+  --zp-bubble-border: color-mix(in srgb, CanvasText 6%, transparent);
+  --zp-border: color-mix(in srgb, CanvasText 7%, transparent);
+  --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
+  --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);
+  --zp-muted-strong: color-mix(in srgb, CanvasText 64%, Canvas);
+  --zp-accent: var(--accent-blue, AccentColor);
+  --zp-danger: #c9342f;
+  --zp-accent-text: AccentColorText;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.zp-context-sidenav-button {
+  appearance: none;
+  -moz-appearance: none;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  box-sizing: border-box;
+  color: currentColor;
+  cursor: default;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  margin: 0;
+  padding: 4px;
+  width: 28px;
+}
+
+.zp-context-sidenav-button:hover,
+.zp-context-sidenav-button[data-active] {
+  background: var(
+    --fill-quinary,
+    color-mix(in srgb, currentColor 12%, transparent)
+  );
+}
+
+.zp-context-sidenav-button:focus-visible {
+  outline: 2px solid AccentColor;
+  outline-offset: 1px;
+}
+
+.zp-context-sidenav-icon {
+  color: currentColor;
+  height: 20px;
+  opacity: 0.72;
+  pointer-events: none;
+  stroke: currentColor;
+  width: 20px;
+}
+
+.zp-context-sidenav-button[data-active] .zp-context-sidenav-icon {
+  opacity: 1;
+}

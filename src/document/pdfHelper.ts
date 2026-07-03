@@ -1,3 +1,5 @@
+import { waitForSubprocessResult } from "../utils/subprocess";
+
 export {
   PDF_HELPER_MANIFEST_URL,
   PDF_HELPER_PLATFORM,
@@ -312,14 +314,10 @@ async function extractTarGz(
     stdout: "pipe",
     stderr: "pipe",
   });
-  const [stdout, stderr, wait] = await Promise.all([
-    proc.stdout?.readString().catch(() => "") || "",
-    proc.stderr?.readString().catch(() => "") || "",
-    proc.wait(),
-  ]);
-  if (wait.exitCode !== 0) {
+  const { exitCode, stdout, stderr } = await waitForSubprocessResult(proc);
+  if (exitCode !== 0) {
     throw new Error(
-      `PDF helper extraction failed (${wait.exitCode}): ${stderr || stdout}`,
+      `PDF helper extraction failed (${exitCode}): ${stderr || stdout}`,
     );
   }
 }

@@ -1,4 +1,5 @@
 import { buildChunksAndArtifacts } from "./chunker";
+import { waitForSubprocessResult } from "../utils/subprocess";
 import type {
   Material,
   MaterialArtifact,
@@ -133,14 +134,10 @@ class MaterialCache {
       stdout: "pipe",
       stderr: "pipe",
     });
-    const [stdout, stderr, wait] = await Promise.all([
-      proc.stdout?.readString().catch(() => "") || "",
-      proc.stderr?.readString().catch(() => "") || "",
-      proc.wait(),
-    ]);
-    if (wait.exitCode !== 0) {
+    const { exitCode, stdout, stderr } = await waitForSubprocessResult(proc);
+    if (exitCode !== 0) {
       throw new Error(
-        `PDF material helper failed (${wait.exitCode}): ${stderr || stdout}`,
+        `PDF material helper failed (${exitCode}): ${stderr || stdout}`,
       );
     }
     const output = (await IOUtils.readJSON(

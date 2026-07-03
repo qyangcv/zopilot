@@ -1,9 +1,9 @@
 import {
   buildCodexSubprocessEnvironment,
   type CodexDiscoverySubprocessModule,
-  type CodexDiscoverySubprocessProcess,
   resolveCodexBinaryPath,
 } from "./cliDiscovery";
+import { waitForSubprocessResult } from "../utils/subprocess";
 
 export {
   checkCodexConnection,
@@ -145,45 +145,10 @@ async function runCodexCommand(
     workdir: context.subprocess.getEnvironment().HOME,
   });
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<CodexCommandResult>((resolve) => {
-    timer = setTimeout(
-      () =>
-        void proc.kill(500).then(
-          () => resolve({ exitCode: 124, stdout: "", stderr: "" }),
-          () => resolve({ exitCode: 124, stdout: "", stderr: "" }),
-        ),
-      COMMAND_TIMEOUT_MS,
-    );
+  return waitForSubprocessResult(proc, {
+    timeoutMs: COMMAND_TIMEOUT_MS,
+    killTimeoutMs: 500,
   });
-
-  const completed = Promise.all([
-    proc.wait(),
-    readStream(proc.stdout),
-    proc.stderr ? readStream(proc.stderr) : Promise.resolve(""),
-  ]).then(([waitResult, stdout, stderr]) => ({
-    exitCode: waitResult.exitCode,
-    stdout,
-    stderr,
-  }));
-  const result = await Promise.race([completed, timeout]);
-  if (timer) {
-    clearTimeout(timer);
-  }
-  return result;
-}
-
-async function readStream(
-  stream: CodexDiscoverySubprocessProcess["stdout"],
-): Promise<string> {
-  let output = "";
-  while (true) {
-    const chunk = await stream.readString().catch(() => "");
-    if (!chunk) {
-      return output;
-    }
-    output += chunk;
-  }
 }
 
 function classifyCommandFailure(

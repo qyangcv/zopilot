@@ -1,0 +1,368 @@
+/* Composer and workspace controls */
+
+.zp-bottom-dock {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: 10px;
+  inset-inline: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.zp-composer {
+  margin: 0;
+  border: 1px solid var(--zp-border);
+  border-radius: 8px;
+  background: var(--zp-composer-bg);
+}
+
+.zp-workspace-status-row {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  min-width: 0;
+}
+
+.zp-workspace-selector {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.zp-workspace-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  max-width: min(100%, 460px);
+  min-width: 0;
+  min-height: 22px;
+  padding: 2px 6px;
+  color: var(--zp-muted-strong);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: start;
+}
+
+.zp-workspace-trigger-icon {
+  color: color-mix(in srgb, CanvasText 68%, Canvas);
+  width: 14px;
+  height: 14px;
+}
+
+.zp-workspace-trigger-main {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.zp-workspace-trigger-label {
+  flex: 0 0 auto;
+  color: CanvasText;
+  font-weight: 600;
+}
+
+.zp-workspace-trigger-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zp-muted-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-type-badge {
+  flex: 0 0 auto;
+  max-width: 72px;
+  overflow: hidden;
+  border: 1px solid var(--zp-subtle-border);
+  border-radius: 4px;
+  padding: 0 5px;
+  background: color-mix(in srgb, Canvas 82%, CanvasText 4%);
+  color: var(--zp-muted);
+  font-size: 10.5px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-trigger-chevron {
+  color: var(--zp-muted);
+  width: 11px;
+  height: 11px;
+}
+
+.zp-workspace-menu {
+  width: 100%;
+  max-height: inherit;
+  overflow: auto;
+  border: 1px solid var(--zp-border);
+  border-radius: 7px;
+  background: var(--zp-popover);
+  color: CanvasText;
+  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
+  font: menu;
+  font-size: 12px;
+}
+
+.zp-workspace-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px 6px;
+  border-bottom: 1px solid var(--zp-subtle-border);
+  color: var(--zp-muted-strong);
+  font-weight: 600;
+}
+
+.zp-workspace-menu-header-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.zp-workspace-menu-header-action {
+  appearance: none;
+  -moz-appearance: none;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--zp-muted-strong);
+  cursor: default;
+  margin: 0;
+  padding: 0;
+}
+
+.zp-workspace-menu-header-action:hover {
+  background: var(--zp-panel-strong);
+}
+
+.zp-workspace-menu-header-action:disabled {
+  opacity: 0.45;
+}
+
+.zp-workspace-menu-row {
+  min-width: 0;
+}
+
+.zp-workspace-menu-action {
+  appearance: none;
+  -moz-appearance: none;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px 24px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-expander {
+  appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+}
+
+.zp-workspace-menu-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 0;
+}
+
+.zp-workspace-menu-icon {
+  color: var(--zp-muted-strong);
+}
+
+.zp-workspace-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.zp-workspace-menu-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-meta {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zp-muted);
+  font-size: 11px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-workspace-menu-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--zp-accent);
+}
+
+.zp-workspace-menu-expander {
+  display: inline-flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--zp-muted-strong);
+}
+
+.zp-workspace-menu-action:hover,
+.zp-workspace-menu-expander:hover,
+.zp-workspace-menu-action[data-active] {
+  background: var(--zp-panel-strong);
+}
+
+.zp-workspace-menu-action[data-active] {
+  color: CanvasText;
+  font-weight: 600;
+}
+
+.zp-workspace-menu-collection {
+  color: var(--zp-muted-strong);
+}
+
+.zp-context-add {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  color: var(--zp-muted-strong);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.zp-context-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 8px 0;
+  min-width: 0;
+}
+
+.zp-context-chips,
+.zp-local-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.zp-context-chip,
+.zp-local-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(100%, 340px);
+  height: 28px;
+  border: 1px solid var(--zp-chip-border);
+  border-radius: 6px;
+  background: var(--zp-chip-bg);
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 8px 0 3px;
+}
+
+.zp-context-chip-icon,
+.zp-local-attachment-icon {
+  flex: 0 0 auto;
+  color: var(--zp-accent);
+}
+
+.zp-context-chip-text,
+.zp-local-attachment-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-context-chip-remove,
+.zp-local-attachment-remove {
+  appearance: none;
+  -moz-appearance: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--zp-muted);
+  margin: 0;
+  padding: 0;
+}
+
+.zp-local-attachment-remove:hover {
+  background: var(--zp-panel-strong);
+  color: CanvasText;
+}
+
+.zp-composer-input {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  appearance: none;
+  background: transparent;
+  color: CanvasText;
+  padding: 12px 12px 9px;
+  font: menu;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.zp-composer-input:focus,
+.zp-composer-input:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
+.zp-composer-input::placeholder {
+  color: var(--zp-muted);
+  opacity: 1;
+}

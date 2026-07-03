@@ -7,5 +7,6 @@ export function registerPreferencePane() {
     label: getString("prefs-title"),
     image: `chrome://${addon.data.config.addonRef}/content/icons/message-circle.svg`,
     scripts: [rootURI + "content/preferences.js"],
+    stylesheets: [rootURI + "content/preferences.css"],
   });
 }

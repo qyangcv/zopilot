@@ -1,0 +1,179 @@
+/* Composer footer and model controls */
+
+.zp-composer-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px 4px;
+}
+
+.zp-composer-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.zp-codex-status {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-status-icon {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, CanvasText 58%, Canvas);
+}
+
+.zp-codex-status[data-status="checking"] .zp-status-icon {
+  animation: zp-spin 0.9s linear infinite;
+}
+
+.zp-codex-status[data-status="disconnected"] .zp-status-icon {
+  color: var(--zp-danger);
+}
+
+.zp-ui-select {
+  display: inline-flex;
+  position: relative;
+  min-width: 0;
+}
+
+.zp-composer-select {
+  flex: 0 1 auto;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: min(180px, 100%);
+  border: 0 !important;
+  border-radius: 4px;
+  appearance: none;
+  -moz-appearance: none;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--zp-muted-strong);
+  font: menu;
+  font-size: 12px;
+  line-height: 1.3;
+  margin: 0;
+  outline: 0;
+  padding: 1px 4px;
+  text-align: center;
+}
+
+.zp-composer-select:hover {
+  background: var(--zp-composer-control-hover) !important;
+}
+
+.zp-composer-select[data-popup-open] {
+  background: var(--zp-composer-control-hover) !important;
+}
+
+.zp-composer-select:focus-visible {
+  outline: 2px solid var(--zp-accent);
+  outline-offset: 1px;
+}
+
+.zp-ui-select-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-ui-select-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.zp-ui-select-popup {
+  width: 100%;
+  max-height: inherit;
+  overflow: auto;
+  padding-block: 4px;
+  border: 1px solid var(--zp-border);
+  border-radius: 7px;
+  background: var(--zp-popover);
+  color: CanvasText;
+  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
+  font: menu;
+  font-size: 12px;
+}
+
+.zp-ui-select-option {
+  appearance: none;
+  -moz-appearance: none;
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+  overflow: hidden;
+  padding: 6px 9px;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-ui-select-option:hover,
+.zp-ui-select-option[data-active],
+.zp-ui-select-option[data-highlighted] {
+  background: var(--zp-panel-strong);
+}
+
+.zp-ui-select-option[data-selected] {
+  color: var(--zp-accent);
+  font-weight: 600;
+}
+
+.zp-composer-select:disabled {
+  opacity: 0.6;
+}
+
+.zp-send-button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  background: var(--zp-accent);
+  color: var(--zp-accent-text);
+  font-size: 18px;
+  line-height: 1;
+  margin-block-end: 2px;
+}
+
+.zp-send-button:hover {
+  filter: brightness(1.05);
+}
+
+/* Motion and responsive adjustments */
+
+@keyframes zp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zp-codex-status[data-status="checking"] .zp-status-icon {
+    animation: none;
+  }
+}

@@ -1,0 +1,183 @@
+/* Sidebar shell and shared tokens */
+
+.zp-sidebar {
+  box-sizing: border-box;
+  display: block;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: absolute;
+  font: menu;
+  font-size: 13px;
+  line-height: 1.42;
+  background: var(--zp-app-bg);
+  color: CanvasText;
+  user-select: text;
+}
+
+.zp-react-root {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.zp-portal-root {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: CanvasText;
+  font: menu;
+}
+
+.zp-portal-root > * {
+  pointer-events: auto;
+}
+
+.zp-dismiss-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+.zp-floating-layer {
+  position: absolute;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.zp-sidebar *,
+.zp-sidebar *::before,
+.zp-sidebar *::after,
+.zp-portal-root *,
+.zp-portal-root *::before,
+.zp-portal-root *::after {
+  box-sizing: border-box;
+}
+
+/* Header and shared controls */
+
+.zp-sidebar-header {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 41px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--zp-border);
+  background: var(--zp-header-bg);
+}
+
+.zp-sidebar-identity {
+  appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+  padding: 0;
+  text-align: start;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.zp-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: currentColor;
+  pointer-events: none;
+  stroke: currentColor;
+}
+
+.zp-sidebar-title-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.zp-sidebar .zp-sidebar-title {
+  display: block !important;
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-sidebar-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+}
+
+.zp-icon-button,
+.zp-context-add,
+.zp-send-button,
+.zp-workspace-trigger,
+.zp-message-action,
+.zp-inline-copy {
+  appearance: none;
+  -moz-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+.zp-icon-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--zp-muted-strong);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.zp-icon-button:hover,
+.zp-workspace-trigger:hover,
+.zp-workspace-trigger[data-popup-open],
+.zp-message-action:hover,
+.zp-inline-copy:hover {
+  background: var(--zp-panel-strong);
+}
+
+.zp-context-add:hover {
+  background: var(--zp-composer-control-hover);
+}
+
+.zp-icon-button:disabled,
+.zp-context-add:disabled,
+.zp-workspace-trigger:disabled,
+.zp-message-action:disabled,
+.zp-send-button:disabled {
+  opacity: 0.45;
+}

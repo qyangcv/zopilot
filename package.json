@@ -32,7 +32,6 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
     "@mdit/plugin-footnote": "^0.23.2",
     "@mdit/plugin-tasklist": "^0.23.2",
     "@mdit/plugin-tex": "^0.24.2",
