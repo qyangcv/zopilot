@@ -1,4 +1,4 @@
-import { FileText, PackageCheck, PlugZap } from "lucide-react";
+import { PackageCheck, PencilSparkles, PlugZap } from "lucide-react";
 import { useEffect, useState, type ReactElement } from "react";
 import { ConnectionPanel } from "./ConnectionPanel";
 import { DependenciesPanel } from "./DependenciesPanel";
@@ -55,7 +55,7 @@ function PreferencesApp({
           <NavButton
             active={activeSection === "prompts"}
             count={promptEditor.prompts.length || undefined}
-            icon={<FileText size={16} />}
+            icon={<PencilSparkles size={16} />}
             label={<T id="pref-nav-prompts">Prompt</T>}
             onClick={() => setActiveSection("prompts")}
           />

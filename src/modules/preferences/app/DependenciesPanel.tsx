@@ -46,7 +46,7 @@ function DependenciesPanel({
       <PageHeader
         description={
           <T id="pref-dependencies-description">
-            管理 Zopilot 私有 PDF 解析 helper，不会安装到系统 Python。
+            管理 Zopilot 的 PDF 解析依赖。
           </T>
         }
         title={<T id="pref-dependencies-title">依赖管理</T>}
@@ -68,7 +68,7 @@ function DependenciesPanel({
             </div>
             <p>
               <T id="pref-pdf-helper-card-description">
-                用于解析 PDF、提取文本并渲染页面图片。
+                用于解析 PDF、提取文本、渲染页面图片。
               </T>
             </p>
           </div>
