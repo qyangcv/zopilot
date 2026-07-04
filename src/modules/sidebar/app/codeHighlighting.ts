@@ -65,14 +65,16 @@ export function highlightCodeWithShiki(
   }
 
   try {
-    return getHighlighter().codeToHtml(text, {
-      lang: language,
-      themes: {
-        light: "github-light",
-        dark: "github-dark",
-      },
-      defaultColor: "light",
-    });
+    return compactShikiLineBreaks(
+      getHighlighter().codeToHtml(text, {
+        lang: language,
+        themes: {
+          light: "github-light",
+          dark: "github-dark",
+        },
+        defaultColor: "light",
+      }),
+    );
   } catch {
     return undefined;
   }
@@ -107,4 +109,11 @@ function getHighlighter(): ReturnType<typeof createHighlighterCoreSync> {
     engine: createJavaScriptRegexEngine({ target: "ES2018", forgiving: true }),
   });
   return highlighter;
+}
+
+function compactShikiLineBreaks(html: string): string {
+  return html.replaceAll(
+    '</span>\n<span class="line"',
+    '</span><span class="line"',
+  );
 }

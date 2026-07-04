@@ -213,7 +213,7 @@
 .zp-message-markdown code {
   border: 1px solid var(--zp-subtle-border);
   border-radius: 5px;
-  background: var(--zp-panel);
+  background: var(--zp-code-bg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -226,7 +226,7 @@
   margin: 0;
   border: 1px solid var(--zp-subtle-border);
   border-radius: 5px;
-  background: var(--zp-panel);
+  background: var(--zp-code-bg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow: auto;
   padding: 8px;
@@ -235,13 +235,13 @@
 
 .zp-code-block {
   --zp-code-font-size: 11px;
-  --zp-code-line-height: 12px;
-  --zp-code-empty-line-height: 0;
+  --zp-code-line-height: 15px;
+  --zp-code-empty-line-height: 7px;
   position: relative;
   overflow: hidden;
   border: 0;
   border-radius: 5px;
-  background: var(--zp-panel);
+  background: var(--zp-code-bg);
 }
 
 .zp-code-block pre,
@@ -310,8 +310,14 @@
   line-height: inherit;
 }
 
+.zp-code-content .shiki code {
+  display: block;
+  line-height: var(--zp-code-line-height);
+}
+
 .zp-code-content .line {
   display: block;
+  line-height: var(--zp-code-line-height);
   min-height: var(--zp-code-line-height);
 }
 

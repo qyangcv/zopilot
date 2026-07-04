@@ -99,6 +99,7 @@ describe("MarkdownView", function () {
     assert.include(html ?? "", "shiki-themes github-light github-dark");
     assert.include(html ?? "", "--shiki-dark");
     assert.include(html ?? "", "def");
+    assert.notInclude(html ?? "", '</span>\n<span class="line"');
   });
 
   it("falls back for unsupported code block languages", async function () {

@@ -78,7 +78,7 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "**bold**");
   });
 
-  it("keeps single-paragraph user bubbles compact", function () {
+  it("renders single-paragraph user bubbles with the shared Markdown structure", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -98,8 +98,7 @@ describe("SidebarApp", function () {
       html,
       'class="zp-markdown-rendered zp-message-bubble zp-message-markdown"',
     );
-    assert.include(html, "<strong>bold</strong> text");
-    assert.notInclude(html, "<p>");
+    assert.include(html, "<p><strong>bold</strong> text</p>");
   });
 
   it("keeps edit and resend actions bound to raw user text and context", function () {
@@ -190,6 +189,7 @@ describe("SidebarApp", function () {
     );
     assert.include(html, 'data-icon-name="attachmentImage"');
     assert.include(html, "figure.png");
+    assert.include(html, "<p>Read this figure</p>");
     assert.notInclude(html, "zopilot-sidebar-attachment-remove");
   });
 

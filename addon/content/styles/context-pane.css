@@ -7,6 +7,7 @@
   --zp-header-bg: color-mix(in srgb, Field 82%, Canvas 18%);
   --zp-panel: color-mix(in srgb, Canvas 70%, Field 30%);
   --zp-panel-strong: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  --zp-code-bg: color-mix(in srgb, Canvas 87%, CanvasText 13%);
   --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
   --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
   --zp-composer-bg: color-mix(in srgb, Field 84%, CanvasText 8%);

@@ -59,7 +59,6 @@ export function Message({
               className="zp-message-markdown"
               markdown={message.text}
               onOpenLink={onOpenLink}
-              unwrapSingleParagraph
             />
           </div>
         ) : (
@@ -67,7 +66,6 @@ export function Message({
             className="zp-message-bubble zp-message-markdown"
             markdown={message.text}
             onOpenLink={onOpenLink}
-            unwrapSingleParagraph
           />
         )}
         {isAssistant ? (
