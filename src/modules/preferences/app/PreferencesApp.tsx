@@ -1,15 +1,15 @@
 import { PackageCheck, PencilSparkles, PlugZap } from "lucide-react";
 import { useEffect, useState, type ReactElement } from "react";
-import { ConnectionPanel } from "./ConnectionPanel";
 import { DependenciesPanel } from "./DependenciesPanel";
 import { PromptPanel } from "./PromptPanel";
+import { ProviderPanel } from "./ProviderPanel";
 import { NavButton, T } from "./shared";
 import type { PreferenceSection, PreferencesAppProps } from "./types";
-import { useCodexConnection } from "./useCodexConnection";
 import {
   dependencyNavCount,
   usePdfHelperDependency,
 } from "./usePdfHelperDependency";
+import { useProviderProfiles } from "./useProviderProfiles";
 import { usePromptEditor } from "./usePromptEditor";
 
 export { PreferencesApp };
@@ -20,8 +20,8 @@ function PreferencesApp({
   translate,
 }: PreferencesAppProps): ReactElement {
   const [activeSection, setActiveSection] =
-    useState<PreferenceSection>("connection");
-  const { connection, runConnectionCheck } = useCodexConnection(getSubprocess);
+    useState<PreferenceSection>("providers");
+  const providers = useProviderProfiles();
   const {
     dependencyState,
     installDependencies,
@@ -39,11 +39,17 @@ function PreferencesApp({
       <aside className="zp-pref-sidebar" aria-label="Zopilot 偏好设置分组">
         <nav className="zp-pref-nav">
           <NavButton
-            active={activeSection === "connection"}
-            count={connection.status === "connected" ? undefined : 1}
+            active={activeSection === "providers"}
+            count={
+              providers.state.profiles.some(
+                (profile) => profile.status === "disconnected",
+              )
+                ? 1
+                : undefined
+            }
             icon={<PlugZap size={16} />}
-            label={<T id="pref-nav-connection">连接</T>}
-            onClick={() => setActiveSection("connection")}
+            label={<T id="pref-nav-providers">Provider</T>}
+            onClick={() => setActiveSection("providers")}
           />
           <NavButton
             active={activeSection === "dependencies"}
@@ -62,10 +68,18 @@ function PreferencesApp({
         </nav>
       </aside>
       <section className="zp-pref-main">
-        {activeSection === "connection" ? (
-          <ConnectionPanel
-            connection={connection}
-            onCheck={runConnectionCheck}
+        {activeSection === "providers" ? (
+          <ProviderPanel
+            activeProviderId={providers.state.activeProviderId}
+            checkingProviderId={providers.state.checkingProviderId}
+            message={providers.state.message}
+            onCheck={providers.checkProvider}
+            onCreate={providers.createProvider}
+            onDelete={providers.deleteProvider}
+            onSelect={providers.selectProvider}
+            onUpdate={providers.updateProvider}
+            presets={providers.presets}
+            profiles={providers.state.profiles}
           />
         ) : activeSection === "dependencies" ? (
           <DependenciesPanel

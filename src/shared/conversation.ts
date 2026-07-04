@@ -60,6 +60,8 @@ export type ConversationMetadata = WorkspaceIdentity & {
   createdAt: string;
   updatedAt: string;
   codexThreadId?: string;
+  backendId?: string;
+  providerProfileId?: string;
   latestPreview?: string;
   archived?: boolean;
 };
@@ -73,6 +75,12 @@ export type ConversationMessage = {
   completedAt?: string;
   codexThreadId?: string;
   codexTurnId?: string;
+  backendId?: string;
+  backendKind?: "codex-cli" | "openai-compatible";
+  providerProfileId?: string;
+  backendRunId?: string;
+  backendTurnId?: string;
+  capabilitySnapshot?: Record<string, boolean>;
   status: ConversationMessageStatus;
   model?: string;
   reasoningEffort?: string;

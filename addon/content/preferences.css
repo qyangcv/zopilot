@@ -183,8 +183,65 @@
 .zp-pref-status-missing {
   color: var(--zp-pref-danger);
 }
+.zp-pref-status-disconnected {
+  color: var(--zp-pref-danger);
+}
+.zp-pref-status-unchecked {
+  color: var(--zp-pref-muted);
+}
+.zp-pref-status-message {
+  border-radius: 6px;
+}
 .zp-pref-spin {
   animation: zp-pref-spin 1s linear infinite;
+}
+
+/* Provider management */
+
+.zp-pref-provider-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+.zp-pref-provider-card {
+  gap: 12px;
+}
+.zp-pref-provider-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--zp-pref-muted);
+  font-size: 12px;
+}
+.zp-pref-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.zp-pref-form-grid label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--zp-pref-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.zp-pref-form-grid input,
+.zp-pref-form-grid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid var(--zp-pref-border-strong);
+  border-radius: 6px;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  font-weight: 400;
+  padding: 4px 8px;
 }
 
 /* Dependency status */

@@ -1,17 +1,13 @@
 import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
-import { getCodexBridge } from "../../codex/bridge";
-import {
-  diagnoseCodexConnection,
-  type CodexDiagnostic,
-} from "../../codex/diagnostics";
-import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
+import { getAgentBackendManager } from "../../agent/backendManager";
+import { getProviderProfileStore } from "../../agent/providerProfiles";
+import type { AgentDiagnostic, AgentRunResult } from "../../agent/types";
 import type {
   Conversation,
   LocalAttachmentRef,
   PaperIdentity,
   PaperSourceRef,
-  SourceMention,
   WorkspaceIdentity,
   WorkspaceType,
 } from "../../shared/conversation";
@@ -60,7 +56,7 @@ import {
 } from "./modelPreferences";
 
 const controllers = new WeakMap<Window, SidebarController>();
-const CODEX_TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
+const TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
 const logger = createLogger("sidebar.controller");
 export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
 
@@ -69,8 +65,11 @@ type RunningTurn = {
   assistantOutput: string;
   model?: string;
   reasoningEffort?: string;
-  threadId?: string;
+  backendId?: string;
+  providerProfileId?: string;
+  runId?: string;
   turnId?: string;
+  legacy?: AgentRunResult["legacy"];
   interrupting: boolean;
   interrupted: boolean;
 };
@@ -133,7 +132,6 @@ class SidebarController {
   private deckPanel?: HTMLElement;
   private open = false;
   private destroyed = false;
-  private diagnosticSubprocess?: CodexDiscoverySubprocessModule;
   private modelLoadPromise?: Promise<void>;
   private selectionToken = 0;
   private displayState: DisplayState = { kind: "closed", token: 0 };
@@ -187,6 +185,7 @@ class SidebarController {
     this.bindContextRefresh();
     this.bindLayoutRefresh();
     this.bindPromptRefresh();
+    this.bindBackendProfileRefresh();
     this.bindSelectionCopy();
     this.bindSessionPopoverDismiss();
     this.refreshContext();
@@ -258,7 +257,7 @@ class SidebarController {
     void this.loadSelectedReader(token);
   }
 
-  private queueCodexStatusCheck(): void {
+  private queueBackendStatusCheck(): void {
     this.win.setTimeout(() => {
       if (!this.destroyed) {
         void this.loadModels();
@@ -332,7 +331,7 @@ class SidebarController {
         token,
         reader,
         label: workspace.workspaceLabel,
-        message: formatCodexError(error),
+        message: formatBackendError(error),
       });
     }
   }
@@ -473,25 +472,28 @@ class SidebarController {
     this.renderDisplayState();
 
     try {
-      const bridge = getCodexBridge();
       let pendingToolBoundary = false;
-      const result = await bridge.sendPrompt(
-        buildPromptWithLocalAttachments(
-          buildPromptWithSourceRefs(promptText, submission.mentions),
-          submission.localAttachments,
-        ),
+      const result = await getAgentBackendManager().sendPrompt(
         {
-          conversation: conversation.metadata,
+          conversation,
+          prompt: promptText,
           model: runningTurn.model,
-          effort: runningTurn.reasoningEffort,
-          onTurnStarted: (threadId, turnId) => {
-            runningTurn.threadId = threadId;
-            runningTurn.turnId = turnId;
+          reasoningEffort: runningTurn.reasoningEffort,
+          mentions: submission.mentions,
+          localAttachments: submission.localAttachments,
+        },
+        {
+          onRunStarted: (event) => {
+            runningTurn.backendId = event.backendId;
+            runningTurn.providerProfileId = event.providerProfileId;
+            runningTurn.runId = event.runId;
+            runningTurn.turnId = event.turnId;
+            runningTurn.legacy = event.legacy;
             if (runningTurn.interrupting) {
               this.interruptRunningTurn(runningTurn);
             }
           },
-          onDelta: (delta) => {
+          onTextDelta: (delta: string) => {
             if (runningTurn.interrupted) {
               return;
             }
@@ -500,13 +502,13 @@ class SidebarController {
               runningTurn.assistantOutput.trim() &&
               delta.trim()
             ) {
-              runningTurn.assistantOutput += CODEX_TOOL_OUTPUT_SEPARATOR;
+              runningTurn.assistantOutput += TOOL_OUTPUT_SEPARATOR;
               pendingToolBoundary = false;
             }
             runningTurn.assistantOutput += delta;
             this.refreshRunningTurnView(runningTurn);
           },
-          onToolActivity: () => {
+          onToolStarted: () => {
             if (runningTurn.assistantOutput.trim()) {
               pendingToolBoundary = true;
             }
@@ -519,19 +521,26 @@ class SidebarController {
           },
         },
       );
-      runningTurn.threadId = result.threadId;
+      runningTurn.backendId = result.backendId;
+      runningTurn.providerProfileId = result.providerProfileId;
+      runningTurn.runId = result.runId;
       runningTurn.turnId = result.turnId;
+      runningTurn.legacy = result.legacy;
       this.updateViewState({
-        codexStatus: "connected",
-        codexDiagnostic: undefined,
+        backendStatus: "connected",
+        backendDiagnosticMessage: undefined,
       });
       const finalText =
         runningTurn.assistantOutput ||
         result.text ||
-        getString("sidebar-codex-empty-response");
-      const metadata = await getConversationStore().updateCodexThreadId(
+        getString("sidebar-backend-empty-response");
+      const metadata = await getConversationStore().updateBackendMetadata(
         conversation.metadata,
-        result.threadId,
+        {
+          backendId: result.backendId,
+          providerProfileId: result.providerProfileId,
+          codexThreadId: result.legacy?.codexThreadId,
+        },
       );
       conversation = await getConversationStore().addMessage(metadata, {
         role: "assistant",
@@ -541,21 +550,28 @@ class SidebarController {
             ? "interrupted"
             : "complete",
         completedAt: new Date().toISOString(),
-        codexThreadId: result.threadId,
-        codexTurnId: result.turnId,
+        codexThreadId: result.legacy?.codexThreadId,
+        codexTurnId: result.legacy?.codexTurnId,
+        backendId: result.backendId,
+        backendKind: getAgentBackendManager().getActiveProfile().kind,
+        providerProfileId: result.providerProfileId,
+        backendRunId: result.runId,
+        backendTurnId: result.turnId,
+        capabilitySnapshot:
+          getAgentBackendManager().getActiveProfile().capabilities,
         model: runningTurn.model,
         reasoningEffort: runningTurn.reasoningEffort,
       });
       this.finishRunningTurn(runningTurn, conversation);
     } catch (error) {
-      logger.error("codex sendPrompt failed", error, {
+      logger.error("agent backend sendPrompt failed", error, {
         conversationId: conversation.metadata.id,
         workspaceKey: conversation.metadata.workspaceKey,
-        threadId: runningTurn.threadId,
+        runId: runningTurn.runId,
         turnId: runningTurn.turnId,
       });
-      await this.showCodexDiagnostic();
-      const errorText = formatCodexError(error);
+      await this.showBackendDiagnostic(error);
+      const errorText = formatBackendError(error);
       const text = runningTurn.interrupted
         ? runningTurn.assistantOutput || getString("sidebar-status-interrupted")
         : errorText;
@@ -566,6 +582,11 @@ class SidebarController {
           text,
           status: runningTurn.interrupted ? "interrupted" : "error",
           completedAt: new Date().toISOString(),
+          backendId: runningTurn.backendId,
+          backendKind: getAgentBackendManager().getActiveProfile().kind,
+          providerProfileId: runningTurn.providerProfileId,
+          backendRunId: runningTurn.runId,
+          backendTurnId: runningTurn.turnId,
           model: runningTurn.model,
           reasoningEffort: runningTurn.reasoningEffort,
         },
@@ -619,15 +640,20 @@ class SidebarController {
     runningTurn.interrupted = true;
     this.refreshRunningTurnView(runningTurn);
     this.updateRunningState();
-    const { threadId, turnId } = runningTurn;
-    if (!threadId || !turnId) {
+    const { runId, turnId, legacy } = runningTurn;
+    if (!runId && !legacy?.codexThreadId) {
       return;
     }
-    void getCodexBridge()
-      .interruptTurn(threadId, turnId)
+    void getAgentBackendManager()
+      .cancelTurn({
+        conversationId: runningTurn.conversation.metadata.id,
+        runId,
+        turnId,
+        legacy,
+      })
       .catch((error) => {
-        logger.error("codex turn/interrupt failed", error, {
-          threadId,
+        logger.error("agent backend cancel failed", error, {
+          runId,
           turnId,
           conversationId: runningTurn.conversation.metadata.id,
         });
@@ -646,16 +672,22 @@ class SidebarController {
 
   private async loadModelsOnce(): Promise<void> {
     this.updateViewState({
-      codexStatus: "checking",
-      codexDiagnostic: undefined,
+      backendStatus: "checking",
+      backendDiagnosticMessage: undefined,
     });
     try {
-      const models = await getCodexBridge().listModels();
+      const status = await getAgentBackendManager().checkActiveStatus();
+      const models = status.models?.length
+        ? status.models
+        : await getAgentBackendManager().listActiveModels();
       if (this.destroyed) {
         return;
       }
-      const availableModels = models.length ? models : [DEFAULT_MODEL];
-      const preferredModel = String(getPref("codex.model") || "");
+      const availableModels = models.length
+        ? models.map(agentModelToSidebarModel)
+        : [DEFAULT_MODEL];
+      const activeProfile = getAgentBackendManager().getActiveProfile();
+      const preferredModel = activeProfile.defaultModel;
       const selectedModel = availableModels.some(
         (model) => model.slug === preferredModel,
       )
@@ -663,63 +695,64 @@ class SidebarController {
         : availableModels[0]?.slug || DEFAULT_MODEL.slug;
       this.updateModelSelection(availableModels, selectedModel);
       this.updateViewState({
-        codexStatus: "connected",
-        codexDiagnostic: undefined,
+        backendStatus: "connected",
+        backendDiagnosticMessage: undefined,
+        activeProviderLabel: activeProfile.displayName,
       });
     } catch (error) {
-      logger.error("codex model/list failed", error);
+      logger.error("agent backend model list failed", error);
       if (this.destroyed) {
         return;
       }
       this.updateModelSelection([DEFAULT_MODEL], DEFAULT_MODEL.slug);
-      await this.showCodexDiagnostic();
+      await this.showBackendDiagnostic(error);
     }
   }
 
-  private async showCodexDiagnostic(): Promise<void> {
+  private async showBackendDiagnostic(error?: unknown): Promise<void> {
     this.updateViewState({
-      codexStatus: "disconnected",
-      codexDiagnostic: undefined,
+      backendStatus: "disconnected",
+      backendDiagnosticMessage: undefined,
     });
-    let diagnostic: CodexDiagnostic;
+    let diagnostic: AgentDiagnostic | undefined;
     try {
-      diagnostic = (await diagnoseCodexConnection(
-        this.getDiagnosticSubprocess(),
-      )) || {
-        code: "unknown_error",
-        messageKey: "codex-diagnostic-unknown-error",
-      };
+      diagnostic =
+        (await getAgentBackendManager().checkActiveStatus()).diagnostic ||
+        undefined;
     } catch {
-      diagnostic = {
-        code: "unknown_error",
-        messageKey: "codex-diagnostic-unknown-error",
-      };
+      diagnostic = undefined;
     }
     if (this.destroyed) {
       return;
     }
     this.updateViewState({
-      codexStatus: "disconnected",
-      codexDiagnostic: diagnostic?.code || "unknown_error",
+      backendStatus: "disconnected",
+      backendDiagnosticMessage:
+        diagnostic?.message ||
+        (error instanceof Error ? error.message : undefined) ||
+        getString("sidebar-backend-status-disconnected"),
     });
-  }
-
-  private getDiagnosticSubprocess(): CodexDiscoverySubprocessModule {
-    if (this.diagnosticSubprocess) {
-      return this.diagnosticSubprocess;
-    }
-    const imported = ChromeUtils.importESModule(
-      "resource://gre/modules/Subprocess.sys.mjs",
-    ) as { Subprocess: CodexDiscoverySubprocessModule };
-    this.diagnosticSubprocess = imported.Subprocess;
-    return this.diagnosticSubprocess;
   }
 
   private selectModel(model: string): void {
     if (!this.viewState.models.some((item) => item.slug === model)) {
       return;
     }
-    setPref("codex.model", model);
+    const manager = getAgentBackendManager();
+    const active = manager.getActiveProfile();
+    if (active.kind === "codex-cli") {
+      setPref("codex.model", model);
+    } else {
+      getProviderProfileStore().updateProvider(active.id, {
+        defaultModel: model,
+        models: this.viewState.models.map((item) => ({
+          id: item.slug,
+          displayName: item.displayName,
+          supportedReasoningEfforts: item.supportedReasoningEfforts,
+          defaultReasoningEffort: item.defaultReasoningEffort,
+        })),
+      });
+    }
     this.updateModelSelection(this.viewState.models, model);
   }
 
@@ -1037,7 +1070,7 @@ class SidebarController {
 
     if (open) {
       if (!wasOpen) {
-        this.queueCodexStatusCheck();
+        this.queueBackendStatusCheck();
       }
       this.focusComposer();
     }
@@ -1191,6 +1224,25 @@ class SidebarController {
       subscribePromptViews((prompts) => {
         if (!this.destroyed) {
           this.updateViewState({ prompts });
+        }
+      }),
+    );
+  }
+
+  private bindBackendProfileRefresh(): void {
+    this.listeners.push(
+      getAgentBackendManager().subscribe((snapshot) => {
+        const active = snapshot.profiles.find(
+          (profile) => profile.id === snapshot.activeProviderId,
+        );
+        if (!active || this.destroyed) {
+          return;
+        }
+        this.updateViewState({
+          activeProviderLabel: active.displayName,
+        });
+        if (this.open) {
+          void this.loadModels();
         }
       }),
     );
@@ -1359,54 +1411,25 @@ function isElementVisible(element: Element | null): boolean {
   return rect.width > 8 && rect.height > 8;
 }
 
-function buildPromptWithSourceRefs(
-  promptText: string,
-  mentions: SourceMention[],
-): string {
-  if (!mentions.length) {
-    return promptText;
-  }
-  const sourceRefs = mentions.map((mention) => ({
-    sourceId: mention.sourceId,
-    title: mention.title,
-    paperKey: mention.paperKey,
-  }));
-  return [
-    promptText,
-    "",
-    "Zopilot selected sources from @ mentions:",
-    JSON.stringify(sourceRefs),
-    "When using paper_read for this question, pass sourceIds exactly as listed above.",
-  ].join("\n");
-}
-
-function buildPromptWithLocalAttachments(
-  promptText: string,
-  attachments: LocalAttachmentRef[],
-): string {
-  if (!attachments.length) {
-    return promptText;
-  }
-  const attachmentRefs = attachments.map((attachment) => ({
-    filename: attachment.filename,
-    kind: attachment.kind,
-    path: attachment.path,
-    mimeType: attachment.mimeType,
-  }));
-  return [
-    promptText,
-    "",
-    "Zopilot local attachments selected by the user:",
-    JSON.stringify(attachmentRefs),
-    "Use these absolute file paths directly when reading the PDF or image files. Do not route these files through Zopilot paper processing or paper_read.",
-  ].join("\n");
-}
-
-function formatCodexError(error: unknown): string {
+function formatBackendError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  return [getString("sidebar-codex-error"), "", "```", message, "```"].join(
+  return [getString("sidebar-backend-error"), "", "```", message, "```"].join(
     "\n",
   );
+}
+
+function agentModelToSidebarModel(model: {
+  id: string;
+  displayName: string;
+  supportedReasoningEfforts: string[];
+  defaultReasoningEffort?: string;
+}): SidebarState["models"][number] {
+  return {
+    slug: model.id,
+    displayName: model.displayName,
+    supportedReasoningEfforts: model.supportedReasoningEfforts,
+    defaultReasoningEffort: model.defaultReasoningEffort,
+  };
 }
 
 function isSafeExternalURL(url: string, win: Window): boolean {

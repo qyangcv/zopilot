@@ -1,21 +1,9 @@
 import { ArrowLeft, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  type ReactElement,
-} from "react";
+import { type ReactElement } from "react";
 import type { PromptEditorMode, PromptMessage, PromptView } from "./types";
 import { PageHeader, T } from "./shared";
 
 export { PromptPanel };
-
-const useBrowserLayoutEffect =
-  typeof (globalThis as unknown as { document?: unknown }).document ===
-  "undefined"
-    ? useEffect
-    : useLayoutEffect;
 
 function PromptPanel({
   body,
@@ -86,34 +74,6 @@ function PromptListPage({
   prompts: PromptView[];
   selectedPromptId?: string;
 }): ReactElement {
-  const newButtonRef = useRef<HTMLButtonElement>(null);
-  const listPanelRef = useRef<HTMLDivElement>(null);
-  const alignNewButtonToList = useCallback(() => {
-    const button = newButtonRef.current;
-    const listPanel = listPanelRef.current;
-    if (!button || !listPanel) {
-      return;
-    }
-    button.style.transform = "";
-    const offset = Math.round(
-      listPanel.getBoundingClientRect().right -
-        button.getBoundingClientRect().right,
-    );
-    button.style.transform = offset ? `translateX(${offset}px)` : "";
-  }, []);
-
-  useBrowserLayoutEffect(() => {
-    const resizeTarget = globalThis as unknown as {
-      addEventListener?: (type: "resize", listener: () => void) => void;
-      removeEventListener?: (type: "resize", listener: () => void) => void;
-    };
-    alignNewButtonToList();
-    resizeTarget.addEventListener?.("resize", alignNewButtonToList);
-    return () => {
-      resizeTarget.removeEventListener?.("resize", alignNewButtonToList);
-    };
-  }, [alignNewButtonToList, prompts.length]);
-
   return (
     <section className="zp-pref-page">
       <PageHeader
@@ -128,14 +88,13 @@ function PromptListPage({
         <button
           className="zp-pref-button zp-pref-button-primary"
           onClick={onNew}
-          ref={newButtonRef}
           type="button"
         >
           <Plus size={14} />
           <T id="pref-prompt-new">新建 Prompt</T>
         </button>
       </div>
-      <div className="zp-pref-prompt-list-panel" ref={listPanelRef}>
+      <div className="zp-pref-prompt-list-panel">
         {prompts.length ? (
           prompts.map((prompt) => (
             <div
@@ -196,35 +155,6 @@ function PromptEditPage({
   selectedPromptId?: string;
   title: string;
 }): ReactElement {
-  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
-  const alignActionsToTextarea = useCallback(() => {
-    const textarea = bodyTextareaRef.current;
-    const actions = actionsRef.current;
-    if (!textarea || !actions) {
-      return;
-    }
-    actions.style.paddingInlineEnd = "0px";
-    // Align to the textarea's rendered border, not the surrounding card edge.
-    const offset = Math.ceil(
-      actions.getBoundingClientRect().right -
-        textarea.getBoundingClientRect().right,
-    );
-    actions.style.paddingInlineEnd = offset > 0 ? `${offset}px` : "";
-  }, []);
-
-  useBrowserLayoutEffect(() => {
-    const resizeTarget = globalThis as unknown as {
-      addEventListener?: (type: "resize", listener: () => void) => void;
-      removeEventListener?: (type: "resize", listener: () => void) => void;
-    };
-    alignActionsToTextarea();
-    resizeTarget.addEventListener?.("resize", alignActionsToTextarea);
-    return () => {
-      resizeTarget.removeEventListener?.("resize", alignActionsToTextarea);
-    };
-  }, [alignActionsToTextarea, body, message, selectedPromptId, title]);
-
   return (
     <section className="zp-pref-page zp-pref-prompt-edit-page">
       <form
@@ -263,7 +193,6 @@ function PromptEditPage({
             <textarea
               className="zp-pref-textarea"
               onChange={(event) => onBodyChange(event.currentTarget.value)}
-              ref={bodyTextareaRef}
               value={body}
             />
           </label>
@@ -276,10 +205,7 @@ function PromptEditPage({
               {message.text}
             </div>
           ) : null}
-          <div
-            className="zp-pref-actions zp-pref-prompt-edit-actions"
-            ref={actionsRef}
-          >
+          <div className="zp-pref-actions zp-pref-prompt-edit-actions">
             <button
               className="zp-pref-button zp-pref-button-primary"
               type="submit"

@@ -1,6 +1,12 @@
 pref-nav-connection = 连接
+pref-nav-providers = Provider
 pref-nav-dependencies = 依赖管理
 pref-nav-prompts = Prompt
+pref-provider-title = Provider
+pref-provider-description = 管理 Codex CLI 和 OpenAI-compatible BYOK providers。
+pref-provider-add-title = 添加 BYOK provider
+pref-provider-add-description = 选择已验证 preset，填写 API key 和默认 model。
+pref-provider-add = 添加
 pref-connection-title = 连接
 pref-connection-description = 检查 Zopilot 是否能连接本地 Codex app-server。
 pref-codex-card-title = Codex CLI

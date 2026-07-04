@@ -10,6 +10,9 @@ declare namespace _ZoteroTypes {
       "codex.timeoutMs": number;
       "codex.model": string;
       "codex.reasoningEfforts": string;
+      "agent.activeProviderId": string;
+      "agent.providerProfiles": string;
+      "agent.providerSecrets": string;
       "prompts.custom": string;
       "log.verbose": boolean;
     };

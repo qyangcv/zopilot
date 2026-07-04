@@ -7,7 +7,6 @@ import {
   type ReactElement,
 } from "react";
 import { getString } from "../../../utils/locale";
-import { getCodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import { copyText } from "./clipboard";
 import { CommandMenu } from "./CommandMenu";
 import { ContextChips } from "./ContextChips";
@@ -631,30 +630,27 @@ export function SidebarApp({
               >
                 <Icon name="add" size={15} />
               </button>
-              {state.codexStatus !== "connected" ? (
+              {state.backendStatus !== "connected" ? (
                 <span
-                  className="zp-codex-status"
-                  data-status={state.codexStatus}
+                  className="zp-backend-status"
+                  data-status={state.backendStatus}
                 >
                   <Icon
                     className="zp-status-icon"
                     name={
-                      state.codexStatus === "checking"
+                      state.backendStatus === "checking"
                         ? "checking"
                         : "disconnected"
                     }
                     size={13}
                   />
-                  {state.codexStatus === "checking"
-                    ? getString("sidebar-codex-status-checking")
-                    : getString(
-                        state.codexDiagnostic
-                          ? getCodexDiagnosticMessageKey(state.codexDiagnostic)
-                          : "sidebar-codex-status-disconnected",
-                      )}
+                  {state.backendStatus === "checking"
+                    ? getString("sidebar-backend-status-checking")
+                    : state.backendDiagnosticMessage ||
+                      getString("sidebar-backend-status-disconnected")}
                 </span>
               ) : null}
-              {state.codexStatus === "connected" ? (
+              {state.backendStatus === "connected" ? (
                 <>
                   <Select
                     aria-label={getString("sidebar-model-name")}

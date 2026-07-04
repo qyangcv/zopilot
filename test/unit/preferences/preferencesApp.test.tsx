@@ -17,7 +17,7 @@ describe("PreferencesApp", function () {
     delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
   });
 
-  it("renders the React settings shell with connection and prompt sections", function () {
+  it("renders the React settings shell with provider and prompt sections", function () {
     const html = renderToStaticMarkup(
       <PreferencesApp
         getSubprocess={() => {
@@ -28,12 +28,12 @@ describe("PreferencesApp", function () {
     );
 
     assert.include(html, "zp-pref-shell");
-    assert.include(html, 'data-l10n-id="pref-nav-connection"');
+    assert.include(html, 'data-l10n-id="pref-nav-providers"');
     assert.include(html, 'data-l10n-id="pref-nav-dependencies"');
     assert.include(html, 'data-l10n-id="pref-nav-prompts"');
     assert.include(html, "lucide-pencil-sparkles");
-    assert.include(html, 'data-l10n-id="pref-codex-card-title"');
-    assert.include(html, 'data-l10n-id="pref-codex-check"');
+    assert.include(html, 'data-l10n-id="pref-provider-title"');
+    assert.include(html, 'data-l10n-id="pref-provider-add"');
     assert.notInclude(html, "zp-pref-brand");
   });
 

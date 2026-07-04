@@ -153,6 +153,12 @@ class ConversationStore {
       status?: ConversationMessage["status"];
       codexThreadId?: string;
       codexTurnId?: string;
+      backendId?: string;
+      backendKind?: ConversationMessage["backendKind"];
+      providerProfileId?: string;
+      backendRunId?: string;
+      backendTurnId?: string;
+      capabilitySnapshot?: ConversationMessage["capabilitySnapshot"];
       completedAt?: string;
       model?: string;
       reasoningEffort?: string;
@@ -171,6 +177,12 @@ class ConversationStore {
       completedAt: input.completedAt,
       codexThreadId: input.codexThreadId,
       codexTurnId: input.codexTurnId,
+      backendId: input.backendId,
+      backendKind: input.backendKind,
+      providerProfileId: input.providerProfileId,
+      backendRunId: input.backendRunId,
+      backendTurnId: input.backendTurnId,
+      capabilitySnapshot: input.capabilitySnapshot,
       status: input.status || "complete",
       model: input.model,
       reasoningEffort: input.reasoningEffort,
@@ -203,6 +215,32 @@ class ConversationStore {
     const nextMetadata = {
       ...metadata,
       codexThreadId,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeMetadata(nextMetadata);
+    return nextMetadata;
+  }
+
+  async updateBackendMetadata(
+    metadata: ConversationMetadata,
+    input: {
+      backendId?: string;
+      providerProfileId?: string;
+      codexThreadId?: string;
+    },
+  ): Promise<ConversationMetadata> {
+    if (
+      metadata.backendId === input.backendId &&
+      metadata.providerProfileId === input.providerProfileId &&
+      (!input.codexThreadId || metadata.codexThreadId === input.codexThreadId)
+    ) {
+      return metadata;
+    }
+    const nextMetadata = {
+      ...metadata,
+      backendId: input.backendId,
+      providerProfileId: input.providerProfileId,
+      codexThreadId: input.codexThreadId || metadata.codexThreadId,
       updatedAt: new Date().toISOString(),
     };
     await this.writeMetadata(nextMetadata);

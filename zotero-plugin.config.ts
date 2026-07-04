@@ -43,6 +43,14 @@ export default defineConfig({
         target: "firefox115",
         outfile: ".scaffold/build/addon/content/preferences.js",
       },
+      {
+        entryPoints: ["src/byokRuntime/server.ts"],
+        bundle: true,
+        platform: "node",
+        format: "cjs",
+        target: "node20",
+        outfile: ".scaffold/build/addon/content/scripts/byok-runtime.cjs",
+      },
     ],
   },
 

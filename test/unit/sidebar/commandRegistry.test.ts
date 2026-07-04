@@ -111,7 +111,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
     availableReasoningEfforts: ["medium"],
-    codexStatus: "connected",
+    backendStatus: "connected",
     focusToken: 0,
     sourceCandidates: [],
     collectionOptions: [],

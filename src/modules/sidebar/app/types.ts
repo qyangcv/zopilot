@@ -5,7 +5,6 @@ import type {
   SourceMention,
   WorkspaceType,
 } from "../../../shared/conversation";
-import type { CodexDiagnosticCode } from "../../../codex/diagnostics";
 import type { ReaderLocator } from "../readerNavigation";
 
 export type SidebarMessageView = {
@@ -99,8 +98,9 @@ export type SidebarState = {
   selectedModel: string;
   selectedReasoningEffort?: string;
   availableReasoningEfforts: string[];
-  codexStatus: "checking" | "connected" | "disconnected";
-  codexDiagnostic?: CodexDiagnosticCode;
+  backendStatus: "checking" | "connected" | "disconnected";
+  backendDiagnosticMessage?: string;
+  activeProviderLabel?: string;
   focusToken: number;
   sourceCandidates: PaperSourceRef[];
   collectionOptions: SidebarCollectionOption[];

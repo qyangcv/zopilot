@@ -2,13 +2,13 @@
 
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
 
-Zopilot is a information-dense plugin that brings Codex into Zotero.
+Zopilot is an information-dense AI research sidebar for Zotero.
 
 ## Requirements
 
 - MacOS
 - Zotero 9.0.x
-- Codex CLI (signed in with your account)
+- Either Codex CLI or a supported OpenAI-compatible BYOK provider profile
 
 ## Preview
 
@@ -20,7 +20,8 @@ Zopilot is a information-dense plugin that brings Codex into Zotero.
 
 ## Feature
 
-- Native Codex integration in Zotero.
+- Native agent integration in Zotero, with Codex CLI as an optional backend.
+- BYOK profiles for hosted OpenAI-compatible providers such as DeepSeek, Z.AI/GLM, and MiniMax.
 - Workspace-scoped chats for libraries, collections, and papers.
 - Persistent session history across Zotero workspaces.
 - PDF and image attachments for richer research context.

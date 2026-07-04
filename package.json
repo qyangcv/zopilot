@@ -32,9 +32,13 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.56",
     "@mdit/plugin-footnote": "^0.23.2",
     "@mdit/plugin-tasklist": "^0.23.2",
     "@mdit/plugin-tex": "^0.24.2",
+    "@openai/agents": "^0.12.0",
+    "@openai/agents-extensions": "^0.12.0",
+    "ai": "^6.0.219",
     "flexsearch": "^0.8.212",
     "katex": "^0.17.0",
     "lucide-react": "^1.23.0",
@@ -43,6 +47,7 @@
     "react-dom": "^19.2.7",
     "sanitize-html": "^2.17.5",
     "shiki": "^4.2.0",
+    "zod": "^4.4.3",
     "zotero-plugin-toolkit": "^5.1.0-beta.13"
   },
   "devDependencies": {

@@ -442,6 +442,7 @@ describe("SidebarApp", function () {
           selectedModel: "gpt-5.5",
           selectedReasoningEffort: "high",
           availableReasoningEfforts: ["low", "high", "xhigh"],
+          backendStatus: "connected",
         })}
       />,
     );
@@ -457,36 +458,36 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zp-ui-select-icon");
   });
 
-  it("shows a non-blocking Codex CLI status while checking", function () {
+  it("shows a non-blocking backend status while checking", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
-          codexStatus: "checking",
+          backendStatus: "checking",
         })}
       />,
     );
 
-    assert.include(html, "zopilot-sidebar-codex-status-checking");
-    assert.include(html, 'class="zp-codex-status"');
+    assert.include(html, "zopilot-sidebar-backend-status-checking");
+    assert.include(html, 'class="zp-backend-status"');
     assert.include(html, 'data-icon-name="checking"');
     assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
 
-  it("hides the Codex CLI status and shows controls after a successful connection", function () {
+  it("hides the backend status and shows controls after a successful connection", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
-          codexStatus: "connected",
+          backendStatus: "connected",
         })}
       />,
     );
 
-    assert.notInclude(html, "zopilot-sidebar-codex-status-checking");
-    assert.notInclude(html, "zopilot-sidebar-codex-status-disconnected");
-    assert.notInclude(html, "zp-codex-status");
+    assert.notInclude(html, "zopilot-sidebar-backend-status-checking");
+    assert.notInclude(html, "zopilot-sidebar-backend-status-disconnected");
+    assert.notInclude(html, "zp-backend-status");
     assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
     assert.include(html, 'aria-label="zopilot-sidebar-command-menu"');
@@ -494,19 +495,19 @@ describe("SidebarApp", function () {
     assert.include(html, 'aria-label="zopilot-sidebar-add-context"');
   });
 
-  it("shows a Codex diagnostic without model controls after a failed connection", function () {
+  it("shows a backend diagnostic without model controls after a failed connection", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
-          codexStatus: "disconnected",
-          codexDiagnostic: "cli_not_found",
+          backendStatus: "disconnected",
+          backendDiagnosticMessage: "Codex CLI not found",
         })}
       />,
     );
 
-    assert.include(html, "zopilot-codex-diagnostic-cli-not-found");
-    assert.notInclude(html, "zopilot-sidebar-codex-status-checking");
+    assert.include(html, "Codex CLI not found");
+    assert.notInclude(html, "zopilot-sidebar-backend-status-checking");
     assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
@@ -516,7 +517,7 @@ describe("SidebarApp", function () {
       <SidebarApp
         actions={createActions()}
         state={createState({
-          codexStatus: "checking",
+          backendStatus: "checking",
           messages: [
             {
               id: "complete",
@@ -578,7 +579,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     selectedModel: "gpt-5.5",
     selectedReasoningEffort: "medium",
     availableReasoningEfforts: ["medium"],
-    codexStatus: "connected",
+    backendStatus: "connected",
     focusToken: 0,
     sourceCandidates: [],
     collectionOptions: [],

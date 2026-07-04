@@ -51,7 +51,21 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
       (Array.isArray(item.localAttachments) &&
         item.localAttachments.every((attachment) =>
           isLocalAttachmentRef(attachment),
-        )))
+        ))) &&
+    (item.backendId === undefined || typeof item.backendId === "string") &&
+    (item.backendKind === undefined ||
+      item.backendKind === "codex-cli" ||
+      item.backendKind === "openai-compatible") &&
+    (item.providerProfileId === undefined ||
+      typeof item.providerProfileId === "string") &&
+    (item.backendRunId === undefined ||
+      typeof item.backendRunId === "string") &&
+    (item.backendTurnId === undefined ||
+      typeof item.backendTurnId === "string") &&
+    (item.capabilitySnapshot === undefined ||
+      (item.capabilitySnapshot !== null &&
+        typeof item.capabilitySnapshot === "object" &&
+        !Array.isArray(item.capabilitySnapshot)))
   );
 }
 

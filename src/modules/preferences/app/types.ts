@@ -1,5 +1,4 @@
 import type { CodexDiscoverySubprocessModule } from "../../../codex/cliDiscovery";
-import type { CodexDiagnosticMessageKey } from "../../../codex/diagnostics";
 import type {
   PdfHelperInstallProgress,
   PdfHelperStatus,
@@ -11,16 +10,11 @@ type PreferencesAppProps = {
   translate: () => void;
 };
 
-type PreferenceSection = "connection" | "dependencies" | "prompts";
+type PreferenceSection = "providers" | "dependencies" | "prompts";
 
 type PromptEditorMode = "list" | "edit";
 
 type PromptView = SidebarPromptView;
-
-type CodexConnectionState =
-  | { status: "checking" }
-  | { status: "connected" }
-  | { status: "missing"; messageKey: CodexDiagnosticMessageKey };
 
 type DependencyState =
   | { status: "checking" }
@@ -35,7 +29,6 @@ type PromptMessage = {
 };
 
 export type {
-  CodexConnectionState,
   DependencyState,
   PreferenceSection,
   PromptEditorMode,

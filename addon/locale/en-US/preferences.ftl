@@ -1,6 +1,12 @@
 pref-nav-connection = Connection
+pref-nav-providers = Providers
 pref-nav-dependencies = Dependencies
 pref-nav-prompts = Prompts
+pref-provider-title = Provider
+pref-provider-description = Manage Codex CLI and OpenAI-compatible BYOK providers.
+pref-provider-add-title = Add BYOK provider
+pref-provider-add-description = Select a verified preset, then enter an API key and default model.
+pref-provider-add = Add
 pref-connection-title = Connection
 pref-connection-description = Check whether Zopilot can reach the local Codex app-server.
 pref-codex-card-title = Codex CLI

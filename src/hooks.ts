@@ -6,6 +6,9 @@ import {
   unregisterSidebar,
 } from "./modules/sidebar/controller";
 import { shutdownCodexBridge } from "./codex/bridge";
+import { migrateLegacyProviderPrefs } from "./agent/providerProfiles";
+import { shutdownAgentBackends } from "./agent/backendManager";
+import { shutdownByokRuntimeBridge } from "./byokRuntime/bridge";
 import { shutdownMcpHttpServer, startMcpHttpServer } from "./mcp/httpServer";
 import { createZToolkit } from "./utils/ztoolkit";
 import { createLogger } from "./utils/logger";
@@ -22,6 +25,7 @@ async function onStartup(): Promise<void> {
   ]);
 
   initLocale();
+  migrateLegacyProviderPrefs();
 
   registerPreferencePane();
 
@@ -52,6 +56,8 @@ function onMainWindowUnload(win: Window): void {
 function onShutdown(): void {
   unregisterAllSidebars();
   shutdownMcpHttpServer();
+  shutdownAgentBackends();
+  void shutdownByokRuntimeBridge();
   void shutdownCodexBridge();
   ztoolkit.unregisterAll();
   delete (Zotero as ZoteroPluginRegistry)[addon.data.config.addonInstance];

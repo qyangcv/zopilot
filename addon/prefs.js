@@ -1,5 +1,8 @@
 pref("codex.timeoutMs", 180000);
 pref("codex.model", "gpt-5.5");
 pref("codex.reasoningEfforts", "{}");
+pref("agent.activeProviderId", "codex-cli.default");
+pref("agent.providerProfiles", "[]");
+pref("agent.providerSecrets", "{}");
 pref("prompts.custom", "[]");
 pref("log.verbose", false);

@@ -7,6 +7,7 @@ class Addon {
   public data: {
     config: typeof config;
     initialized: boolean;
+    rootURI?: string;
     ztoolkit: ZToolkit;
     locale?: {
       current: FluentLocalization;
