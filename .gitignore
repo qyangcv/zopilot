@@ -16,7 +16,7 @@ build
 dist
 logs
 
-notes/*
+notes/archive
 doc/
 .agents/
 .vscode/
