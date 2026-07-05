@@ -1,68 +1,68 @@
 # Zopilot
 
-[![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
+[![使用 Zotero 插件模板](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
 
-**English** · [简体中文](./docs/README_ZH-CN.md)
+[English](./docs/README_EN.md) · **简体中文**
 
-Zopilot is a Zotero plugin that brings AI into the Zopilot sidebar as your paper-reading assistant.
+Zopilot 是一款 Zotero 插件，将 AI 接入 Zopilot 侧边栏中，作为你的论文阅读助手。
 
-## Highlights
+## 特点
 
-- Standalone sidebar window
-- Minimal, information-dense UI design
-- Supports BYOK and Codex CLI
+- 独立的侧边栏窗口
+- 简约、高信息密度的 UI 设计
+- 支持 BYOK 和 Codex CLI
 
-## Requirements
+## 环境要求
 
 - MacOS
 - Zotero 9.0.x
 
-## Getting Started
+## 开始使用
 
-- Install Zopilot: Zotero -> Tools -> Plugins -> drag in the `xpi` file
-- Configure PDF parsing dependencies: Zotero -> Settings -> Zopilot -> Dependency Management -> Install
-- Configure a provider: Zotero -> Settings -> Zopilot -> Provider -> enter the URL and API key. Codex CLI is supported by default and can be used without additional configuration.
+- 安装 zopilot: Zotero -> 工具 -> 插件 -> 拖入 `xpi` 文件
+- 配置 PDF 解析依赖: Zotero -> 设置 -> Zopilot -> 依赖管理 -> 安装
+- 配置 Provider: Zotero -> 设置 -> Zopilot -> Provider -> 填入 URL 和 API key (默认支持 codex cli，无需配置即可直接使用)
 
-## Preview
+## 预览
 
-**Main Page**
+**主页面**
 
-![main-page](./assets/preview/main-page.jpeg)
+![主页面](../assets/preview/main-page.jpeg)
 
-**Workspace Selection**
+**选择 Zotero Workspace**
 
-![workspace-selection](./assets/preview/workspace-selection.jpeg)
+![工作区选择](../assets/preview/workspace-selection.jpeg)
 
-**Use @ to Mention Multiple Papers**
+**使用 @ 提及多篇论文**
 
-![use-@](./assets/preview/use-@.jpeg)
+![使用 @](../assets/preview/use-@.jpeg)
 
-**Select Model**
+**选择 Model**
 
-![provider-selection](./assets/preview/provider-selection.jpeg)
+![提供商选择](../assets/preview/provider-selection.jpeg)
 
-**Insert a Custom Prompt**
+**插入自定义 Prompt**
 
-![prompt-insert](./assets/preview/prompt-insert.jpeg)
+![提示词插入](../assets/preview/prompt-insert.jpeg)
 
-## Features
+## 功能
 
-- Native Zotero workspace support, allowing you to ask questions about papers in a library or collection
-- Supports Codex CLI with a Codex subscription and BYOK with OpenAI-compatible APIs
-- Supports attachment uploads, including local PDFs and images
-- Supports saved session history
-- Supports custom prompt configuration
+- Zotero 原生的 Workspace 支持，支持在文献库或合集中对论文进行提问
+- 支持使用 Codex CLI (使用 Codex 订阅) 和 BYOK (OpenAI 兼容的 API)
+- 支持附件上传 (本地 PDF 或图片)
+- 支持会话历史保存
+- 支持配置自定义 Prompt
 
-## Feedback
+## 反馈
 
-- Please open an issue for any problems you encounter, or contact `qyang@bupt.edu.cn`.
+- 欢迎提 Issue 反馈在使用过程中遇到的问题，或联系 `qyang@bupt.edu.cn`
 
-<!-- ## Gratitude
+<!-- ## 致谢
 
-Thanks to the following projects that make Zopilot possible:
+感谢以下项目让 Zopilot 成为可能：
 
-- [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template): An awesome plugin template for Zotero.
-- [llm-for-zotero](https://github.com/yilewang/llm-for-zotero): Inspired the creation of this plugin.
-- [markdown-it](https://github.com/markdown-it/markdown-it): The Markdown parser used to render Codex responses.
-- [mdit-plugins](https://github.com/mdit-plugins/mdit-plugins): Markdown-it extensions used for task lists, footnotes, and TeX blocks.
-- [Shiki](https://github.com/shikijs/shiki): Syntax highlighting for code blocks in Codex responses. -->
+- [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template)：一个优秀的 Zotero 插件模板。
+- [llm-for-zotero](https://github.com/yilewang/llm-for-zotero)：为本插件的创建提供了灵感。
+- [markdown-it](https://github.com/markdown-it/markdown-it)：用于渲染 Codex 响应的 Markdown 解析器。
+- [mdit-plugins](https://github.com/mdit-plugins/mdit-plugins)：用于任务列表、脚注和 TeX 块的 Markdown-it 扩展。
+- [Shiki](https://github.com/shikijs/shiki)：用于 Codex 响应中代码块的语法高亮。 -->
