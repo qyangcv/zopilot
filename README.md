@@ -2,31 +2,60 @@
 
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
 
-Zopilot is an information-dense AI research sidebar for Zotero.
+**English** · [简体中文](./docs/README_ZH-CN.md)
+
+Zopilot is a Zotero plugin that brings AI into the Zopilot sidebar as your paper-reading assistant.
+
+## Highlights
+
+- Standalone sidebar window
+- Minimal, information-dense UI design
+- Supports BYOK and Codex CLI
 
 ## Requirements
 
 - MacOS
 - Zotero 9.0.x
-- Either Codex CLI or a supported OpenAI-compatible BYOK provider profile
+
+## Getting Started
+
+- Install Zopilot: Zotero -> Tools -> Plugins -> drag in the `xpi` file
+- Configure PDF parsing dependencies: Zotero -> Settings -> Zopilot -> Dependency Management -> Install
+- Configure a provider: Zotero -> Settings -> Zopilot -> Provider -> enter the URL and API key. Codex CLI is supported by default and can be used without additional configuration.
 
 ## Preview
 
-<!-- ![Ask a question](./assets/snapshot_qa.png)
+**Main Page**
 
-![Markdown rendering](./assets/snapshot_render.png) -->
+![main-page](./assets/preview/main-page.jpeg)
 
-![new-snapshot](./assets/new_snap.png)
+**Workspace Selection**
 
-## Feature
+![workspace-selection](./assets/preview/workspace-selection.jpeg)
 
-- Native agent integration in Zotero, with Codex CLI as an optional backend.
-- BYOK profiles for OpenAI-compatible providers such as DeepSeek.
-- Workspace-scoped chats for libraries, collections, and papers.
-- Persistent session history across Zotero workspaces.
-- PDF and image attachments for richer research context.
-- Paper-aware retrieval with page-level evidence.
-- Custom prompt templates from the sidebar.
+**Use @ to Mention Multiple Papers**
+
+![use-@](./assets/preview/use-@.jpeg)
+
+**Select Model**
+
+![provider-selection](./assets/preview/provider-selection.jpeg)
+
+**Insert a Custom Prompt**
+
+![prompt-insert](./assets/preview/prompt-insert.jpeg)
+
+## Features
+
+- Native Zotero workspace support, allowing you to ask questions about papers in a library or collection
+- Supports Codex CLI with a Codex subscription and BYOK with OpenAI-compatible APIs
+- Supports attachment uploads, including local PDFs and images
+- Supports saved session history
+- Supports custom prompt configuration
+
+## Feedback
+
+- Please open an issue for any problems you encounter, or contact `qyang@bupt.edu.cn`.
 
 <!-- ## Gratitude
 
