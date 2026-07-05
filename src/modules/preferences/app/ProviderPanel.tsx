@@ -136,6 +136,9 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
                     setSelectedModels([]);
                   }}
                 />
+                <span className="zp-pref-muted zp-pref-url-hint">
+                  填入 OpenAI-compatible API 的 endpoint 前缀
+                </span>
               </label>
               <label>
                 <span>API key</span>

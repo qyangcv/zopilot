@@ -259,6 +259,11 @@
   color: var(--zp-pref-muted);
   font-size: 12px;
 }
+.zp-pref-url-hint {
+  padding-inline-start: 2ch;
+  font-size: 10px;
+  font-weight: 400;
+}
 .zp-pref-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

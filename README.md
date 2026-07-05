@@ -21,7 +21,7 @@ Zopilot is an information-dense AI research sidebar for Zotero.
 ## Feature
 
 - Native agent integration in Zotero, with Codex CLI as an optional backend.
-- BYOK profiles for hosted OpenAI-compatible providers such as DeepSeek, Z.AI/GLM, and MiniMax.
+- BYOK profiles for OpenAI-compatible providers such as DeepSeek.
 - Workspace-scoped chats for libraries, collections, and papers.
 - Persistent session history across Zotero workspaces.
 - PDF and image attachments for richer research context.
