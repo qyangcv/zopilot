@@ -657,12 +657,19 @@ export function SidebarApp({
                     disabled={!state.models.length}
                     onChange={actions.selectModel}
                     options={state.models.map((model) => ({
+                      groupLabel: model.providerLabel,
                       label: model.displayName,
-                      value: model.slug,
+                      value: createModelSelectValue(
+                        model.providerProfileId,
+                        model.slug,
+                      ),
                     }))}
                     showIndicator={false}
                     title={getString("sidebar-model-name")}
-                    value={state.selectedModel}
+                    value={createModelSelectValue(
+                      state.selectedProviderId,
+                      state.selectedModel,
+                    )}
                   />
                   {state.availableReasoningEfforts.length ? (
                     <Select
@@ -745,4 +752,11 @@ function isNearScrollBottom(element: HTMLElement): boolean {
 
 function formatEffortLabel(effort: string): string {
   return effort.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase());
+}
+
+function createModelSelectValue(
+  providerProfileId: string,
+  model: string,
+): string {
+  return `${providerProfileId}\u0000${model}`;
 }

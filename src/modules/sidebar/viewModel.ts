@@ -23,6 +23,8 @@ type StreamingMessage = {
 const DEFAULT_MODEL: SidebarModelView = {
   slug: "gpt-5.5",
   displayName: "GPT-5.5",
+  providerProfileId: "codex-cli.default",
+  providerLabel: "Codex CLI",
   supportedReasoningEfforts: ["medium"],
   defaultReasoningEffort: "medium",
 };
@@ -38,6 +40,7 @@ function createInitialSidebarState(label: string): SidebarState {
     composerEnabled: false,
     busy: false,
     models: [DEFAULT_MODEL],
+    selectedProviderId: DEFAULT_MODEL.providerProfileId,
     selectedModel: DEFAULT_MODEL.slug,
     selectedReasoningEffort: "medium",
     availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,

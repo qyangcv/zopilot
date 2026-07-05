@@ -24,7 +24,7 @@ const OPENAI_COMPATIBLE_BASELINE_CAPABILITIES: AgentCapabilities = {
   images: false,
   cancellation: true,
   modelListing: true,
-  reasoning: false,
+  reasoning: true,
   structuredOutput: false,
   usageMetadata: true,
 };

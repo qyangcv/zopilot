@@ -7,66 +7,103 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { useState, type ReactElement } from "react";
-import type {
-  AgentProviderPreset,
-  ProviderProfile,
-} from "../../../agent/types";
+import { useMemo, useState, type ReactElement } from "react";
+import type { AgentModelEntry, ProviderProfile } from "../../../agent/types";
 import { PageHeader, T } from "./shared";
 
 export { ProviderPanel };
 
 type ProviderPanelProps = {
-  activeProviderId: string;
   checkingProviderId?: string;
   message?: string;
   onCheck: (profileId: string) => void;
   onCreate: (input: {
-    preset: Exclude<AgentProviderPreset, "codex-cli">;
+    preset?: "openai-compatible";
     displayName?: string;
     baseURL?: string;
     apiKey?: string;
-    defaultModel?: string;
+    models?: AgentModelEntry[];
   }) => void;
   onDelete: (profileId: string) => void;
-  onSelect: (profileId: string) => void;
+  onListModels: (input: {
+    baseURL: string;
+    apiKey: string;
+  }) => Promise<AgentModelEntry[]>;
   onUpdate: (
     profileId: string,
     input: {
       displayName?: string;
       baseURL?: string;
       apiKey?: string;
-      defaultModel?: string;
     },
   ) => void;
-  presets: Exclude<AgentProviderPreset, "codex-cli">[];
   profiles: ProviderProfile[];
 };
 
 function ProviderPanel(props: ProviderPanelProps): ReactElement {
-  const [draftPreset, setDraftPreset] =
-    useState<Exclude<AgentProviderPreset, "codex-cli">>("deepseek");
+  const [draftBaseURL, setDraftBaseURL] = useState("");
   const [draftApiKey, setDraftApiKey] = useState("");
-  const [draftModel, setDraftModel] = useState("");
+  const [draftModels, setDraftModels] = useState<AgentModelEntry[]>([]);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [draftMessage, setDraftMessage] = useState<string | undefined>();
+
+  const selectedModelEntries = useMemo(
+    () => draftModels.filter((model) => selectedModels.includes(model.id)),
+    [draftModels, selectedModels],
+  );
+
+  const canListModels = Boolean(draftBaseURL.trim() && draftApiKey.trim());
+  const canCreate = Boolean(
+    draftBaseURL.trim() && draftApiKey.trim() && selectedModelEntries.length,
+  );
+
+  const listModels = async () => {
+    if (!canListModels) {
+      return;
+    }
+    setLoadingModels(true);
+    setDraftMessage(undefined);
+    try {
+      const models = await props.onListModels({
+        baseURL: draftBaseURL.trim(),
+        apiKey: draftApiKey,
+      });
+      setDraftModels(models);
+      setSelectedModels(models.map((model) => model.id));
+      setDraftMessage(
+        models.length ? undefined : "No models were returned by this provider.",
+      );
+    } catch (error) {
+      setDraftModels([]);
+      setSelectedModels([]);
+      setDraftMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const createProvider = () => {
+    if (!canCreate) {
+      return;
+    }
     props.onCreate({
-      preset: draftPreset,
+      preset: "openai-compatible",
+      baseURL: draftBaseURL.trim(),
       apiKey: draftApiKey,
-      defaultModel: draftModel || undefined,
+      models: selectedModelEntries,
     });
+    setDraftBaseURL("");
     setDraftApiKey("");
-    setDraftModel("");
+    setDraftModels([]);
+    setSelectedModels([]);
+    setDraftMessage("Provider added.");
   };
 
   return (
     <section className="zp-pref-page">
       <PageHeader
-        description={
-          <T id="pref-provider-description">
-            管理 Codex CLI 和自带 API key 的 OpenAI-compatible providers。
-          </T>
-        }
+        description={<T id="pref-provider-description">管理 AI Providers。</T>}
         title={<T id="pref-provider-title">Provider</T>}
       />
       <div className="zp-pref-card zp-pref-provider-create">
@@ -77,69 +114,112 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
             </h3>
             <p>
               <T id="pref-provider-add-description">
-                选择已验证 preset，填写 API key 和默认 model。
+                填写兼容 OpenAI 的 URL 和 API
+                key，在线读取模型后勾选需要启用的模型。
               </T>
             </p>
           </div>
-          <button
-            className="zp-pref-button zp-pref-button-primary"
-            disabled={!draftApiKey.trim()}
-            onClick={createProvider}
-            type="button"
-          >
-            <Plus size={14} />
-            <T id="pref-provider-add">添加</T>
-          </button>
         </div>
-        <div className="zp-pref-form-grid">
-          <label>
-            <span>Preset</span>
-            <select
-              value={draftPreset}
-              onChange={(event) =>
-                setDraftPreset(
-                  event.currentTarget.value as Exclude<
-                    AgentProviderPreset,
-                    "codex-cli"
-                  >,
-                )
-              }
+        <div className="zp-pref-provider-steps">
+          <section className="zp-pref-provider-step">
+            <h4>1. URL and API key</h4>
+            <div className="zp-pref-form-grid">
+              <label>
+                <span>Base URL</span>
+                <input
+                  autoComplete="off"
+                  placeholder="https://provider.example.com/v1"
+                  value={draftBaseURL}
+                  onChange={(event) => {
+                    setDraftBaseURL(event.currentTarget.value);
+                    setDraftModels([]);
+                    setSelectedModels([]);
+                  }}
+                />
+              </label>
+              <label>
+                <span>API key</span>
+                <input
+                  autoComplete="off"
+                  type="password"
+                  value={draftApiKey}
+                  onChange={(event) => {
+                    setDraftApiKey(event.currentTarget.value);
+                    setDraftModels([]);
+                    setSelectedModels([]);
+                  }}
+                />
+              </label>
+            </div>
+            <button
+              className="zp-pref-button zp-pref-button-secondary"
+              disabled={!canListModels || loadingModels}
+              onClick={() => {
+                void listModels();
+              }}
+              type="button"
             >
-              {props.presets.map((preset) => (
-                <option key={preset} value={preset}>
-                  {formatPreset(preset)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>API key</span>
-            <input
-              autoComplete="off"
-              type="password"
-              value={draftApiKey}
-              onChange={(event) => setDraftApiKey(event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            <span>Default model</span>
-            <input
-              value={draftModel}
-              onChange={(event) => setDraftModel(event.currentTarget.value)}
-              placeholder="provider model id"
-            />
-          </label>
+              {loadingModels ? (
+                <LoaderCircle className="zp-pref-spin" size={14} />
+              ) : (
+                <RotateCcw size={14} />
+              )}
+              List models
+            </button>
+          </section>
+          <section className="zp-pref-provider-step">
+            <h4>2. Models</h4>
+            {draftModels.length ? (
+              <div className="zp-pref-model-checklist">
+                {draftModels.map((model) => (
+                  <label key={model.id}>
+                    <input
+                      checked={selectedModels.includes(model.id)}
+                      type="checkbox"
+                      onChange={(event) =>
+                        setSelectedModels((current) =>
+                          event.currentTarget.checked
+                            ? [...new Set([...current, model.id])]
+                            : current.filter((id) => id !== model.id),
+                        )
+                      }
+                    />
+                    <span>{model.displayName}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="zp-pref-muted">
+                Query the provider before adding it.
+              </p>
+            )}
+          </section>
+          <section className="zp-pref-provider-step">
+            <h4>3. Add provider</h4>
+            <button
+              className="zp-pref-button zp-pref-button-primary"
+              disabled={!canCreate}
+              onClick={createProvider}
+              type="button"
+            >
+              <Plus size={14} />
+              <T id="pref-provider-add">添加</T>
+            </button>
+            {draftMessage ? (
+              <div className="zp-pref-status zp-pref-status-message">
+                {draftMessage}
+              </div>
+            ) : null}
+          </section>
         </div>
       </div>
       <div className="zp-pref-provider-list">
         {props.profiles.map((profile) => (
           <ProviderCard
-            active={profile.id === props.activeProviderId}
             checking={profile.id === props.checkingProviderId}
             key={profile.id}
             onCheck={() => props.onCheck(profile.id)}
             onDelete={() => props.onDelete(profile.id)}
-            onSelect={() => props.onSelect(profile.id)}
             onUpdate={(input) => props.onUpdate(profile.id, input)}
             profile={profile}
           />
@@ -155,24 +235,19 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
 }
 
 function ProviderCard({
-  active,
   checking,
   onCheck,
   onDelete,
-  onSelect,
   onUpdate,
   profile,
 }: {
-  active: boolean;
   checking: boolean;
   onCheck: () => void;
   onDelete: () => void;
-  onSelect: () => void;
   onUpdate: (input: {
     displayName?: string;
     baseURL?: string;
     apiKey?: string;
-    defaultModel?: string;
   }) => void;
   profile: ProviderProfile;
 }): ReactElement {
@@ -180,7 +255,6 @@ function ProviderCard({
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [baseURL, setBaseURL] = useState(profile.baseURL || "");
   const [apiKey, setApiKey] = useState("");
-  const [defaultModel, setDefaultModel] = useState(profile.defaultModel);
   const statusClass = `zp-pref-status zp-pref-status-${profile.status}`;
 
   const save = () => {
@@ -188,7 +262,6 @@ function ProviderCard({
       displayName,
       baseURL,
       apiKey,
-      defaultModel,
     });
     setApiKey("");
     setEditing(false);
@@ -202,18 +275,10 @@ function ProviderCard({
           <p>
             {profile.kind === "codex-cli"
               ? "Local Codex CLI backend"
-              : `${formatPreset(profile.preset)} · ${profile.baseURL}`}
+              : profile.baseURL}
           </p>
         </div>
         <div className="zp-pref-button-group">
-          <button
-            className="zp-pref-button zp-pref-button-secondary"
-            disabled={active}
-            onClick={onSelect}
-            type="button"
-          >
-            {active ? "Active" : "Use"}
-          </button>
           <button
             className="zp-pref-button zp-pref-button-secondary"
             disabled={checking}
@@ -254,7 +319,6 @@ function ProviderCard({
         ) : (
           <CircleAlert size={16} />
         )}
-        {active ? "Active · " : ""}
         {profile.status}
         {profile.kind !== "codex-cli"
           ? profile.hasApiKey
@@ -263,14 +327,8 @@ function ProviderCard({
           : ""}
       </div>
       <div className="zp-pref-provider-meta">
-        <span>Model: {profile.defaultModel}</span>
-        <span>
-          Capabilities:{" "}
-          {Object.entries(profile.capabilities)
-            .filter(([, enabled]) => enabled)
-            .map(([key]) => key)
-            .join(", ")}
-        </span>
+        <span>{formatModelCount(profile)}</span>
+        <span>{formatModelSummary(profile.models)}</span>
       </div>
       {editing ? (
         <div className="zp-pref-form-grid">
@@ -298,13 +356,6 @@ function ProviderCard({
               onChange={(event) => setApiKey(event.currentTarget.value)}
             />
           </label>
-          <label>
-            <span>Default model</span>
-            <input
-              value={defaultModel}
-              onChange={(event) => setDefaultModel(event.currentTarget.value)}
-            />
-          </label>
           <div className="zp-pref-button-group">
             <button
               className="zp-pref-button zp-pref-button-primary"
@@ -320,12 +371,18 @@ function ProviderCard({
   );
 }
 
-function formatPreset(preset: AgentProviderPreset): string {
-  if (preset === "codex-cli") {
-    return "Codex CLI";
+function formatModelSummary(models: AgentModelEntry[]): string {
+  if (!models.length) {
+    return "No models saved";
   }
-  if (preset === "z-ai") {
-    return "Z.AI / GLM";
-  }
-  return preset.charAt(0).toUpperCase() + preset.slice(1);
+  return models
+    .slice(0, 4)
+    .map((model) => model.displayName)
+    .join(", ");
+}
+
+function formatModelCount(profile: ProviderProfile): string {
+  const noun = profile.models.length === 1 ? "model" : "models";
+  const state = profile.kind === "codex-cli" ? "available" : "enabled";
+  return `${profile.models.length} ${noun} ${state}`;
 }

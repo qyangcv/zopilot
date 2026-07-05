@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
+import { config } from "../../../../package.json";
 
 export { NavButton, PageHeader, T };
 
@@ -56,5 +57,9 @@ function T({
   children: ReactNode;
   id: string;
 }): ReactElement {
-  return <span data-l10n-id={id}>{children}</span>;
+  return <span data-l10n-id={getLocalizedId(id)}>{children}</span>;
+}
+
+function getLocalizedId(id: string): string {
+  return id.startsWith(`${config.addonRef}-`) ? id : `${config.addonRef}-${id}`;
 }

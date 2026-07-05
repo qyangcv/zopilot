@@ -28,12 +28,12 @@ describe("PreferencesApp", function () {
     );
 
     assert.include(html, "zp-pref-shell");
-    assert.include(html, 'data-l10n-id="pref-nav-providers"');
-    assert.include(html, 'data-l10n-id="pref-nav-dependencies"');
-    assert.include(html, 'data-l10n-id="pref-nav-prompts"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-nav-providers"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-nav-dependencies"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-nav-prompts"');
     assert.include(html, "lucide-pencil-sparkles");
-    assert.include(html, 'data-l10n-id="pref-provider-title"');
-    assert.include(html, 'data-l10n-id="pref-provider-add"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-provider-title"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-provider-add"');
     assert.notInclude(html, "zp-pref-brand");
   });
 
@@ -56,8 +56,8 @@ describe("PreferencesApp", function () {
 
     assert.include(html, "zp-pref-prompt-list-panel");
     assert.include(html, "Prompt A");
-    assert.include(html, 'data-l10n-id="pref-prompt-new"');
-    assert.notInclude(html, 'data-l10n-id="pref-prompt-title-label"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-prompt-new"');
+    assert.notInclude(html, 'data-l10n-id="zopilot-pref-prompt-title-label"');
     assert.notInclude(html, "zp-pref-editor-card");
   });
 
@@ -82,15 +82,15 @@ describe("PreferencesApp", function () {
     assert.include(html, "zp-pref-prompt-edit-page");
     assert.include(html, 'aria-label="返回 Prompt 列表"');
     assert.notInclude(html, "zp-pref-prompt-edit-title");
-    assert.include(html, 'data-l10n-id="pref-prompt-save"');
-    assert.include(html, 'data-l10n-id="pref-prompt-title-label"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-prompt-save"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-prompt-title-label"');
     assert.include(html, "名称");
     assert.include(html, "内容");
     assert.include(html, "保存");
     assert.include(html, "删除");
     assert.notInclude(html, "保存 Prompt");
     assert.notInclude(html, "删除 Prompt");
-    assert.notInclude(html, 'data-l10n-id="pref-prompt-new"');
+    assert.notInclude(html, 'data-l10n-id="zopilot-pref-prompt-new"');
   });
 
   it("renders dependency paths with copy and open actions", function () {
@@ -105,9 +105,9 @@ describe("PreferencesApp", function () {
 
     assert.include(html, "/Users/yang/Library/Application Support/Zotero");
     assert.include(html, "https://github.com/qyangcv/zopilot/releases");
-    assert.include(html, 'data-l10n-id="pref-dependencies-copy"');
-    assert.include(html, 'data-l10n-id="pref-dependencies-reveal"');
-    assert.include(html, 'data-l10n-id="pref-dependencies-open-url"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-copy"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-reveal"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-open-url"');
   });
 });
 

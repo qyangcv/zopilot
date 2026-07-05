@@ -160,7 +160,13 @@ class ByokRuntimeServer {
       () => controller.abort(),
       params.profile.timeoutMs,
     );
-    const modelId = params.input.model || params.profile.defaultModel;
+    const modelId =
+      params.input.model ||
+      params.profile.models[0]?.id ||
+      params.profile.defaultModel;
+    if (!modelId) {
+      throw new Error("No model selected for this provider.");
+    }
     let fullText = "";
     try {
       const provider = createOpenAICompatible({
@@ -202,7 +208,7 @@ class ByokRuntimeServer {
         {
           stream: true,
           signal: controller.signal,
-          maxTurns: params.profile.capabilities.tools ? 4 : 1,
+          maxTurns: null,
         },
       );
       for await (const event of stream) {
@@ -393,7 +399,7 @@ function parseTurnStartParams(params: JsonValue | undefined): TurnStartParams {
 }
 
 function validateProfile(profile: ProviderProfileWithSecret): void {
-  if (!profile.baseURL || !profile.defaultModel || !profile.apiKey) {
+  if (!profile.baseURL || !profile.apiKey) {
     throw new Error("Provider profile is incomplete.");
   }
 }
@@ -405,9 +411,7 @@ function normalizeBaseURL(value: string): string {
 function configuredModels(
   profile: ProviderProfileWithSecret,
 ): AgentModelEntry[] {
-  return profile.models.length
-    ? profile.models
-    : [modelFromId(profile.defaultModel)];
+  return profile.models.length ? profile.models : [];
 }
 
 function parseOpenAIModelList(value: unknown): AgentModelEntry[] {
@@ -423,7 +427,7 @@ function parseOpenAIModelList(value: unknown): AgentModelEntry[] {
         item && typeof item === "object" && typeof (item as any).id === "string"
           ? (item as any).id
           : undefined;
-      return id ? modelFromId(id) : undefined;
+      return id ? modelFromId(id, "openai-compatible") : undefined;
     })
     .filter((item: AgentModelEntry | undefined): item is AgentModelEntry =>
       Boolean(item),

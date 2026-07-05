@@ -11,6 +11,7 @@ export {
   PROVIDER_PRESETS,
   createCodexProviderProfile,
   createPresetProviderProfile,
+  createProviderDisplayName,
   modelFromId,
 };
 
@@ -26,28 +27,28 @@ const DEFAULT_CODEX_MODEL: AgentModelEntry = {
 type PresetDefinition = {
   preset: Exclude<AgentProviderPreset, "codex-cli">;
   displayName: string;
-  baseURL: string;
-  defaultModel: string;
+  baseURL?: string;
 };
 
 const PROVIDER_PRESETS: PresetDefinition[] = [
   {
+    preset: "openai-compatible",
+    displayName: "OpenAI compatible",
+  },
+  {
     preset: "deepseek",
     displayName: "DeepSeek",
     baseURL: "https://api.deepseek.com",
-    defaultModel: "deepseek-chat",
   },
   {
     preset: "z-ai",
     displayName: "Z.AI / GLM",
     baseURL: "https://api.z.ai/api/paas/v4",
-    defaultModel: "glm-4.5",
   },
   {
     preset: "minimax",
     displayName: "MiniMax",
     baseURL: "https://api.minimax.io/v1",
-    defaultModel: "MiniMax-M1",
   },
 ];
 
@@ -81,7 +82,7 @@ function createCodexProviderProfile(
 
 function createPresetProviderProfile(input: {
   id: string;
-  preset: Exclude<AgentProviderPreset, "codex-cli">;
+  preset?: Exclude<AgentProviderPreset, "codex-cli">;
   displayName?: string;
   baseURL?: string;
   defaultModel?: string;
@@ -94,22 +95,26 @@ function createPresetProviderProfile(input: {
   hasApiKey?: boolean;
   apiKeyRef?: string;
 }): ProviderProfile {
-  const preset = getPreset(input.preset);
-  const defaultModel = input.defaultModel || preset.defaultModel;
+  const presetName = input.preset || "openai-compatible";
+  const preset = getPreset(presetName);
   const models = input.models?.length
-    ? input.models
-    : [modelFromId(defaultModel)];
+    ? input.models.map((model) => modelFromId(model.id, presetName))
+    : input.defaultModel
+      ? [modelFromId(input.defaultModel, presetName)]
+      : [];
+  const defaultModel = input.defaultModel || models[0]?.id;
   return {
     id: input.id,
     kind: "openai-compatible",
-    preset: input.preset,
-    displayName: input.displayName || preset.displayName,
+    preset: presetName,
+    displayName:
+      input.displayName || createProviderDisplayName(input.baseURL, preset),
     baseURL: input.baseURL || preset.baseURL,
     apiKeyRef: input.apiKeyRef || input.id,
     hasApiKey: input.hasApiKey,
     defaultModel,
     models,
-    capabilities: createCapabilities(input.preset, input.capabilities),
+    capabilities: createCapabilities(presetName, input.capabilities),
     timeoutMs: input.timeoutMs || 180000,
     retryCount: input.retryCount ?? 1,
     enabled: input.enabled ?? true,
@@ -117,12 +122,42 @@ function createPresetProviderProfile(input: {
   };
 }
 
-function modelFromId(id: string): AgentModelEntry {
+function modelFromId(
+  id: string,
+  preset: Exclude<AgentProviderPreset, "codex-cli"> = "openai-compatible",
+): AgentModelEntry {
+  const supportedReasoningEfforts =
+    preset === "openai-compatible" ||
+    preset === "deepseek" ||
+    preset === "z-ai" ||
+    preset === "minimax"
+      ? ["low", "medium", "high"]
+      : [];
   return {
     id,
     displayName: id,
-    supportedReasoningEfforts: [],
+    supportedReasoningEfforts,
+    defaultReasoningEffort: supportedReasoningEfforts.includes("medium")
+      ? "medium"
+      : undefined,
   };
+}
+
+function createProviderDisplayName(
+  baseURL: string | undefined,
+  preset?: PresetDefinition,
+): string {
+  if (preset && preset.preset !== "openai-compatible") {
+    return preset.displayName;
+  }
+  if (!baseURL) {
+    return preset?.displayName || "OpenAI compatible";
+  }
+  try {
+    return new URL(baseURL).hostname.replace(/^api\./, "");
+  } catch {
+    return "OpenAI compatible";
+  }
 }
 
 function getPreset(

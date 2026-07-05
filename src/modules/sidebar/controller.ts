@@ -2,7 +2,12 @@ import { getString } from "../../utils/locale";
 import { config } from "../../../package.json";
 import { getAgentBackendManager } from "../../agent/backendManager";
 import { getProviderProfileStore } from "../../agent/providerProfiles";
-import type { AgentDiagnostic, AgentRunResult } from "../../agent/types";
+import type {
+  AgentDiagnostic,
+  AgentModelEntry,
+  AgentRunResult,
+  ProviderProfile,
+} from "../../agent/types";
 import type {
   Conversation,
   LocalAttachmentRef,
@@ -51,12 +56,16 @@ import {
 } from "./viewModel";
 import {
   buildModelSelectionPatch,
+  createReasoningPreferenceKey,
   getReasoningEffortsForModel,
   parseSavedReasoningEfforts,
+  parseSavedSelectedModels,
+  resolveSelectedModel,
 } from "./modelPreferences";
 
 const controllers = new WeakMap<Window, SidebarController>();
 const TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
+const SELECTED_MODELS_PREF = "agent.selectedModels";
 const logger = createLogger("sidebar.controller");
 export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
 
@@ -465,6 +474,7 @@ class SidebarController {
       assistantOutput: "",
       model: this.viewState.selectedModel,
       reasoningEffort: this.viewState.selectedReasoningEffort,
+      providerProfileId: this.viewState.selectedProviderId,
       interrupting: false,
       interrupted: false,
     };
@@ -475,6 +485,7 @@ class SidebarController {
       let pendingToolBoundary = false;
       const result = await getAgentBackendManager().sendPrompt(
         {
+          providerProfileId: runningTurn.providerProfileId,
           conversation,
           prompt: promptText,
           model: runningTurn.model,
@@ -542,6 +553,9 @@ class SidebarController {
           codexThreadId: result.legacy?.codexThreadId,
         },
       );
+      const completedProfile =
+        getProviderProfileStore().getProfile(result.providerProfileId) ||
+        getAgentBackendManager().getActiveProfile();
       conversation = await getConversationStore().addMessage(metadata, {
         role: "assistant",
         text: finalText,
@@ -553,12 +567,11 @@ class SidebarController {
         codexThreadId: result.legacy?.codexThreadId,
         codexTurnId: result.legacy?.codexTurnId,
         backendId: result.backendId,
-        backendKind: getAgentBackendManager().getActiveProfile().kind,
+        backendKind: completedProfile.kind,
         providerProfileId: result.providerProfileId,
         backendRunId: result.runId,
         backendTurnId: result.turnId,
-        capabilitySnapshot:
-          getAgentBackendManager().getActiveProfile().capabilities,
+        capabilitySnapshot: completedProfile.capabilities,
         model: runningTurn.model,
         reasoningEffort: runningTurn.reasoningEffort,
       });
@@ -575,6 +588,9 @@ class SidebarController {
       const text = runningTurn.interrupted
         ? runningTurn.assistantOutput || getString("sidebar-status-interrupted")
         : errorText;
+      const failedProfile = runningTurn.providerProfileId
+        ? getProviderProfileStore().getProfile(runningTurn.providerProfileId)
+        : undefined;
       conversation = await getConversationStore().addMessage(
         conversation.metadata,
         {
@@ -583,7 +599,9 @@ class SidebarController {
           status: runningTurn.interrupted ? "interrupted" : "error",
           completedAt: new Date().toISOString(),
           backendId: runningTurn.backendId,
-          backendKind: getAgentBackendManager().getActiveProfile().kind,
+          backendKind:
+            failedProfile?.kind ||
+            getAgentBackendManager().getActiveProfile().kind,
           providerProfileId: runningTurn.providerProfileId,
           backendRunId: runningTurn.runId,
           backendTurnId: runningTurn.turnId,
@@ -647,6 +665,7 @@ class SidebarController {
     void getAgentBackendManager()
       .cancelTurn({
         conversationId: runningTurn.conversation.metadata.id,
+        providerProfileId: runningTurn.providerProfileId,
         runId,
         turnId,
         legacy,
@@ -676,35 +695,55 @@ class SidebarController {
       backendDiagnosticMessage: undefined,
     });
     try {
-      const status = await getAgentBackendManager().checkActiveStatus();
-      const models = status.models?.length
-        ? status.models
-        : await getAgentBackendManager().listActiveModels();
+      const manager = getAgentBackendManager();
+      const snapshot = manager.getSnapshot();
+      const providerModels = await Promise.all(
+        snapshot.profiles
+          .filter((profile) => profile.enabled)
+          .map(async (profile) => ({
+            profile,
+            models: await this.loadProviderModels(profile),
+          })),
+      );
       if (this.destroyed) {
         return;
       }
-      const availableModels = models.length
-        ? models.map(agentModelToSidebarModel)
-        : [DEFAULT_MODEL];
-      const activeProfile = getAgentBackendManager().getActiveProfile();
-      const preferredModel = activeProfile.defaultModel;
-      const selectedModel = availableModels.some(
-        (model) => model.slug === preferredModel,
-      )
-        ? preferredModel
-        : availableModels[0]?.slug || DEFAULT_MODEL.slug;
-      this.updateModelSelection(availableModels, selectedModel);
+      const availableModels = providerModels.flatMap(({ profile, models }) =>
+        models.map((model) => agentModelToSidebarModel(model, profile)),
+      );
+      if (!availableModels.length) {
+        this.updateModelSelection(
+          [DEFAULT_MODEL],
+          DEFAULT_MODEL.providerProfileId,
+          DEFAULT_MODEL.slug,
+        );
+        await this.showBackendDiagnostic();
+        return;
+      }
+      const selected = this.resolveSelectedModel(
+        availableModels,
+        snapshot.activeProviderId,
+      );
+      this.updateModelSelection(
+        availableModels,
+        selected.providerProfileId,
+        selected.slug,
+      );
       this.updateViewState({
         backendStatus: "connected",
         backendDiagnosticMessage: undefined,
-        activeProviderLabel: activeProfile.displayName,
+        activeProviderLabel: selected.providerLabel,
       });
     } catch (error) {
       logger.error("agent backend model list failed", error);
       if (this.destroyed) {
         return;
       }
-      this.updateModelSelection([DEFAULT_MODEL], DEFAULT_MODEL.slug);
+      this.updateModelSelection(
+        [DEFAULT_MODEL],
+        DEFAULT_MODEL.providerProfileId,
+        DEFAULT_MODEL.slug,
+      );
       await this.showBackendDiagnostic(error);
     }
   }
@@ -716,9 +755,8 @@ class SidebarController {
     });
     let diagnostic: AgentDiagnostic | undefined;
     try {
-      diagnostic =
-        (await getAgentBackendManager().checkActiveStatus()).diagnostic ||
-        undefined;
+      diagnostic = (await getAgentBackendManager().checkActiveStatus())
+        .diagnostic;
     } catch {
       diagnostic = undefined;
     }
@@ -734,30 +772,29 @@ class SidebarController {
     });
   }
 
-  private selectModel(model: string): void {
-    if (!this.viewState.models.some((item) => item.slug === model)) {
+  private selectModel(value: string): void {
+    const { providerProfileId, model } = parseModelSelectValue(value);
+    const selected = this.viewState.models.find(
+      (item) =>
+        item.providerProfileId === providerProfileId && item.slug === model,
+    );
+    if (!selected) {
       return;
     }
     const manager = getAgentBackendManager();
-    const active = manager.getActiveProfile();
-    if (active.kind === "codex-cli") {
+    const active = getProviderProfileStore().getProfile(providerProfileId);
+    this.saveSelectedModel(providerProfileId, model);
+    manager.setActiveProvider(providerProfileId);
+    if (active?.kind === "codex-cli") {
       setPref("codex.model", model);
-    } else {
-      getProviderProfileStore().updateProvider(active.id, {
-        defaultModel: model,
-        models: this.viewState.models.map((item) => ({
-          id: item.slug,
-          displayName: item.displayName,
-          supportedReasoningEfforts: item.supportedReasoningEfforts,
-          defaultReasoningEffort: item.defaultReasoningEffort,
-        })),
-      });
     }
-    this.updateModelSelection(this.viewState.models, model);
+    this.updateModelSelection(this.viewState.models, providerProfileId, model);
+    this.updateViewState({ activeProviderLabel: selected.providerLabel });
   }
 
   private selectReasoningEffort(effort: string): void {
     const efforts = getReasoningEffortsForModel(
+      this.viewState.selectedProviderId,
       this.viewState.selectedModel,
       this.viewState.models,
     );
@@ -765,7 +802,12 @@ class SidebarController {
       return;
     }
     const saved = this.readSavedReasoningEfforts();
-    saved[this.viewState.selectedModel] = effort;
+    saved[
+      createReasoningPreferenceKey(
+        this.viewState.selectedProviderId,
+        this.viewState.selectedModel,
+      )
+    ] = effort;
     setPref("codex.reasoningEfforts", JSON.stringify(saved));
     this.updateViewState({ selectedReasoningEffort: effort });
   }
@@ -908,19 +950,72 @@ class SidebarController {
 
   private updateModelSelection(
     models: SidebarState["models"],
+    selectedProviderId: string,
     selectedModel: string,
   ): void {
     this.updateViewState(
       buildModelSelectionPatch(
         models,
+        selectedProviderId,
         selectedModel,
         this.readSavedReasoningEfforts(),
       ),
     );
   }
 
+  private async loadProviderModels(
+    profile: ProviderProfile,
+  ): Promise<AgentModelEntry[]> {
+    try {
+      const status = await getAgentBackendManager().checkStatus(profile.id);
+      if (status.models?.length) {
+        return status.models;
+      }
+      if (status.status === "connected") {
+        return await getAgentBackendManager().listModels(profile.id);
+      }
+    } catch (error) {
+      logger.error("agent backend provider model list failed", error, {
+        providerProfileId: profile.id,
+      });
+    }
+    return profile.status === "connected" || profile.models.length
+      ? profile.models
+      : [];
+  }
+
+  private resolveSelectedModel(
+    models: SidebarState["models"],
+    activeProviderId: string,
+  ): SidebarState["models"][number] {
+    return (
+      resolveSelectedModel({
+        models,
+        activeProviderId,
+        currentProviderId: this.viewState.selectedProviderId,
+        currentModel: this.viewState.selectedModel,
+        savedSelectedModels: this.readSavedSelectedModels(),
+      }) || models[0]
+    );
+  }
+
   private readSavedReasoningEfforts(): Record<string, string> {
     return parseSavedReasoningEfforts(getPref("codex.reasoningEfforts"));
+  }
+
+  private readSavedSelectedModels(): Record<string, string> {
+    const saved = parseSavedSelectedModels(getPref(SELECTED_MODELS_PREF));
+    const legacyCodexModel = String(getPref("codex.model") || "").trim();
+    if (legacyCodexModel) {
+      saved[DEFAULT_MODEL.providerProfileId] = legacyCodexModel;
+    }
+    return saved;
+  }
+
+  private saveSelectedModel(providerProfileId: string, model: string): void {
+    const saved = this.readSavedSelectedModels();
+    saved[providerProfileId] = model;
+    setPref(SELECTED_MODELS_PREF, JSON.stringify(saved));
   }
 
   private updateRunningState(): void {
@@ -1418,17 +1513,33 @@ function formatBackendError(error: unknown): string {
   );
 }
 
-function agentModelToSidebarModel(model: {
-  id: string;
-  displayName: string;
-  supportedReasoningEfforts: string[];
-  defaultReasoningEffort?: string;
-}): SidebarState["models"][number] {
+function agentModelToSidebarModel(
+  model: {
+    id: string;
+    displayName: string;
+    supportedReasoningEfforts: string[];
+    defaultReasoningEffort?: string;
+  },
+  profile: ProviderProfile,
+): SidebarState["models"][number] {
   return {
     slug: model.id,
     displayName: model.displayName,
+    providerProfileId: profile.id,
+    providerLabel: profile.displayName,
     supportedReasoningEfforts: model.supportedReasoningEfforts,
     defaultReasoningEffort: model.defaultReasoningEffort,
+  };
+}
+
+function parseModelSelectValue(value: string): {
+  providerProfileId: string;
+  model: string;
+} {
+  const [providerProfileId, model] = value.split("\u0000");
+  return {
+    providerProfileId: providerProfileId || "codex-cli.default",
+    model: model || value,
   };
 }
 

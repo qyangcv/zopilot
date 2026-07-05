@@ -83,7 +83,7 @@ class OpenAICompatibleAgentsBackend implements AgentBackend {
 }
 
 function validateProfile(profile: ProviderProfileWithSecret) {
-  if (!profile.baseURL || !profile.defaultModel || !profile.apiKey) {
+  if (!profile.baseURL || !profile.apiKey || !profile.models.length) {
     return createDiagnostic("provider_profile_incomplete");
   }
   return undefined;

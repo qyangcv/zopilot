@@ -207,11 +207,55 @@
 .zp-pref-provider-card {
   gap: 12px;
 }
+.zp-pref-provider-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.zp-pref-provider-step {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+.zp-pref-provider-step h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
 .zp-pref-provider-meta {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
   gap: 8px 16px;
+  color: var(--zp-pref-muted);
+  font-size: 12px;
+}
+.zp-pref-model-checklist {
+  display: flex;
+  max-height: 180px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  border: 1px solid var(--zp-pref-border);
+  border-radius: 6px;
+  padding: 8px;
+}
+.zp-pref-model-checklist label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: CanvasText;
+}
+.zp-pref-model-checklist span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zp-pref-muted {
   color: var(--zp-pref-muted);
   font-size: 12px;
 }

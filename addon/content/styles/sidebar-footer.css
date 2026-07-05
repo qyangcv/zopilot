@@ -134,6 +134,18 @@
   white-space: nowrap;
 }
 
+.zp-ui-select-option-wrap {
+  display: block;
+}
+
+.zp-ui-select-group {
+  display: block;
+  padding: 7px 9px 3px;
+  color: var(--zp-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
 .zp-ui-select-option:hover,
 .zp-ui-select-option[data-active],
 .zp-ui-select-option[data-highlighted] {

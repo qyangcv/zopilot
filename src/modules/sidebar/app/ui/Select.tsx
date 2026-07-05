@@ -5,6 +5,7 @@ import { FloatingPortal } from "./Provider";
 export { Select };
 
 type SelectOption = {
+  groupLabel?: string;
   label: string;
   value: string;
 };
@@ -76,24 +77,31 @@ function Select({
             className="zp-ui-select-popup"
             role="listbox"
           >
-            {options.map((option) => (
-              <button
-                aria-selected={option.value === value}
-                className="zp-ui-select-option"
-                data-selected={option.value === value || undefined}
-                key={option.value}
-                onClick={() => {
-                  setOpen(false);
-                  if (option.value !== value) {
-                    onChange(option.value);
-                  }
-                }}
-                role="option"
-                title={option.label}
-                type="button"
-              >
-                {option.label}
-              </button>
+            {options.map((option, index) => (
+              <span className="zp-ui-select-option-wrap" key={option.value}>
+                {option.groupLabel &&
+                option.groupLabel !== options[index - 1]?.groupLabel ? (
+                  <span className="zp-ui-select-group">
+                    {option.groupLabel}
+                  </span>
+                ) : null}
+                <button
+                  aria-selected={option.value === value}
+                  className="zp-ui-select-option"
+                  data-selected={option.value === value || undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    if (option.value !== value) {
+                      onChange(option.value);
+                    }
+                  }}
+                  role="option"
+                  title={option.label}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              </span>
             ))}
           </div>
         </FloatingPortal>

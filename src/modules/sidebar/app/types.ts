@@ -23,6 +23,8 @@ export type SidebarMessageView = {
 export type SidebarModelView = {
   slug: string;
   displayName: string;
+  providerProfileId: string;
+  providerLabel: string;
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
 };
@@ -95,6 +97,7 @@ export type SidebarState = {
   composerEnabled: boolean;
   busy: boolean;
   models: SidebarModelView[];
+  selectedProviderId: string;
   selectedModel: string;
   selectedReasoningEffort?: string;
   availableReasoningEfforts: string[];

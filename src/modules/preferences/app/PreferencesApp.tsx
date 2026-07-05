@@ -70,15 +70,13 @@ function PreferencesApp({
       <section className="zp-pref-main">
         {activeSection === "providers" ? (
           <ProviderPanel
-            activeProviderId={providers.state.activeProviderId}
             checkingProviderId={providers.state.checkingProviderId}
             message={providers.state.message}
             onCheck={providers.checkProvider}
             onCreate={providers.createProvider}
             onDelete={providers.deleteProvider}
-            onSelect={providers.selectProvider}
             onUpdate={providers.updateProvider}
-            presets={providers.presets}
+            onListModels={providers.listProviderModels}
             profiles={providers.state.profiles}
           />
         ) : activeSection === "dependencies" ? (

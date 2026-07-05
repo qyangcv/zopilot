@@ -11,6 +11,8 @@ declare namespace _ZoteroTypes {
       "codex.model": string;
       "codex.reasoningEfforts": string;
       "agent.activeProviderId": string;
+      "agent.selectedModels": string;
+      "agent.codexProviderStatus": string;
       "agent.providerProfiles": string;
       "agent.providerSecrets": string;
       "prompts.custom": string;

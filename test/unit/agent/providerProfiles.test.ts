@@ -19,12 +19,28 @@ describe("ProviderProfileStore", function () {
     assert.equal(snapshot.profiles[0].defaultModel, "gpt-5.5");
   });
 
+  it("persists Codex CLI test status in subsequent snapshots", function () {
+    const store = new ProviderProfileStore();
+
+    store.updateCodexProvider({
+      status: "connected",
+      models: [{ id: "gpt-5.6", displayName: "GPT-5.6" }],
+      lastCheckedAt: "2026-07-05T05:17:47.000Z",
+    });
+
+    const profile = store.getSnapshot().profiles[0];
+    assert.equal(profile.status, "connected");
+    assert.equal(profile.models[0]?.id, "gpt-5.6");
+    assert.equal(profile.defaultModel, "gpt-5.6");
+    assert.equal(profile.lastCheckedAt, "2026-07-05T05:17:47.000Z");
+  });
+
   it("creates BYOK profiles while keeping API keys out of snapshots", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
-      preset: "deepseek",
       apiKey: "sk-test-secret",
-      defaultModel: "deepseek-chat",
+      baseURL: "https://api.deepseek.com",
+      models: [{ id: "deepseek-chat", displayName: "deepseek-chat" }],
     });
 
     const snapshot = store.getSnapshot();
@@ -32,8 +48,9 @@ describe("ProviderProfileStore", function () {
       (item) => item.id === profile.id,
     );
 
-    assert.equal(snapshot.activeProviderId, profile.id);
+    assert.equal(snapshot.activeProviderId, "codex-cli.default");
     assert.equal(visibleProfile?.kind, "openai-compatible");
+    assert.equal(visibleProfile?.models[0]?.id, "deepseek-chat");
     assert.equal(visibleProfile?.hasApiKey, true);
     assert.notProperty(visibleProfile as object, "apiKey");
     assert.equal(store.getProfile(profile.id)?.apiKey, "sk-test-secret");
@@ -44,13 +61,18 @@ describe("ProviderProfileStore", function () {
     const profile = store.createProvider({
       preset: "minimax",
       apiKey: "secret-a",
+      baseURL: "https://api.minimax.io/v1",
+      models: [{ id: "MiniMax-M1", displayName: "MiniMax-M1" }],
     });
 
     store.updateProvider(profile.id, {
-      defaultModel: "MiniMax-Text-01",
       apiKey: "secret-b",
+      models: [{ id: "MiniMax-Text-01", displayName: "MiniMax-Text-01" }],
     });
-    assert.equal(store.getProfile(profile.id)?.defaultModel, "MiniMax-Text-01");
+    assert.equal(
+      store.getProfile(profile.id)?.models[0]?.id,
+      "MiniMax-Text-01",
+    );
     assert.equal(store.getProfile(profile.id)?.apiKey, "secret-b");
 
     store.deleteProvider(profile.id);
@@ -58,12 +80,13 @@ describe("ProviderProfileStore", function () {
     assert.isUndefined(store.getProfile(profile.id));
   });
 
-  it("keeps BYOK default model inside the available model list", function () {
+  it("keeps BYOK models as the provider source of truth", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
       preset: "deepseek",
       apiKey: "secret-a",
-      defaultModel: "deepseek-chat",
+      baseURL: "https://api.deepseek.com",
+      models: [{ id: "deepseek-chat", displayName: "deepseek-chat" }],
     });
 
     store.updateProvider(profile.id, {
@@ -71,7 +94,7 @@ describe("ProviderProfileStore", function () {
     });
 
     assert.equal(
-      store.getProfile(profile.id)?.defaultModel,
+      store.getProfile(profile.id)?.models[0]?.id,
       "deepseek-v4-flash",
     );
   });
@@ -81,6 +104,7 @@ function installZoteroPrefsMock(): void {
   const values = new Map<string, unknown>([
     ["extensions.zotero.zopilot.codex.model", "gpt-5.5"],
     ["extensions.zotero.zopilot.agent.activeProviderId", "codex-cli.default"],
+    ["extensions.zotero.zopilot.agent.codexProviderStatus", "{}"],
     ["extensions.zotero.zopilot.agent.providerProfiles", "[]"],
     ["extensions.zotero.zopilot.agent.providerSecrets", "{}"],
   ]);

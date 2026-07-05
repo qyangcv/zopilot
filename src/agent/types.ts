@@ -7,7 +7,12 @@ import type {
 
 export type AgentBackendKind = "codex-cli" | "openai-compatible";
 
-export type AgentProviderPreset = "codex-cli" | "deepseek" | "z-ai" | "minimax";
+export type AgentProviderPreset =
+  | "codex-cli"
+  | "openai-compatible"
+  | "deepseek"
+  | "z-ai"
+  | "minimax";
 
 export type AgentCapabilityKey =
   | "streaming"
@@ -65,7 +70,7 @@ export type ProviderProfile = {
   baseURL?: string;
   apiKeyRef?: string;
   hasApiKey?: boolean;
-  defaultModel: string;
+  defaultModel?: string;
   models: AgentModelEntry[];
   capabilities: AgentCapabilities;
   timeoutMs: number;
@@ -81,11 +86,11 @@ export type ProviderProfileWithSecret = ProviderProfile & {
 };
 
 export type ProviderProfileInput = {
-  preset: Exclude<AgentProviderPreset, "codex-cli">;
+  preset?: Exclude<AgentProviderPreset, "codex-cli">;
   displayName?: string;
   baseURL?: string;
   apiKey?: string;
-  defaultModel?: string;
+  models?: AgentModelEntry[];
   capabilities?: Partial<AgentCapabilities>;
   timeoutMs?: number;
   retryCount?: number;
@@ -112,6 +117,7 @@ export type AgentRunResult = {
 };
 
 export type AgentPromptInput = {
+  providerProfileId?: string;
   conversation: Conversation;
   prompt: string;
   model?: string;
@@ -136,6 +142,7 @@ export type AgentPromptCallbacks = {
 
 export type AgentCancelInput = {
   conversationId: string;
+  providerProfileId?: string;
   runId?: string;
   turnId?: string;
   legacy?: {

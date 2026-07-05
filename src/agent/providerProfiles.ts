@@ -4,7 +4,6 @@ import {
   CODEX_PROVIDER_ID,
   createCodexProviderProfile,
   createPresetProviderProfile,
-  modelFromId,
 } from "./modelCatalog";
 import type {
   AgentCapabilities,
@@ -41,6 +40,7 @@ type ProviderProfileListener = (snapshot: ProviderProfileSnapshot) => void;
 const PREFS_PREFIX = config.prefsPrefix;
 const PROVIDERS_PREF = "agent.providerProfiles";
 const ACTIVE_PROVIDER_PREF = "agent.activeProviderId";
+const CODEX_STATUS_PREF = "agent.codexProviderStatus";
 const SECRETS_PREF = "agent.providerSecrets";
 
 let sharedStore: ProviderProfileStore | undefined;
@@ -80,13 +80,13 @@ class ProviderProfileStore {
   }
 
   createProvider(input: ProviderProfileInput): ProviderProfile {
+    const preset = input.preset || "openai-compatible";
     const profile = createPresetProviderProfile({
-      id: createProfileId(input.preset),
-      preset: input.preset,
+      id: createProfileId(preset),
+      preset,
       displayName: input.displayName,
       baseURL: input.baseURL,
-      defaultModel: input.defaultModel,
-      models: input.defaultModel ? [modelFromId(input.defaultModel)] : [],
+      models: input.models,
       capabilities: input.capabilities,
       timeoutMs: input.timeoutMs,
       retryCount: input.retryCount,
@@ -98,7 +98,6 @@ class ProviderProfileStore {
     if (input.apiKey) {
       this.writeSecret(profile.id, input.apiKey);
     }
-    setPref(ACTIVE_PROVIDER_PREF, profile.id);
     this.notify();
     return this.withSecret(profile);
   }
@@ -106,7 +105,6 @@ class ProviderProfileStore {
   updateProvider(
     profileId: string,
     patch: Partial<ProviderProfileInput> & {
-      defaultModel?: string;
       models?: AgentModelEntry[];
       capabilities?: Partial<AgentCapabilities>;
       status?: ProviderProfile["status"];
@@ -120,19 +118,12 @@ class ProviderProfileStore {
       return undefined;
     }
     const current = normalizeStoredProfile(stored[index]);
-    const models =
-      patch.models ||
-      (patch.defaultModel ? [modelFromId(patch.defaultModel)] : current.models);
-    const defaultModel = resolveDefaultModel({
-      current: current.defaultModel,
-      models,
-      patch: patch.defaultModel,
-    });
+    const models = patch.models || current.models;
     const next: StoredProviderProfile = {
       ...current,
       displayName: patch.displayName ?? current.displayName,
       baseURL: patch.baseURL ?? current.baseURL,
-      defaultModel,
+      defaultModel: models[0]?.id,
       models,
       capabilities: {
         ...current.capabilities,
@@ -171,7 +162,8 @@ class ProviderProfileStore {
     });
     profile.lastCheckedAt = input.lastCheckedAt;
     profile.lastDiagnostic = input.lastDiagnostic;
-    setPref("codex.model", profile.defaultModel);
+    setPref("codex.model", profile.defaultModel || "gpt-5.5");
+    setPref(CODEX_STATUS_PREF, JSON.stringify(stripCodexStatus(profile)));
     this.notify();
     return profile;
   }
@@ -212,12 +204,17 @@ class ProviderProfileStore {
 
   private readProfiles(): ProviderProfile[] {
     const codexModel = String(getPref("codex.model") || "");
+    const codexStatus = readCodexStatus();
     const profiles = [
       createCodexProviderProfile({
         defaultModel: codexModel,
+        models: codexStatus.models,
+        status: codexStatus.status,
       }),
       ...this.readStoredProfiles().map(normalizeStoredProfile),
     ];
+    profiles[0].lastCheckedAt = codexStatus.lastCheckedAt;
+    profiles[0].lastDiagnostic = codexStatus.lastDiagnostic;
     const secrets = readSecrets();
     return profiles.map((profile) => ({
       ...profile,
@@ -283,6 +280,9 @@ class ProviderProfileStore {
     prefs.registerObserver?.(`${PREFS_PREFIX}.${ACTIVE_PROVIDER_PREF}`, () =>
       this.notify(),
     );
+    prefs.registerObserver?.(`${PREFS_PREFIX}.${CODEX_STATUS_PREF}`, () =>
+      this.notify(),
+    );
     prefs.registerObserver?.(`${PREFS_PREFIX}.${SECRETS_PREF}`, () =>
       this.notify(),
     );
@@ -327,15 +327,16 @@ function normalizeStoredProfile(
 ): StoredProviderProfile {
   const preset = isOpenAICompatiblePreset(input.preset)
     ? input.preset
-    : "deepseek";
+    : "openai-compatible";
   return stripEphemeral(
     createPresetProviderProfile({
       id: typeof input.id === "string" ? input.id : createProfileId(preset),
       preset,
       displayName: input.displayName,
       baseURL: input.baseURL,
-      defaultModel: input.defaultModel,
       models: Array.isArray(input.models) ? input.models : undefined,
+      defaultModel:
+        typeof input.defaultModel === "string" ? input.defaultModel : undefined,
       capabilities: input.capabilities,
       timeoutMs: input.timeoutMs,
       retryCount: input.retryCount,
@@ -378,26 +379,72 @@ function writeSecrets(secrets: ProviderSecrets): void {
   setPref(SECRETS_PREF, JSON.stringify(secrets));
 }
 
+function readCodexStatus(): {
+  models?: AgentModelEntry[];
+  status?: ProviderProfile["status"];
+  lastCheckedAt?: string;
+  lastDiagnostic?: ProviderProfile["lastDiagnostic"];
+} {
+  try {
+    const parsed = JSON.parse(String(getPref(CODEX_STATUS_PREF) || "{}")) as
+      | Partial<ProviderProfile>
+      | undefined;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return {
+      models: Array.isArray(parsed.models) ? parsed.models : undefined,
+      status: isProviderStatus(parsed.status) ? parsed.status : undefined,
+      lastCheckedAt:
+        typeof parsed.lastCheckedAt === "string"
+          ? parsed.lastCheckedAt
+          : undefined,
+      lastDiagnostic:
+        parsed.lastDiagnostic && typeof parsed.lastDiagnostic === "object"
+          ? parsed.lastDiagnostic
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function stripCodexStatus(profile: ProviderProfile): {
+  models: AgentModelEntry[];
+  status: ProviderProfile["status"];
+  lastCheckedAt?: string;
+  lastDiagnostic?: ProviderProfile["lastDiagnostic"];
+} {
+  return {
+    models: profile.models,
+    status: profile.status,
+    lastCheckedAt: profile.lastCheckedAt,
+    lastDiagnostic: profile.lastDiagnostic,
+  };
+}
+
+function isProviderStatus(value: unknown): value is ProviderProfile["status"] {
+  return (
+    value === "unchecked" ||
+    value === "checking" ||
+    value === "connected" ||
+    value === "disconnected"
+  );
+}
+
 function isOpenAICompatiblePreset(
   preset: unknown,
 ): preset is Exclude<AgentProviderPreset, "codex-cli"> {
-  return preset === "deepseek" || preset === "z-ai" || preset === "minimax";
+  return (
+    preset === "openai-compatible" ||
+    preset === "deepseek" ||
+    preset === "z-ai" ||
+    preset === "minimax"
+  );
 }
 
 function createProfileId(preset: AgentProviderPreset): string {
   return `${preset}.${Date.now().toString(36)}.${Math.random()
     .toString(36)
     .slice(2, 8)}`;
-}
-
-function resolveDefaultModel(input: {
-  current: string;
-  models: AgentModelEntry[];
-  patch?: string;
-}): string {
-  const requested = input.patch || input.current;
-  if (input.models.some((model) => model.id === requested)) {
-    return requested;
-  }
-  return input.models[0]?.id || requested;
 }

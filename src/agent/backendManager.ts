@@ -56,8 +56,8 @@ class AgentBackendManager {
     };
   }
 
-  async checkActiveStatus(): Promise<BackendStatusResult> {
-    const profile = this.getActiveProfile();
+  async checkStatus(profileId?: string): Promise<BackendStatusResult> {
+    const profile = this.getProfile(profileId);
     const result = await this.getBackend(profile.id).checkStatus();
     if (profile.kind === "codex-cli") {
       getProviderProfileStore().updateCodexProvider({
@@ -78,23 +78,31 @@ class AgentBackendManager {
     return result;
   }
 
-  async listActiveModels(): Promise<AgentModelEntry[]> {
-    const profile = this.getActiveProfile();
+  async checkActiveStatus(): Promise<BackendStatusResult> {
+    return this.checkStatus();
+  }
+
+  async listModels(profileId?: string): Promise<AgentModelEntry[]> {
+    const profile = this.getProfile(profileId);
     return this.getBackend(profile.id).listModels();
+  }
+
+  async listActiveModels(): Promise<AgentModelEntry[]> {
+    return this.listModels();
   }
 
   async sendPrompt(
     input: AgentPromptInput,
     callbacks?: AgentPromptCallbacks,
   ): Promise<AgentRunResult> {
-    const profile = this.getActiveProfile();
+    const profile = this.getProfile(input.providerProfileId);
     return this.getBackend(profile.id).sendPrompt(input, callbacks);
   }
 
   async cancelTurn(input: AgentCancelInput): Promise<void> {
     const profileId = input.legacy?.codexThreadId
       ? "codex-cli.default"
-      : this.getActiveProfile().id;
+      : input.providerProfileId || this.getActiveProfile().id;
     await this.getBackend(profileId).cancelTurn(input);
   }
 
@@ -117,6 +125,13 @@ class AgentBackendManager {
     const backend = createBackendForProfile(profile);
     this.backends.set(profile.id, backend);
     return backend;
+  }
+
+  private getProfile(profileId?: string) {
+    return profileId
+      ? getProviderProfileStore().getProfile(profileId) ||
+          getProviderProfileStore().getActiveProfile()
+      : getProviderProfileStore().getActiveProfile();
   }
 
   private pruneBackends(profiles: ProviderProfile[]): void {

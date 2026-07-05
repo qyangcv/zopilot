@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAgentBackendManager } from "../../../agent/backendManager";
+import { createPresetProviderProfile } from "../../../agent/modelCatalog";
 import { getProviderProfileStore } from "../../../agent/providerProfiles";
 import type {
-  AgentProviderPreset,
+  AgentModelEntry,
   ProviderProfile,
   ProviderProfileInput,
 } from "../../../agent/types";
+import { getByokRuntimeBridge } from "../../../byokRuntime/bridge";
 
 export { useProviderProfiles };
 
@@ -18,7 +20,6 @@ type ProviderProfilesState = {
 
 function useProviderProfiles(): {
   state: ProviderProfilesState;
-  selectProvider: (profileId: string) => void;
   createProvider: (input: ProviderProfileInput) => void;
   updateProvider: (
     profileId: string,
@@ -26,7 +27,10 @@ function useProviderProfiles(): {
   ) => void;
   deleteProvider: (profileId: string) => void;
   checkProvider: (profileId: string) => void;
-  presets: Exclude<AgentProviderPreset, "codex-cli">[];
+  listProviderModels: (input: {
+    baseURL: string;
+    apiKey: string;
+  }) => Promise<AgentModelEntry[]>;
 } {
   const [state, setState] = useState<ProviderProfilesState>(() => ({
     ...getProviderProfileStore().getSnapshot(),
@@ -43,10 +47,6 @@ function useProviderProfiles(): {
     [],
   );
 
-  const selectProvider = useCallback((profileId: string) => {
-    getAgentBackendManager().setActiveProvider(profileId);
-  }, []);
-
   const createProvider = useCallback((input: ProviderProfileInput) => {
     getProviderProfileStore().createProvider(input);
   }, []);
@@ -62,44 +62,57 @@ function useProviderProfiles(): {
     getProviderProfileStore().deleteProvider(profileId);
   }, []);
 
-  const checkProvider = useCallback(
-    (profileId: string) => {
-      selectProvider(profileId);
-      setState((current) => ({
-        ...current,
-        checkingProviderId: profileId,
-        message: undefined,
-      }));
-      void getAgentBackendManager()
-        .checkActiveStatus()
-        .then((result) => {
-          setState((current) => ({
-            ...current,
-            checkingProviderId: undefined,
-            message:
-              result.status === "connected"
-                ? "Provider connected."
-                : result.diagnostic?.message || "Provider check failed.",
-          }));
-        })
-        .catch((error) => {
-          setState((current) => ({
-            ...current,
-            checkingProviderId: undefined,
-            message: error instanceof Error ? error.message : String(error),
-          }));
-        });
+  const checkProvider = useCallback((profileId: string) => {
+    setState((current) => ({
+      ...current,
+      checkingProviderId: profileId,
+      message: undefined,
+    }));
+    void getAgentBackendManager()
+      .checkStatus(profileId)
+      .then((result) => {
+        setState((current) => ({
+          ...current,
+          checkingProviderId: undefined,
+          message:
+            result.status === "connected"
+              ? "Provider connected."
+              : result.diagnostic?.message || "Provider check failed.",
+        }));
+      })
+      .catch((error) => {
+        setState((current) => ({
+          ...current,
+          checkingProviderId: undefined,
+          message: error instanceof Error ? error.message : String(error),
+        }));
+      });
+  }, []);
+
+  const listProviderModels = useCallback(
+    async (input: { baseURL: string; apiKey: string }) => {
+      const profile = createPresetProviderProfile({
+        id: "provider-draft",
+        preset: "openai-compatible",
+        displayName: "OpenAI compatible",
+        baseURL: input.baseURL,
+        models: [],
+        hasApiKey: true,
+      });
+      return getByokRuntimeBridge().listModels({
+        ...profile,
+        apiKey: input.apiKey,
+      });
     },
-    [selectProvider],
+    [],
   );
 
   return {
     state,
-    selectProvider,
     createProvider,
     updateProvider,
     deleteProvider,
     checkProvider,
-    presets: ["deepseek", "z-ai", "minimax"],
+    listProviderModels,
   };
 }
