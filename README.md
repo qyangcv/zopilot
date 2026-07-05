@@ -27,23 +27,23 @@ Zopilot 是一款 Zotero 插件，将 AI 接入 Zopilot 侧边栏中，作为你
 
 **主页面**
 
-![主页面](../assets/preview/main-page.jpeg)
+![主页面](./assets/preview/main-page.jpeg)
 
 **选择 Zotero Workspace**
 
-![工作区选择](../assets/preview/workspace-selection.jpeg)
+![工作区选择](./assets/preview/workspace-selection.jpeg)
 
 **使用 @ 提及多篇论文**
 
-![使用 @](../assets/preview/use-@.jpeg)
+![使用 @](./assets/preview/use-@.jpeg)
 
 **选择 Model**
 
-![提供商选择](../assets/preview/provider-selection.jpeg)
+![提供商选择](./assets/preview/provider-selection.jpeg)
 
 **插入自定义 Prompt**
 
-![提示词插入](../assets/preview/prompt-insert.jpeg)
+![提示词插入](./assets/preview/prompt-insert.jpeg)
 
 ## 功能
 

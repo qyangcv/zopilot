@@ -27,23 +27,23 @@ Zopilot is a Zotero plugin that brings AI into the Zopilot sidebar as your paper
 
 **Main Page**
 
-![main-page](./assets/preview/main-page.jpeg)
+![main-page](../assets/preview/main-page.jpeg)
 
 **Workspace Selection**
 
-![workspace-selection](./assets/preview/workspace-selection.jpeg)
+![workspace-selection](../assets/preview/workspace-selection.jpeg)
 
 **Use @ to Mention Multiple Papers**
 
-![use-@](./assets/preview/use-@.jpeg)
+![use-@](../assets/preview/use-@.jpeg)
 
 **Select Model**
 
-![provider-selection](./assets/preview/provider-selection.jpeg)
+![provider-selection](../assets/preview/provider-selection.jpeg)
 
 **Insert a Custom Prompt**
 
-![prompt-insert](./assets/preview/prompt-insert.jpeg)
+![prompt-insert](../assets/preview/prompt-insert.jpeg)
 
 ## Features
 
