@@ -348,7 +348,6 @@
   outline: 0;
   box-shadow: none;
   appearance: none;
-  -moz-appearance: none;
   background: transparent;
   color: CanvasText;
   padding: 12px 12px 9px;
@@ -359,10 +358,8 @@
 
 .zp-composer-input:focus,
 .zp-composer-input:focus-visible {
-  border: 0;
   outline: 0;
   box-shadow: none;
-  background: transparent;
 }
 
 .zp-composer-input::placeholder {
