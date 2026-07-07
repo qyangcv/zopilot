@@ -4,6 +4,7 @@ import {
   getPdfHelperStatus,
   installPdfHelperDependency,
   removePdfHelperDependency,
+  updatePdfHelperDependency,
   type PdfHelperStatus,
 } from "../../../document/pdfHelper";
 import type { DependencyState } from "./types";
@@ -51,7 +52,10 @@ function usePdfHelperDependency(
       });
       return;
     }
-    void installPdfHelperDependency(subprocess, (progress) => {
+    const action = currentHelper?.hasInstallCandidate
+      ? updatePdfHelperDependency
+      : installPdfHelperDependency;
+    void action(subprocess, (progress) => {
       setDependencyState({ status: "installing", progress });
     })
       .then((helper) => setDependencyState({ status: "ready", helper }))

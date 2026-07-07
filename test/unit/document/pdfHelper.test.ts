@@ -1,5 +1,4 @@
 import { assert } from "chai";
-import JSZip from "jszip";
 import {
   detectPdfHelperPlatform,
   PDF_HELPER_VERSION,
@@ -7,11 +6,13 @@ import {
   installPdfHelperDependency,
   removePdfHelperDependency,
   selectPdfHelperArtifact,
+  updatePdfHelperDependency,
   type PdfHelperManifest,
 } from "../../../src/document/pdfHelper.ts";
 
 describe("PDF helper", function () {
   afterEach(function () {
+    delete (globalThis as unknown as { Components?: unknown }).Components;
     delete (globalThis as unknown as { IOUtils?: unknown }).IOUtils;
     delete (globalThis as unknown as { PathUtils?: unknown }).PathUtils;
     delete (globalThis as unknown as { Services?: unknown }).Services;
@@ -79,6 +80,7 @@ describe("PDF helper", function () {
     installRuntimeMocks({
       existingPaths: new Set([
         "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
       ]),
       version: PDF_HELPER_VERSION,
     });
@@ -86,6 +88,9 @@ describe("PDF helper", function () {
     const status = await getPdfHelperStatus();
 
     assert.equal(status.status, "installed");
+    assert.equal(status.installedVersion, PDF_HELPER_VERSION);
+    assert.equal(status.latestVersion, PDF_HELPER_VERSION);
+    assert.isFalse(status.needsUpdate);
     assert.equal(
       status.installDir,
       "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
@@ -102,6 +107,43 @@ describe("PDF helper", function () {
     const status = await getPdfHelperStatus();
 
     assert.equal(status.status, "not-installed");
+    assert.isFalse(status.hasInstallCandidate);
+    assert.isFalse(status.needsUpdate);
+  });
+
+  it("reports an outdated helper when only an old install directory exists", async function () {
+    installRuntimeMocks({
+      children: [
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.1.0",
+      ],
+      versionsByPath: {
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.1.0/VERSION":
+          "0.1.0\n",
+      },
+    });
+
+    const status = await getPdfHelperStatus();
+
+    assert.equal(status.status, "outdated");
+    assert.equal(status.installedVersion, "0.1.0");
+    assert.equal(status.latestVersion, PDF_HELPER_VERSION);
+    assert.isTrue(status.hasInstallCandidate);
+    assert.isTrue(status.needsUpdate);
+  });
+
+  it("reports an incomplete helper when the latest install directory is empty", async function () {
+    installRuntimeMocks({
+      children: [
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
+      ],
+    });
+
+    const status = await getPdfHelperStatus();
+
+    assert.equal(status.status, "outdated");
+    assert.equal(status.installedVersion, PDF_HELPER_VERSION);
+    assert.equal(status.installedVersionState, "incomplete");
+    assert.isTrue(status.needsUpdate);
   });
 
   it("reports a Windows x64 helper executable with .exe suffix", async function () {
@@ -133,17 +175,15 @@ describe("PDF helper", function () {
   });
 
   it("installs helper zip artifacts with slash-separated entrypoints", async function () {
-    const archiveBytes = await createHelperZip({
-      "zopilot-pdf-helper-macos-arm64-v0.2.0/VERSION": `${PDF_HELPER_VERSION}\n`,
-      "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper":
-        "helper",
-    });
+    const archiveBytes = new TextEncoder().encode("mock zip");
     const sha256 = await sha256Hex(archiveBytes);
     const finalExecutable =
       "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper";
     const existingPaths = new Set<string>();
     const writtenPaths: string[] = [];
+    const extractedPaths: string[] = [];
     const madeDirs: string[] = [];
+    const movedPaths: Array<{ source: string; dest: string }> = [];
     const permissions: string[] = [];
     const progressPhases: string[] = [];
     const progressPercents: number[] = [];
@@ -151,6 +191,14 @@ describe("PDF helper", function () {
       existingPaths,
       joinRejectsSlashSegments: true,
       version: PDF_HELPER_VERSION,
+    });
+    installNativeZipReaderMock({
+      entries: [
+        "zopilot-pdf-helper-macos-arm64-v0.2.0/VERSION",
+        "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+      ],
+      existingPaths,
+      extractedPaths,
     });
     (
       globalThis as typeof globalThis & {
@@ -161,6 +209,7 @@ describe("PDF helper", function () {
             path: string,
             options: { recursive?: boolean; ignoreAbsent?: boolean },
           ): Promise<void>;
+          move(source: string, dest: string): Promise<void>;
           makeDirectory(
             path: string,
             options: { createAncestors?: boolean; ignoreExisting?: boolean },
@@ -179,13 +228,30 @@ describe("PDF helper", function () {
       }
     ).IOUtils = {
       ...(globalThis as unknown as { IOUtils: typeof IOUtils }).IOUtils,
+      async remove(path) {
+        for (const item of Array.from(existingPaths)) {
+          if (item === path || item.startsWith(`${path}/`)) {
+            existingPaths.delete(item);
+          }
+        }
+      },
       async makeDirectory(path) {
         madeDirs.push(path);
+        existingPaths.add(path);
       },
       async write(path, bytes) {
         writtenPaths.push(path);
         existingPaths.add(path);
         return bytes.byteLength;
+      },
+      async move(source, dest) {
+        movedPaths.push({ source, dest });
+        for (const item of Array.from(existingPaths)) {
+          if (item === source || item.startsWith(`${source}/`)) {
+            existingPaths.delete(item);
+            existingPaths.add(`${dest}${item.slice(source.length)}`);
+          }
+        }
       },
       async setPermissions(path) {
         permissions.push(path);
@@ -261,8 +327,61 @@ describe("PDF helper", function () {
         writtenPaths,
         "/profile/zopilot/runtime/pdf-helper/downloads/helper.zip",
       );
-      assert.include(writtenPaths, finalExecutable);
+      assert.isTrue(
+        extractedPaths.some((path) =>
+          path.endsWith(
+            "/zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+          ),
+        ),
+      );
+      assert.lengthOf(movedPaths, 1);
+      assert.match(
+        movedPaths[0].source,
+        /^\/profile\/zopilot\/runtime\/pdf-helper\/\.installing-macos-arm64-\d+\/zopilot-pdf-helper-macos-arm64-v0\.2\.0$/,
+      );
+      assert.equal(
+        movedPaths[0].dest,
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
+      );
+      assert.isTrue(existingPaths.has(finalExecutable));
       assert.deepEqual(permissions, [finalExecutable]);
+    } finally {
+      (globalThis as typeof globalThis & { fetch: typeof fetch }).fetch =
+        originalFetch;
+    }
+  });
+
+  it("updates by deleting the whole helper runtime before installing latest", async function () {
+    const archiveBytes = new TextEncoder().encode("mock zip");
+    const sha256 = await sha256Hex(archiveBytes);
+    const existingPaths = new Set<string>([
+      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.1.0",
+    ]);
+    const removed: string[] = [];
+    installRuntimeMocks({
+      children: [
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.1.0",
+      ],
+      existingPaths,
+      removed,
+      version: PDF_HELPER_VERSION,
+    });
+    installNativeZipReaderMock({
+      entries: [
+        "zopilot-pdf-helper-macos-arm64-v0.2.0/VERSION",
+        "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+      ],
+      existingPaths,
+      extractedPaths: [],
+    });
+    patchInstallIOUtils(existingPaths);
+    const originalFetch = mockPdfHelperFetch(archiveBytes, sha256);
+
+    try {
+      const status = await updatePdfHelperDependency(createSubprocessMock());
+
+      assert.equal(status.status, "installed");
+      assert.equal(removed[0], "/profile/zopilot/runtime/pdf-helper");
     } finally {
       (globalThis as typeof globalThis & { fetch: typeof fetch }).fetch =
         originalFetch;
@@ -306,18 +425,9 @@ function createManifest(
   };
 }
 
-async function createHelperZip(
-  files: Record<string, string>,
-): Promise<Uint8Array> {
-  const zip = new JSZip();
-  for (const [path, content] of Object.entries(files)) {
-    zip.file(path, content);
-  }
-  return zip.generateAsync({ type: "uint8array" });
-}
-
 function installRuntimeMocks({
   existingPaths = new Set<string>(),
+  children = [],
   joinRejectsSlashSegments = false,
   removed = [],
   runtime = {
@@ -325,8 +435,10 @@ function installRuntimeMocks({
     XPCOMABI: "aarch64-gcc3",
   },
   version = "",
+  versionsByPath = {},
 }: {
   existingPaths?: Set<string>;
+  children?: string[];
   joinRejectsSlashSegments?: boolean;
   removed?: string[];
   runtime?: {
@@ -334,6 +446,7 @@ function installRuntimeMocks({
     XPCOMABI: string;
   };
   version?: string;
+  versionsByPath?: Record<string, string>;
 } = {}): void {
   (
     globalThis as typeof globalThis & {
@@ -354,6 +467,7 @@ function installRuntimeMocks({
       IOUtils: {
         exists(path: string): Promise<boolean>;
         readUTF8(path: string): Promise<string>;
+        getChildren(path: string): Promise<string[]>;
         remove(
           path: string,
           options: { recursive?: boolean; ignoreAbsent?: boolean },
@@ -406,13 +520,193 @@ function installRuntimeMocks({
     }
   ).IOUtils = {
     async exists(path) {
-      return existingPaths.has(path);
+      return existingPaths.has(path) || children.includes(path);
     },
-    async readUTF8() {
-      return version;
+    async readUTF8(path) {
+      return versionsByPath[path] ?? version;
+    },
+    async getChildren(path) {
+      return children.filter((child) => {
+        if (!child.startsWith(`${path}/`)) {
+          return false;
+        }
+        return !child.slice(path.length + 1).includes("/");
+      });
     },
     async remove(path) {
       removed.push(path);
+      for (const child of [...children]) {
+        if (child === path || child.startsWith(`${path}/`)) {
+          children.splice(children.indexOf(child), 1);
+        }
+      }
+      for (const item of Array.from(existingPaths)) {
+        if (item === path || item.startsWith(`${path}/`)) {
+          existingPaths.delete(item);
+        }
+      }
+    },
+  };
+}
+
+function patchInstallIOUtils(existingPaths: Set<string>): void {
+  (
+    globalThis as typeof globalThis & {
+      IOUtils: typeof IOUtils & {
+        makeDirectory(path: string): Promise<void>;
+        move(source: string, dest: string): Promise<void>;
+        write(path: string, bytes: Uint8Array): Promise<number>;
+        setPermissions(path: string): Promise<void>;
+      };
+    }
+  ).IOUtils = {
+    ...(globalThis as unknown as { IOUtils: typeof IOUtils }).IOUtils,
+    async makeDirectory(path) {
+      existingPaths.add(path);
+    },
+    async move(source, dest) {
+      for (const item of Array.from(existingPaths)) {
+        if (item === source || item.startsWith(`${source}/`)) {
+          existingPaths.delete(item);
+          existingPaths.add(`${dest}${item.slice(source.length)}`);
+        }
+      }
+    },
+    async write(path, bytes) {
+      existingPaths.add(path);
+      return bytes.byteLength;
+    },
+    async setPermissions() {
+      return undefined;
+    },
+  };
+}
+
+function mockPdfHelperFetch(
+  archiveBytes: Uint8Array,
+  sha256: string,
+): typeof fetch {
+  const originalFetch = globalThis.fetch;
+  (
+    globalThis as typeof globalThis & {
+      fetch: typeof fetch;
+    }
+  ).fetch = (async (url: string) => {
+    if (url.endsWith("pdf-helper-manifest.json")) {
+      return {
+        ok: true,
+        json: async () =>
+          createManifest({
+            artifacts: [
+              {
+                platform: "macos-arm64",
+                fileName: "helper.zip",
+                url: "https://example.test/helper.zip",
+                sha256,
+                size: archiveBytes.byteLength,
+                entrypoint:
+                  "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+              },
+            ],
+          }),
+      };
+    }
+    return {
+      ok: true,
+      headers: {
+        get: (name: string) =>
+          name === "Content-Length" ? String(archiveBytes.byteLength) : null,
+      },
+      body: null,
+      arrayBuffer: async () => archiveBytes.buffer,
+    };
+  }) as typeof fetch;
+  return originalFetch;
+}
+
+function createSubprocessMock() {
+  return {
+    async call() {
+      return {
+        stdout: { readString: async () => "" },
+        stderr: { readString: async () => "" },
+        wait: async () => ({ exitCode: 0 }),
+      };
+    },
+  };
+}
+
+function installNativeZipReaderMock({
+  entries,
+  existingPaths,
+  extractedPaths,
+}: {
+  entries: string[];
+  existingPaths: Set<string>;
+  extractedPaths: string[];
+}): void {
+  type MockLocalFile = {
+    path: string;
+    initWithPath(path: string): void;
+  };
+  (
+    globalThis as typeof globalThis & {
+      Components: {
+        classes: Record<
+          string,
+          {
+            createInstance(): unknown;
+          }
+        >;
+        interfaces: Record<string, unknown>;
+      };
+    }
+  ).Components = {
+    classes: {
+      "@mozilla.org/file/local;1": {
+        createInstance() {
+          return {
+            path: "",
+            initWithPath(path: string) {
+              this.path = path;
+            },
+          } satisfies MockLocalFile;
+        },
+      },
+      "@mozilla.org/libjar/zip-reader;1": {
+        createInstance() {
+          return {
+            close() {
+              return undefined;
+            },
+            extract(_entryName: string, targetFile: MockLocalFile) {
+              extractedPaths.push(targetFile.path);
+              existingPaths.add(targetFile.path);
+            },
+            findEntries() {
+              let index = 0;
+              return {
+                getNext() {
+                  return entries[index++];
+                },
+                hasMore() {
+                  return index < entries.length;
+                },
+              };
+            },
+            getEntry(entryName: string) {
+              return { isDirectory: entryName.endsWith("/") };
+            },
+            open(_file: MockLocalFile) {
+              return undefined;
+            },
+          };
+        },
+      },
+    },
+    interfaces: {
+      nsIFile: {},
+      nsIZipReader: {},
     },
   };
 }

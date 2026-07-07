@@ -441,6 +441,32 @@ describe("sidebar controller", function () {
     assert.equal(controller.selectionToken, 1);
     assert.equal(controller.getReadyDisplayState()?.token, 1);
   });
+
+  it("formats PDF helper prompt notices for missing and outdated helpers", function () {
+    const createPdfHelperNoticeText = (
+      __sidebarControllerTestHooks as unknown as {
+        createPdfHelperNoticeText: (status: Record<string, unknown>) => string;
+      }
+    ).createPdfHelperNoticeText;
+
+    assert.equal(
+      createPdfHelperNoticeText({
+        status: "not-installed",
+        latestVersion: "0.2.0",
+        hasInstallCandidate: false,
+      }),
+      "zopilot-sidebar-pdf-helper-not-installed",
+    );
+    assert.equal(
+      createPdfHelperNoticeText({
+        status: "outdated",
+        latestVersion: "0.2.0",
+        installedVersion: "0.1.0",
+        hasInstallCandidate: true,
+      }),
+      "zopilot-sidebar-pdf-helper-update-required",
+    );
+  });
 });
 
 type FakeListener = (event: Event) => void;

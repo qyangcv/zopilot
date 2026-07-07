@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+import { createLogger } from "../utils/logger";
 import {
   SUPPORTED_PDF_HELPER_PLATFORMS,
   detectHostRuntime,
@@ -16,6 +16,7 @@ export {
   installPdfHelperDependency,
   removePdfHelperDependency,
   selectPdfHelperArtifact,
+  updatePdfHelperDependency,
   type PdfHelperArtifact,
   type PdfHelperManifest,
   type PdfHelperInstallProgress,
@@ -25,6 +26,12 @@ export {
 
 const PDF_HELPER_VERSION = "0.2.0";
 const PDF_HELPER_MANIFEST_URL = `https://github.com/qyangcv/zopilot/releases/download/pdf-helper-v${PDF_HELPER_VERSION}/pdf-helper-manifest.json`;
+const PDF_HELPER_PACKAGE_NAME = "zopilot-pdf-helper";
+const ZIP_EXTRACT_TIMEOUT_MS = 120_000;
+const ZIP_READER_CONTRACT_ID = "@mozilla.org/libjar/zip-reader;1";
+const LOCAL_FILE_CONTRACT_ID = "@mozilla.org/file/local;1";
+
+const logger = createLogger("pdf-helper");
 
 type PdfHelperArtifact = {
   platform: PdfHelperPlatform;
@@ -46,6 +53,12 @@ type PdfHelperStatus =
       status: "installed";
       platform: PdfHelperPlatform;
       version: string;
+      latestVersion: string;
+      installedVersion: string;
+      installedVersionState: "current";
+      hasInstallCandidate: true;
+      needsUpdate: false;
+      installCandidateDirs: string[];
       installDir: string;
       executablePath: string;
       manifestUrl: string;
@@ -54,6 +67,26 @@ type PdfHelperStatus =
       status: "not-installed";
       platform: PdfHelperPlatform;
       version: string;
+      latestVersion: string;
+      installedVersion?: undefined;
+      installedVersionState?: undefined;
+      hasInstallCandidate: false;
+      needsUpdate: false;
+      installCandidateDirs: string[];
+      installDir: string;
+      executablePath: string;
+      manifestUrl: string;
+    }
+  | {
+      status: "outdated";
+      platform: PdfHelperPlatform;
+      version: string;
+      latestVersion: string;
+      installedVersion?: string;
+      installedVersionState: "outdated" | "incomplete" | "unknown";
+      hasInstallCandidate: true;
+      needsUpdate: true;
+      installCandidateDirs: string[];
       installDir: string;
       executablePath: string;
       manifestUrl: string;
@@ -61,6 +94,12 @@ type PdfHelperStatus =
   | {
       status: "unsupported";
       version: string;
+      latestVersion: string;
+      installedVersion?: string;
+      installedVersionState?: "outdated" | "incomplete" | "unknown";
+      hasInstallCandidate: boolean;
+      needsUpdate: boolean;
+      installCandidateDirs: string[];
       installDir: string;
       executablePath: string;
       manifestUrl: string;
@@ -113,6 +152,39 @@ type ZoteroWithProfile = typeof Zotero & {
   };
 };
 
+type NativeZipComponents = {
+  classes: Record<
+    string,
+    {
+      createInstance(interfaceType?: unknown): unknown;
+    }
+  >;
+  interfaces: Record<string, unknown>;
+};
+
+type NativeLocalFile = {
+  path?: string;
+  initWithPath(path: string): void;
+};
+
+type NativeZipEntryEnumerator = {
+  hasMore?: () => boolean;
+  hasMoreElements?: () => boolean;
+  getNext(): unknown;
+};
+
+type NativeZipEntry = {
+  isDirectory?: boolean;
+};
+
+type NativeZipReader = {
+  open(file: NativeLocalFile): void;
+  close(): void;
+  findEntries(pattern: string | null): NativeZipEntryEnumerator;
+  getEntry(entryName: string): NativeZipEntry;
+  extract(entryName: string, targetFile: NativeLocalFile): void;
+};
+
 let installPromise: Promise<string> | undefined;
 
 async function ensurePdfHelperExecutable(
@@ -136,16 +208,52 @@ async function ensurePdfHelperExecutable(
 }
 
 async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
+  const installCandidates = await getPdfHelperInstallCandidates();
+  const candidateSummary = await summarizeInstallCandidates(installCandidates);
   try {
     const platform = detectPdfHelperPlatform();
     const installDir = getInstalledPdfHelperDir(platform);
     const executablePath = getInstalledPdfHelperExecutablePath(platform);
+    if (await isInstalledPdfHelperReady(executablePath, platform)) {
+      return {
+        status: "installed",
+        platform,
+        version: PDF_HELPER_VERSION,
+        latestVersion: PDF_HELPER_VERSION,
+        installedVersion: PDF_HELPER_VERSION,
+        installedVersionState: "current",
+        hasInstallCandidate: true,
+        needsUpdate: false,
+        installCandidateDirs: installCandidates.map((item) => item.path),
+        installDir,
+        executablePath,
+        manifestUrl: PDF_HELPER_MANIFEST_URL,
+      };
+    }
+    if (installCandidates.length) {
+      return {
+        status: "outdated",
+        platform,
+        version: PDF_HELPER_VERSION,
+        latestVersion: PDF_HELPER_VERSION,
+        installedVersion: candidateSummary.version,
+        installedVersionState: candidateSummary.state,
+        hasInstallCandidate: true,
+        needsUpdate: true,
+        installCandidateDirs: installCandidates.map((item) => item.path),
+        installDir,
+        executablePath,
+        manifestUrl: PDF_HELPER_MANIFEST_URL,
+      };
+    }
     return {
-      status: (await isInstalledPdfHelperReady(executablePath, platform))
-        ? "installed"
-        : "not-installed",
+      status: "not-installed",
       platform,
       version: PDF_HELPER_VERSION,
+      latestVersion: PDF_HELPER_VERSION,
+      hasInstallCandidate: false,
+      needsUpdate: false,
+      installCandidateDirs: [],
       installDir,
       executablePath,
       manifestUrl: PDF_HELPER_MANIFEST_URL,
@@ -154,6 +262,12 @@ async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
     return {
       status: "unsupported",
       version: PDF_HELPER_VERSION,
+      latestVersion: PDF_HELPER_VERSION,
+      installedVersion: candidateSummary.version,
+      installedVersionState: candidateSummary.state,
+      hasInstallCandidate: installCandidates.length > 0,
+      needsUpdate: installCandidates.length > 0,
+      installCandidateDirs: installCandidates.map((item) => item.path),
       installDir: getPdfHelperRuntimeDir(),
       executablePath: "",
       manifestUrl: PDF_HELPER_MANIFEST_URL,
@@ -171,11 +285,24 @@ async function installPdfHelperDependency(
 }
 
 async function removePdfHelperDependency(): Promise<PdfHelperStatus> {
+  await removePdfHelperRuntimeDir();
+  return getPdfHelperStatus();
+}
+
+async function updatePdfHelperDependency(
+  subprocess: PdfHelperSubprocessModule,
+  onProgress?: (progress: PdfHelperInstallProgress) => void,
+): Promise<PdfHelperStatus> {
+  await removePdfHelperRuntimeDir();
+  await ensurePdfHelperExecutable(subprocess, onProgress);
+  return getPdfHelperStatus();
+}
+
+async function removePdfHelperRuntimeDir(): Promise<void> {
   await IOUtils.remove(getPdfHelperRuntimeDir(), {
     recursive: true,
     ignoreAbsent: true,
   });
-  return getPdfHelperStatus();
 }
 
 function getInstalledPdfHelperExecutablePath(
@@ -184,18 +311,101 @@ function getInstalledPdfHelperExecutablePath(
   return PathUtils.join(
     getInstalledPdfHelperDir(platform),
     "bin",
-    "zopilot-pdf-helper",
+    PDF_HELPER_PACKAGE_NAME,
     platform === "windows-x64"
-      ? "zopilot-pdf-helper.exe"
-      : "zopilot-pdf-helper",
+      ? `${PDF_HELPER_PACKAGE_NAME}.exe`
+      : PDF_HELPER_PACKAGE_NAME,
   );
 }
 
 function getInstalledPdfHelperDir(platform: PdfHelperPlatform): string {
   return PathUtils.join(
     getPdfHelperRuntimeDir(),
-    `zopilot-pdf-helper-${platform}-v${PDF_HELPER_VERSION}`,
+    `${PDF_HELPER_PACKAGE_NAME}-${platform}-v${PDF_HELPER_VERSION}`,
   );
+}
+
+type PdfHelperInstallCandidate = {
+  path: string;
+  version?: string;
+};
+
+async function getPdfHelperInstallCandidates(): Promise<
+  PdfHelperInstallCandidate[]
+> {
+  const runtimeDir = getPdfHelperRuntimeDir();
+  let children: string[];
+  try {
+    children = await IOUtils.getChildren(runtimeDir);
+  } catch {
+    return [];
+  }
+  return children
+    .map((path) => ({
+      path,
+      version: parseHelperInstallDirVersion(path),
+    }))
+    .filter((item) => item.version !== undefined);
+}
+
+async function summarizeInstallCandidates(
+  candidates: PdfHelperInstallCandidate[],
+): Promise<{
+  version?: string;
+  state: "outdated" | "incomplete" | "unknown";
+}> {
+  if (!candidates.length) {
+    return { state: "unknown" };
+  }
+  const sorted = [...candidates].sort((left, right) =>
+    compareVersions(right.version || "", left.version || ""),
+  );
+  const preferred =
+    sorted.find((item) => item.version === PDF_HELPER_VERSION) || sorted[0];
+  if (!preferred?.version) {
+    return { state: "unknown" };
+  }
+  const versionPath = PathUtils.join(preferred.path, "VERSION");
+  const version = (await IOUtils.readUTF8(versionPath).catch(() => ""))
+    .trim()
+    .replace(/^v/u, "");
+  const resolvedVersion = version || preferred.version;
+  return {
+    version: resolvedVersion,
+    state: resolvedVersion === PDF_HELPER_VERSION ? "incomplete" : "outdated",
+  };
+}
+
+function parseHelperInstallDirVersion(path: string): string | undefined {
+  const name = pathBaseName(path);
+  const helperPattern = new RegExp(
+    `^${escapeRegExp(PDF_HELPER_PACKAGE_NAME)}-.+-v(.+)$`,
+    "u",
+  );
+  const match = helperPattern.exec(name);
+  return match?.[1]?.trim() || undefined;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function compareVersions(left: string, right: string): number {
+  const leftParts = left.split(".").map((part) => Number(part) || 0);
+  const rightParts = right.split(".").map((part) => Number(part) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (diff) {
+      return diff;
+    }
+  }
+  return left.localeCompare(right);
+}
+
+function pathBaseName(path: string): string {
+  const parts = path.replace(/\\/gu, "/").split("/").filter(Boolean);
+  return parts.at(-1) || "";
 }
 
 function selectPdfHelperArtifact(
@@ -236,15 +446,21 @@ async function installPdfHelper(
   onProgress?: (progress: PdfHelperInstallProgress) => void,
 ): Promise<string> {
   const platform = detectPdfHelperPlatform();
+  const installStartedAt = Date.now();
   onProgress?.({ phase: "manifest", percent: 2 });
   const manifest = await downloadJson<PdfHelperManifest>(
     PDF_HELPER_MANIFEST_URL,
   );
   const artifact = selectPdfHelperArtifact(manifest, platform);
   const runtimeDir = getPdfHelperRuntimeDir();
+  const installDir = getInstalledPdfHelperDir(platform);
   const downloadDir = PathUtils.join(runtimeDir, "downloads");
   const archivePath = PathUtils.join(downloadDir, artifact.fileName);
   const finalExecutable = joinRelativePath(runtimeDir, artifact.entrypoint);
+  const tempDir = PathUtils.join(
+    runtimeDir,
+    `.installing-${platform}-${Date.now()}`,
+  );
 
   await IOUtils.makeDirectory(downloadDir, {
     createAncestors: true,
@@ -275,9 +491,37 @@ async function installPdfHelper(
   await IOUtils.write(archivePath, archiveBytes, { flush: true });
 
   onProgress?.({ phase: "extract", percent: 97 });
-  await extractZip(archiveBytes, runtimeDir);
-  if (!(await IOUtils.exists(finalExecutable).catch(() => false))) {
-    throw new Error("PDF helper install did not produce an executable.");
+  try {
+    logger.info("pdf helper extraction started", {
+      archivePath,
+      installDir,
+      platform,
+      size: actualSize,
+    });
+    await extractAndInstallZip(archivePath, tempDir, installDir, artifact);
+    if (!(await IOUtils.exists(finalExecutable).catch(() => false))) {
+      throw new Error("PDF helper install did not produce an executable.");
+    }
+    logger.info("pdf helper installed", {
+      durationMs: Date.now() - installStartedAt,
+      executablePath: finalExecutable,
+      installDir,
+      platform,
+      version: PDF_HELPER_VERSION,
+    });
+  } catch (error) {
+    logger.error("pdf helper install failed", error, {
+      archivePath,
+      installDir,
+      platform,
+      tempDir,
+    });
+    throw error;
+  } finally {
+    await IOUtils.remove(tempDir, {
+      recursive: true,
+      ignoreAbsent: true,
+    }).catch(() => undefined);
   }
   if (platform !== "windows-x64") {
     await IOUtils.setPermissions(finalExecutable, 0o755, false).catch(
@@ -303,28 +547,202 @@ async function isInstalledPdfHelperReady(
   return version.trim() === PDF_HELPER_VERSION;
 }
 
-async function extractZip(
-  bytes: Uint8Array,
-  runtimeDir: string,
+async function extractAndInstallZip(
+  archivePath: string,
+  tempDir: string,
+  installDir: string,
+  artifact: PdfHelperArtifact,
 ): Promise<void> {
-  const zip = await JSZip.loadAsync(bytes);
-  const entries = Object.values(zip.files);
-  for (const entry of entries) {
-    const relativePath = normalizeZipEntryPath(entry.name);
-    if (!relativePath) {
-      continue;
+  await IOUtils.remove(tempDir, {
+    recursive: true,
+    ignoreAbsent: true,
+  });
+  await IOUtils.makeDirectory(tempDir, {
+    createAncestors: true,
+    ignoreExisting: true,
+  });
+
+  const extractStartedAt = Date.now();
+  const result = await withTimeout(
+    extractZipArchive(archivePath, tempDir),
+    ZIP_EXTRACT_TIMEOUT_MS,
+    `PDF helper extraction timed out after ${ZIP_EXTRACT_TIMEOUT_MS}ms.`,
+  );
+  logger.info("pdf helper zip extracted", {
+    archivePath,
+    durationMs: Date.now() - extractStartedAt,
+    entries: result.entries,
+    files: result.files,
+  });
+
+  const extractedInstallDir = joinRelativePath(
+    tempDir,
+    getTopLevelRelativePath(artifact.entrypoint),
+  );
+  const tempExecutable = joinRelativePath(tempDir, artifact.entrypoint);
+  if (!(await IOUtils.exists(tempExecutable).catch(() => false))) {
+    throw new Error("PDF helper extraction did not produce an executable.");
+  }
+  await replaceInstalledParserDir(extractedInstallDir, installDir);
+}
+
+async function extractZipArchive(
+  archivePath: string,
+  outputDir: string,
+): Promise<{ entries: number; files: number }> {
+  const reader = createNativeZipReader();
+  let entries = 0;
+  let files = 0;
+  try {
+    reader.open(createLocalFile(archivePath));
+    const enumerator = reader.findEntries(null);
+    while (zipEnumeratorHasMore(enumerator)) {
+      const entryName = zipEnumeratorNext(enumerator);
+      entries += 1;
+      const relativePath = normalizeZipEntryPath(entryName);
+      const outputPath = joinRelativePath(outputDir, relativePath);
+      if (isZipDirectory(reader, entryName, relativePath)) {
+        await IOUtils.makeDirectory(outputPath, {
+          createAncestors: true,
+          ignoreExisting: true,
+        });
+        continue;
+      }
+      await makeParentDirectory(outputDir, relativePath);
+      reader.extract(entryName, createLocalFile(outputPath));
+      files += 1;
     }
-    const outputPath = joinRelativePath(runtimeDir, relativePath);
-    if (entry.dir) {
-      await IOUtils.makeDirectory(outputPath, {
-        createAncestors: true,
-        ignoreExisting: true,
-      });
-      continue;
+  } finally {
+    try {
+      reader.close();
+    } catch {
+      // Ignore close failures; extraction failures are raised from the loop.
     }
-    await makeParentDirectory(runtimeDir, relativePath);
-    const fileBytes = await entry.async("uint8array");
-    await IOUtils.write(outputPath, fileBytes, { flush: true });
+  }
+  return { entries, files };
+}
+
+async function replaceInstalledParserDir(
+  extractedInstallDir: string,
+  installDir: string,
+): Promise<void> {
+  await IOUtils.remove(installDir, {
+    recursive: true,
+    ignoreAbsent: true,
+  });
+  try {
+    await IOUtils.move(extractedInstallDir, installDir);
+  } catch (firstMoveError) {
+    logger.warn("pdf helper install move fallback", {
+      error: String(firstMoveError),
+      extractedInstallDir,
+      installDir,
+    });
+    await IOUtils.remove(installDir, {
+      recursive: true,
+      ignoreAbsent: true,
+    });
+    await IOUtils.move(extractedInstallDir, installDir);
+  }
+}
+
+function createNativeZipReader(): NativeZipReader {
+  const components = getNativeZipComponents();
+  const factory = components.classes[ZIP_READER_CONTRACT_ID];
+  if (!factory) {
+    throw new Error(
+      "Native ZIP reader is not available in this Zotero runtime.",
+    );
+  }
+  return factory.createInstance(
+    components.interfaces.nsIZipReader,
+  ) as NativeZipReader;
+}
+
+function createLocalFile(path: string): NativeLocalFile {
+  const components = getNativeZipComponents();
+  const factory = components.classes[LOCAL_FILE_CONTRACT_ID];
+  if (!factory) {
+    throw new Error(
+      "Native local file API is not available in this Zotero runtime.",
+    );
+  }
+  const file = factory.createInstance(
+    components.interfaces.nsIFile,
+  ) as NativeLocalFile;
+  file.initWithPath(path);
+  return file;
+}
+
+function getNativeZipComponents(): NativeZipComponents {
+  const components = (
+    globalThis as typeof globalThis & {
+      Components?: NativeZipComponents;
+    }
+  ).Components;
+  if (!components?.classes || !components.interfaces) {
+    throw new Error(
+      "Native ZIP APIs are not available in this Zotero runtime.",
+    );
+  }
+  return components;
+}
+
+function zipEnumeratorHasMore(enumerator: NativeZipEntryEnumerator): boolean {
+  if (typeof enumerator.hasMore === "function") {
+    return enumerator.hasMore();
+  }
+  if (typeof enumerator.hasMoreElements === "function") {
+    return enumerator.hasMoreElements();
+  }
+  throw new Error("Native ZIP entry enumerator is not supported.");
+}
+
+function zipEnumeratorNext(enumerator: NativeZipEntryEnumerator): string {
+  const value = enumerator.getNext();
+  if (typeof value === "string") {
+    return value;
+  }
+  return String(value);
+}
+
+function isZipDirectory(
+  reader: NativeZipReader,
+  entryName: string,
+  relativePath: string,
+): boolean {
+  if (relativePath.endsWith("/")) {
+    return true;
+  }
+  return reader.getEntry(entryName).isDirectory === true;
+}
+
+function getTopLevelRelativePath(relativePath: string): string {
+  const parts = normalizeZipEntryPath(relativePath).split("/").filter(Boolean);
+  if (!parts.length) {
+    throw new Error(`Invalid PDF helper artifact entrypoint: ${relativePath}`);
+  }
+  return parts[0];
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = globalThis.setTimeout(
+      () => reject(new Error(message)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== undefined) {
+      globalThis.clearTimeout(timeoutId);
+    }
   }
 }
 

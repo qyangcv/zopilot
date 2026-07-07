@@ -39,8 +39,9 @@ function DependenciesPanel({
     state.status === "checking" ||
     state.status === "installing" ||
     state.status === "removing";
-  const installed = helper?.status === "installed";
   const unsupported = helper?.status === "unsupported";
+  const showUpdate = Boolean(helper?.hasInstallCandidate && !unsupported);
+  const alreadyLatest = showUpdate && helper?.needsUpdate === false;
   return (
     <section className="zp-pref-page">
       <PageHeader
@@ -58,11 +59,15 @@ function DependenciesPanel({
               <h3>
                 <T id="pref-pdf-helper-card-title">PDF 解析 helper</T>
               </h3>
-              <DependencyStatus state={state} />
+              {state.status === "installing" ? null : (
+                <DependencyStatus state={state} />
+              )}
               {helper ? (
                 <span className="zp-pref-dependency-meta">
                   <span>{helperPlatformLabel(helper)}</span>
-                  <span>v{helper.version}</span>
+                  <span>
+                    v{helper.installedVersion || helper.latestVersion}
+                  </span>
                 </span>
               ) : null}
             </div>
@@ -84,7 +89,7 @@ function DependenciesPanel({
             </button>
             <button
               className="zp-pref-button zp-pref-button-primary"
-              disabled={busy || installed || unsupported}
+              disabled={busy || unsupported || alreadyLatest}
               onClick={onInstall}
               type="button"
             >
@@ -93,7 +98,11 @@ function DependenciesPanel({
               ) : (
                 <Download size={14} />
               )}
-              <T id="pref-dependencies-install">安装</T>
+              {showUpdate ? (
+                <T id="pref-dependencies-update">更新</T>
+              ) : (
+                <T id="pref-dependencies-install">安装</T>
+              )}
             </button>
             <button
               className="zp-pref-button zp-pref-button-danger"
@@ -190,6 +199,14 @@ function DependencyStatus({ state }: { state: DependencyState }): ReactElement {
       </div>
     );
   }
+  if (helper.status === "outdated") {
+    return (
+      <div className="zp-pref-status zp-pref-status-missing">
+        <CircleAlert size={16} />
+        <T id="pref-dependencies-status-update-available">需要更新</T>
+      </div>
+    );
+  }
   if (helper.status === "unsupported") {
     return (
       <div className="zp-pref-status zp-pref-status-missing">
@@ -212,6 +229,20 @@ function DependencyPathList({
   helper: PdfHelperStatus;
 }): ReactElement {
   const rows = [
+    {
+      action: undefined,
+      key: "installedVersion",
+      label: <T id="pref-dependencies-installed-version">已安装版本</T>,
+      value: installedVersionText(helper),
+      valueNode: installedVersionNode(helper),
+    },
+    {
+      action: undefined,
+      key: "latestVersion",
+      label: <T id="pref-dependencies-latest-version">最新版本</T>,
+      value: `v${helper.latestVersion}`,
+      valueNode: `v${helper.latestVersion}`,
+    },
     {
       action: "reveal" as const,
       key: "installDir",
@@ -236,33 +267,35 @@ function DependencyPathList({
       {rows.map((row) => (
         <div className="zp-pref-path-row" key={row.key}>
           <dt>{row.label}</dt>
-          <dd>{row.value}</dd>
-          <div className="zp-pref-path-actions">
-            <button
-              className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
-              onClick={() => copyDependencyValue(row.value)}
-              type="button"
-            >
-              <Copy size={13} />
-              <T id="pref-dependencies-copy">复制</T>
-            </button>
-            <button
-              className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
-              onClick={() => openDependencyValue(row.value, row.action)}
-              type="button"
-            >
-              {row.action === "open-url" ? (
-                <ExternalLink size={13} />
-              ) : (
-                <FolderOpen size={13} />
-              )}
-              {row.action === "open-url" ? (
-                <T id="pref-dependencies-open-url">打开链接</T>
-              ) : (
-                <T id="pref-dependencies-reveal">在文件管理器中显示</T>
-              )}
-            </button>
-          </div>
+          <dd>{row.valueNode ?? row.value}</dd>
+          {row.action ? (
+            <div className="zp-pref-path-actions">
+              <button
+                className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
+                onClick={() => copyDependencyValue(row.value)}
+                type="button"
+              >
+                <Copy size={13} />
+                <T id="pref-dependencies-copy">复制</T>
+              </button>
+              <button
+                className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
+                onClick={() => openDependencyValue(row.value, row.action)}
+                type="button"
+              >
+                {row.action === "open-url" ? (
+                  <ExternalLink size={13} />
+                ) : (
+                  <FolderOpen size={13} />
+                )}
+                {row.action === "open-url" ? (
+                  <T id="pref-dependencies-open-url">打开链接</T>
+                ) : (
+                  <T id="pref-dependencies-reveal">在文件管理器中显示</T>
+                )}
+              </button>
+            </div>
+          ) : null}
         </div>
       ))}
       {helper.status === "unsupported" ? (
@@ -281,14 +314,43 @@ function helperPlatformLabel(helper: PdfHelperStatus): string {
   return helper.status === "unsupported" ? "unsupported" : helper.platform;
 }
 
+function installedVersionText(helper: PdfHelperStatus): string {
+  if (!helper.installedVersion) {
+    return helper.hasInstallCandidate ? "unknown" : "-";
+  }
+  return `v${helper.installedVersion}`;
+}
+
+function installedVersionNode(helper: PdfHelperStatus): ReactNode {
+  if (!helper.installedVersion) {
+    return helper.hasInstallCandidate ? (
+      <T id="pref-dependencies-version-unknown">未知</T>
+    ) : (
+      "-"
+    );
+  }
+  const version = `v${helper.installedVersion}`;
+  if (helper.installedVersionState === "incomplete") {
+    return (
+      <>
+        {version} <T id="pref-dependencies-version-incomplete">不完整</T>
+      </>
+    );
+  }
+  return version;
+}
+
 function copyDependencyValue(value: string): void {
   void copyText(value).catch(() => undefined);
 }
 
 function openDependencyValue(
   value: string,
-  action: "open-url" | "reveal",
+  action: "open-url" | "reveal" | undefined,
 ): void {
+  if (!action) {
+    return;
+  }
   if (action === "open-url") {
     Zotero.launchURL(value);
     return;

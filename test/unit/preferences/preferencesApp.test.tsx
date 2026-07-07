@@ -105,9 +105,105 @@ describe("PreferencesApp", function () {
 
     assert.include(html, "/Users/yang/Library/Application Support/Zotero");
     assert.include(html, "https://github.com/qyangcv/zopilot/releases");
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-installed-version"',
+    );
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-latest-version"',
+    );
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-update"');
+    assert.match(
+      html,
+      /<button(?=[^>]*disabled="")[^>]*>[\s\S]*?data-l10n-id="zopilot-pref-dependencies-update"/,
+    );
+    assert.notInclude(html, 'data-l10n-id="zopilot-pref-dependencies-install"');
     assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-copy"');
     assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-reveal"');
     assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-open-url"');
+  });
+
+  it("renders install instead of update when no helper directory exists", function () {
+    const html = renderToStaticMarkup(
+      <DependenciesPanel
+        onCheck={() => undefined}
+        onInstall={() => undefined}
+        onRemove={() => undefined}
+        state={{
+          status: "ready",
+          helper: {
+            ...TEST_DEPENDENCY_STATE.helper,
+            status: "not-installed",
+            installedVersion: undefined,
+            installedVersionState: undefined,
+            hasInstallCandidate: false,
+            needsUpdate: false,
+            installCandidateDirs: [],
+          },
+        }}
+      />,
+    );
+
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-install"');
+    assert.notInclude(html, 'data-l10n-id="zopilot-pref-dependencies-update"');
+  });
+
+  it("keeps update enabled when an installed helper needs update", function () {
+    const html = renderToStaticMarkup(
+      <DependenciesPanel
+        onCheck={() => undefined}
+        onInstall={() => undefined}
+        onRemove={() => undefined}
+        state={{
+          status: "ready",
+          helper: {
+            ...TEST_DEPENDENCY_STATE.helper,
+            status: "outdated",
+            installedVersion: "0.1.0",
+            installedVersionState: "outdated",
+            needsUpdate: true,
+          },
+        }}
+      />,
+    );
+
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-update"');
+    assert.notMatch(
+      html,
+      /<button(?=[^>]*disabled="")[^>]*>[\s\S]*?data-l10n-id="zopilot-pref-dependencies-update"/,
+    );
+  });
+
+  it("hides the title-row installing status while showing progress", function () {
+    const html = renderToStaticMarkup(
+      <DependenciesPanel
+        onCheck={() => undefined}
+        onInstall={() => undefined}
+        onRemove={() => undefined}
+        state={{
+          status: "installing",
+          helper: TEST_DEPENDENCY_STATE.helper,
+          progress: {
+            phase: "download",
+            percent: 15,
+            loaded: 9.2 * 1024 * 1024,
+            total: 54 * 1024 * 1024,
+          },
+        }}
+      />,
+    );
+
+    assert.notInclude(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-status-installing"',
+    );
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-progress-download"',
+    );
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-install"');
+    assert.include(html, "lucide-loader-circle");
   });
 });
 
@@ -128,6 +224,14 @@ const TEST_DEPENDENCY_STATE: DependencyState = {
     status: "installed",
     platform: "windows-x64",
     version: "0.2.0",
+    latestVersion: "0.2.0",
+    installedVersion: "0.2.0",
+    installedVersionState: "current",
+    hasInstallCandidate: true,
+    needsUpdate: false,
+    installCandidateDirs: [
+      "/Users/yang/Library/Application Support/Zotero/Profiles/example/zopilot/runtime/pdf-helper/zopilot-pdf-helper-windows-x64-v0.2.0",
+    ],
     installDir:
       "/Users/yang/Library/Application Support/Zotero/Profiles/example/zopilot/runtime/pdf-helper",
     executablePath:

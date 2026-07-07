@@ -23,6 +23,10 @@ import {
 import { getConversationStore } from "../../store/conversationStore";
 import { getPref, setPref } from "../../utils/prefs";
 import { createLogger } from "../../utils/logger";
+import {
+  getPdfHelperStatus,
+  type PdfHelperStatus,
+} from "../../document/pdfHelper";
 import { ZoteroContextGateway } from "../../zotero/contextGateway";
 import {
   ZoteroSourceUniverse,
@@ -37,7 +41,11 @@ import { pickLocalAttachment } from "./attachmentUpload";
 import { copyText } from "./app/clipboard";
 import type { ReaderLocator } from "./readerNavigation";
 import { navigateReaderLocator } from "./readerNavigation";
-import type { SidebarPromptSubmission, SidebarState } from "./app/types";
+import type {
+  SidebarMessageView,
+  SidebarPromptSubmission,
+  SidebarState,
+} from "./app/types";
 import {
   ContextPaneDeckAdapter,
   type ContextPaneActiveState,
@@ -150,6 +158,10 @@ class SidebarController {
   private readonly sourceUniverse: ZoteroSourceUniverse;
   private readonly runningTurns = new Map<string, RunningTurn>();
   private readonly listeners: Array<() => void> = [];
+  private pdfHelperNotice?: {
+    conversationId: string;
+    message: SidebarMessageView;
+  };
 
   constructor(win: Window) {
     this.win = win;
@@ -458,6 +470,10 @@ class SidebarController {
     if (this.runningTurns.has(conversation.metadata.id)) {
       return;
     }
+    if (!(await this.ensurePdfHelperCurrentForPrompt(conversation))) {
+      return;
+    }
+    this.clearPdfHelperNotice(conversation.metadata.id);
 
     conversation = await getConversationStore().addMessage(
       conversation.metadata,
@@ -623,6 +639,54 @@ class SidebarController {
       return;
     }
     this.renderDisplayState();
+  }
+
+  private async ensurePdfHelperCurrentForPrompt(
+    conversation: Conversation,
+  ): Promise<boolean> {
+    let status: PdfHelperStatus;
+    try {
+      status = await getPdfHelperStatus();
+    } catch (error) {
+      logger.error("failed to check pdf helper before prompt", error, {
+        conversationId: conversation.metadata.id,
+        workspaceKey: conversation.metadata.workspaceKey,
+      });
+      this.setPdfHelperNotice(
+        conversation.metadata.id,
+        getString("sidebar-pdf-helper-check-failed"),
+      );
+      return false;
+    }
+    if (status.status === "installed" && !status.needsUpdate) {
+      return true;
+    }
+    this.setPdfHelperNotice(
+      conversation.metadata.id,
+      createPdfHelperNoticeText(status),
+    );
+    return false;
+  }
+
+  private setPdfHelperNotice(conversationId: string, text: string): void {
+    this.pdfHelperNotice = {
+      conversationId,
+      message: {
+        id: `zp-pdf-helper-notice-${conversationId}`,
+        role: "assistant",
+        text,
+        status: "error",
+        transient: true,
+      },
+    };
+    this.renderDisplayState();
+  }
+
+  private clearPdfHelperNotice(conversationId: string): void {
+    if (this.pdfHelperNotice?.conversationId === conversationId) {
+      this.pdfHelperNotice = undefined;
+      this.renderDisplayState();
+    }
   }
 
   private finishRunningTurn(
@@ -1076,6 +1140,20 @@ class SidebarController {
     if (state.kind === "ready") {
       const runningTurn = this.runningTurns.get(state.conversation.metadata.id);
       const source = state.workspace.defaultSource;
+      const messages = createConversationMessages(
+        state.conversation,
+        runningTurn
+          ? {
+              text: runningTurn.assistantOutput,
+              interrupted: runningTurn.interrupted,
+              running: !runningTurn.interrupted,
+            }
+          : undefined,
+      );
+      const pdfHelperNotice =
+        this.pdfHelperNotice?.conversationId === state.conversation.metadata.id
+          ? this.pdfHelperNotice.message
+          : undefined;
       this.updateViewState({
         title: `${state.conversation.metadata.workspaceTitle} / ${state.conversation.metadata.label}`,
         context: {
@@ -1090,16 +1168,7 @@ class SidebarController {
           attachmentKey: source?.attachmentKey,
         },
         composerEnabled: true,
-        messages: createConversationMessages(
-          state.conversation,
-          runningTurn
-            ? {
-                text: runningTurn.assistantOutput,
-                interrupted: runningTurn.interrupted,
-                running: !runningTurn.interrupted,
-              }
-            : undefined,
-        ),
+        messages: pdfHelperNotice ? [...messages, pdfHelperNotice] : messages,
         busy: Boolean(runningTurn),
         prompts: loadPromptViews(),
         sessions: this.viewState.sessions.map((session) =>
@@ -1470,8 +1539,28 @@ class SidebarController {
 
 const __sidebarControllerTestHooks = {
   SidebarController,
+  createPdfHelperNoticeText,
   getSidebarSelectionText,
 };
+
+function createPdfHelperNoticeText(status: PdfHelperStatus): string {
+  if (status.status === "unsupported") {
+    return getString("sidebar-pdf-helper-unsupported", {
+      args: { reason: status.reason },
+    });
+  }
+  if (!status.hasInstallCandidate) {
+    return getString("sidebar-pdf-helper-not-installed", {
+      args: { latest: status.latestVersion },
+    });
+  }
+  return getString("sidebar-pdf-helper-update-required", {
+    args: {
+      installed: status.installedVersion || "unknown",
+      latest: status.latestVersion,
+    },
+  });
+}
 
 function getSidebarSelectionText(win: Window, root?: Node): string {
   const selection = win.getSelection();
