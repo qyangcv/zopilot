@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-SUPPORTED_PLATFORMS = ("macos-arm64", "macos-x64", "windows-x64")
+from pdf_helper_build_config import SUPPORTED_PLATFORMS, helper_version
 
 
 def main() -> int:
     root_dir = Path(__file__).resolve().parents[1]
     dist_dir = root_dir / "dist" / "pdf-helper"
-    version = os.environ.get("ZOPILOT_PDF_HELPER_VERSION", "0.2.0")
+    version = helper_version()
     artifacts = []
     for platform in SUPPORTED_PLATFORMS:
         path = dist_dir / f"pdf-helper-artifact-{platform}.json"

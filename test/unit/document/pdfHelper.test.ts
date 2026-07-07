@@ -294,23 +294,12 @@ describe("PDF helper", function () {
     }) as typeof fetch;
 
     try {
-      const status = await installPdfHelperDependency(
-        {
-          async call() {
-            return {
-              stdout: { readString: async () => "" },
-              stderr: { readString: async () => "" },
-              wait: async () => ({ exitCode: 0 }),
-            };
-          },
-        },
-        (progress) => {
-          progressPhases.push(progress.phase);
-          if (typeof progress.percent === "number") {
-            progressPercents.push(progress.percent);
-          }
-        },
-      );
+      const status = await installPdfHelperDependency((progress) => {
+        progressPhases.push(progress.phase);
+        if (typeof progress.percent === "number") {
+          progressPercents.push(progress.percent);
+        }
+      });
 
       assert.equal(status.status, "installed");
       assert.includeMembers(progressPhases, [
@@ -378,7 +367,7 @@ describe("PDF helper", function () {
     const originalFetch = mockPdfHelperFetch(archiveBytes, sha256);
 
     try {
-      const status = await updatePdfHelperDependency(createSubprocessMock());
+      const status = await updatePdfHelperDependency();
 
       assert.equal(status.status, "installed");
       assert.equal(removed[0], "/profile/zopilot/runtime/pdf-helper");
@@ -622,18 +611,6 @@ function mockPdfHelperFetch(
     };
   }) as typeof fetch;
   return originalFetch;
-}
-
-function createSubprocessMock() {
-  return {
-    async call() {
-      return {
-        stdout: { readString: async () => "" },
-        stderr: { readString: async () => "" },
-        wait: async () => ({ exitCode: 0 }),
-      };
-    },
-  };
 }
 
 function installNativeZipReaderMock({

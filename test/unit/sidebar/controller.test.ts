@@ -442,7 +442,7 @@ describe("sidebar controller", function () {
     assert.equal(controller.getReadyDisplayState()?.token, 1);
   });
 
-  it("formats PDF helper prompt notices for missing and outdated helpers", function () {
+  it("formats PDF helper prompt notices for missing, outdated, and unsupported helpers", function () {
     const createPdfHelperNoticeText = (
       __sidebarControllerTestHooks as unknown as {
         createPdfHelperNoticeText: (status: Record<string, unknown>) => string;
@@ -465,6 +465,21 @@ describe("sidebar controller", function () {
         hasInstallCandidate: true,
       }),
       "zopilot-sidebar-pdf-helper-update-required",
+    );
+    assert.equal(
+      createPdfHelperNoticeText({
+        status: "unsupported",
+        latestVersion: "0.2.0",
+        version: "0.2.0",
+        hasInstallCandidate: false,
+        needsUpdate: false,
+        installCandidateDirs: [],
+        installDir: "/profile/zopilot/runtime/pdf-helper",
+        executablePath: "",
+        manifestUrl: "https://example.test/pdf-helper-manifest.json",
+        reason: "Unsupported platform.",
+      }),
+      "zopilot-sidebar-pdf-helper-unsupported",
     );
   });
 });

@@ -1,7 +1,10 @@
 import { waitForSubprocessResult } from "../utils/subprocess";
 import {
+  getSubprocessDiscoveryOS,
+  pathExists,
+} from "../utils/executableDiscovery";
+import {
   buildExecutablePathCandidates,
-  detectHostRuntime,
   getEnvironmentPath,
   getHomeDir,
   mergePathEntries,
@@ -69,7 +72,7 @@ async function buildCodexSubprocessEnvironment(
   subprocess: CodexDiscoverySubprocessModule,
 ): Promise<Record<string, string>> {
   const baseEnvironment = subprocess.getEnvironment();
-  const os = getDiscoveryOS(baseEnvironment);
+  const os = getSubprocessDiscoveryOS(baseEnvironment);
   const shellPath =
     os === "macos"
       ? await readLoginShellPath(subprocess, baseEnvironment, os)
@@ -88,15 +91,15 @@ async function buildCodexSubprocessEnvironment(
 
 async function resolveCodexBinaryPath(
   pathValue?: string,
-  os = getDiscoveryOS(),
+  os = getSubprocessDiscoveryOS(),
 ): Promise<CodexCommandSpec> {
   for (const candidate of buildDefaultBinaryCandidates(os)) {
-    if (await pathExists(candidate)) {
+    if (await pathExists(candidate, { whenUnavailable: true })) {
       return toCodexCommandSpec(candidate, os);
     }
   }
   for (const candidate of buildPathCandidates(pathValue, os)) {
-    if (await pathExists(candidate)) {
+    if (await pathExists(candidate, { whenUnavailable: true })) {
       return toCodexCommandSpec(candidate, os);
     }
   }
@@ -160,7 +163,10 @@ async function getShellCandidates(
   ].filter((item): item is string => Boolean(item && item.startsWith("/")));
   const existing: string[] = [];
   for (const candidate of candidates) {
-    if (!existing.includes(candidate) && (await pathExists(candidate))) {
+    if (
+      !existing.includes(candidate) &&
+      (await pathExists(candidate, { whenUnavailable: true }))
+    ) {
       existing.push(candidate);
     }
   }
@@ -266,26 +272,4 @@ function toCodexCommandSpec(path: string, os: HostOS): CodexCommandSpec {
     argsPrefix: [],
     resolvedPath: path,
   };
-}
-
-function getDiscoveryOS(environment?: Record<string, string>): HostOS {
-  if (
-    environment &&
-    (environment.OS === "Windows_NT" ||
-      Boolean(environment.WINDIR || environment.SystemRoot))
-  ) {
-    return "windows";
-  }
-  const runtime = detectHostRuntime();
-  return runtime.os === "windows" ? "windows" : "macos";
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  const ioUtils = globalThis.IOUtils as
-    | { exists(path: string): Promise<boolean> }
-    | undefined;
-  if (!ioUtils?.exists) {
-    return true;
-  }
-  return ioUtils.exists(path).catch(() => false);
 }

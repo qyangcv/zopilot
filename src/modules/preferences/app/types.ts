@@ -1,4 +1,3 @@
-import type { CodexDiscoverySubprocessModule } from "../../../codex/cliDiscovery";
 import type {
   PdfHelperInstallProgress,
   PdfHelperStatus,
@@ -6,7 +5,6 @@ import type {
 import type { SidebarPromptView } from "../../sidebar/app/types";
 
 type PreferencesAppProps = {
-  getSubprocess: () => CodexDiscoverySubprocessModule;
   translate: () => void;
 };
 

@@ -1,9 +1,9 @@
 import { buildCodexSubprocessEnvironment } from "../codex/cliDiscovery";
 import {
-  buildExecutablePathCandidates,
-  detectHostRuntime,
-  type HostOS,
-} from "../utils/platform";
+  getSubprocessDiscoveryOS,
+  pathExists,
+} from "../utils/executableDiscovery";
+import { buildExecutablePathCandidates, type HostOS } from "../utils/platform";
 
 export {
   buildByokRuntimeEnvironment,
@@ -50,15 +50,15 @@ async function buildByokRuntimeEnvironment(
 
 async function resolveNodeBinaryPath(
   pathValue?: string,
-  os = getDiscoveryOS(),
+  os = getSubprocessDiscoveryOS(),
 ): Promise<string> {
   for (const candidate of buildDefaultNodeCandidates(os)) {
-    if (await pathExists(candidate)) {
+    if (await pathExists(candidate, { whenUnavailable: false })) {
       return candidate;
     }
   }
   for (const candidate of buildPathCandidates(pathValue, os)) {
-    if (await pathExists(candidate)) {
+    if (await pathExists(candidate, { whenUnavailable: false })) {
       return candidate;
     }
   }
@@ -80,16 +80,4 @@ function buildPathCandidates(
 ): string[] {
   const names = os === "windows" ? WINDOWS_NODE_BINARY_NAMES : ["node"];
   return buildExecutablePathCandidates(pathValue, names, os);
-}
-
-function getDiscoveryOS(): HostOS {
-  const runtime = detectHostRuntime();
-  return runtime.os === "windows" ? "windows" : "macos";
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  const ioUtils = globalThis.IOUtils as
-    | { exists(path: string): Promise<boolean> }
-    | undefined;
-  return Boolean(await ioUtils?.exists(path).catch(() => false));
 }

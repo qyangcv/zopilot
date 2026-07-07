@@ -19,12 +19,7 @@ describe("PreferencesApp", function () {
 
   it("renders the React settings shell with provider and prompt sections", function () {
     const html = renderToStaticMarkup(
-      <PreferencesApp
-        getSubprocess={() => {
-          throw new Error("Subprocess unavailable in server render.");
-        }}
-        translate={() => undefined}
-      />,
+      <PreferencesApp translate={() => undefined} />,
     );
 
     assert.include(html, "zp-pref-shell");
@@ -173,6 +168,72 @@ describe("PreferencesApp", function () {
       html,
       /<button(?=[^>]*disabled="")[^>]*>[\s\S]*?data-l10n-id="zopilot-pref-dependencies-update"/,
     );
+  });
+
+  it("renders unsupported dependency status with the reported reason", function () {
+    const html = renderToStaticMarkup(
+      <DependenciesPanel
+        onCheck={() => undefined}
+        onInstall={() => undefined}
+        onRemove={() => undefined}
+        state={{
+          status: "ready",
+          helper: {
+            status: "unsupported",
+            version: "0.2.0",
+            latestVersion: "0.2.0",
+            hasInstallCandidate: false,
+            needsUpdate: false,
+            installCandidateDirs: [],
+            installDir:
+              "/Users/yang/Library/Application Support/Zotero/Profiles/example/zopilot/runtime/pdf-helper",
+            executablePath: "",
+            manifestUrl:
+              "https://github.com/qyangcv/zopilot/releases/download/pdf-helper-v0.2.0/pdf-helper-manifest.json",
+            reason:
+              "Zopilot PDF helper supports macOS arm64, macOS x64, and Windows x64.",
+          },
+        }}
+      />,
+    );
+
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-status-unsupported"',
+    );
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-unsupported-reason"',
+    );
+    assert.include(html, "unsupported");
+    assert.include(html, "macOS arm64");
+    assert.notInclude(html, 'data-l10n-id="zopilot-pref-dependencies-update"');
+  });
+
+  it("marks a latest helper directory without a ready executable as incomplete", function () {
+    const html = renderToStaticMarkup(
+      <DependenciesPanel
+        onCheck={() => undefined}
+        onInstall={() => undefined}
+        onRemove={() => undefined}
+        state={{
+          status: "ready",
+          helper: {
+            ...TEST_DEPENDENCY_STATE.helper,
+            status: "outdated",
+            installedVersion: "0.2.0",
+            installedVersionState: "incomplete",
+            needsUpdate: true,
+          },
+        }}
+      />,
+    );
+
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-version-incomplete"',
+    );
+    assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-update"');
   });
 
   it("hides the title-row installing status while showing progress", function () {

@@ -1,4 +1,3 @@
-import type { CodexDiscoverySubprocessModule } from "../../codex/cliDiscovery";
 import type { Root } from "react-dom/client";
 import { installChromeWindowGlobals } from "../sidebar/chromeGlobals";
 import type { PreferencesAppProps } from "./app/PreferencesApp";
@@ -14,7 +13,6 @@ type PreferencePaneDependencies = {
     callback: () => void,
     delayMs: number,
   ): ReturnType<typeof setTimeout>;
-  getSubprocess(): CodexDiscoverySubprocessModule;
   renderApp?: PreferencePaneRenderApp;
 };
 
@@ -61,7 +59,6 @@ function initPreferencesPane(dependencies = getGlobalDependencies()): void {
     const translate = () => translatePreferenceElements(root, dependencies);
     const render = dependencies.renderApp || mountReactPreferencesApp();
     render(root, {
-      getSubprocess: dependencies.getSubprocess,
       translate,
     });
   }
@@ -127,11 +124,6 @@ function getGlobalDependencies(): PreferencePaneDependencies {
     document,
     schedule(callback, delayMs) {
       return setTimeout(callback, delayMs);
-    },
-    getSubprocess() {
-      return ChromeUtils.importESModule(
-        "resource://gre/modules/Subprocess.sys.mjs",
-      ).Subprocess;
     },
   };
 }

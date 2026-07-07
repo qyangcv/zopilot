@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import platform as platform_module
 import shutil
 import subprocess
@@ -12,25 +11,29 @@ import sys
 import zipfile
 from pathlib import Path
 
-SUPPORTED_PLATFORMS = ("macos-arm64", "macos-x64", "windows-x64")
+from pdf_helper_build_config import (
+    PDF_HELPER_PACKAGE_NAME,
+    SUPPORTED_PLATFORMS,
+    assert_host_matches,
+    entrypoint_name,
+    helper_base_url,
+    helper_version,
+)
 
 
 def main() -> int:
     args = parse_args()
-    helper_version = os.environ.get("ZOPILOT_PDF_HELPER_VERSION", "0.2.0")
-    base_url = os.environ.get(
-        "ZOPILOT_PDF_HELPER_BASE_URL",
-        f"https://github.com/qyangcv/zopilot/releases/download/pdf-helper-v{helper_version}",
-    )
+    version = helper_version()
+    base_url = helper_base_url(version)
     assert_host_matches(args.platform)
 
     root_dir = Path(__file__).resolve().parents[1]
     dist_dir = root_dir / "dist" / "pdf-helper"
-    package_name = f"zopilot-pdf-helper-{args.platform}-v{helper_version}"
+    package_name = f"{PDF_HELPER_PACKAGE_NAME}-{args.platform}-v{version}"
     package_root = dist_dir / package_name
-    build_venv = dist_dir / f"build-venv-{args.platform}-v{helper_version}"
-    pyinstaller_work = dist_dir / f"pyinstaller-work-{args.platform}-v{helper_version}"
-    pyinstaller_spec = dist_dir / f"pyinstaller-spec-{args.platform}-v{helper_version}"
+    build_venv = dist_dir / f"build-venv-{args.platform}-v{version}"
+    pyinstaller_work = dist_dir / f"pyinstaller-work-{args.platform}-v{version}"
+    pyinstaller_spec = dist_dir / f"pyinstaller-spec-{args.platform}-v{version}"
     archive_name = f"{package_name}.zip"
     archive_path = dist_dir / archive_name
     metadata_path = dist_dir / f"pdf-helper-artifact-{args.platform}.json"
@@ -70,7 +73,7 @@ def main() -> int:
             "--noconfirm",
             "--onedir",
             "--name",
-            "zopilot-pdf-helper",
+            PDF_HELPER_PACKAGE_NAME,
             "--distpath",
             str(package_root / "bin"),
             "--workpath",
@@ -81,17 +84,21 @@ def main() -> int:
         ],
     )
 
-    (package_root / "VERSION").write_text(f"{helper_version}\n", encoding="utf-8")
+    (package_root / "VERSION").write_text(f"{version}\n", encoding="utf-8")
     write_zip(archive_path, dist_dir, package_root)
     sha256 = sha256_file(archive_path)
     size = archive_path.stat().st_size
+    entrypoint = (
+        f"{package_name}/bin/{PDF_HELPER_PACKAGE_NAME}/"
+        f"{entrypoint_name(args.platform)}"
+    )
     metadata = {
         "platform": args.platform,
         "fileName": archive_name,
         "url": f"{base_url}/{archive_name}",
         "sha256": sha256,
         "size": size,
-        "entrypoint": f"{package_name}/bin/zopilot-pdf-helper/{entrypoint_name(args.platform)}",
+        "entrypoint": entrypoint,
     }
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     print(f"Built {archive_path}")
@@ -105,23 +112,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def assert_host_matches(target: str) -> None:
-    system = platform_module.system().lower()
-    machine = platform_module.machine().lower()
-    actual = None
-    if system == "darwin" and machine in {"arm64", "aarch64"}:
-        actual = "macos-arm64"
-    elif system == "darwin" and machine in {"x86_64", "amd64"}:
-        actual = "macos-x64"
-    elif system == "windows" and machine in {"amd64", "x86_64"}:
-        actual = "windows-x64"
-    if actual != target:
-        raise SystemExit(
-            f"Cannot build {target} on host {system}/{machine}. "
-            "PyInstaller builds must run on the target platform.",
-        )
-
-
 def create_venv(path: Path) -> None:
     run([sys.executable, "-m", "venv", str(path)])
 
@@ -130,10 +120,6 @@ def venv_python(path: Path) -> str:
     if platform_module.system().lower() == "windows":
         return str(path / "Scripts" / "python.exe")
     return str(path / "bin" / "python")
-
-
-def entrypoint_name(target: str) -> str:
-    return "zopilot-pdf-helper.exe" if target == "windows-x64" else "zopilot-pdf-helper"
 
 
 def run(command: list[str]) -> None:

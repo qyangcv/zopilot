@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import type { CodexDiscoverySubprocessModule } from "../../../codex/cliDiscovery";
 import {
   getPdfHelperStatus,
   installPdfHelperDependency,
@@ -11,9 +10,7 @@ import type { DependencyState } from "./types";
 
 export { dependencyNavCount, usePdfHelperDependency };
 
-function usePdfHelperDependency(
-  getSubprocess: () => CodexDiscoverySubprocessModule,
-): {
+function usePdfHelperDependency(): {
   dependencyState: DependencyState;
   installDependencies: () => void;
   removeDependencies: () => void;
@@ -41,21 +38,10 @@ function usePdfHelperDependency(
       status: "installing",
       progress: { phase: "manifest", percent: 0 },
     });
-    let subprocess: CodexDiscoverySubprocessModule;
-    try {
-      subprocess = getSubprocess();
-    } catch (error) {
-      setDependencyState({
-        status: "error",
-        helper: currentHelper,
-        message: stringifyError(error),
-      });
-      return;
-    }
     const action = currentHelper?.hasInstallCandidate
       ? updatePdfHelperDependency
       : installPdfHelperDependency;
-    void action(subprocess, (progress) => {
+    void action((progress) => {
       setDependencyState({ status: "installing", progress });
     })
       .then((helper) => setDependencyState({ status: "ready", helper }))
@@ -66,7 +52,7 @@ function usePdfHelperDependency(
           message: stringifyError(error),
         }),
       );
-  }, [dependencyState, getSubprocess]);
+  }, [dependencyState]);
 
   const removeDependencies = useCallback(() => {
     const currentHelper = getDependencyHelper(dependencyState);

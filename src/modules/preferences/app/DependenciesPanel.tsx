@@ -228,40 +228,7 @@ function DependencyPathList({
 }: {
   helper: PdfHelperStatus;
 }): ReactElement {
-  const rows = [
-    {
-      action: undefined,
-      key: "installedVersion",
-      label: <T id="pref-dependencies-installed-version">已安装版本</T>,
-      value: installedVersionText(helper),
-      valueNode: installedVersionNode(helper),
-    },
-    {
-      action: undefined,
-      key: "latestVersion",
-      label: <T id="pref-dependencies-latest-version">最新版本</T>,
-      value: `v${helper.latestVersion}`,
-      valueNode: `v${helper.latestVersion}`,
-    },
-    {
-      action: "reveal" as const,
-      key: "installDir",
-      label: <T id="pref-dependencies-install-dir">安装目录</T>,
-      value: helper.installDir,
-    },
-    {
-      action: "reveal" as const,
-      key: "executablePath",
-      label: <T id="pref-dependencies-executable-path">可执行文件</T>,
-      value: helper.executablePath,
-    },
-    {
-      action: "open-url" as const,
-      key: "manifestUrl",
-      label: <T id="pref-dependencies-manifest-url">Manifest</T>,
-      value: helper.manifestUrl,
-    },
-  ];
+  const rows = buildDependencyPathRows(helper);
   return (
     <dl className="zp-pref-path-list">
       {rows.map((row) => (
@@ -308,6 +275,51 @@ function DependencyPathList({
       ) : null}
     </dl>
   );
+}
+
+type DependencyPathAction = "open-url" | "reveal";
+
+type DependencyPathRow = {
+  action?: DependencyPathAction;
+  key: string;
+  label: ReactNode;
+  value: string;
+  valueNode?: ReactNode;
+};
+
+function buildDependencyPathRows(helper: PdfHelperStatus): DependencyPathRow[] {
+  return [
+    {
+      key: "installedVersion",
+      label: <T id="pref-dependencies-installed-version">已安装版本</T>,
+      value: installedVersionText(helper),
+      valueNode: installedVersionNode(helper),
+    },
+    {
+      key: "latestVersion",
+      label: <T id="pref-dependencies-latest-version">最新版本</T>,
+      value: `v${helper.latestVersion}`,
+      valueNode: `v${helper.latestVersion}`,
+    },
+    {
+      action: "reveal",
+      key: "installDir",
+      label: <T id="pref-dependencies-install-dir">安装目录</T>,
+      value: helper.installDir,
+    },
+    {
+      action: "reveal",
+      key: "executablePath",
+      label: <T id="pref-dependencies-executable-path">可执行文件</T>,
+      value: helper.executablePath,
+    },
+    {
+      action: "open-url",
+      key: "manifestUrl",
+      label: <T id="pref-dependencies-manifest-url">Manifest</T>,
+      value: helper.manifestUrl,
+    },
+  ];
 }
 
 function helperPlatformLabel(helper: PdfHelperStatus): string {

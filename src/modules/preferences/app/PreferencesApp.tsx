@@ -15,10 +15,7 @@ import { usePromptEditor } from "./usePromptEditor";
 export { PreferencesApp };
 export type { PreferencesAppProps } from "./types";
 
-function PreferencesApp({
-  getSubprocess,
-  translate,
-}: PreferencesAppProps): ReactElement {
+function PreferencesApp({ translate }: PreferencesAppProps): ReactElement {
   const [activeSection, setActiveSection] =
     useState<PreferenceSection>("providers");
   const providers = useProviderProfiles();
@@ -27,7 +24,7 @@ function PreferencesApp({
     installDependencies,
     removeDependencies,
     runDependencyCheck,
-  } = usePdfHelperDependency(getSubprocess);
+  } = usePdfHelperDependency();
   const promptEditor = usePromptEditor();
 
   useEffect(() => {

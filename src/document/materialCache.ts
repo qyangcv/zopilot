@@ -123,7 +123,7 @@ class MaterialCache {
     dir: string,
   ): Promise<{ pageCount: number; warnings: string[] }> {
     const subprocess = this.getSubprocess();
-    const executable = await ensurePdfHelperExecutable(subprocess);
+    const executable = await ensurePdfHelperExecutable();
     const proc = await subprocess.call({
       command: executable,
       arguments: [filePath, dir],

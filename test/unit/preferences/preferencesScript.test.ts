@@ -10,9 +10,6 @@ describe("preferences pane script", function () {
     initPreferencesPane({
       document: createDocument(() => rootElement),
       schedule: createQueuedScheduler(timers),
-      getSubprocess() {
-        throw new Error("Subprocess should not be requested by the shell.");
-      },
       renderApp() {
         rendered = true;
       },
@@ -38,9 +35,6 @@ describe("preferences pane script", function () {
     initPreferencesPane({
       document: createDocument(() => rootElement, translated),
       schedule: createQueuedScheduler(timers),
-      getSubprocess() {
-        throw new Error("Subprocess unavailable in this test.");
-      },
       renderApp(_root, props) {
         translate = props.translate;
       },

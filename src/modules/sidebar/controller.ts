@@ -70,6 +70,10 @@ import {
   parseSavedSelectedModels,
   resolveSelectedModel,
 } from "./modelPreferences";
+import {
+  createPdfHelperNoticeText,
+  isPdfHelperCurrentForPrompt,
+} from "./pdfHelperGate";
 
 const controllers = new WeakMap<Window, SidebarController>();
 const TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
@@ -658,7 +662,7 @@ class SidebarController {
       );
       return false;
     }
-    if (status.status === "installed" && !status.needsUpdate) {
+    if (isPdfHelperCurrentForPrompt(status)) {
       return true;
     }
     this.setPdfHelperNotice(
@@ -1542,25 +1546,6 @@ const __sidebarControllerTestHooks = {
   createPdfHelperNoticeText,
   getSidebarSelectionText,
 };
-
-function createPdfHelperNoticeText(status: PdfHelperStatus): string {
-  if (status.status === "unsupported") {
-    return getString("sidebar-pdf-helper-unsupported", {
-      args: { reason: status.reason },
-    });
-  }
-  if (!status.hasInstallCandidate) {
-    return getString("sidebar-pdf-helper-not-installed", {
-      args: { latest: status.latestVersion },
-    });
-  }
-  return getString("sidebar-pdf-helper-update-required", {
-    args: {
-      installed: status.installedVersion || "unknown",
-      latest: status.latestVersion,
-    },
-  });
-}
 
 function getSidebarSelectionText(win: Window, root?: Node): string {
   const selection = win.getSelection();
