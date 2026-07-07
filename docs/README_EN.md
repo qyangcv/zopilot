@@ -4,18 +4,18 @@
 
 **English** · [简体中文](../README.md)
 
-Zopilot is a Zotero plugin that brings AI into the Zopilot sidebar as your paper-reading assistant.
+Zopilot is a modern Zotero AI plugin that brings AI into the Zopilot sidebar as your paper-reading assistant.
 
 ## Highlights
 
 - Standalone sidebar window
 - Minimal, information-dense UI design
-- Supports BYOK and Codex CLI
+- Supports BYOK (OpenAI-compatible API) and Codex CLI
 
 ## Requirements
 
 - Zotero 9.0
-- MacOS 或 Windows x64
+- macOS or Windows x86_64
 
 ## Getting Started
 
@@ -56,13 +56,3 @@ Zopilot is a Zotero plugin that brings AI into the Zopilot sidebar as your paper
 ## Feedback
 
 - Please open an issue for any problems you encounter, or contact `qyang@bupt.edu.cn`.
-
-<!-- ## Gratitude
-
-Thanks to the following projects that make Zopilot possible:
-
-- [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template): An awesome plugin template for Zotero.
-- [llm-for-zotero](https://github.com/yilewang/llm-for-zotero): Inspired the creation of this plugin.
-- [markdown-it](https://github.com/markdown-it/markdown-it): The Markdown parser used to render Codex responses.
-- [mdit-plugins](https://github.com/mdit-plugins/mdit-plugins): Markdown-it extensions used for task lists, footnotes, and TeX blocks.
-- [Shiki](https://github.com/shikijs/shiki): Syntax highlighting for code blocks in Codex responses. -->

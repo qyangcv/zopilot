@@ -4,18 +4,18 @@
 
 [English](./docs/README_EN.md) · **简体中文**
 
-Zopilot 是一款 Zotero 插件，将 AI 接入 Zopilot 侧边栏中，作为你的论文阅读助手。
+Zopilot 是一款现代化的 Zotero AI 插件, 将 AI 接入 Zopilot 侧边栏中，作为你的论文阅读助手。
 
 ## 特点
 
 - 独立的侧边栏窗口
 - 简约、高信息密度的 UI 设计
-- 支持 BYOK 和 Codex CLI
+- 支持 BYOK (OpenAI 兼容的 API) 和 Codex CLI
 
 ## 环境要求
 
 - Zotero 9.0
-- MacOS 或 Windows x64
+- macOS 或 Windows x86_64
 
 ## 开始使用
 
@@ -47,7 +47,7 @@ Zopilot 是一款 Zotero 插件，将 AI 接入 Zopilot 侧边栏中，作为你
 
 ## 功能
 
-- Zotero 原生的 Workspace 支持，支持在文献库或合集中对论文进行提问
+- Zotero 原生的 Workspace 支持，支持在文献库或合集中对多篇论文进行提问
 - 支持使用 Codex CLI (使用 Codex 订阅) 和 BYOK (OpenAI 兼容的 API)
 - 支持附件上传 (本地 PDF 或图片)
 - 支持会话历史保存
@@ -56,13 +56,3 @@ Zopilot 是一款 Zotero 插件，将 AI 接入 Zopilot 侧边栏中，作为你
 ## 反馈
 
 - 欢迎提 Issue 反馈在使用过程中遇到的问题，或联系 `qyang@bupt.edu.cn`
-
-<!-- ## 致谢
-
-感谢以下项目让 Zopilot 成为可能：
-
-- [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template)：一个优秀的 Zotero 插件模板。
-- [llm-for-zotero](https://github.com/yilewang/llm-for-zotero)：为本插件的创建提供了灵感。
-- [markdown-it](https://github.com/markdown-it/markdown-it)：用于渲染 Codex 响应的 Markdown 解析器。
-- [mdit-plugins](https://github.com/mdit-plugins/mdit-plugins)：用于任务列表、脚注和 TeX 块的 Markdown-it 扩展。
-- [Shiki](https://github.com/shikijs/shiki)：用于 Codex 响应中代码块的语法高亮。 -->
