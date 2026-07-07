@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console, process */
 import { execFile as execFileCallback } from "node:child_process";
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";

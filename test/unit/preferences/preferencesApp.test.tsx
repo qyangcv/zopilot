@@ -126,14 +126,14 @@ const TEST_DEPENDENCY_STATE: DependencyState = {
   status: "ready",
   helper: {
     status: "installed",
-    platform: "macos-arm64",
-    version: "0.1.0",
+    platform: "windows-x64",
+    version: "0.2.0",
     installDir:
       "/Users/yang/Library/Application Support/Zotero/Profiles/example/zopilot/runtime/pdf-helper",
     executablePath:
-      "/Users/yang/Library/Application Support/Zotero/Profiles/example/zopilot/runtime/pdf-helper/zopilot-pdf-helper",
+      "/Users/yang/Library/Application Support/Zotero/Profiles/example/zopilot/runtime/pdf-helper/zopilot-pdf-helper.exe",
     manifestUrl:
-      "https://github.com/qyangcv/zopilot/releases/download/pdf-helper-v0.1.0/pdf-helper-manifest.json",
+      "https://github.com/qyangcv/zopilot/releases/download/pdf-helper-v0.2.0/pdf-helper-manifest.json",
   },
 };
 

@@ -1,9 +1,11 @@
 import {
   buildCodexSubprocessEnvironment,
+  type CodexCommandSpec,
   type CodexDiscoverySubprocessModule,
   resolveCodexBinaryPath,
 } from "./cliDiscovery";
 import { waitForSubprocessResult } from "../utils/subprocess";
+import { getHomeDir } from "../utils/platform";
 
 export {
   checkCodexConnection,
@@ -113,7 +115,7 @@ function getCodexDiagnosticMessageKey(
 
 type CodexCommandContext = {
   subprocess: CodexDiscoverySubprocessModule;
-  command: string;
+  command: CodexCommandSpec;
   environment: Record<string, string>;
 };
 
@@ -136,13 +138,13 @@ async function runCodexCommand(
   args: string[],
 ): Promise<CodexCommandResult> {
   const proc = await context.subprocess.call({
-    command: context.command,
-    arguments: args,
+    command: context.command.command,
+    arguments: [...context.command.argsPrefix, ...args],
     environment: context.environment,
     environmentAppend: true,
     stdout: "pipe",
     stderr: "pipe",
-    workdir: context.subprocess.getEnvironment().HOME,
+    workdir: getHomeDir(context.subprocess.getEnvironment()),
   });
 
   return waitForSubprocessResult(proc, {

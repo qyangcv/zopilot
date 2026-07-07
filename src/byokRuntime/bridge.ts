@@ -17,6 +17,7 @@ import {
   buildByokRuntimeEnvironment,
   resolveNodeBinaryPath,
 } from "./nodeDiscovery";
+import { getHomeDir } from "../utils/platform";
 import type {
   AgentModelEntry,
   AgentPromptCallbacks,
@@ -177,7 +178,7 @@ class ByokRuntimeBridge {
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
-      workdir: subprocess.getEnvironment().HOME,
+      workdir: getHomeDir(subprocess.getEnvironment()),
     });
 
     this.subprocess = subprocess;

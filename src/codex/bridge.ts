@@ -24,6 +24,7 @@ import type {
 import { getPref } from "../utils/prefs";
 import type { ConversationMetadata } from "../shared/conversation";
 import { createLogger } from "../utils/logger";
+import { getHomeDir } from "../utils/platform";
 
 type CodexSubprocessModule = {
   call(options: {
@@ -174,7 +175,9 @@ class CodexBridge {
           },
         ],
       };
-      const cwd = this.subprocess?.getEnvironment().HOME;
+      const cwd = this.subprocess
+        ? getHomeDir(this.subprocess.getEnvironment())
+        : undefined;
       if (cwd) {
         params.cwd = cwd;
       }
@@ -207,13 +210,13 @@ class CodexBridge {
     const environment = await buildCodexSubprocessEnvironment(subprocess);
     const command = await resolveCodexBinaryPath(environment.PATH);
     const proc = await subprocess.call({
-      command,
-      arguments: buildCodexAppServerArguments(),
+      command: command.command,
+      arguments: [...command.argsPrefix, ...buildCodexAppServerArguments()],
       environment,
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
-      workdir: subprocess.getEnvironment().HOME,
+      workdir: getHomeDir(subprocess.getEnvironment()),
     });
 
     this.subprocess = subprocess;
@@ -295,7 +298,9 @@ class CodexBridge {
     conversation: ConversationMetadata,
     fallbackThreadId?: string,
   ): Promise<string> {
-    const cwd = this.subprocess?.getEnvironment().HOME;
+    const cwd = this.subprocess
+      ? getHomeDir(this.subprocess.getEnvironment())
+      : undefined;
     const mcpServers = await buildCodexMcpServersConfig(conversation);
     const params: { [key: string]: JsonValue } = {
       ...extraParams,

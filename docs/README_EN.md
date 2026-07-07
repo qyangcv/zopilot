@@ -14,7 +14,8 @@ Zopilot is a Zotero plugin that brings AI into the Zopilot sidebar as your paper
 
 ## Requirements
 
-- MacOS
+- macOS Apple Silicon (arm64), macOS Intel (x64), or Windows x64
+- Windows ARM64 is not supported
 - Zotero 9.0.x
 
 ## Getting Started

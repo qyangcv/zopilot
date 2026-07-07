@@ -1,4 +1,9 @@
 import { buildCodexSubprocessEnvironment } from "../codex/cliDiscovery";
+import {
+  buildExecutablePathCandidates,
+  detectHostRuntime,
+  type HostOS,
+} from "../utils/platform";
 
 export {
   buildByokRuntimeEnvironment,
@@ -35,6 +40,7 @@ const NODE_BINARY_CANDIDATES = [
   "/usr/local/bin/node",
   "/usr/bin/node",
 ] as const;
+const WINDOWS_NODE_BINARY_NAMES = ["node.exe"] as const;
 
 async function buildByokRuntimeEnvironment(
   subprocess: ByokRuntimeSubprocessModule,
@@ -42,13 +48,16 @@ async function buildByokRuntimeEnvironment(
   return buildCodexSubprocessEnvironment(subprocess);
 }
 
-async function resolveNodeBinaryPath(pathValue?: string): Promise<string> {
-  for (const candidate of NODE_BINARY_CANDIDATES) {
+async function resolveNodeBinaryPath(
+  pathValue?: string,
+  os = getDiscoveryOS(),
+): Promise<string> {
+  for (const candidate of buildDefaultNodeCandidates(os)) {
     if (await pathExists(candidate)) {
       return candidate;
     }
   }
-  for (const candidate of buildPathCandidates(pathValue)) {
+  for (const candidate of buildPathCandidates(pathValue, os)) {
     if (await pathExists(candidate)) {
       return candidate;
     }
@@ -58,11 +67,24 @@ async function resolveNodeBinaryPath(pathValue?: string): Promise<string> {
   );
 }
 
-function buildPathCandidates(pathValue?: string): string[] {
-  return (pathValue || "")
-    .split(":")
-    .filter(Boolean)
-    .map((dir) => `${dir.replace(/\/+$/, "")}/node`);
+function buildDefaultNodeCandidates(os: HostOS): string[] {
+  if (os === "windows") {
+    return [];
+  }
+  return [...NODE_BINARY_CANDIDATES];
+}
+
+function buildPathCandidates(
+  pathValue: string | undefined,
+  os: HostOS,
+): string[] {
+  const names = os === "windows" ? WINDOWS_NODE_BINARY_NAMES : ["node"];
+  return buildExecutablePathCandidates(pathValue, names, os);
+}
+
+function getDiscoveryOS(): HostOS {
+  const runtime = detectHostRuntime();
+  return runtime.os === "windows" ? "windows" : "macos";
 }
 
 async function pathExists(path: string): Promise<boolean> {

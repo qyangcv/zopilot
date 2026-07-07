@@ -1,8 +1,19 @@
 import { waitForSubprocessResult } from "../utils/subprocess";
+import {
+  buildExecutablePathCandidates,
+  detectHostRuntime,
+  getEnvironmentPath,
+  getHomeDir,
+  mergePathEntries,
+  platformPathJoin,
+  splitPathEntries,
+  type HostOS,
+} from "../utils/platform";
 
 export {
   buildCodexSubprocessEnvironment,
   resolveCodexBinaryPath,
+  type CodexCommandSpec,
   type CodexDiscoverySubprocessModule,
   type CodexDiscoverySubprocessProcess,
 };
@@ -43,36 +54,50 @@ const CODEX_BINARY_CANDIDATES = [
   "/opt/homebrew/bin/codex",
   "/usr/local/bin/codex",
 ] as const;
+const WINDOWS_CODEX_BINARY_NAMES = ["codex.cmd", "codex.exe"] as const;
 const SHELL_PATH_MARKER_START = "__ZOPILOT_PATH_START__";
 const SHELL_PATH_MARKER_END = "__ZOPILOT_PATH_END__";
 const SHELL_PATH_TIMEOUT_MS = 2500;
+
+type CodexCommandSpec = {
+  command: string;
+  argsPrefix: string[];
+  resolvedPath: string;
+};
 
 async function buildCodexSubprocessEnvironment(
   subprocess: CodexDiscoverySubprocessModule,
 ): Promise<Record<string, string>> {
   const baseEnvironment = subprocess.getEnvironment();
-  const shellPath = await readLoginShellPath(subprocess, baseEnvironment);
+  const os = getDiscoveryOS(baseEnvironment);
+  const shellPath =
+    os === "macos"
+      ? await readLoginShellPath(subprocess, baseEnvironment, os)
+      : undefined;
   return {
-    PATH: mergePath(
+    PATH: mergePathEntries(
       [
-        ...CODEX_PATH_PREFIX,
-        ...buildHomePathCandidates(baseEnvironment),
-        ...splitPath(shellPath),
+        ...buildPathPrefix(baseEnvironment, os),
+        ...splitPathEntries(shellPath, os),
       ],
-      baseEnvironment.PATH,
+      getEnvironmentPath(baseEnvironment),
+      os,
     ),
   };
 }
 
-async function resolveCodexBinaryPath(pathValue?: string): Promise<string> {
-  for (const candidate of CODEX_BINARY_CANDIDATES) {
+async function resolveCodexBinaryPath(
+  pathValue?: string,
+  os = getDiscoveryOS(),
+): Promise<CodexCommandSpec> {
+  for (const candidate of buildDefaultBinaryCandidates(os)) {
     if (await pathExists(candidate)) {
-      return candidate;
+      return toCodexCommandSpec(candidate, os);
     }
   }
-  for (const candidate of buildPathCandidates(pathValue)) {
+  for (const candidate of buildPathCandidates(pathValue, os)) {
     if (await pathExists(candidate)) {
-      return candidate;
+      return toCodexCommandSpec(candidate, os);
     }
   }
 
@@ -87,6 +112,7 @@ async function resolveCodexBinaryPath(pathValue?: string): Promise<string> {
 async function readLoginShellPath(
   subprocess: CodexDiscoverySubprocessModule,
   baseEnvironment: Record<string, string>,
+  os: HostOS,
 ): Promise<string | undefined> {
   for (const shell of await getShellCandidates(baseEnvironment)) {
     try {
@@ -97,12 +123,16 @@ async function readLoginShellPath(
           `printf '\\n${SHELL_PATH_MARKER_START}%s${SHELL_PATH_MARKER_END}\\n' "$PATH"`,
         ],
         environment: {
-          PATH: mergePath(CODEX_PATH_PREFIX, baseEnvironment.PATH),
+          PATH: mergePathEntries(
+            CODEX_PATH_PREFIX,
+            getEnvironmentPath(baseEnvironment),
+            os,
+          ),
         },
         environmentAppend: true,
         stdout: "pipe",
         stderr: "ignore",
-        workdir: baseEnvironment.HOME,
+        workdir: getHomeDir(baseEnvironment),
       });
       const result = await waitForPathProbe(proc);
       if (result.exitCode !== 0) {
@@ -161,10 +191,29 @@ function extractMarkedPath(output: string): string | undefined {
 
 function buildHomePathCandidates(
   baseEnvironment: Record<string, string>,
+  os: HostOS,
 ): string[] {
-  const home = baseEnvironment.HOME;
+  const home = getHomeDir(baseEnvironment);
   if (!home) {
     return [];
+  }
+  if (os === "windows") {
+    return [
+      baseEnvironment.APPDATA
+        ? platformPathJoin(os, baseEnvironment.APPDATA, "npm")
+        : "",
+      baseEnvironment.LOCALAPPDATA
+        ? platformPathJoin(
+            os,
+            baseEnvironment.LOCALAPPDATA,
+            "Programs",
+            "nodejs",
+          )
+        : "",
+      baseEnvironment.ProgramFiles
+        ? platformPathJoin(os, baseEnvironment.ProgramFiles, "nodejs")
+        : "",
+    ].filter(Boolean);
   }
   return [
     `${home}/.local/bin`,
@@ -176,29 +225,59 @@ function buildHomePathCandidates(
   ];
 }
 
-function buildPathCandidates(pathValue?: string): string[] {
-  const candidates: string[] = [];
-  for (const entry of splitPath(pathValue)) {
-    const candidate = `${entry.replace(/\/+$/, "")}/codex`;
-    if (!candidates.includes(candidate)) {
-      candidates.push(candidate);
-    }
+function buildPathPrefix(
+  baseEnvironment: Record<string, string>,
+  os: HostOS,
+): string[] {
+  if (os === "windows") {
+    return buildHomePathCandidates(baseEnvironment, os);
   }
-  return candidates;
+  return [
+    ...CODEX_PATH_PREFIX,
+    ...buildHomePathCandidates(baseEnvironment, os),
+  ];
 }
 
-function mergePath(prefix: readonly string[], currentPath?: string): string {
-  const entries: string[] = [];
-  for (const entry of [...prefix, ...splitPath(currentPath)]) {
-    if (entry && !entries.includes(entry)) {
-      entries.push(entry);
-    }
+function buildDefaultBinaryCandidates(os: HostOS): string[] {
+  if (os === "windows") {
+    return [];
   }
-  return entries.join(":");
+  return [...CODEX_BINARY_CANDIDATES];
 }
 
-function splitPath(path?: string): string[] {
-  return path?.split(":").filter(Boolean) || [];
+function buildPathCandidates(
+  pathValue: string | undefined,
+  os: HostOS,
+): string[] {
+  const names = os === "windows" ? WINDOWS_CODEX_BINARY_NAMES : ["codex"];
+  return buildExecutablePathCandidates(pathValue, names, os);
+}
+
+function toCodexCommandSpec(path: string, os: HostOS): CodexCommandSpec {
+  if (os === "windows" && /\.cmd$/iu.test(path)) {
+    return {
+      command: "cmd.exe",
+      argsPrefix: ["/d", "/s", "/c", path],
+      resolvedPath: path,
+    };
+  }
+  return {
+    command: path,
+    argsPrefix: [],
+    resolvedPath: path,
+  };
+}
+
+function getDiscoveryOS(environment?: Record<string, string>): HostOS {
+  if (
+    environment &&
+    (environment.OS === "Windows_NT" ||
+      Boolean(environment.WINDIR || environment.SystemRoot))
+  ) {
+    return "windows";
+  }
+  const runtime = detectHostRuntime();
+  return runtime.os === "windows" ? "windows" : "macos";
 }
 
 async function pathExists(path: string): Promise<boolean> {

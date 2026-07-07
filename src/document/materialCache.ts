@@ -14,7 +14,7 @@ import { createLogger } from "../utils/logger";
 export { MaterialCache, MATERIAL_SCHEMA_VERSION, MATERIAL_PARSER_VERSION };
 
 const MATERIAL_SCHEMA_VERSION = 1;
-const MATERIAL_PARSER_VERSION = "zopilot-pdf-helper-0.1.0";
+const MATERIAL_PARSER_VERSION = "zopilot-pdf-helper-0.2.0";
 
 const logger = createLogger("document.materialCache");
 

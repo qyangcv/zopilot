@@ -1,8 +1,13 @@
-import { waitForSubprocessResult } from "../utils/subprocess";
+import JSZip from "jszip";
+import {
+  SUPPORTED_PDF_HELPER_PLATFORMS,
+  detectHostRuntime,
+  type PdfHelperPlatform,
+} from "../utils/platform";
 
 export {
   PDF_HELPER_MANIFEST_URL,
-  PDF_HELPER_PLATFORM,
+  SUPPORTED_PDF_HELPER_PLATFORMS,
   PDF_HELPER_VERSION,
   detectPdfHelperPlatform,
   ensurePdfHelperExecutable,
@@ -13,17 +18,13 @@ export {
   selectPdfHelperArtifact,
   type PdfHelperArtifact,
   type PdfHelperManifest,
-  type PdfHelperPlatform,
   type PdfHelperInstallProgress,
   type PdfHelperStatus,
   type PdfHelperSubprocessModule,
 };
 
-const PDF_HELPER_VERSION = "0.1.0";
-const PDF_HELPER_PLATFORM = "macos-arm64";
+const PDF_HELPER_VERSION = "0.2.0";
 const PDF_HELPER_MANIFEST_URL = `https://github.com/qyangcv/zopilot/releases/download/pdf-helper-v${PDF_HELPER_VERSION}/pdf-helper-manifest.json`;
-
-type PdfHelperPlatform = typeof PDF_HELPER_PLATFORM;
 
 type PdfHelperArtifact = {
   platform: PdfHelperPlatform;
@@ -35,7 +36,7 @@ type PdfHelperArtifact = {
 };
 
 type PdfHelperManifest = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   version: string;
   artifacts: PdfHelperArtifact[];
 };
@@ -115,17 +116,18 @@ type ZoteroWithProfile = typeof Zotero & {
 let installPromise: Promise<string> | undefined;
 
 async function ensurePdfHelperExecutable(
-  subprocess: PdfHelperSubprocessModule,
+  _subprocess: PdfHelperSubprocessModule,
   onProgress?: (progress: PdfHelperInstallProgress) => void,
 ): Promise<string> {
-  const executable = getInstalledPdfHelperExecutablePath();
-  if (await isInstalledPdfHelperReady(executable)) {
+  const platform = detectPdfHelperPlatform();
+  const executable = getInstalledPdfHelperExecutablePath(platform);
+  if (await isInstalledPdfHelperReady(executable, platform)) {
     return executable;
   }
   if (installPromise) {
     return installPromise;
   }
-  installPromise = installPdfHelper(subprocess, onProgress);
+  installPromise = installPdfHelper(onProgress);
   try {
     return await installPromise;
   } finally {
@@ -134,12 +136,12 @@ async function ensurePdfHelperExecutable(
 }
 
 async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
-  const installDir = getInstalledPdfHelperDir();
-  const executablePath = getInstalledPdfHelperExecutablePath();
   try {
     const platform = detectPdfHelperPlatform();
+    const installDir = getInstalledPdfHelperDir(platform);
+    const executablePath = getInstalledPdfHelperExecutablePath(platform);
     return {
-      status: (await isInstalledPdfHelperReady(executablePath))
+      status: (await isInstalledPdfHelperReady(executablePath, platform))
         ? "installed"
         : "not-installed",
       platform,
@@ -152,8 +154,8 @@ async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
     return {
       status: "unsupported",
       version: PDF_HELPER_VERSION,
-      installDir,
-      executablePath,
+      installDir: getPdfHelperRuntimeDir(),
+      executablePath: "",
       manifestUrl: PDF_HELPER_MANIFEST_URL,
       reason: error instanceof Error ? error.message : String(error),
     };
@@ -176,27 +178,31 @@ async function removePdfHelperDependency(): Promise<PdfHelperStatus> {
   return getPdfHelperStatus();
 }
 
-function getInstalledPdfHelperExecutablePath(): string {
+function getInstalledPdfHelperExecutablePath(
+  platform = detectPdfHelperPlatform(),
+): string {
   return PathUtils.join(
-    getInstalledPdfHelperDir(),
+    getInstalledPdfHelperDir(platform),
     "bin",
     "zopilot-pdf-helper",
-    "zopilot-pdf-helper",
+    platform === "windows-x64"
+      ? "zopilot-pdf-helper.exe"
+      : "zopilot-pdf-helper",
   );
 }
 
-function getInstalledPdfHelperDir(): string {
+function getInstalledPdfHelperDir(platform: PdfHelperPlatform): string {
   return PathUtils.join(
     getPdfHelperRuntimeDir(),
-    `zopilot-pdf-helper-${PDF_HELPER_PLATFORM}-v${PDF_HELPER_VERSION}`,
+    `zopilot-pdf-helper-${platform}-v${PDF_HELPER_VERSION}`,
   );
 }
 
 function selectPdfHelperArtifact(
   manifest: PdfHelperManifest,
-  platform = PDF_HELPER_PLATFORM,
+  platform = detectPdfHelperPlatform(),
 ): PdfHelperArtifact {
-  if (manifest.schemaVersion !== 1) {
+  if (manifest.schemaVersion !== 2) {
     throw new Error("Unsupported PDF helper manifest schema.");
   }
   if (manifest.version !== PDF_HELPER_VERSION) {
@@ -213,42 +219,28 @@ function selectPdfHelperArtifact(
   return artifact;
 }
 
-function detectPdfHelperPlatform(
-  runtime = readRuntimeInfo(),
-): PdfHelperPlatform {
-  const os = runtime.OS || "";
-  const abi = runtime.XPCOMABI || "";
-  const userAgent = runtime.userAgent || "";
-  const platform = runtime.platform || "";
-  const isMac =
-    os === "Darwin" ||
-    /\bMac\b/i.test(platform) ||
-    /\bMac OS X\b/i.test(userAgent);
-  const isArm64 =
-    /aarch64|arm64/i.test(abi) ||
-    /arm64|aarch64/i.test(platform) ||
-    /arm64|aarch64/i.test(userAgent);
-  if (isMac && isArm64) {
-    return PDF_HELPER_PLATFORM;
+function detectPdfHelperPlatform(runtime?: RuntimeInfo): PdfHelperPlatform {
+  const host = detectHostRuntime(runtime);
+  if (host.pdfHelperPlatform) {
+    return host.pdfHelperPlatform;
   }
   throw new Error(
     [
-      "Zopilot PDF helper currently supports only macOS arm64.",
-      `Detected OS=${os || "unknown"} ABI=${abi || "unknown"}.`,
+      "Zopilot PDF helper supports macOS arm64, macOS x64, and Windows x64.",
+      `Detected OS=${host.rawOS || "unknown"} ABI=${host.rawABI || "unknown"}.`,
     ].join(" "),
   );
 }
 
 async function installPdfHelper(
-  subprocess: PdfHelperSubprocessModule,
   onProgress?: (progress: PdfHelperInstallProgress) => void,
 ): Promise<string> {
-  detectPdfHelperPlatform();
+  const platform = detectPdfHelperPlatform();
   onProgress?.({ phase: "manifest", percent: 2 });
   const manifest = await downloadJson<PdfHelperManifest>(
     PDF_HELPER_MANIFEST_URL,
   );
-  const artifact = selectPdfHelperArtifact(manifest);
+  const artifact = selectPdfHelperArtifact(manifest, platform);
   const runtimeDir = getPdfHelperRuntimeDir();
   const downloadDir = PathUtils.join(runtimeDir, "downloads");
   const archivePath = PathUtils.join(downloadDir, artifact.fileName);
@@ -283,42 +275,56 @@ async function installPdfHelper(
   await IOUtils.write(archivePath, archiveBytes, { flush: true });
 
   onProgress?.({ phase: "extract", percent: 97 });
-  await extractTarGz(subprocess, archivePath, runtimeDir);
+  await extractZip(archiveBytes, runtimeDir);
   if (!(await IOUtils.exists(finalExecutable).catch(() => false))) {
     throw new Error("PDF helper install did not produce an executable.");
   }
-  await IOUtils.setPermissions(finalExecutable, 0o755, false).catch(
-    () => undefined,
-  );
+  if (platform !== "windows-x64") {
+    await IOUtils.setPermissions(finalExecutable, 0o755, false).catch(
+      () => undefined,
+    );
+  }
   onProgress?.({ phase: "complete", percent: 100 });
   return finalExecutable;
 }
 
-async function isInstalledPdfHelperReady(executable: string): Promise<boolean> {
+async function isInstalledPdfHelperReady(
+  executable: string,
+  platform: PdfHelperPlatform,
+): Promise<boolean> {
   if (!(await IOUtils.exists(executable).catch(() => false))) {
     return false;
   }
-  const versionPath = PathUtils.join(getInstalledPdfHelperDir(), "VERSION");
+  const versionPath = PathUtils.join(
+    getInstalledPdfHelperDir(platform),
+    "VERSION",
+  );
   const version = await IOUtils.readUTF8(versionPath).catch(() => "");
   return version.trim() === PDF_HELPER_VERSION;
 }
 
-async function extractTarGz(
-  subprocess: PdfHelperSubprocessModule,
-  archivePath: string,
+async function extractZip(
+  bytes: Uint8Array,
   runtimeDir: string,
 ): Promise<void> {
-  const proc = await subprocess.call({
-    command: "/usr/bin/tar",
-    arguments: ["-xzf", archivePath, "-C", runtimeDir],
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const { exitCode, stdout, stderr } = await waitForSubprocessResult(proc);
-  if (exitCode !== 0) {
-    throw new Error(
-      `PDF helper extraction failed (${exitCode}): ${stderr || stdout}`,
-    );
+  const zip = await JSZip.loadAsync(bytes);
+  const entries = Object.values(zip.files);
+  for (const entry of entries) {
+    const relativePath = normalizeZipEntryPath(entry.name);
+    if (!relativePath) {
+      continue;
+    }
+    const outputPath = joinRelativePath(runtimeDir, relativePath);
+    if (entry.dir) {
+      await IOUtils.makeDirectory(outputPath, {
+        createAncestors: true,
+        ignoreExisting: true,
+      });
+      continue;
+    }
+    await makeParentDirectory(runtimeDir, relativePath);
+    const fileBytes = await entry.async("uint8array");
+    await IOUtils.write(outputPath, fileBytes, { flush: true });
   }
 }
 
@@ -402,15 +408,36 @@ function getPdfHelperRuntimeDir(): string {
 }
 
 function joinRelativePath(base: string, relativePath: string): string {
-  const parts = relativePath.split("/").filter(Boolean);
+  const normalized = normalizeZipEntryPath(relativePath);
+  const parts = normalized.split("/").filter(Boolean);
   if (
     !parts.length ||
-    relativePath.startsWith("/") ||
+    normalized.startsWith("/") ||
+    /^[A-Za-z]:/u.test(normalized) ||
     parts.some((part) => part === "." || part === "..")
   ) {
     throw new Error(`Invalid PDF helper artifact entrypoint: ${relativePath}`);
   }
   return PathUtils.join(base, ...parts);
+}
+
+async function makeParentDirectory(
+  base: string,
+  relativePath: string,
+): Promise<void> {
+  const parts = normalizeZipEntryPath(relativePath).split("/").filter(Boolean);
+  const parentParts = parts.slice(0, -1);
+  if (!parentParts.length) {
+    return;
+  }
+  await IOUtils.makeDirectory(PathUtils.join(base, ...parentParts), {
+    createAncestors: true,
+    ignoreExisting: true,
+  });
+}
+
+function normalizeZipEntryPath(path: string): string {
+  return path.replace(/\\/gu, "/");
 }
 
 function progressPercent(loaded: number, total: number): number | undefined {
@@ -419,23 +446,4 @@ function progressPercent(loaded: number, total: number): number | undefined {
   }
   const downloadPercent = Math.min(loaded / total, 1);
   return Math.max(5, Math.min(90, Math.round(downloadPercent * 90)));
-}
-
-function readRuntimeInfo(): RuntimeInfo {
-  const services = (
-    globalThis as typeof globalThis & {
-      Services?: {
-        appinfo?: {
-          OS?: string;
-          XPCOMABI?: string;
-        };
-      };
-    }
-  ).Services;
-  return {
-    OS: services?.appinfo?.OS,
-    XPCOMABI: services?.appinfo?.XPCOMABI,
-    userAgent: globalThis.navigator?.userAgent,
-    platform: globalThis.navigator?.platform,
-  };
 }

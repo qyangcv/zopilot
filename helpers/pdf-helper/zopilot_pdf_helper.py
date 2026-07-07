@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-HELPER_VERSION = "0.1.0"
+HELPER_VERSION = "0.2.0"
 
 
 def main(argv: list[str]) -> int:

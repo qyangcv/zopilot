@@ -29,7 +29,8 @@ describe("Codex CLI discovery", function () {
 
     const resolved = await resolveCodexBinaryPath();
 
-    assert.equal(resolved, "/opt/homebrew/bin/codex");
+    assert.equal(resolved.command, "/opt/homebrew/bin/codex");
+    assert.deepEqual(resolved.argsPrefix, []);
   });
 
   it("falls back to the Intel Homebrew and npm global Codex path", async function () {
@@ -37,7 +38,7 @@ describe("Codex CLI discovery", function () {
 
     const resolved = await resolveCodexBinaryPath();
 
-    assert.equal(resolved, "/usr/local/bin/codex");
+    assert.equal(resolved.command, "/usr/local/bin/codex");
   });
 
   it("finds Codex on the prepared PATH", async function () {
@@ -47,7 +48,10 @@ describe("Codex CLI discovery", function () {
       "/Users/test/.nvm/versions/node/v22.12.0/bin:/usr/bin",
     );
 
-    assert.equal(resolved, "/Users/test/.nvm/versions/node/v22.12.0/bin/codex");
+    assert.equal(
+      resolved.command,
+      "/Users/test/.nvm/versions/node/v22.12.0/bin/codex",
+    );
   });
 
   it("throws when neither supported macOS default Codex path exists", async function () {
@@ -102,6 +106,41 @@ describe("Codex CLI discovery", function () {
       environment.PATH,
       "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/test/.local/bin:/Users/test/.npm-global/bin:/Users/test/.bun/bin:/Users/test/.volta/bin:/Users/test/.local/share/mise/shims:/Users/test/.nvm/current/bin:/Users/test/.nvm/versions/node/v22.12.0/bin:/custom/bin",
     );
+  });
+
+  it("uses Windows PATH delimiters and skips login shell probing", async function () {
+    const environment = await buildCodexSubprocessEnvironment(
+      createSubprocess({
+        OS: "Windows_NT",
+        USERPROFILE: "C:\\Users\\test",
+        APPDATA: "C:\\Users\\test\\AppData\\Roaming",
+        LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local",
+        ProgramFiles: "C:\\Program Files",
+        Path: "C:\\custom\\bin;D:\\tools",
+      }),
+    );
+
+    assert.equal(
+      environment.PATH,
+      "C:\\Users\\test\\AppData\\Roaming\\npm;C:\\Users\\test\\AppData\\Local\\Programs\\nodejs;C:\\Program Files\\nodejs;C:\\custom\\bin;D:\\tools",
+    );
+  });
+
+  it("wraps Windows cmd shims with cmd.exe", async function () {
+    existingPaths.add("C:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd");
+
+    const resolved = await resolveCodexBinaryPath(
+      "C:\\Users\\test\\AppData\\Roaming\\npm",
+      "windows",
+    );
+
+    assert.equal(resolved.command, "cmd.exe");
+    assert.deepEqual(resolved.argsPrefix, [
+      "/d",
+      "/s",
+      "/c",
+      "C:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd",
+    ]);
   });
 });
 

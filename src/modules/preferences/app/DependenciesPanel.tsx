@@ -259,7 +259,7 @@ function DependencyPathList({
               {row.action === "open-url" ? (
                 <T id="pref-dependencies-open-url">打开链接</T>
               ) : (
-                <T id="pref-dependencies-reveal">在访达中打开</T>
+                <T id="pref-dependencies-reveal">在文件管理器中显示</T>
               )}
             </button>
           </div>
