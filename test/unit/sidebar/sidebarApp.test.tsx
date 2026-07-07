@@ -258,6 +258,15 @@ describe("SidebarApp", function () {
     assert.notInclude(html, 'data-icon-name="brand"');
   });
 
+  it("opts the composer textarea out of Zotero native input styling", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp actions={createActions()} state={createState()} />,
+    );
+
+    assert.include(html, 'class="zp-composer-input"');
+    assert.include(html, 'no-native="true"');
+  });
+
   it("hides the assistant footer for welcome messages without a completion time", function () {
     const html = renderToStaticMarkup(
       <SidebarApp

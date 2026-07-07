@@ -39,6 +39,7 @@ import type {
 export { Message } from "./Message";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
+const ZOTERO_NO_NATIVE_INPUT_PROPS = { "no-native": "true" } as const;
 
 export function SidebarApp({
   actions,
@@ -527,6 +528,7 @@ export function SidebarApp({
             autoCorrect="off"
             className="zp-composer-input"
             disabled={!state.composerEnabled}
+            {...ZOTERO_NO_NATIVE_INPUT_PROPS}
             onChange={(event) => {
               updateDraft(
                 event.currentTarget.value,
