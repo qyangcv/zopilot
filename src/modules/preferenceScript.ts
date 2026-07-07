@@ -5,7 +5,7 @@ export function registerPreferencePane() {
     pluginID: addon.data.config.addonID,
     src: rootURI + "content/preferences.xhtml",
     label: getString("prefs-title"),
-    image: `chrome://${addon.data.config.addonRef}/content/icons/message-circle.svg`,
+    image: `chrome://${addon.data.config.addonRef}/content/icons/zopilot.svg`,
     scripts: [rootURI + "content/preferences.js"],
     stylesheets: [rootURI + "content/preferences.css"],
   });

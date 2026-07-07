@@ -18,7 +18,6 @@ import {
   History,
   Library,
   LoaderCircle,
-  MessageCircle,
   Pencil,
   PencilSparkles,
   Plus,
@@ -28,7 +27,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactElement } from "react";
+import type { ReactElement, SVGProps } from "react";
+import { BRAND_ICON_PATH } from "./brandIcon";
 
 const ICONS = {
   add: Plus,
@@ -37,7 +37,6 @@ const ICONS = {
   attachment: FilePlus,
   attachmentImage: FileImage,
   attachmentPdf: FileText,
-  brand: MessageCircle,
   checking: LoaderCircle,
   check: Check,
   command: Command,
@@ -65,7 +64,7 @@ const ICONS = {
   workspaceLibrary: Library,
 } satisfies Record<string, LucideIcon>;
 
-export type IconName = keyof typeof ICONS;
+export type IconName = "brand" | keyof typeof ICONS;
 
 type IconProps = {
   className?: string;
@@ -80,6 +79,18 @@ export function Icon({
   size = 16,
   strokeWidth = 1.8,
 }: IconProps): ReactElement {
+  if (name === "brand") {
+    return (
+      <BrandIcon
+        aria-hidden="true"
+        className={["zp-icon", className].filter(Boolean).join(" ")}
+        data-icon-name={name}
+        focusable="false"
+        size={size}
+      />
+    );
+  }
+
   const Component = ICONS[name];
   return (
     <Component
@@ -90,5 +101,23 @@ export function Icon({
       size={size}
       strokeWidth={strokeWidth}
     />
+  );
+}
+
+function BrandIcon({
+  size = 16,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number }): ReactElement {
+  return (
+    <svg
+      {...props}
+      fill="currentColor"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d={BRAND_ICON_PATH} stroke="none" />
+    </svg>
   );
 }

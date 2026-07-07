@@ -1,3 +1,5 @@
+import { BRAND_ICON_PATH } from "./brandIcon";
+
 type StaticIconName = "brand" | "copied" | "copy";
 
 type IconNode = readonly [
@@ -10,7 +12,8 @@ const ICON_NODES: Record<StaticIconName, readonly IconNode[]> = {
     [
       "path",
       {
-        d: "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+        d: BRAND_ICON_PATH,
+        stroke: "none",
       },
     ],
   ],
@@ -39,7 +42,7 @@ export function renderStaticIconHtml(
     .map(([tag, attrs]) => `<${tag}${renderAttributes(attrs)}></${tag}>`)
     .join("");
   return [
-    `<svg aria-hidden="true" class="${className}" data-icon-name="${name}" focusable="false" fill="none" height="${size}" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="${strokeWidth}" viewBox="0 0 24 24" width="${size}">`,
+    `<svg aria-hidden="true" class="${className}" data-icon-name="${name}" focusable="false"${renderPresentationAttributes(name, strokeWidth)} height="${size}" viewBox="0 0 24 24" width="${size}">`,
     children,
     "</svg>",
   ].join("");
@@ -63,14 +66,10 @@ export function createStaticIconElement(
   svg.setAttribute("class", className);
   svg.setAttribute("data-icon-name", name);
   svg.setAttribute("focusable", "false");
-  svg.setAttribute("fill", "none");
   svg.setAttribute("height", String(size));
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("stroke-width", String(strokeWidth));
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", String(size));
+  setPresentationAttributes(svg, name, strokeWidth);
 
   for (const [tag, attrs] of ICON_NODES[name]) {
     const child = doc.createElementNS(SVG_NS, tag);
@@ -87,4 +86,30 @@ function renderAttributes(attrs: Readonly<Record<string, string>>): string {
   return Object.entries(attrs)
     .map(([name, value]) => ` ${name}="${value}"`)
     .join("");
+}
+
+function renderPresentationAttributes(
+  name: StaticIconName,
+  strokeWidth: number,
+): string {
+  if (name === "brand") {
+    return ' fill="currentColor"';
+  }
+  return ` fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="${strokeWidth}"`;
+}
+
+function setPresentationAttributes(
+  svg: SVGSVGElement,
+  name: StaticIconName,
+  strokeWidth: number,
+): void {
+  if (name === "brand") {
+    svg.setAttribute("fill", "currentColor");
+    return;
+  }
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("stroke-width", String(strokeWidth));
 }

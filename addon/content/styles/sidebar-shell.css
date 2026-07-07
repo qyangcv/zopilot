@@ -106,6 +106,11 @@
   stroke: currentColor;
 }
 
+.zp-icon[data-icon-name="brand"] {
+  fill: currentColor;
+  stroke: none;
+}
+
 .zp-sidebar-title-block {
   display: flex;
   flex-direction: column;

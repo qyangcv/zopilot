@@ -72,6 +72,11 @@
   width: 20px;
 }
 
+.zp-context-sidenav-icon[data-icon-name="brand"] {
+  fill: currentColor;
+  stroke: none;
+}
+
 .zp-context-sidenav-button[data-active] .zp-context-sidenav-icon {
   opacity: 1;
 }

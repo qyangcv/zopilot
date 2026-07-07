@@ -6,8 +6,8 @@
   "homepage_url": "__homepage__",
   "author": "__author__",
   "icons": {
-    "48": "content/icons/zopilot-icon-48.png",
-    "96": "content/icons/zopilot-icon-96.png"
+    "48": "content/icons/zopilot.svg",
+    "96": "content/icons/zopilot.svg"
   },
   "applications": {
     "zotero": {

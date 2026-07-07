@@ -13,7 +13,7 @@ function createZToolkit() {
   toolkit.basicOptions.api.pluginID = config.addonID;
   toolkit.ProgressWindow.setIconURI(
     "default",
-    `chrome://${config.addonRef}/content/icons/message-circle.svg`,
+    `chrome://${config.addonRef}/content/icons/zopilot.svg`,
   );
   return toolkit;
 }
