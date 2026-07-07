@@ -14,9 +14,8 @@ Zopilot 是一款 Zotero 插件，将 AI 接入 Zopilot 侧边栏中，作为你
 
 ## 环境要求
 
-- macOS Apple Silicon (arm64)、macOS Intel (x64) 或 Windows x64
-- 暂不支持 Windows ARM64
-- Zotero 9.0.x
+- Zotero 9.0
+- MacOS 或 Windows x64
 
 ## 开始使用
 
