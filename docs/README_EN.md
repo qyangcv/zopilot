@@ -53,6 +53,10 @@ Zopilot is a modern Zotero AI plugin that brings AI into the Zopilot sidebar as 
 - Supports saved session history
 - Supports custom prompt configuration
 
+## Known Issues
+
+- When processing long papers (>100 pages), document parsing can be slow and may cause response timeouts or UI blocking.
+
 ## Feedback
 
 - Please open an issue for any problems you encounter, or contact `qyang@bupt.edu.cn`.
