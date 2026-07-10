@@ -35,8 +35,11 @@ describe("sidebar view model", function () {
   it("formats saved messages and appends the active streaming message", function () {
     const messages = createConversationMessages(createConversation(), {
       text: "Partial",
+      trace: [],
+      finalStarted: true,
       interrupted: false,
       running: true,
+      finalStarted: true,
     });
 
     assert.deepEqual(

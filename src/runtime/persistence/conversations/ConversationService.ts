@@ -164,6 +164,7 @@ class ConversationStore {
       completedAt?: string;
       model?: string;
       reasoningEffort?: string;
+      trace?: ConversationMessage["trace"];
       mentions?: ConversationMessage["mentions"];
       localAttachments?: ConversationMessage["localAttachments"];
     },
@@ -188,6 +189,7 @@ class ConversationStore {
       status: input.status || "complete",
       model: input.model,
       reasoningEffort: input.reasoningEffort,
+      trace: input.trace,
       mentions: input.mentions,
       localAttachments: input.localAttachments,
     };

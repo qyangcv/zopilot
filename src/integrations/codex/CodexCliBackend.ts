@@ -88,6 +88,7 @@ class CodexCliBackend implements AgentBackend {
           });
         },
         onDelta: callbacks.onTextDelta,
+        onTraceEvent: callbacks.onTraceEvent,
         onNotice: callbacks.onNotice,
         onToolActivity: () => callbacks.onToolStarted?.("paper_read"),
       },

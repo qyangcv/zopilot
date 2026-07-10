@@ -3,6 +3,7 @@ import type {
   ConversationMetadata,
 } from "../../../domain/conversation";
 import { createLogger } from "../../logging/logger";
+import { isAgentTraceItem } from "../../../domain/agent/trace";
 
 export { isConversationMetadata, parseConversationMessage };
 
@@ -65,7 +66,9 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     (item.capabilitySnapshot === undefined ||
       (item.capabilitySnapshot !== null &&
         typeof item.capabilitySnapshot === "object" &&
-        !Array.isArray(item.capabilitySnapshot)))
+        !Array.isArray(item.capabilitySnapshot))) &&
+    (item.trace === undefined ||
+      (Array.isArray(item.trace) && item.trace.every(isAgentTraceItem)))
   );
 }
 

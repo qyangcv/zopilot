@@ -1,6 +1,12 @@
 import { getAgentBackendManager } from "../../../application/agent/BackendManager";
 import { getProviderProfileStore } from "../../../application/providers/ProviderProfileService";
 import type { AgentRunResult } from "../../../domain/agent/types";
+import {
+  createAgentTurnTraceState,
+  projectAgentTurnTrace,
+  reduceAgentTraceEvent,
+  type AgentTurnTraceState,
+} from "../../../domain/agent/trace";
 import type { Conversation } from "../../../domain/conversation";
 import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
 import { getString } from "../../../app/localization";
@@ -8,12 +14,11 @@ import { formatBackendError } from "./formatBackendError";
 import { createLogger } from "../../../runtime/logging/logger";
 import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
 
-const TOOL_OUTPUT_SEPARATOR = "\n\n---\n\n";
 const logger = createLogger("sidebar.turns");
 
 type RunningTurn = {
   conversation: Conversation;
-  assistantOutput: string;
+  traceState: AgentTurnTraceState;
   model?: string;
   reasoningEffort?: string;
   backendId?: string;
@@ -74,7 +79,7 @@ class TurnCoordinator {
     const viewState = this.options.getViewState();
     const runningTurn: RunningTurn = {
       conversation,
-      assistantOutput: "",
+      traceState: createAgentTurnTraceState(),
       model: viewState.selectedModel,
       reasoningEffort: viewState.selectedReasoningEffort,
       providerProfileId: viewState.selectedProviderId,
@@ -85,7 +90,6 @@ class TurnCoordinator {
     this.options.renderDisplayState();
 
     try {
-      let pendingToolBoundary = false;
       const result = await getAgentBackendManager().sendPrompt(
         {
           providerProfileId: runningTurn.providerProfileId,
@@ -107,31 +111,15 @@ class TurnCoordinator {
               this.interrupt(runningTurn);
             }
           },
-          onTextDelta: (delta: string) => {
+          onTraceEvent: (event) => {
             if (runningTurn.interrupted) {
               return;
             }
-            if (
-              pendingToolBoundary &&
-              runningTurn.assistantOutput.trim() &&
-              delta.trim()
-            ) {
-              runningTurn.assistantOutput += TOOL_OUTPUT_SEPARATOR;
-              pendingToolBoundary = false;
-            }
-            runningTurn.assistantOutput += delta;
+            runningTurn.traceState = reduceAgentTraceEvent(
+              runningTurn.traceState,
+              event,
+            );
             this.refreshView(runningTurn);
-          },
-          onToolStarted: () => {
-            if (runningTurn.assistantOutput.trim()) {
-              pendingToolBoundary = true;
-            }
-          },
-          onNotice: (notice) => {
-            if (!runningTurn.assistantOutput && !runningTurn.interrupted) {
-              runningTurn.assistantOutput = notice;
-              this.refreshView(runningTurn);
-            }
           },
         },
       );
@@ -144,10 +132,18 @@ class TurnCoordinator {
         backendStatus: "connected",
         backendDiagnosticMessage: undefined,
       });
+      let traceView = projectAgentTurnTrace(runningTurn.traceState);
+      if (!traceView.finalText && result.text) {
+        runningTurn.traceState = reduceAgentTraceEvent(runningTurn.traceState, {
+          type: "content.completed",
+          itemId: "backend-final-response",
+          phase: "candidate",
+          text: result.text,
+        });
+        traceView = projectAgentTurnTrace(runningTurn.traceState);
+      }
       const finalText =
-        runningTurn.assistantOutput ||
-        result.text ||
-        getString("sidebar-backend-empty-response");
+        traceView.finalText || getString("sidebar-backend-empty-response");
       const metadata = await getConversationStore().updateBackendMetadata(
         conversation.metadata,
         {
@@ -177,6 +173,7 @@ class TurnCoordinator {
         capabilitySnapshot: completedProfile.capabilities,
         model: runningTurn.model,
         reasoningEffort: runningTurn.reasoningEffort,
+        trace: traceView.trace.length ? traceView.trace : undefined,
       });
       this.finish(runningTurn, conversation);
     } catch (error) {
@@ -188,8 +185,9 @@ class TurnCoordinator {
       });
       await this.options.refreshBackendDiagnostic(error);
       const errorText = formatBackendError(error);
+      const traceView = projectAgentTurnTrace(runningTurn.traceState);
       const text = runningTurn.interrupted
-        ? runningTurn.assistantOutput || getString("sidebar-status-interrupted")
+        ? traceView.finalText || getString("sidebar-status-interrupted")
         : errorText;
       const failedProfile = runningTurn.providerProfileId
         ? getProviderProfileStore().getProfile(runningTurn.providerProfileId)
@@ -210,6 +208,7 @@ class TurnCoordinator {
           backendTurnId: runningTurn.turnId,
           model: runningTurn.model,
           reasoningEffort: runningTurn.reasoningEffort,
+          trace: traceView.trace.length ? traceView.trace : undefined,
         },
       );
       this.finish(runningTurn, conversation);

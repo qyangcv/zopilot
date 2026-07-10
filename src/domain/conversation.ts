@@ -1,3 +1,5 @@
+import type { AgentTraceItem } from "./agent/trace";
+
 type ConversationMessageStatus = "complete" | "error" | "interrupted";
 type ConversationMessageRole = "user" | "assistant";
 type WorkspaceType = "item" | "collection" | "library";
@@ -82,6 +84,7 @@ type ConversationMessage = {
   status: ConversationMessageStatus;
   model?: string;
   reasoningEffort?: string;
+  trace?: AgentTraceItem[];
   mentions?: SourceMention[];
   localAttachments?: LocalAttachmentRef[];
 };

@@ -122,6 +122,99 @@ describe("CodexBridge", function () {
     });
   });
 
+  it("streams reasoning, commentary, MCP tools, and final answer separately", async function () {
+    const bridge = createBridgeHarness();
+    bridge.cacheThread("conv-trace");
+    const events: Array<{ type: string }> = [];
+    const promise = bridge.instance.sendPrompt("Question", {
+      conversation: createConversation("conv-trace"),
+      onTraceEvent: (event) => events.push(event),
+    });
+    await bridge.flush();
+
+    const start = bridge.requests[0];
+    bridge.respond(start.id, { turn: { id: "turn-trace" } });
+    bridge.notify("item/reasoning/textDelta", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      itemId: "reasoning-a",
+      delta: "Inspecting the paper",
+    });
+    bridge.notify("item/started", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      item: {
+        id: "commentary-a",
+        type: "agentMessage",
+        phase: "commentary",
+        text: "",
+      },
+    });
+    bridge.notify("item/agentMessage/delta", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      itemId: "commentary-a",
+      delta: "Reading evidence",
+    });
+    bridge.notify("item/started", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      item: {
+        id: "call-a",
+        type: "mcpToolCall",
+        server: "zopilot",
+        tool: "paper_read",
+        status: "inProgress",
+        arguments: { question: "method" },
+      },
+    });
+    bridge.notify("item/completed", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      item: {
+        id: "call-a",
+        type: "mcpToolCall",
+        server: "zopilot",
+        tool: "paper_read",
+        status: "completed",
+        arguments: { question: "method" },
+        result: { content: [{ type: "text", text: "Evidence" }] },
+      },
+    });
+    bridge.notify("item/started", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      item: {
+        id: "answer-a",
+        type: "agentMessage",
+        phase: "final_answer",
+        text: "",
+      },
+    });
+    bridge.notify("item/agentMessage/delta", {
+      threadId: "thread-conv-trace",
+      turnId: "turn-trace",
+      itemId: "answer-a",
+      delta: "Answer",
+    });
+    bridge.notify("turn/completed", {
+      threadId: "thread-conv-trace",
+      turn: { id: "turn-trace", status: "completed" },
+    });
+
+    assert.equal((await promise).text, "Answer");
+    assert.deepEqual(
+      events.map((event) => event.type),
+      [
+        "reasoning.delta",
+        "content.delta",
+        "tool.started",
+        "tool.completed",
+        "content.delta",
+      ],
+    );
+  });
+
   it("opens new Codex threads with paper_read developer instructions", async function () {
     const bridge = createBridgeHarness();
     const conversation = createConversation("conv-new");

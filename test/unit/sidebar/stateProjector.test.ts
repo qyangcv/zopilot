@@ -2,6 +2,10 @@ import { assert } from "chai";
 import type { Conversation } from "../../../src/domain/conversation.ts";
 import { createInitialSidebarState } from "../../../src/features/sidebar/state/viewModel.ts";
 import { projectSidebarState } from "../../../src/features/sidebar/state/projectSidebarState.ts";
+import {
+  createAgentTurnTraceState,
+  reduceAgentTraceEvent,
+} from "../../../src/domain/agent/trace.ts";
 
 describe("sidebar state projector", function () {
   before(function () {
@@ -14,9 +18,15 @@ describe("sidebar state projector", function () {
   it("projects a ready conversation and its running turn without host mutation", function () {
     const conversation = createConversation();
     const viewState = createInitialSidebarState("Paper");
+    const traceState = reduceAgentTraceEvent(createAgentTurnTraceState(), {
+      type: "content.delta",
+      itemId: "answer",
+      phase: "candidate",
+      delta: "Partial answer",
+    });
     const runningTurn = {
       conversation,
-      assistantOutput: "Partial answer",
+      traceState,
       interrupting: false,
       interrupted: false,
     };

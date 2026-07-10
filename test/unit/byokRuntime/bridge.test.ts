@@ -32,12 +32,14 @@ describe("ByokRuntimeBridge", function () {
     const startedTools: string[] = [];
     const completedTools: string[] = [];
     const startedRuns: string[] = [];
+    const traceEvents: Array<{ type: string }> = [];
     const pending = harness.instance.sendPrompt(profile, createPromptInput(), {
       onRunStarted: (event) => startedRuns.push(event.runId),
       onTextDelta: (delta) => deltas.push(delta),
       onNotice: (notice) => notices.push(notice),
       onToolStarted: (name) => startedTools.push(name),
       onToolCompleted: (name) => completedTools.push(name),
+      onTraceEvent: (event) => traceEvents.push(event),
     });
     await flush();
 
@@ -46,9 +48,25 @@ describe("ByokRuntimeBridge", function () {
     assert.deepEqual(startedRuns, [runId]);
     assert.equal(request.method, "turn/start");
     harness.notify("item/agentMessage/delta", { runId, delta: "A" });
-    harness.notify("item/tool/started", { runId, name: "paper_read" });
+    harness.notify("item/reasoning/delta", {
+      runId,
+      itemId: "reasoning-a",
+      kind: "content",
+      delta: "Thinking",
+    });
+    harness.notify("item/tool/started", {
+      runId,
+      toolCallId: "call-a",
+      name: "paper_read",
+      arguments: '{"question":"method"}',
+    });
     harness.notify("warning", { runId, message: "retrying" });
-    harness.notify("item/tool/completed", { runId, name: "paper_read" });
+    harness.notify("item/tool/completed", {
+      runId,
+      toolCallId: "call-a",
+      name: "paper_read",
+      result: "Evidence",
+    });
     harness.respond(request.id, {
       backendId: profile.id,
       providerProfileId: profile.id,
@@ -68,6 +86,16 @@ describe("ByokRuntimeBridge", function () {
     assert.deepEqual(notices, ["retrying"]);
     assert.deepEqual(startedTools, ["paper_read"]);
     assert.deepEqual(completedTools, ["paper_read"]);
+    assert.deepEqual(
+      traceEvents.map((event) => event.type),
+      [
+        "content.delta",
+        "reasoning.delta",
+        "tool.started",
+        "notice",
+        "tool.completed",
+      ],
+    );
   });
 
   it("interrupts the selected BYOK run", async function () {

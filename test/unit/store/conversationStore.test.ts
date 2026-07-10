@@ -205,6 +205,21 @@ describe("ConversationStore", function () {
       codexTurnId: "turn-a",
       model: "gpt-5.5",
       reasoningEffort: "medium",
+      trace: [
+        {
+          id: "reasoning-a",
+          type: "reasoning",
+          kind: "summary",
+          text: "Checked the evidence",
+        },
+        {
+          id: "call-a",
+          type: "tool",
+          name: "paper_read",
+          status: "completed",
+          result: "Evidence",
+        },
+      ],
     });
 
     const reloaded = await new ConversationStore(
@@ -217,6 +232,10 @@ describe("ConversationStore", function () {
     );
     assert.strictEqual(reloaded?.messages[0]?.model, "gpt-5.5");
     assert.strictEqual(reloaded?.messages[0]?.reasoningEffort, "medium");
+    assert.deepEqual(
+      reloaded?.messages[0]?.trace?.map((item) => item.type),
+      ["reasoning", "tool"],
+    );
   });
 
   it("persists structured source mentions on user messages", async function () {

@@ -6,6 +6,7 @@ import type {
   WorkspaceType,
 } from "../../../domain/conversation";
 import type { ReaderLocator } from "../context/readerNavigation";
+import type { AgentTraceItem } from "../../../domain/agent/trace";
 
 export type SidebarMessageView = {
   id: string;
@@ -17,6 +18,8 @@ export type SidebarMessageView = {
   completedAt?: string;
   transient?: boolean;
   running?: boolean;
+  trace?: AgentTraceItem[];
+  finalStarted?: boolean;
   locators?: ReaderLocator[];
 };
 

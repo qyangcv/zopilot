@@ -17,6 +17,11 @@ import type {
   AgentRunResult,
   ProviderProfileWithSecret,
 } from "../../domain/agent/types";
+import type {
+  AgentContentPhase,
+  AgentReasoningKind,
+  AgentTraceEvent,
+} from "../../domain/agent/trace";
 import { StdioJsonRpcPeer } from "../../runtime/json-rpc/StdioJsonRpcPeer";
 import type {
   StdioSubprocess,
@@ -221,26 +226,125 @@ class ByokRuntimeBridge {
         const delta = getNestedString(message.params, ["delta"]);
         if (activeTurn && delta) {
           activeTurn.fullText += delta;
+          this.emitTrace(activeTurn, {
+            type: "content.delta",
+            itemId:
+              getNestedString(message.params, ["itemId"]) ||
+              "byok-agent-message",
+            phase: parseContentPhase(
+              getNestedString(message.params, ["phase"]),
+            ),
+            delta,
+          });
           activeTurn.callbacks.onTextDelta?.(delta);
         }
         break;
       }
+      case "item/agentMessage/completed": {
+        const text = getNestedString(message.params, ["text"]);
+        if (activeTurn && text !== undefined) {
+          this.emitTrace(activeTurn, {
+            type: "content.completed",
+            itemId:
+              getNestedString(message.params, ["itemId"]) ||
+              "byok-agent-message",
+            phase: parseContentPhase(
+              getNestedString(message.params, ["phase"]),
+            ),
+            text,
+          });
+        }
+        break;
+      }
+      case "item/reasoning/delta": {
+        const delta = getNestedString(message.params, ["delta"]);
+        if (activeTurn && delta) {
+          this.emitTrace(activeTurn, {
+            type: "reasoning.delta",
+            itemId:
+              getNestedString(message.params, ["itemId"]) || "byok-reasoning",
+            kind: parseReasoningKind(getNestedString(message.params, ["kind"])),
+            delta,
+          });
+        }
+        break;
+      }
+      case "item/reasoning/completed": {
+        const text = getNestedString(message.params, ["text"]);
+        if (activeTurn && text !== undefined) {
+          this.emitTrace(activeTurn, {
+            type: "reasoning.completed",
+            itemId:
+              getNestedString(message.params, ["itemId"]) || "byok-reasoning",
+            kind: parseReasoningKind(getNestedString(message.params, ["kind"])),
+            text,
+          });
+        }
+        break;
+      }
       case "item/tool/started": {
-        activeTurn?.callbacks.onToolStarted?.(
-          getNestedString(message.params, ["name"]) || "tool",
-        );
+        const name = getNestedString(message.params, ["name"]) || "tool";
+        if (activeTurn) {
+          this.emitTrace(activeTurn, {
+            type: "tool.started",
+            toolCallId: getToolCallId(message.params),
+            name,
+            server: getNestedString(message.params, ["server"]),
+            arguments: getNestedString(message.params, ["arguments"]),
+          });
+          activeTurn.callbacks.onToolStarted?.(name);
+        }
+        break;
+      }
+      case "item/tool/argumentsDelta": {
+        const delta = getNestedString(message.params, ["delta"]);
+        if (activeTurn && delta) {
+          this.emitTrace(activeTurn, {
+            type: "tool.arguments.delta",
+            toolCallId: getToolCallId(message.params),
+            delta,
+          });
+        }
+        break;
+      }
+      case "item/tool/progress": {
+        const delta = getNestedString(message.params, ["delta"]);
+        if (activeTurn && delta) {
+          this.emitTrace(activeTurn, {
+            type: "tool.progress",
+            toolCallId: getToolCallId(message.params),
+            delta,
+          });
+        }
         break;
       }
       case "item/tool/completed": {
-        activeTurn?.callbacks.onToolCompleted?.(
-          getNestedString(message.params, ["name"]) || "tool",
-        );
+        const name = getNestedString(message.params, ["name"]) || "tool";
+        if (activeTurn) {
+          this.emitTrace(activeTurn, {
+            type: "tool.completed",
+            toolCallId: getToolCallId(message.params),
+            name,
+            server: getNestedString(message.params, ["server"]),
+            arguments: getNestedString(message.params, ["arguments"]),
+            result: getNestedString(message.params, ["result"]),
+            error: getNestedString(message.params, ["error"]),
+          });
+          activeTurn.callbacks.onToolCompleted?.(name);
+        }
         break;
       }
       case "warning": {
         const warning = getNestedString(message.params, ["message"]);
         if (warning) {
           activeTurn?.callbacks.onNotice?.(warning);
+          if (activeTurn) {
+            this.emitTrace(activeTurn, {
+              type: "notice",
+              itemId: `warning-${Date.now()}`,
+              text: warning,
+            });
+          }
           logger.warn("BYOK runtime warning", { warning, runId });
         }
         break;
@@ -248,6 +352,10 @@ class ByokRuntimeBridge {
       default:
         break;
     }
+  }
+
+  private emitTrace(activeTurn: ActiveTurn, event: AgentTraceEvent): void {
+    activeTurn.callbacks.onTraceEvent?.(event);
   }
 
   private rejectAll(error: Error): void {
@@ -309,6 +417,24 @@ class ByokRuntimeBridge {
     this.subprocess = imported.Subprocess;
     return this.subprocess;
   }
+}
+
+function parseContentPhase(value: string | undefined): AgentContentPhase {
+  return value === "commentary" || value === "final_answer"
+    ? value
+    : "candidate";
+}
+
+function parseReasoningKind(value: string | undefined): AgentReasoningKind {
+  return value === "summary" ? "summary" : "content";
+}
+
+function getToolCallId(params: JsonValue | undefined): string {
+  return (
+    getNestedString(params, ["toolCallId"]) ||
+    getNestedString(params, ["itemId"]) ||
+    "byok-tool"
+  );
 }
 
 let sharedBridge: ByokRuntimeBridge | undefined;

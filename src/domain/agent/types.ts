@@ -3,6 +3,7 @@ import type {
   LocalAttachmentRef,
   SourceMention,
 } from "../conversation";
+import type { AgentTraceEvent } from "./trace";
 
 export type AgentBackendKind = "codex-cli" | "openai-compatible";
 
@@ -134,6 +135,7 @@ export type AgentPromptCallbacks = {
     legacy?: AgentRunResult["legacy"];
   }) => void;
   onTextDelta?: (delta: string) => void;
+  onTraceEvent?: (event: AgentTraceEvent) => void;
   onNotice?: (notice: string) => void;
   onToolStarted?: (name: string) => void;
   onToolCompleted?: (name: string) => void;

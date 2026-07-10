@@ -150,13 +150,6 @@ function summarizeJsonForLog(
   return `${text.slice(0, 4000)}...`;
 }
 
-function includesText(value: JsonValue | undefined, needle: string): boolean {
-  if (value === undefined) {
-    return false;
-  }
-  return JSON.stringify(value).includes(needle);
-}
-
 export {
   formatServerError,
   getNestedBoolean,
@@ -164,7 +157,6 @@ export {
   getNotificationThreadId,
   getNotificationTurnId,
   getTurnKey,
-  includesText,
   parseModelList,
   summarizeJsonForLog,
   toError,

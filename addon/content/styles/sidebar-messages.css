@@ -109,6 +109,159 @@
   word-break: break-word;
 }
 
+.zp-message-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.zp-trace {
+  min-width: 0;
+  max-width: 100%;
+  border-inline-start: 2px solid var(--zp-subtle-border);
+  color: var(--zp-muted-strong);
+  padding-inline-start: 8px;
+}
+
+.zp-trace-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+  color: var(--zp-muted-strong);
+  cursor: default;
+  font-size: 11px;
+  font-weight: 600;
+  list-style: none;
+  user-select: none;
+}
+
+.zp-trace-summary::-webkit-details-marker {
+  display: none;
+}
+
+.zp-trace[open] .zp-trace-summary .zp-icon:not(.zp-spin) {
+  transform: rotate(90deg);
+}
+
+.zp-spin {
+  animation: zp-spin 0.9s linear infinite;
+}
+
+.zp-trace-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 5px 0 2px;
+}
+
+.zp-trace-waiting,
+.zp-trace-item-label,
+.zp-trace-tool-header,
+.zp-trace-payload > summary {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.zp-trace-waiting {
+  color: var(--zp-muted);
+}
+
+.zp-trace-item {
+  min-width: 0;
+}
+
+.zp-trace-item-label {
+  margin-block-end: 3px;
+  color: var(--zp-muted);
+  font-weight: 600;
+}
+
+.zp-trace-markdown {
+  min-width: 0;
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.zp-trace-markdown p,
+.zp-trace-markdown ul,
+.zp-trace-markdown ol,
+.zp-trace-markdown pre {
+  margin: 0 0 6px;
+}
+
+.zp-trace-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.zp-trace-tool {
+  border: 1px solid var(--zp-subtle-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--zp-panel) 58%, transparent);
+  padding: 6px 7px;
+}
+
+.zp-trace-tool[data-status="failed"] {
+  border-color: color-mix(in srgb, #c33 45%, var(--zp-subtle-border));
+}
+
+.zp-trace-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.zp-trace-tool-header code {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: CanvasText;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-trace-tool-header span {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  color: var(--zp-muted);
+}
+
+.zp-trace-progress,
+.zp-trace-payload pre {
+  max-width: 100%;
+  margin: 6px 0 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--zp-code-bg);
+  color: var(--zp-muted-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow: auto;
+  padding: 5px 6px;
+  white-space: pre-wrap;
+}
+
+.zp-trace-payload {
+  margin-block-start: 5px;
+}
+
+.zp-trace-payload > summary {
+  color: var(--zp-muted);
+  cursor: default;
+}
+
+.zp-trace-payload[data-error] > summary,
+.zp-trace-payload[data-error] pre {
+  color: #c33;
+}
+
 .zp-message-markdown > * {
   max-width: 100%;
 }

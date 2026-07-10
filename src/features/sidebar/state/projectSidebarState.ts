@@ -4,6 +4,7 @@ import type { SidebarMessageView, SidebarState } from "../ui/types";
 import { loadPromptViews } from "../prompts/promptStore";
 import { createConversationMessages, createSessionView } from "./viewModel";
 import type { SidebarDisplayState } from "../workspace/WorkspaceCoordinator";
+import { projectAgentTurnTrace } from "../../../domain/agent/trace";
 
 type SidebarStateProjectionInput = {
   displayState: SidebarDisplayState;
@@ -22,12 +23,17 @@ function projectSidebarState(
   const state = input.displayState;
   if (state.kind === "ready") {
     const runningTurn = input.runningTurns.get(state.conversation.metadata.id);
+    const runningTrace = runningTurn
+      ? projectAgentTurnTrace(runningTurn.traceState)
+      : undefined;
     const source = state.workspace.defaultSource;
     const messages = createConversationMessages(
       state.conversation,
-      runningTurn
+      runningTurn && runningTrace
         ? {
-            text: runningTurn.assistantOutput,
+            text: runningTrace.finalText,
+            trace: runningTrace.trace,
+            finalStarted: runningTrace.finalStarted,
             interrupted: runningTurn.interrupted,
             running: !runningTurn.interrupted,
           }

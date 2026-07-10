@@ -19,6 +19,7 @@ import {
 } from "./requestValidation";
 
 type ToolCallResult = { text?: string; isError?: boolean };
+type UnknownRecord = Record<string, unknown>;
 type ByokAgentRunnerOptions = {
   notify: (method: string, params?: JsonValue) => void;
   requestParent: (
@@ -76,7 +77,10 @@ class ByokAgentRunner {
       params.profile.models[0]?.id ||
       params.profile.defaultModel;
     if (!modelId) throw new Error("No model selected for this provider.");
-    let fullText = "";
+    const responseTexts = new Map<number, string>();
+    const responsesWithTools = new Set<number>();
+    let responseIndex = 0;
+    let currentResponse = 0;
     try {
       const provider = createOpenAICompatible({
         name: params.profile.preset,
@@ -114,24 +118,64 @@ class ByokAgentRunner {
         { stream: true, signal: controller.signal, maxTurns: null },
       );
       for await (const event of stream) {
-        if (event.type !== "raw_model_stream_event") continue;
-        const data = event.data as { type?: string; delta?: string };
-        if (data.type === "output_text_delta" && data.delta) {
-          fullText += data.delta;
-          this.options.notify("item/agentMessage/delta", {
-            runId: params.runId,
-            delta: data.delta,
-          });
+        if (event.type === "raw_model_stream_event") {
+          const data = asRecord(event.data);
+          if (data?.type === "response_started") {
+            currentResponse = ++responseIndex;
+            responseTexts.set(currentResponse, "");
+            continue;
+          }
+          if (data?.type === "output_text_delta" && data.delta) {
+            if (!currentResponse) {
+              currentResponse = ++responseIndex;
+            }
+            const delta = String(data.delta);
+            responseTexts.set(
+              currentResponse,
+              `${responseTexts.get(currentResponse) || ""}${delta}`,
+            );
+            this.options.notify("item/agentMessage/delta", {
+              runId: params.runId,
+              itemId: `response-${currentResponse}-message`,
+              phase: "candidate",
+              delta,
+            });
+            continue;
+          }
+          if (data?.type === "model") {
+            if (!currentResponse) {
+              currentResponse = ++responseIndex;
+              responseTexts.set(currentResponse, "");
+            }
+            this.handleModelPart(
+              params.runId,
+              currentResponse,
+              data.event,
+              responsesWithTools,
+            );
+          }
+          continue;
+        }
+        if (event.type === "run_item_stream_event") {
+          this.handleRunItem(
+            params.runId,
+            currentResponse || responseIndex || 1,
+            event.name,
+            event.item,
+          );
         }
       }
       await stream.completed;
       const finalOutput =
         typeof stream.finalOutput === "string" ? stream.finalOutput : "";
+      const lastVisibleResponse = [...responseTexts.entries()]
+        .reverse()
+        .find(([index, text]) => text && !responsesWithTools.has(index))?.[1];
       return {
         backendId: params.profile.id,
         providerProfileId: params.profile.id,
         runId: params.runId,
-        text: (fullText || finalOutput).trim(),
+        text: (finalOutput || lastVisibleResponse || "").trim(),
         status: stream.cancelled ? "interrupted" : "completed",
       };
     } catch (error) {
@@ -140,7 +184,7 @@ class ByokAgentRunner {
         backendId: params.profile.id,
         providerProfileId: params.profile.id,
         runId: params.runId,
-        text: fullText.trim(),
+        text: ([...responseTexts.values()].at(-1) || "").trim(),
         status: "interrupted",
       };
     } finally {
@@ -151,6 +195,122 @@ class ByokAgentRunner {
 
   interrupt(runId: string): void {
     this.abortControllers.get(runId)?.abort();
+  }
+
+  private handleModelPart(
+    runId: string,
+    responseIndex: number,
+    value: unknown,
+    responsesWithTools: Set<number>,
+  ): void {
+    const part = asRecord(value);
+    if (!part || typeof part.type !== "string") return;
+    const rawItemId = typeof part.id === "string" ? part.id : part.type;
+    const itemId = part.type.startsWith("reasoning-")
+      ? `response-${responseIndex}-${rawItemId}`
+      : rawItemId;
+    switch (part.type) {
+      case "reasoning-delta":
+        if (typeof part.delta === "string") {
+          this.options.notify("item/reasoning/delta", {
+            runId,
+            itemId,
+            kind: "content",
+            delta: part.delta,
+          });
+        }
+        break;
+      case "tool-input-start":
+        responsesWithTools.add(responseIndex);
+        this.options.notify("item/tool/started", {
+          runId,
+          toolCallId: itemId,
+          name: typeof part.toolName === "string" ? part.toolName : "tool",
+        });
+        break;
+      case "tool-input-delta":
+        if (typeof part.delta === "string") {
+          this.options.notify("item/tool/argumentsDelta", {
+            runId,
+            toolCallId: itemId,
+            delta: part.delta,
+          });
+        }
+        break;
+      case "tool-call": {
+        responsesWithTools.add(responseIndex);
+        const toolCallId =
+          typeof part.toolCallId === "string" ? part.toolCallId : itemId;
+        const argumentsText = prettyJson(part.input);
+        this.options.notify("item/tool/started", {
+          runId,
+          toolCallId,
+          name: typeof part.toolName === "string" ? part.toolName : "tool",
+          ...(argumentsText ? { arguments: argumentsText } : {}),
+        });
+        break;
+      }
+      case "stream-start":
+        if (Array.isArray(part.warnings)) {
+          for (const warning of part.warnings) {
+            this.options.notify("warning", {
+              runId,
+              message: formatUnknown(warning),
+            });
+          }
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  private handleRunItem(
+    runId: string,
+    responseIndex: number,
+    name: string,
+    value: unknown,
+  ): void {
+    const item = asRecord(value);
+    const rawItem = asRecord(item?.rawItem);
+    if (!rawItem) return;
+    if (name === "message_output_created") {
+      const text = extractTextParts(rawItem.content);
+      if (text) {
+        this.options.notify("item/agentMessage/completed", {
+          runId,
+          itemId: `response-${responseIndex}-message`,
+          phase: "candidate",
+          text,
+        });
+      }
+      return;
+    }
+    if (name === "reasoning_item_created") {
+      const text = extractTextParts(rawItem.rawContent || rawItem.content);
+      if (text) {
+        const rawId = typeof rawItem.id === "string" ? rawItem.id : "reasoning";
+        this.options.notify("item/reasoning/completed", {
+          runId,
+          itemId: `response-${responseIndex}-${rawId}`,
+          kind: "content",
+          text,
+        });
+      }
+      return;
+    }
+    if (name === "tool_called") {
+      const server =
+        typeof rawItem.namespace === "string" ? rawItem.namespace : undefined;
+      const argumentsText = prettyJson(rawItem.arguments);
+      this.options.notify("item/tool/started", {
+        runId,
+        toolCallId: toolCallId(rawItem),
+        name: typeof rawItem.name === "string" ? rawItem.name : "tool",
+        ...(server ? { server } : {}),
+        ...(argumentsText ? { arguments: argumentsText } : {}),
+      });
+    }
   }
 
   private createPaperReadTool(params: TurnStartParams) {
@@ -173,10 +333,15 @@ class ByokAgentRunner {
             "Optional Zopilot source IDs selected with @ mentions in the current workspace.",
           ),
       }),
-      execute: async (input) => {
+      execute: async (input, _context, details) => {
+        const callId = toolCallId(asRecord(details?.toolCall));
+        const argumentsText = prettyJson(input);
         this.options.notify("item/tool/started", {
           runId: params.runId,
+          toolCallId: callId,
           name: "paper_read",
+          server: "zopilot",
+          ...(argumentsText ? { arguments: argumentsText } : {}),
         });
         try {
           const result = (await this.options.requestParent(
@@ -189,12 +354,31 @@ class ByokAgentRunner {
             },
             params.profile.timeoutMs,
           )) as ToolCallResult | undefined;
-          return result?.text || "";
-        } finally {
+          const errorText = result?.isError
+            ? result.text || "paper_read failed"
+            : undefined;
           this.options.notify("item/tool/completed", {
             runId: params.runId,
+            toolCallId: callId,
             name: "paper_read",
+            server: "zopilot",
+            ...(argumentsText ? { arguments: argumentsText } : {}),
+            result: result?.text || "",
+            ...(errorText ? { error: errorText } : {}),
           });
+          return result?.text || "";
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          this.options.notify("item/tool/completed", {
+            runId: params.runId,
+            toolCallId: callId,
+            name: "paper_read",
+            server: "zopilot",
+            ...(argumentsText ? { arguments: argumentsText } : {}),
+            error: message,
+          });
+          throw error;
         }
       },
       errorFunction(_context, error) {
@@ -203,6 +387,52 @@ class ByokAgentRunner {
       },
     });
   }
+}
+
+function asRecord(value: unknown): UnknownRecord | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as UnknownRecord)
+    : undefined;
+}
+
+function toolCallId(value: UnknownRecord | undefined): string {
+  if (typeof value?.callId === "string") return value.callId;
+  if (typeof value?.id === "string") return value.id;
+  return `tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function prettyJson(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "string") {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatUnknown(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  if (typeof record?.message === "string") return record.message;
+  return prettyJson(value) || String(value);
+}
+
+function extractTextParts(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(extractTextParts).filter(Boolean).join("\n\n");
+  }
+  const record = asRecord(value);
+  if (!record) return "";
+  if (typeof record.text === "string") return record.text;
+  return "";
 }
 
 export { ByokAgentRunner };

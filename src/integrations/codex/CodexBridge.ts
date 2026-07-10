@@ -108,10 +108,12 @@ class CodexBridge {
         reject(new Error("Codex request timed out."));
       }, this.getTimeoutMs());
       const activeTurn: ActiveCodexTurn = {
-        fullText: "",
+        eventSequence: 0,
+        messageItems: new Map(),
         resolve,
         reject,
         onDelta: options.onDelta,
+        onTraceEvent: options.onTraceEvent,
         onNotice: options.onNotice,
         onToolActivity: options.onToolActivity,
         onTurnStarted: options.onTurnStarted,

@@ -42,6 +42,53 @@ describe("SidebarApp", function () {
     assert.include(html, 'data-icon-name="stop"');
     assert.notInclude(html, "zp-stop-icon");
     assert.notInclude(html, "zp-message-footer");
+    assert.include(html, "zp-trace-waiting");
+  });
+
+  it("shows live trace and collapses it when the final answer starts", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          busy: true,
+          messages: [
+            {
+              id: "trace",
+              role: "assistant",
+              text: "Final answer",
+              status: "complete",
+              transient: true,
+              running: true,
+              finalStarted: true,
+              trace: [
+                {
+                  id: "reasoning-a",
+                  type: "reasoning",
+                  kind: "content",
+                  text: "Checking the evidence",
+                },
+                {
+                  id: "call-a",
+                  type: "tool",
+                  name: "paper_read",
+                  server: "zopilot",
+                  arguments: '{"question":"method"}',
+                  result: "Evidence",
+                  status: "completed",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, 'class="zp-trace"');
+    assert.notInclude(html, 'class="zp-trace" open=""');
+    assert.include(html, "sidebar-trace-collapsed");
+    assert.include(html, "Checking the evidence");
+    assert.include(html, "zopilot · paper_read");
+    assert.include(html, "Final answer");
   });
 
   it("renders sent user messages with the shared Markdown view", function () {

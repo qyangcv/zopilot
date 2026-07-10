@@ -4,6 +4,7 @@ import { Icon, type IconName } from "./Icon";
 import { ContextChips } from "./ContextChips";
 import { MarkdownView } from "./MarkdownView";
 import type { SidebarMessageView } from "./types";
+import { TracePanel } from "./TracePanel";
 
 export function Message({
   busy,
@@ -42,11 +43,21 @@ export function Message({
       >
         {isAssistant ? (
           <div className="zp-message-body">
-            <MarkdownView
-              className="zp-message-markdown"
-              markdown={message.text}
-              onOpenLink={onOpenLink}
-            />
+            {message.running || message.trace?.length ? (
+              <TracePanel
+                collapsed={Boolean(message.finalStarted) || !message.running}
+                items={message.trace || []}
+                onOpenLink={onOpenLink}
+                running={Boolean(message.running)}
+              />
+            ) : null}
+            {message.text ? (
+              <MarkdownView
+                className="zp-message-markdown"
+                markdown={message.text}
+                onOpenLink={onOpenLink}
+              />
+            ) : null}
           </div>
         ) : message.localAttachments?.length || message.mentions?.length ? (
           <div className="zp-message-bubble zp-message-user-content">

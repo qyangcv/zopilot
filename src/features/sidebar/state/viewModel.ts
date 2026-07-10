@@ -1,8 +1,8 @@
-import { getString } from "../../../app/localization";
 import { CODEX_PROVIDER_ID } from "../../../domain/agent/modelCatalog";
 import type { Conversation } from "../../../domain/conversation";
 import type { SidebarMessageView, SidebarState } from "../ui/types";
 import { extractReaderLocators } from "../context/readerNavigation";
+import type { AgentTraceItem } from "../../../domain/agent/trace";
 
 export {
   createConversationMessages,
@@ -12,6 +12,8 @@ export {
 
 type StreamingMessage = {
   text: string;
+  trace: AgentTraceItem[];
+  finalStarted: boolean;
   interrupted: boolean;
   running: boolean;
 };
@@ -59,7 +61,9 @@ function createConversationMessages(
     {
       id: getStreamingMessageId(conversation.metadata.id),
       role: "assistant",
-      text: streaming.text || getString("sidebar-backend-starting"),
+      text: streaming.text,
+      trace: streaming.trace,
+      finalStarted: streaming.finalStarted,
       status: streaming.interrupted ? "interrupted" : "complete",
       transient: true,
       running: streaming.running,
@@ -90,6 +94,7 @@ function toMessageView(
     mentions: message.mentions,
     localAttachments: message.localAttachments,
     status: message.status,
+    trace: message.trace,
     completedAt: formatBeijingTimestamp(
       message.completedAt || message.createdAt,
     ),

@@ -1,6 +1,10 @@
 import { assert } from "chai";
 import { __sidebarControllerTestHooks } from "../../../src/features/sidebar/host/SidebarHostController.ts";
 import { createItemWorkspaceIdentity } from "../../../src/domain/conversation.ts";
+import {
+  createAgentTurnTraceState,
+  reduceAgentTraceEvent,
+} from "../../../src/domain/agent/trace.ts";
 
 describe("sidebar controller", function () {
   before(function () {
@@ -246,7 +250,12 @@ describe("sidebar controller", function () {
     const conversationB = createConversation(paperB, "conv-b", "Question B");
     const runningTurn = {
       conversation: conversationA,
-      assistantOutput: "partial A",
+      traceState: reduceAgentTraceEvent(createAgentTurnTraceState(), {
+        type: "content.delta",
+        itemId: "answer",
+        phase: "candidate",
+        delta: "partial A",
+      }),
       interrupting: false,
       interrupted: false,
     };
@@ -266,7 +275,12 @@ describe("sidebar controller", function () {
       reader: createPDFReader(21, "tab-b"),
       label: "Paper B",
     });
-    runningTurn.assistantOutput = "partial A + delta";
+    runningTurn.traceState = reduceAgentTraceEvent(runningTurn.traceState, {
+      type: "content.completed",
+      itemId: "answer",
+      phase: "candidate",
+      text: "partial A + delta",
+    });
     controller.refreshRunningTurnView(runningTurn);
 
     assert.equal(controller.viewState.title, "Paper B");
@@ -282,7 +296,12 @@ describe("sidebar controller", function () {
       workspace: workspaceB,
       conversation: conversationB,
     });
-    runningTurn.assistantOutput = "partial A + later delta";
+    runningTurn.traceState = reduceAgentTraceEvent(runningTurn.traceState, {
+      type: "content.completed",
+      itemId: "answer",
+      phase: "candidate",
+      text: "partial A + later delta",
+    });
     controller.refreshRunningTurnView(runningTurn);
 
     assert.equal(controller.viewState.title, "Paper B / Question B");
