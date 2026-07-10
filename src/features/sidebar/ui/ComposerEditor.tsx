@@ -37,6 +37,8 @@ function ComposerEditor({
     updateDraft,
     visibleCommands,
   } = bindings;
+  const activeMention =
+    mentionCandidates[bindings.activeMentionIndex] || mentionCandidates[0];
   return (
     <>
       {mentions.length || localAttachments.length ? (
@@ -63,6 +65,7 @@ function ComposerEditor({
           zIndex={7}
         >
           <MentionPopover
+            activeIndex={bindings.activeMentionIndex}
             candidates={mentionCandidates}
             disabled={mentions.length >= MAX_SOURCE_MENTIONS}
             onClose={() => setMentionQuery(null)}
@@ -112,6 +115,11 @@ function ComposerEditor({
         onInput={(event) => resizeTextarea(event.currentTarget)}
         onKeyDown={(event) => {
           if (mentionCandidates.length) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              bindings.moveMentionSelection(event.key === "ArrowDown" ? 1 : -1);
+              return;
+            }
             if (event.key === "Escape") {
               event.preventDefault();
               setMentionQuery(null);
@@ -119,7 +127,7 @@ function ComposerEditor({
             }
             if (event.key === "Tab" || event.key === "Enter") {
               event.preventDefault();
-              selectMention(mentionCandidates[0]!);
+              if (activeMention) selectMention(activeMention);
               return;
             }
           }

@@ -7,6 +7,7 @@ export {
   MAX_SOURCE_MENTIONS,
   findMentionQuery,
   matchMentionCandidates,
+  moveMentionCandidateIndex,
   sourceToMention,
 };
 
@@ -83,6 +84,16 @@ function matchMentionCandidates(
         left.source.title.localeCompare(right.source.title),
     )
     .map((item) => item.source);
+}
+
+function moveMentionCandidateIndex(
+  currentIndex: number,
+  candidateCount: number,
+  direction: -1 | 1,
+): number {
+  if (candidateCount <= 0) return 0;
+  const current = Math.min(Math.max(currentIndex, 0), candidateCount - 1);
+  return (current + direction + candidateCount) % candidateCount;
 }
 
 function sourceToMention(source: PaperSourceRef): SourceMention {

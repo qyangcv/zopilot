@@ -193,6 +193,7 @@ function useComposerDraft(
 
   return {
     bindings: {
+      activeMentionIndex: mentionPicker.activeMentionIndex,
       addLocalAttachment,
       bottomDockRef,
       commandAnchor,
@@ -207,6 +208,7 @@ function useComposerDraft(
       localAttachments,
       mentionCandidates: mentionPicker.mentionCandidates,
       mentions,
+      moveMentionSelection: mentionPicker.moveMentionSelection,
       promptButtonRef,
       promptPickerOpen,
       removeLocalAttachment: (attachmentId) => {

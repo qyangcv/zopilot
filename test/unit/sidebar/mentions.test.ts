@@ -2,6 +2,7 @@ import { assert } from "chai";
 import {
   findMentionQuery,
   matchMentionCandidates,
+  moveMentionCandidateIndex,
   sourceToMention,
 } from "../../../src/features/sidebar/ui/mentions.ts";
 import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
@@ -70,6 +71,14 @@ describe("sidebar source mentions", function () {
     );
 
     assert.lengthOf(matchMentionCandidates("retrieval", sources), 12);
+  });
+
+  it("wraps keyboard navigation across mention candidates", function () {
+    assert.equal(moveMentionCandidateIndex(0, 3, 1), 1);
+    assert.equal(moveMentionCandidateIndex(2, 3, 1), 0);
+    assert.equal(moveMentionCandidateIndex(0, 3, -1), 2);
+    assert.equal(moveMentionCandidateIndex(9, 3, -1), 1);
+    assert.equal(moveMentionCandidateIndex(0, 0, 1), 0);
   });
 
   it("converts selected sources to stable mention payloads", function () {

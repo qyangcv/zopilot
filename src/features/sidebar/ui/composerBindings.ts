@@ -8,6 +8,7 @@ import { findMentionQuery } from "./mentions";
 import type { SidebarCommandView } from "./types";
 
 type ComposerBindings = {
+  activeMentionIndex: number;
   addLocalAttachment: () => void;
   bottomDockRef: RefObject<HTMLDivElement | null>;
   commandAnchor: "button" | "input";
@@ -21,6 +22,7 @@ type ComposerBindings = {
   localAttachments: LocalAttachmentRef[];
   mentionCandidates: PaperSourceRef[];
   mentions: SourceMention[];
+  moveMentionSelection: (direction: -1 | 1) => void;
   promptButtonRef: RefObject<HTMLButtonElement | null>;
   promptPickerOpen: boolean;
   removeLocalAttachment: (attachmentId: string) => void;

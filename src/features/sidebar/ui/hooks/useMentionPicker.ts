@@ -12,6 +12,7 @@ import {
   MAX_SOURCE_MENTIONS,
   findMentionQuery,
   matchMentionCandidates,
+  moveMentionCandidateIndex,
   sourceToMention,
 } from "../mentions";
 
@@ -26,9 +27,10 @@ type MentionPickerOptions = {
 };
 
 function useMentionPicker(options: MentionPickerOptions) {
-  const [mentionQuery, setMentionQuery] = useState<ReturnType<
+  const [mentionQuery, setMentionQueryState] = useState<ReturnType<
     typeof findMentionQuery
   > | null>(null);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const mentionCandidates = mentionQuery
     ? matchMentionCandidates(
         mentionQuery.query,
@@ -36,9 +38,30 @@ function useMentionPicker(options: MentionPickerOptions) {
         options.currentSourceId,
       )
     : [];
+  const resolvedActiveMentionIndex = Math.min(
+    activeMentionIndex,
+    Math.max(mentionCandidates.length - 1, 0),
+  );
+
+  const setMentionQuery = (
+    query: ReturnType<typeof findMentionQuery> | null,
+  ) => {
+    setActiveMentionIndex(0);
+    setMentionQueryState(query);
+  };
 
   const updateMentionQuery = (text: string, cursor?: number) => {
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
+  };
+
+  const moveMentionSelection = (direction: -1 | 1) => {
+    setActiveMentionIndex((current) =>
+      moveMentionCandidateIndex(
+        Math.min(current, Math.max(mentionCandidates.length - 1, 0)),
+        mentionCandidates.length,
+        direction,
+      ),
+    );
   };
 
   const selectMention = (source: PaperSourceRef) => {
@@ -64,7 +87,9 @@ function useMentionPicker(options: MentionPickerOptions) {
   };
 
   return {
+    activeMentionIndex: resolvedActiveMentionIndex,
     mentionCandidates,
+    moveMentionSelection,
     selectMention,
     setMentionQuery,
     updateMentionQuery,

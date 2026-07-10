@@ -1,18 +1,25 @@
-import { type ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { PaperSourceRef } from "../../../domain/conversation";
 
 export function MentionPopover({
+  activeIndex,
   candidates,
   disabled,
   onClose,
   onSelect,
 }: {
+  activeIndex: number;
   candidates: PaperSourceRef[];
   disabled: boolean;
   onClose: () => void;
   onSelect: (source: PaperSourceRef) => void;
 }): ReactElement {
+  const activeOptionRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    activeOptionRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
   return (
     <div
       className="zp-mention-popover"
@@ -32,8 +39,9 @@ export function MentionPopover({
       {candidates.map((source, index) => (
         <div
           aria-disabled={disabled || undefined}
+          aria-selected={index === activeIndex}
           className="zp-mention-option"
-          data-active={index === 0 || undefined}
+          data-active={index === activeIndex || undefined}
           key={source.sourceId}
           onMouseDown={(event) => {
             event.preventDefault();
@@ -43,6 +51,7 @@ export function MentionPopover({
             onSelect(source);
           }}
           role="option"
+          ref={index === activeIndex ? activeOptionRef : undefined}
           tabIndex={-1}
           title={source.title}
         >
