@@ -7,6 +7,7 @@ import type {
 } from "../../../domain/conversation";
 import type { ReaderLocator } from "../context/readerNavigation";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
+import type { ProviderBrand } from "../../../domain/agent/providerBrand";
 
 export type SidebarMessageView = {
   id: string;
@@ -16,6 +17,8 @@ export type SidebarMessageView = {
   localAttachments?: LocalAttachmentRef[];
   status?: "complete" | "error" | "interrupted";
   completedAt?: string;
+  model?: string;
+  providerBrand?: ProviderBrand;
   transient?: boolean;
   running?: boolean;
   trace?: AgentTraceItem[];

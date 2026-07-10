@@ -1,4 +1,5 @@
 import type { AgentTraceItem } from "./agent/trace";
+import type { ProviderBrand } from "./agent/providerBrand";
 
 type ConversationMessageStatus = "complete" | "error" | "interrupted";
 type ConversationMessageRole = "user" | "assistant";
@@ -78,6 +79,7 @@ type ConversationMessage = {
   backendId?: string;
   backendKind?: "codex-cli" | "openai-compatible";
   providerProfileId?: string;
+  providerBrand?: ProviderBrand;
   backendRunId?: string;
   backendTurnId?: string;
   capabilitySnapshot?: Record<string, boolean>;

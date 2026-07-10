@@ -429,6 +429,16 @@ describe("SidebarApp", function () {
               text: "Done",
               status: "complete",
               completedAt: "2026-06-13 15:30",
+              model: "gpt-5.3-codex",
+              providerBrand: "codex",
+              trace: [
+                {
+                  id: "reasoning",
+                  type: "reasoning",
+                  kind: "content",
+                  text: "Checked the paper",
+                },
+              ],
             },
           ],
         })}
@@ -436,8 +446,45 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "zopilot-sidebar-copy-text");
+    assert.include(html, 'class="zp-answer-model"');
+    assert.include(html, "gpt-5.3-codex");
+    assert.include(
+      html,
+      "chrome://zopilot/content/icons/providers/codex-color.svg",
+    );
+    assert.isBelow(
+      html.indexOf('class="zp-answer-model"'),
+      html.indexOf('class="zp-trace"'),
+    );
     assert.include(html, 'data-icon-name="copy"');
     assert.include(html, "2026-06-13 15:30");
+  });
+
+  it("renders the configured BYOK provider brand before the answer model", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "deepseek-answer",
+              role: "assistant",
+              text: "Done",
+              status: "complete",
+              model: "deepseek-v4-flash",
+              providerBrand: "deepseek",
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, "deepseek-v4-flash");
+    assert.include(html, 'data-provider-brand="deepseek"');
+    assert.include(
+      html,
+      "chrome://zopilot/content/icons/providers/deepseek-color.svg",
+    );
   });
 
   it("does not render the paper context chip above the composer", function () {

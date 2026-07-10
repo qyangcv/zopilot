@@ -2,6 +2,10 @@ import { getAgentBackendManager } from "../../../application/agent/BackendManage
 import { getProviderProfileStore } from "../../../application/providers/ProviderProfileService";
 import type { AgentRunResult } from "../../../domain/agent/types";
 import {
+  resolveProviderBrand,
+  type ProviderBrand,
+} from "../../../domain/agent/providerBrand";
+import {
   createAgentTurnTraceState,
   projectAgentTurnTrace,
   reduceAgentTraceEvent,
@@ -23,6 +27,7 @@ type RunningTurn = {
   reasoningEffort?: string;
   backendId?: string;
   providerProfileId?: string;
+  providerBrand: ProviderBrand;
   runId?: string;
   turnId?: string;
   legacy?: AgentRunResult["legacy"];
@@ -77,12 +82,19 @@ class TurnCoordinator {
     );
     this.options.setReadyConversation(conversation);
     const viewState = this.options.getViewState();
+    const selectedProfile =
+      getProviderProfileStore().getProfile(viewState.selectedProviderId) ||
+      getAgentBackendManager().getActiveProfile();
     const runningTurn: RunningTurn = {
       conversation,
       traceState: createAgentTurnTraceState(),
       model: viewState.selectedModel,
       reasoningEffort: viewState.selectedReasoningEffort,
       providerProfileId: viewState.selectedProviderId,
+      providerBrand: resolveProviderBrand({
+        ...selectedProfile,
+        model: viewState.selectedModel,
+      }),
       interrupting: false,
       interrupted: false,
     };
@@ -168,6 +180,10 @@ class TurnCoordinator {
         backendId: result.backendId,
         backendKind: completedProfile.kind,
         providerProfileId: result.providerProfileId,
+        providerBrand: resolveProviderBrand({
+          ...completedProfile,
+          model: runningTurn.model,
+        }),
         backendRunId: result.runId,
         backendTurnId: result.turnId,
         capabilitySnapshot: completedProfile.capabilities,
@@ -204,6 +220,10 @@ class TurnCoordinator {
             failedProfile?.kind ||
             getAgentBackendManager().getActiveProfile().kind,
           providerProfileId: runningTurn.providerProfileId,
+          providerBrand: resolveProviderBrand({
+            ...(failedProfile || getAgentBackendManager().getActiveProfile()),
+            model: runningTurn.model,
+          }),
           backendRunId: runningTurn.runId,
           backendTurnId: runningTurn.turnId,
           model: runningTurn.model,

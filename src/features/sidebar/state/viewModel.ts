@@ -3,6 +3,10 @@ import type { Conversation } from "../../../domain/conversation";
 import type { SidebarMessageView, SidebarState } from "../ui/types";
 import { extractReaderLocators } from "../context/readerNavigation";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
+import {
+  resolveProviderBrand,
+  type ProviderBrand,
+} from "../../../domain/agent/providerBrand";
 
 export {
   createConversationMessages,
@@ -16,6 +20,8 @@ type StreamingMessage = {
   finalStarted: boolean;
   interrupted: boolean;
   running: boolean;
+  model?: string;
+  providerBrand?: ProviderBrand;
 };
 
 function createInitialSidebarState(label: string): SidebarState {
@@ -67,6 +73,8 @@ function createConversationMessages(
       status: streaming.interrupted ? "interrupted" : "complete",
       transient: true,
       running: streaming.running,
+      model: streaming.model,
+      providerBrand: streaming.providerBrand,
     },
   ];
 }
@@ -94,6 +102,10 @@ function toMessageView(
     mentions: message.mentions,
     localAttachments: message.localAttachments,
     status: message.status,
+    model: message.model,
+    providerBrand:
+      message.providerBrand ||
+      resolveProviderBrand({ kind: message.backendKind, model: message.model }),
     trace: message.trace,
     completedAt: formatBeijingTimestamp(
       message.completedAt || message.createdAt,

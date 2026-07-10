@@ -204,6 +204,7 @@ describe("ConversationStore", function () {
       codexThreadId: "thread-a",
       codexTurnId: "turn-a",
       model: "gpt-5.5",
+      providerBrand: "codex",
       reasoningEffort: "medium",
       trace: [
         {
@@ -231,6 +232,7 @@ describe("ConversationStore", function () {
       "2026-06-13T07:30:00.000Z",
     );
     assert.strictEqual(reloaded?.messages[0]?.model, "gpt-5.5");
+    assert.strictEqual(reloaded?.messages[0]?.providerBrand, "codex");
     assert.strictEqual(reloaded?.messages[0]?.reasoningEffort, "medium");
     assert.deepEqual(
       reloaded?.messages[0]?.trace?.map((item) => item.type),

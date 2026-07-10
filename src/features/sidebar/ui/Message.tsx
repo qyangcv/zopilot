@@ -5,6 +5,7 @@ import { ContextChips } from "./ContextChips";
 import { MarkdownView } from "./MarkdownView";
 import type { SidebarMessageView } from "./types";
 import { TracePanel } from "./TracePanel";
+import { ProviderBrandIcon } from "./ProviderBrandIcon";
 
 export function Message({
   busy,
@@ -42,23 +43,31 @@ export function Message({
         className={isAssistant ? "zp-message-stack" : "zp-message-user-stack"}
       >
         {isAssistant ? (
-          <div className="zp-message-body">
-            {message.running || message.trace?.length ? (
-              <TracePanel
-                collapsed={Boolean(message.finalStarted) || !message.running}
-                items={message.trace || []}
-                onOpenLink={onOpenLink}
-                running={Boolean(message.running)}
-              />
+          <>
+            {message.model ? (
+              <div className="zp-answer-model">
+                <ProviderBrandIcon brand={message.providerBrand || "generic"} />
+                <span>{message.model}</span>
+              </div>
             ) : null}
-            {message.text ? (
-              <MarkdownView
-                className="zp-message-markdown"
-                markdown={message.text}
-                onOpenLink={onOpenLink}
-              />
-            ) : null}
-          </div>
+            <div className="zp-message-body">
+              {message.running || message.trace?.length ? (
+                <TracePanel
+                  collapsed={Boolean(message.finalStarted) || !message.running}
+                  items={message.trace || []}
+                  onOpenLink={onOpenLink}
+                  running={Boolean(message.running)}
+                />
+              ) : null}
+              {message.text ? (
+                <MarkdownView
+                  className="zp-message-markdown"
+                  markdown={message.text}
+                  onOpenLink={onOpenLink}
+                />
+              ) : null}
+            </div>
+          </>
         ) : message.localAttachments?.length || message.mentions?.length ? (
           <div className="zp-message-bubble zp-message-user-content">
             <ContextChips

@@ -4,6 +4,7 @@ import type {
 } from "../../../domain/conversation";
 import { createLogger } from "../../logging/logger";
 import { isAgentTraceItem } from "../../../domain/agent/trace";
+import { isProviderBrand } from "../../../domain/agent/providerBrand";
 
 export { isConversationMetadata, parseConversationMessage };
 
@@ -59,6 +60,7 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
       item.backendKind === "openai-compatible") &&
     (item.providerProfileId === undefined ||
       typeof item.providerProfileId === "string") &&
+    (item.providerBrand === undefined || isProviderBrand(item.providerBrand)) &&
     (item.backendRunId === undefined ||
       typeof item.backendRunId === "string") &&
     (item.backendTurnId === undefined ||

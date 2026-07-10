@@ -39,7 +39,8 @@ describe("sidebar view model", function () {
       finalStarted: true,
       interrupted: false,
       running: true,
-      finalStarted: true,
+      model: "deepseek-v4-flash",
+      providerBrand: "deepseek",
     });
 
     assert.deepEqual(
@@ -53,6 +54,8 @@ describe("sidebar view model", function () {
       status: "complete",
       transient: true,
       running: true,
+      model: "deepseek-v4-flash",
+      providerBrand: "deepseek",
     });
   });
 
@@ -153,6 +156,8 @@ function createConversation(): Conversation {
         createdAt: "2026-06-13T07:29:00.000Z",
         completedAt: "2026-06-13T07:30:00.000Z",
         status: "complete",
+        backendKind: "codex-cli",
+        model: "gpt-5.3-codex",
       },
     ],
   };

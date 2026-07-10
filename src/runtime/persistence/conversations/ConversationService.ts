@@ -158,6 +158,7 @@ class ConversationStore {
       backendId?: string;
       backendKind?: ConversationMessage["backendKind"];
       providerProfileId?: string;
+      providerBrand?: ConversationMessage["providerBrand"];
       backendRunId?: string;
       backendTurnId?: string;
       capabilitySnapshot?: ConversationMessage["capabilitySnapshot"];
@@ -183,6 +184,7 @@ class ConversationStore {
       backendId: input.backendId,
       backendKind: input.backendKind,
       providerProfileId: input.providerProfileId,
+      providerBrand: input.providerBrand,
       backendRunId: input.backendRunId,
       backendTurnId: input.backendTurnId,
       capabilitySnapshot: input.capabilitySnapshot,

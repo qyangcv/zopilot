@@ -83,6 +83,59 @@
   color: var(--zp-accent);
 }
 
+.zp-answer-model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 20px;
+  color: var(--zp-muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.zp-answer-model > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-answer-model + .zp-message-body {
+  margin-block-start: 7px;
+}
+
+.zp-provider-brand-icon {
+  display: inline-flex;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.zp-provider-brand-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.zp-provider-brand-icon[data-provider-brand="openai"] {
+  background: #10a37f;
+  padding: 2px;
+}
+
+.zp-provider-brand-icon[data-provider-brand="openai"] img {
+  filter: invert(1);
+}
+
+.zp-provider-brand-icon-generic {
+  background: color-mix(in srgb, var(--zp-muted) 18%, transparent);
+  color: var(--zp-muted-strong);
+}
+
 .zp-message-stack,
 .zp-message-user-stack {
   display: flex;

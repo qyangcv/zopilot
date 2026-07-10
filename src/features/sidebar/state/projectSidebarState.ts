@@ -36,6 +36,8 @@ function projectSidebarState(
             finalStarted: runningTrace.finalStarted,
             interrupted: runningTurn.interrupted,
             running: !runningTurn.interrupted,
+            model: runningTurn.model,
+            providerBrand: runningTurn.providerBrand,
           }
         : undefined,
     );
