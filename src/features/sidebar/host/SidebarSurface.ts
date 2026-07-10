@@ -100,6 +100,10 @@ class SidebarSurface {
   }
 
   attachLibrary(): void {
+    if (this.activeKind === "library" && this.deckPanel?.isConnected) {
+      this.libraryAdapter.ensureActiveSelection();
+      return;
+    }
     this.transitioning = true;
     const selected = this.libraryAdapter.selectZopilot();
     const panel = this.libraryAdapter.ensurePanel();
