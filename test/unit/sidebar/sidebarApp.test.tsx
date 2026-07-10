@@ -42,7 +42,9 @@ describe("SidebarApp", function () {
     assert.include(html, 'data-icon-name="stop"');
     assert.notInclude(html, "zp-stop-icon");
     assert.notInclude(html, "zp-message-footer");
-    assert.include(html, "zp-trace-waiting");
+    assert.include(html, "sidebar-trace-waiting");
+    assert.notInclude(html, "zp-trace-waiting");
+    assert.notInclude(html, "zp-trace-items");
   });
 
   it("shows live trace and collapses it when the final answer starts", function () {
@@ -75,6 +77,7 @@ describe("SidebarApp", function () {
                   arguments: '{"question":"method"}',
                   result: "Evidence",
                   status: "completed",
+                  durationMs: 3_000,
                 },
               ],
             },
@@ -86,9 +89,88 @@ describe("SidebarApp", function () {
     assert.include(html, 'class="zp-trace"');
     assert.notInclude(html, 'class="zp-trace" open=""');
     assert.include(html, "sidebar-trace-collapsed");
+    assert.notInclude(html, "sidebar-trace-commentary");
     assert.include(html, "Checking the evidence");
-    assert.include(html, "zopilot · paper_read");
+    assert.include(html, "paper_read");
+    assert.include(html, "3s");
     assert.include(html, "Final answer");
+  });
+
+  it("renders every tool call separately with duration and expandable payloads", function () {
+    const completedCalls = [1, 2, 3].map(
+      (index): NonNullable<SidebarMessageView["trace"]>[number] => ({
+        id: `call-${index}`,
+        type: "tool",
+        name: "paper_read",
+        server: "zopilot",
+        arguments: `{"question":"part ${index}"}`,
+        result: `Evidence ${index}`,
+        status: "completed",
+        durationMs: index * 1_000,
+      }),
+    );
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          busy: true,
+          messages: [
+            {
+              id: "many-tools",
+              role: "assistant",
+              text: "",
+              running: true,
+              trace: [
+                ...completedCalls,
+                {
+                  id: "call-running",
+                  type: "tool",
+                  name: "paper_read",
+                  server: "zopilot",
+                  status: "running",
+                },
+                {
+                  id: "call-failed",
+                  type: "tool",
+                  name: "paper_read",
+                  server: "zopilot",
+                  status: "failed",
+                  error: "Failed to read",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.notInclude(html, "zp-trace-tool-group");
+    assert.equal(countOccurrences(html, 'data-icon-name="tool"'), 5);
+    assert.equal(countOccurrences(html, ">paper_read</code>"), 5);
+    const statusIcons = html.match(
+      /<svg[^>]*zp-trace-tool-status-icon[^>]*>/gu,
+    );
+    assert.lengthOf(statusIcons || [], 4);
+    assert.lengthOf(
+      (statusIcons || []).filter((icon) =>
+        icon.includes('data-icon-name="check"'),
+      ),
+      3,
+    );
+    assert.lengthOf(
+      (statusIcons || []).filter((icon) =>
+        icon.includes('data-icon-name="close"'),
+      ),
+      1,
+    );
+    assert.include(html, "1s");
+    assert.include(html, "2s");
+    assert.include(html, "3s");
+    assert.include(html, "sidebar-trace-tool-arguments");
+    assert.include(html, "sidebar-trace-tool-result");
+    assert.include(html, 'data-status="running"');
+    assert.include(html, 'data-status="failed"');
+    assert.notInclude(html, "zopilot · paper_read");
   });
 
   it("renders sent user messages with the shared Markdown view", function () {
@@ -693,6 +775,10 @@ function createConversation(id: string): Conversation {
     },
     messages: [],
   };
+}
+
+function countOccurrences(value: string, needle: string): number {
+  return value.split(needle).length - 1;
 }
 
 function installLocaleMock(): void {

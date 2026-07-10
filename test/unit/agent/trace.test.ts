@@ -20,18 +20,26 @@ describe("agent turn trace", function () {
       phase: "candidate",
       delta: "I will read the paper.",
     });
-    state = reduceAgentTraceEvent(state, {
-      type: "tool.started",
-      toolCallId: "call-a",
-      name: "paper_read",
-      arguments: '{"question":"method"}',
-    });
-    state = reduceAgentTraceEvent(state, {
-      type: "tool.completed",
-      toolCallId: "call-a",
-      name: "paper_read",
-      result: "Evidence",
-    });
+    state = reduceAgentTraceEvent(
+      state,
+      {
+        type: "tool.started",
+        toolCallId: "call-a",
+        name: "paper_read",
+        arguments: '{"question":"method"}',
+      },
+      1_000,
+    );
+    state = reduceAgentTraceEvent(
+      state,
+      {
+        type: "tool.completed",
+        toolCallId: "call-a",
+        name: "paper_read",
+        result: "Evidence",
+      },
+      4_000,
+    );
     state = reduceAgentTraceEvent(state, {
       type: "content.delta",
       itemId: "response-b",
@@ -51,6 +59,8 @@ describe("agent turn trace", function () {
       type: "tool",
       status: "completed",
       result: "Evidence",
+      startedAt: 1_000,
+      durationMs: 3_000,
     });
   });
 

@@ -155,16 +155,10 @@
   padding: 5px 0 2px;
 }
 
-.zp-trace-waiting,
 .zp-trace-item-label,
-.zp-trace-tool-header,
-.zp-trace-payload > summary {
+.zp-trace-tool-header {
   font-size: 11px;
   line-height: 1.35;
-}
-
-.zp-trace-waiting {
-  color: var(--zp-muted);
 }
 
 .zp-trace-item {
@@ -200,7 +194,7 @@
   border: 1px solid var(--zp-subtle-border);
   border-radius: 6px;
   background: color-mix(in srgb, var(--zp-panel) 58%, transparent);
-  padding: 6px 7px;
+  overflow: hidden;
 }
 
 .zp-trace-tool[data-status="failed"] {
@@ -211,14 +205,23 @@
   display: flex;
   align-items: center;
   gap: 5px;
+  min-height: 30px;
+  cursor: default;
+  list-style: none;
+  padding: 3px 7px;
 }
 
-.zp-trace-tool-header code {
+.zp-trace-tool-header::-webkit-details-marker {
+  display: none;
+}
+
+.zp-trace-tool-name {
   min-width: 0;
   overflow: hidden;
   border: 0;
   background: transparent;
   color: CanvasText;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 600;
   padding: 0;
@@ -226,14 +229,36 @@
   white-space: nowrap;
 }
 
-.zp-trace-tool-header span {
+.zp-trace-tool-header > .zp-icon {
+  flex: 0 0 auto;
+  color: var(--zp-muted-strong);
+}
+
+.zp-trace-tool[data-status="failed"] .zp-trace-tool-header > .zp-icon,
+.zp-trace-tool[data-status="failed"] .zp-trace-tool-meta {
+  color: #c33;
+}
+
+.zp-trace-tool-meta {
   flex: 0 0 auto;
   margin-inline-start: auto;
   color: var(--zp-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.zp-trace-tool-status-icon {
+  flex: 0 0 auto;
+  color: var(--zp-muted-strong);
+}
+
+.zp-trace-tool-body {
+  border-block-start: 1px solid var(--zp-subtle-border);
+  padding: 6px 7px;
 }
 
 .zp-trace-progress,
-.zp-trace-payload pre {
+.zp-trace-payload-value pre {
   max-width: 100%;
   margin: 6px 0 0;
   border: 0;
@@ -248,17 +273,18 @@
   white-space: pre-wrap;
 }
 
-.zp-trace-payload {
-  margin-block-start: 5px;
+.zp-trace-payload-value + .zp-trace-payload-value {
+  margin-block-start: 7px;
 }
 
-.zp-trace-payload > summary {
+.zp-trace-payload-value > div {
   color: var(--zp-muted);
-  cursor: default;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
-.zp-trace-payload[data-error] > summary,
-.zp-trace-payload[data-error] pre {
+.zp-trace-payload-value[data-error] > div,
+.zp-trace-payload-value[data-error] pre {
   color: #c33;
 }
 

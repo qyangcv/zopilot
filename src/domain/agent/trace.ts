@@ -88,6 +88,8 @@ export type AgentTraceItem =
       result?: string;
       error?: string;
       status: AgentToolStatus;
+      startedAt?: number;
+      durationMs?: number;
     }
   | {
       id: string;
@@ -129,6 +131,7 @@ export function createAgentTurnTraceState(): AgentTurnTraceState {
 export function reduceAgentTraceEvent(
   state: AgentTurnTraceState,
   event: AgentTraceEvent,
+  occurredAt = Date.now(),
 ): AgentTurnTraceState {
   let blocks = [...state.blocks];
 
@@ -197,6 +200,11 @@ export function reduceAgentTraceEvent(
         result: current?.type === "tool" ? current.result : undefined,
         error: current?.type === "tool" ? current.error : undefined,
         status: "running",
+        startedAt:
+          current?.type === "tool"
+            ? (current.startedAt ?? occurredAt)
+            : occurredAt,
+        durationMs: undefined,
       };
       blocks = replaceOrAppend(blocks, index, next);
       break;
@@ -242,6 +250,11 @@ export function reduceAgentTraceEvent(
         result: event.result,
         error: event.error,
         status: event.error ? "failed" : "completed",
+        startedAt: current?.type === "tool" ? current.startedAt : undefined,
+        durationMs:
+          current?.type === "tool" && current.startedAt !== undefined
+            ? Math.max(0, occurredAt - current.startedAt)
+            : undefined,
       };
       blocks = replaceOrAppend(blocks, index, next);
       break;
@@ -323,7 +336,9 @@ export function isAgentTraceItem(value: unknown): value is AgentTraceItem {
       optionalString(item.arguments) &&
       optionalString(item.progress) &&
       optionalString(item.result) &&
-      optionalString(item.error)
+      optionalString(item.error) &&
+      optionalNonNegativeNumber(item.startedAt) &&
+      optionalNonNegativeNumber(item.durationMs)
     );
   }
   return false;
@@ -361,4 +376,11 @@ function isEmptyTraceBlock(block: AgentTraceItem): boolean {
 
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === "string";
+}
+
+function optionalNonNegativeNumber(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (typeof value === "number" && Number.isFinite(value) && value >= 0)
+  );
 }

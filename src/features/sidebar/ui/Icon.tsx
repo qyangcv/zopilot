@@ -24,6 +24,7 @@ import {
   RotateCcw,
   SendHorizontal,
   Square,
+  Wrench,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +59,7 @@ const ICONS = {
   resend: RotateCcw,
   send: SendHorizontal,
   stop: Square,
+  tool: Wrench,
   workspace: FolderClosed,
   workspaceCollection: FolderTree,
   workspaceItem: FileText,

@@ -4,6 +4,8 @@ import type { AgentTraceItem } from "../../../domain/agent/trace";
 import { Icon } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
 
+type ToolTraceItem = Extract<AgentTraceItem, { type: "tool" }>;
+
 type TracePanelProps = {
   collapsed: boolean;
   items: AgentTraceItem[];
@@ -39,20 +41,20 @@ export function TracePanel({
         <span>
           {collapsed
             ? getString("sidebar-trace-collapsed")
-            : getString("sidebar-trace-running")}
+            : getString(
+                items.length
+                  ? "sidebar-trace-running"
+                  : "sidebar-trace-waiting",
+              )}
         </span>
       </summary>
-      <div className="zp-trace-items">
-        {items.length ? (
-          items.map((item) => (
+      {items.length ? (
+        <div className="zp-trace-items">
+          {items.map((item) => (
             <TraceItem item={item} key={item.id} onOpenLink={onOpenLink} />
-          ))
-        ) : (
-          <div className="zp-trace-waiting">
-            {getString("sidebar-trace-waiting")}
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : null}
     </details>
   );
 }
@@ -68,16 +70,14 @@ function TraceItem({
     return <ToolTrace item={item} />;
   }
   const label =
-    item.type === "reasoning"
-      ? item.kind === "summary"
-        ? getString("sidebar-trace-reasoning-summary")
-        : getString("sidebar-trace-reasoning")
-      : item.type === "commentary"
-        ? getString("sidebar-trace-commentary")
-        : getString("sidebar-trace-notice");
+    item.type === "reasoning" && item.kind === "summary"
+      ? getString("sidebar-trace-reasoning-summary")
+      : item.type === "notice"
+        ? getString("sidebar-trace-notice")
+        : undefined;
   return (
     <section className={`zp-trace-item zp-trace-item-${item.type}`}>
-      <div className="zp-trace-item-label">{label}</div>
+      {label ? <div className="zp-trace-item-label">{label}</div> : null}
       <MarkdownView
         className="zp-trace-markdown"
         markdown={item.text}
@@ -87,11 +87,8 @@ function TraceItem({
   );
 }
 
-function ToolTrace({
-  item,
-}: {
-  item: Extract<AgentTraceItem, { type: "tool" }>;
-}): ReactElement {
+function ToolTrace({ item }: { item: ToolTraceItem }): ReactElement {
+  const durationMs = useToolDuration(item);
   const status =
     item.status === "running"
       ? getString("sidebar-trace-tool-running")
@@ -99,49 +96,70 @@ function ToolTrace({
         ? getString("sidebar-trace-tool-failed")
         : getString("sidebar-trace-tool-completed");
   return (
-    <section className="zp-trace-item zp-trace-tool" data-status={item.status}>
-      <div className="zp-trace-tool-header">
-        <Icon
-          className={item.status === "running" ? "zp-spin" : undefined}
-          name={
-            item.status === "running"
-              ? "checking"
-              : item.status === "failed"
-                ? "disconnected"
-                : "check"
-          }
-          size={13}
-        />
-        <code>{[item.server, item.name].filter(Boolean).join(" · ")}</code>
-        <span>{status}</span>
+    <details className="zp-trace-item zp-trace-tool" data-status={item.status}>
+      <summary className="zp-trace-tool-header">
+        <Icon name="tool" size={13} />
+        <code className="zp-trace-tool-name">{item.name}</code>
+        <span className="zp-trace-tool-meta">
+          {durationMs === undefined ? status : formatDuration(durationMs)}
+        </span>
+        {item.status !== "running" ? (
+          <Icon
+            className="zp-trace-tool-status-icon"
+            name={item.status === "failed" ? "close" : "check"}
+            size={12}
+          />
+        ) : null}
+      </summary>
+      <div className="zp-trace-tool-body">
+        <ToolPayloads item={item} />
       </div>
-      {item.progress ? (
-        <pre className="zp-trace-progress">{item.progress}</pre>
-      ) : null}
+    </details>
+  );
+}
+
+function ToolPayloads({ item }: { item: ToolTraceItem }): ReactElement {
+  return (
+    <>
+      <ToolProgress item={item} />
+      <ToolPayloadValues item={item} />
+    </>
+  );
+}
+
+function ToolProgress({ item }: { item: ToolTraceItem }): ReactElement | null {
+  return item.progress ? (
+    <pre className="zp-trace-progress">{item.progress}</pre>
+  ) : null;
+}
+
+function ToolPayloadValues({ item }: { item: ToolTraceItem }): ReactElement {
+  return (
+    <>
       {item.arguments ? (
-        <TracePayload
+        <TracePayloadValue
           label={getString("sidebar-trace-tool-arguments")}
           value={item.arguments}
         />
       ) : null}
       {item.result ? (
-        <TracePayload
+        <TracePayloadValue
           label={getString("sidebar-trace-tool-result")}
           value={item.result}
         />
       ) : null}
       {item.error ? (
-        <TracePayload
+        <TracePayloadValue
           error
           label={getString("sidebar-trace-tool-error")}
           value={item.error}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 
-function TracePayload({
+function TracePayloadValue({
   error = false,
   label,
   value,
@@ -151,9 +169,30 @@ function TracePayload({
   value: string;
 }): ReactElement {
   return (
-    <details className="zp-trace-payload" data-error={error || undefined}>
-      <summary>{label}</summary>
+    <section className="zp-trace-payload-value" data-error={error || undefined}>
+      <div>{label}</div>
       <pre>{value}</pre>
-    </details>
+    </section>
   );
+}
+
+function useToolDuration(item: ToolTraceItem): number | undefined {
+  const [now, setNow] = useState(Date.now);
+
+  useEffect(() => {
+    if (item.status !== "running" || item.startedAt === undefined) return;
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, [item.startedAt, item.status]);
+
+  if (item.status === "running" && item.startedAt !== undefined) {
+    return Math.max(0, now - item.startedAt);
+  }
+  return item.durationMs;
+}
+
+function formatDuration(durationMs: number): string {
+  const seconds = durationMs / 1_000;
+  if (seconds >= 10) return `${Math.round(seconds)}s`;
+  return `${Number(seconds.toFixed(1))}s`;
 }
