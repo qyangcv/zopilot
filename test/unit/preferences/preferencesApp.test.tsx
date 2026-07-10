@@ -75,7 +75,7 @@ describe("PreferencesApp", function () {
     );
 
     assert.include(html, "zp-pref-prompt-edit-page");
-    assert.include(html, 'aria-label="返回 Prompt 列表"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-prompt-back-button"');
     assert.notInclude(html, "zp-pref-prompt-edit-title");
     assert.include(html, 'data-l10n-id="zopilot-pref-prompt-save"');
     assert.include(html, 'data-l10n-id="zopilot-pref-prompt-title-label"');
@@ -205,8 +205,15 @@ describe("PreferencesApp", function () {
       html,
       'data-l10n-id="zopilot-pref-dependencies-unsupported-reason"',
     );
-    assert.include(html, "unsupported");
-    assert.include(html, "macOS arm64");
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-platform-unsupported"',
+    );
+    assert.include(
+      html,
+      'data-l10n-id="zopilot-pref-dependencies-unsupported-platform-reason"',
+    );
+    assert.notInclude(html, "macOS arm64");
     assert.notInclude(html, 'data-l10n-id="zopilot-pref-dependencies-update"');
   });
 

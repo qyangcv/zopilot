@@ -19,6 +19,8 @@ class LibraryItemPaneAdapter {
   private button?: HTMLButtonElement;
   private previousPanel?: Element;
   private observer?: MutationObserver;
+  private itemPaneObserver?: MutationObserver;
+  private observedItemPane?: Element;
   private listeningDeck?: Element;
   private listeningSidenav?: Element;
   private unavailable?: LibraryItemPaneUnavailableResult;
@@ -79,7 +81,10 @@ class LibraryItemPaneAdapter {
     if (!this.observer) {
       const observer = new this.win.MutationObserver(() => {
         const latest = probeLibraryItemPane(this.win.document);
-        if (latest.available) this.reconcile(latest);
+        if (latest.available) {
+          this.reconcile(latest);
+          this.ensureActiveSelection();
+        }
       });
       observer.observe(this.win.document.documentElement, {
         childList: true,
@@ -149,7 +154,7 @@ class LibraryItemPaneAdapter {
 
   ensureActiveSelection(): void {
     if (!this.active) return;
-    const probe = this.mount();
+    const probe = probeLibraryItemPane(this.win.document);
     if (!probe.available || !this.panel) return;
     const selected = getSelectedPanel(probe);
     if (selected && selected !== this.panel) this.previousPanel = selected;
@@ -159,6 +164,9 @@ class LibraryItemPaneAdapter {
   destroy(): void {
     this.observer?.disconnect();
     this.observer = undefined;
+    this.itemPaneObserver?.disconnect();
+    this.itemPaneObserver = undefined;
+    this.observedItemPane = undefined;
     this.detachDeckListener();
     this.detachSidenavListener();
     this.button?.removeEventListener("click", this.onButtonClick);
@@ -172,6 +180,7 @@ class LibraryItemPaneAdapter {
   private reconcile(probe: LibraryItemPaneProbeSuccess): void {
     this.attachDeckListener(probe.deck);
     this.attachSidenavListener(probe.sidenav);
+    this.observeItemPane(probe.itemPane);
     const duplicates = probe.sidenav.querySelectorAll(
       `.zp-library-sidenav-button[data-pane="${LIBRARY_PANE_NAME}"]`,
     );
@@ -185,6 +194,21 @@ class LibraryItemPaneAdapter {
       probe.sidenav.append(this.button);
     }
     this.syncButton();
+  }
+
+  private observeItemPane(itemPane: Element): void {
+    if (this.observedItemPane === itemPane) return;
+    this.itemPaneObserver?.disconnect();
+    const observer = new this.win.MutationObserver(() => {
+      if (!this.active) return;
+      this.win.setTimeout(() => this.ensureActiveSelection(), 0);
+    });
+    observer.observe(itemPane, {
+      attributes: true,
+      attributeFilter: ["view-type"],
+    });
+    this.itemPaneObserver = observer;
+    this.observedItemPane = itemPane;
   }
 
   private attachDeckListener(deck: Element): void {

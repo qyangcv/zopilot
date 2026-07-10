@@ -2,7 +2,8 @@ import { Copy, ExternalLink, FolderOpen } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 import type { PdfHelperStatus } from "../../../../document/pdf-helper/index";
 import { copyText } from "../../../sidebar/ui/clipboard";
-import { T } from "../PreferenceChrome";
+import { LocalizedMessageText, T } from "../PreferenceChrome";
+import { unsupportedDependencyMessage } from "./dependencyMessages";
 
 type DependencyPathAction = "open-url" | "reveal";
 type DependencyPathRow = {
@@ -32,7 +33,11 @@ function DependencyPathList({
           <dt>
             <T id="pref-dependencies-unsupported-reason">原因</T>
           </dt>
-          <dd title={helper.reason}>{helper.reason}</dd>
+          <dd>
+            <LocalizedMessageText message={unsupportedDependencyMessage()}>
+              当前系统不受 PDF 解析工具支持。
+            </LocalizedMessageText>
+          </dd>
         </div>
       ) : null}
     </dl>
@@ -99,7 +104,7 @@ function buildDependencyPathRows(helper: PdfHelperStatus): DependencyPathRow[] {
     {
       action: "open-url",
       key: "manifestUrl",
-      label: <T id="pref-dependencies-manifest-url">Manifest</T>,
+      label: <T id="pref-dependencies-manifest-url">版本清单</T>,
       value: helper.manifestUrl,
     },
   ];

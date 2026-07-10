@@ -5,7 +5,13 @@ import {
   loadCustomPrompts,
   updateCustomPrompt,
 } from "../../../sidebar/prompts/promptStore";
+import {
+  formatLocalizedMessage,
+  localized,
+  type LocalizedMessage,
+} from "../../localization";
 import type { PromptEditorMode, PromptMessage, PromptView } from "../types";
+import { promptErrorMessage } from "./promptMessages";
 
 export { usePromptEditor };
 
@@ -83,7 +89,10 @@ function usePromptEditor(): {
     (promptId: string) => {
       const prompt = promptState.prompts.find((item) => item.id === promptId);
       if (!prompt) {
-        setPromptMessage({ kind: "error", text: "未找到该 Prompt。" });
+        setPromptMessage({
+          kind: "error",
+          message: localized("pref-prompt-message-not-found"),
+        });
         return;
       }
       setPromptState((current) => ({
@@ -112,14 +121,21 @@ function usePromptEditor(): {
   }, []);
 
   const returnToPromptList = useCallback(() => {
-    if (
-      hasUnsavedChanges &&
-      !confirmPromptAction("当前 Prompt 有未保存修改，确定返回列表？")
-    ) {
+    const returnToList = () => {
+      setMode("list");
+      setPromptMessage(undefined);
+    };
+    if (!hasUnsavedChanges) {
+      returnToList();
       return;
     }
-    setMode("list");
-    setPromptMessage(undefined);
+    void confirmPromptAction(
+      localized("pref-prompt-confirm-discard-changes"),
+    ).then((confirmed) => {
+      if (confirmed) {
+        returnToList();
+      }
+    });
   }, [hasUnsavedChanges]);
 
   const savePrompt = useCallback(() => {
@@ -132,33 +148,44 @@ function usePromptEditor(): {
         : createCustomPrompt({ title: promptTitle, body: promptBody });
       refreshPrompts(saved.id);
       setSavedDraft({ title: saved.title, body: saved.body });
-      setPromptMessage({ kind: "success", text: "已保存。" });
+      setPromptMessage({
+        kind: "success",
+        message: localized("pref-prompt-message-saved"),
+      });
     } catch (error) {
       setPromptMessage({
         kind: "error",
-        text: getPromptErrorMessage(error),
+        message: promptErrorMessage(error),
       });
     }
   }, [promptBody, promptState.selectedPromptId, promptTitle, refreshPrompts]);
 
   const removePrompt = useCallback(() => {
-    if (!promptState.selectedPromptId) {
+    const promptId = promptState.selectedPromptId;
+    if (!promptId) {
       return;
     }
-    if (!confirmPromptAction("确定删除这个 Prompt？")) {
-      return;
-    }
-    deleteCustomPrompt(promptState.selectedPromptId);
-    refreshPrompts();
-    setPromptState((current) => ({
-      ...current,
-      selectedPromptId: undefined,
-    }));
-    setPromptTitle("");
-    setPromptBody("");
-    setSavedDraft({ title: "", body: "" });
-    setMode("list");
-    setPromptMessage({ kind: "success", text: "已删除。" });
+    void confirmPromptAction(localized("pref-prompt-confirm-delete")).then(
+      (confirmed) => {
+        if (!confirmed) {
+          return;
+        }
+        deleteCustomPrompt(promptId);
+        refreshPrompts();
+        setPromptState((current) => ({
+          ...current,
+          selectedPromptId: undefined,
+        }));
+        setPromptTitle("");
+        setPromptBody("");
+        setSavedDraft({ title: "", body: "" });
+        setMode("list");
+        setPromptMessage({
+          kind: "success",
+          message: localized("pref-prompt-message-deleted"),
+        });
+      },
+    );
   }, [promptState.selectedPromptId, refreshPrompts]);
 
   return {
@@ -178,25 +205,14 @@ function usePromptEditor(): {
   };
 }
 
-function getPromptErrorMessage(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return "保存失败。";
-  }
-  if (error.message === "Prompt title is required.") {
-    return "Prompt 标题不能为空。";
-  }
-  if (error.message === "Prompt body is required.") {
-    return "模板问题不能为空。";
-  }
-  if (error.message === "Prompt not found.") {
-    return "未找到该 Prompt。";
-  }
-  return "保存失败。";
-}
-
-function confirmPromptAction(message: string): boolean {
+async function confirmPromptAction(
+  message: LocalizedMessage,
+): Promise<boolean> {
   const host = globalThis as typeof globalThis & {
     confirm?: (message?: string) => boolean;
   };
-  return typeof host.confirm !== "function" || host.confirm(message);
+  return (
+    typeof host.confirm !== "function" ||
+    host.confirm(await formatLocalizedMessage(message))
+  );
 }

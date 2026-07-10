@@ -1,5 +1,6 @@
 import type { Root } from "react-dom/client";
 import { installChromeWindowGlobals } from "../sidebar/host/chromeGlobals";
+import { l10nAttributes } from "./localization";
 import type { PreferencesAppProps } from "./ui/PreferencesApp";
 
 export { initPreferencesPane };
@@ -57,14 +58,17 @@ function initPreferencesPane(dependencies = getGlobalDependencies()): void {
 
     initialized = true;
     const translate = () => translatePreferenceElements(root, dependencies);
-    const render = dependencies.renderApp || mountReactPreferencesApp();
+    const render =
+      dependencies.renderApp || mountReactPreferencesApp(dependencies);
     render(root, {
       translate,
     });
   }
 }
 
-function mountReactPreferencesApp(): PreferencePaneRenderApp {
+function mountReactPreferencesApp(
+  dependencies: PreferencePaneDependencies,
+): PreferencePaneRenderApp {
   let reactRoot: Root | undefined;
   return (root, props) => {
     void (async () => {
@@ -80,13 +84,17 @@ function mountReactPreferencesApp(): PreferencePaneRenderApp {
         reactRoot ??= createRoot(root);
         reactRoot.render(createElement(PreferencesApp, props));
       } catch (error) {
-        renderMountError(root, error);
+        renderMountError(root, error, dependencies);
       }
     })();
   };
 }
 
-function renderMountError(root: HTMLElement, error: unknown): void {
+function renderMountError(
+  root: HTMLElement,
+  error: unknown,
+  dependencies: PreferencePaneDependencies,
+): void {
   root.textContent = "";
   const message = root.ownerDocument?.createElement("div");
   if (!message) {
@@ -97,10 +105,20 @@ function renderMountError(root: HTMLElement, error: unknown): void {
   message.style.borderRadius = "8px";
   message.style.margin = "24px";
   message.style.padding = "16px";
-  message.textContent = `Zopilot 偏好设置加载失败：${
-    error instanceof Error ? error.message : String(error)
-  }`;
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const attributes = l10nAttributes("pref-mount-error", {
+    message: errorMessage,
+  });
+  for (const [name, value] of Object.entries(attributes)) {
+    if (value) {
+      message.setAttribute(name, value);
+    }
+  }
+  message.textContent = `Zopilot preferences failed to load: ${errorMessage}`;
   root.append(message);
+  void dependencies.document.l10n
+    ?.translateElements?.([message])
+    ?.catch(() => undefined);
 }
 
 function translatePreferenceElements(

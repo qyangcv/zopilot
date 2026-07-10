@@ -1,7 +1,9 @@
 import { LoaderCircle, Plus, RotateCcw } from "lucide-react";
 import { useMemo, useState, type ReactElement } from "react";
 import type { AgentModelEntry } from "../../../../domain/agent/types";
-import { T } from "../PreferenceChrome";
+import { localized, type LocalizedMessage } from "../../localization";
+import { LocalizedMessageText, T } from "../PreferenceChrome";
+import { providerErrorMessage } from "./providerMessages";
 
 type AddProviderFormProps = {
   onCreate: (input: {
@@ -23,7 +25,7 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
   const [models, setModels] = useState<AgentModelEntry[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [message, setMessage] = useState<string>();
+  const [message, setMessage] = useState<LocalizedMessage>();
   const selectedEntries = useMemo(
     () => models.filter((model) => selectedModels.includes(model.id)),
     [models, selectedModels],
@@ -47,13 +49,11 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
       setModels(nextModels);
       setSelectedModels(nextModels.map((model) => model.id));
       setMessage(
-        nextModels.length
-          ? undefined
-          : "No models were returned by this provider.",
+        nextModels.length ? undefined : localized("pref-provider-models-empty"),
       );
     } catch (error) {
       resetModels();
-      setMessage(error instanceof Error ? error.message : String(error));
+      setMessage(providerErrorMessage(error));
     } finally {
       setLoadingModels(false);
     }
@@ -69,7 +69,7 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
     setBaseURL("");
     setApiKey("");
     resetModels();
-    setMessage("Provider added.");
+    setMessage(localized("pref-provider-added"));
   };
 
   return (
@@ -77,22 +77,24 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
       <div className="zp-pref-card-header">
         <div>
           <h3>
-            <T id="pref-provider-add-title">添加 BYOK provider</T>
+            <T id="pref-provider-add-title">添加自定义模型服务（BYOK）</T>
           </h3>
           <p>
             <T id="pref-provider-add-description">
-              填写兼容 OpenAI 的 URL 和 API
-              key，在线读取模型后勾选需要启用的模型。
+              输入兼容 OpenAI API 的基础地址和 API
+              密钥，获取模型列表后选择要启用的模型。
             </T>
           </p>
         </div>
       </div>
       <div className="zp-pref-provider-steps">
         <section className="zp-pref-provider-step">
-          <h4>1. URL and API key</h4>
+          <h4>
+            <T id="pref-provider-step-credentials">1. 服务地址与 API 密钥</T>
+          </h4>
           <div className="zp-pref-form-grid">
             <label>
-              <span>Base URL</span>
+              <T id="pref-provider-base-url">API 基础地址</T>
               <input
                 autoComplete="off"
                 placeholder="https://provider.example.com/v1"
@@ -103,11 +105,13 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
                 }}
               />
               <span className="zp-pref-muted zp-pref-url-hint">
-                填入 OpenAI-compatible API 的 endpoint 前缀
+                <T id="pref-provider-base-url-hint">
+                  输入兼容 OpenAI API 的端点基础地址。
+                </T>
               </span>
             </label>
             <label>
-              <span>API key</span>
+              <T id="pref-provider-api-key">API 密钥</T>
               <input
                 autoComplete="off"
                 type="password"
@@ -130,11 +134,21 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
             ) : (
               <RotateCcw size={14} />
             )}
-            List models
+            <T
+              id={
+                loadingModels
+                  ? "pref-provider-listing-models"
+                  : "pref-provider-list-models"
+              }
+            >
+              {loadingModels ? "正在获取模型…" : "获取模型列表"}
+            </T>
           </button>
         </section>
         <section className="zp-pref-provider-step">
-          <h4>2. Models</h4>
+          <h4>
+            <T id="pref-provider-step-models">2. 选择模型</T>
+          </h4>
           {models.length ? (
             <div className="zp-pref-model-checklist">
               {models.map((model) => (
@@ -156,12 +170,14 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
             </div>
           ) : (
             <p className="zp-pref-muted">
-              Query the provider before adding it.
+              <T id="pref-provider-models-query-first">请先获取模型列表。</T>
             </p>
           )}
         </section>
         <section className="zp-pref-provider-step">
-          <h4>3. Add provider</h4>
+          <h4>
+            <T id="pref-provider-step-add">3. 添加模型服务</T>
+          </h4>
           <button
             className="zp-pref-button zp-pref-button-primary"
             disabled={!canCreate}
@@ -173,7 +189,7 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
           </button>
           {message ? (
             <div className="zp-pref-status zp-pref-status-message">
-              {message}
+              <LocalizedMessageText message={message} />
             </div>
           ) : null}
         </section>

@@ -8,6 +8,11 @@ import type {
   ProviderProfileInput,
 } from "../../../../domain/agent/types";
 import { getByokRuntimeBridge } from "../../../../integrations/byok/ByokRuntimeBridge";
+import { localized, type LocalizedMessage } from "../../localization";
+import {
+  providerDiagnosticMessage,
+  providerErrorMessage,
+} from "./providerMessages";
 
 export { useProviderProfiles };
 
@@ -15,7 +20,7 @@ type ProviderProfilesState = {
   activeProviderId: string;
   profiles: ProviderProfile[];
   checkingProviderId?: string;
-  message?: string;
+  message?: LocalizedMessage;
 };
 
 function useProviderProfiles(): {
@@ -76,15 +81,17 @@ function useProviderProfiles(): {
           checkingProviderId: undefined,
           message:
             result.status === "connected"
-              ? "Provider connected."
-              : result.diagnostic?.message || "Provider check failed.",
+              ? localized("pref-provider-check-connected")
+              : result.diagnostic
+                ? providerDiagnosticMessage(result.diagnostic.code)
+                : localized("pref-provider-check-failed"),
         }));
       })
       .catch((error) => {
         setState((current) => ({
           ...current,
           checkingProviderId: undefined,
-          message: error instanceof Error ? error.message : String(error),
+          message: providerErrorMessage(error),
         }));
       });
   }, []);

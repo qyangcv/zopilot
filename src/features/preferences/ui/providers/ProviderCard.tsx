@@ -11,6 +11,8 @@ import type {
   AgentModelEntry,
   ProviderProfile,
 } from "../../../../domain/agent/types";
+import { l10nAttributes, type LocalizedMessage } from "../../localization";
+import { T } from "../PreferenceChrome";
 
 type ProviderCardProps = {
   checking: boolean;
@@ -46,9 +48,11 @@ function ProviderCard({
         <div>
           <h3>{profile.displayName}</h3>
           <p>
-            {profile.kind === "codex-cli"
-              ? "Local Codex CLI backend"
-              : profile.baseURL}
+            {profile.kind === "codex-cli" ? (
+              <T id="pref-provider-codex-description">本地 Codex CLI 后端</T>
+            ) : (
+              profile.baseURL
+            )}
           </p>
         </div>
         <div className="zp-pref-button-group">
@@ -63,7 +67,9 @@ function ProviderCard({
             ) : (
               <RotateCcw size={14} />
             )}
-            Test
+            <T id={checking ? "pref-provider-testing" : "pref-provider-test"}>
+              {checking ? "正在测试…" : "测试连接"}
+            </T>
           </button>
           {profile.kind !== "codex-cli" ? (
             <>
@@ -73,10 +79,11 @@ function ProviderCard({
                 type="button"
               >
                 <KeyRound size={14} />
-                Edit
+                <T id="pref-provider-edit">编辑</T>
               </button>
               <button
                 className="zp-pref-button zp-pref-button-danger"
+                {...l10nAttributes("pref-provider-delete-button")}
                 onClick={onDelete}
                 type="button"
               >
@@ -92,38 +99,64 @@ function ProviderCard({
         ) : (
           <CircleAlert size={16} />
         )}
-        {profile.status}
-        {profile.kind !== "codex-cli"
-          ? profile.hasApiKey
-            ? " · key saved"
-            : " · key missing"
-          : ""}
+        <T id={getStatusMessageId(profile.status)} />
+        {profile.kind !== "codex-cli" ? (
+          profile.hasApiKey ? (
+            <>
+              {" · "}
+              <T id="pref-provider-key-saved">API 密钥已保存</T>
+            </>
+          ) : (
+            <>
+              {" · "}
+              <T id="pref-provider-key-missing">缺少 API 密钥</T>
+            </>
+          )
+        ) : (
+          ""
+        )}
       </div>
       <div className="zp-pref-provider-meta">
-        <span>{formatModelCount(profile)}</span>
-        <span>{formatModelSummary(profile.models)}</span>
+        <T
+          args={{ count: profile.models.length }}
+          id={
+            profile.kind === "codex-cli"
+              ? "pref-provider-models-available"
+              : "pref-provider-models-enabled"
+          }
+        />
+        <span>
+          {profile.models.length ? (
+            formatModelSummary(profile.models)
+          ) : (
+            <T id="pref-provider-no-models">暂无已保存的模型</T>
+          )}
+        </span>
       </div>
       {editing ? (
         <div className="zp-pref-form-grid">
           <label>
-            <span>Name</span>
+            <T id="pref-provider-name">名称</T>
             <input
               value={displayName}
               onChange={(event) => setDisplayName(event.currentTarget.value)}
             />
           </label>
           <label>
-            <span>Base URL</span>
+            <T id="pref-provider-base-url">API 基础地址</T>
             <input
               value={baseURL}
               onChange={(event) => setBaseURL(event.currentTarget.value)}
             />
           </label>
           <label>
-            <span>API key</span>
+            <T id="pref-provider-api-key">API 密钥</T>
             <input
               autoComplete="off"
-              placeholder={profile.hasApiKey ? "Saved" : ""}
+              {...(profile.hasApiKey
+                ? l10nAttributes("pref-provider-api-key-input-saved")
+                : {})}
+              placeholder=""
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.currentTarget.value)}
@@ -135,7 +168,7 @@ function ProviderCard({
               onClick={save}
               type="button"
             >
-              Save
+              <T id="pref-provider-save">保存</T>
             </button>
           </div>
         </div>
@@ -145,19 +178,24 @@ function ProviderCard({
 }
 
 function formatModelSummary(models: AgentModelEntry[]): string {
-  return models.length
-    ? models
-        .slice(0, 4)
-        .map((model) => model.displayName)
-        .join(", ")
-    : "No models saved";
+  return models
+    .slice(0, 4)
+    .map((model) => model.displayName)
+    .join(", ");
 }
 
-function formatModelCount(profile: ProviderProfile): string {
-  const noun = profile.models.length === 1 ? "model" : "models";
-  const state = profile.kind === "codex-cli" ? "available" : "enabled";
-  return `${profile.models.length} ${noun} ${state}`;
+function getStatusMessageId(
+  status: ProviderProfile["status"],
+): LocalizedMessage["id"] {
+  return STATUS_MESSAGE_IDS[status];
 }
+
+const STATUS_MESSAGE_IDS = {
+  unchecked: "pref-provider-status-unchecked",
+  checking: "pref-provider-status-checking",
+  connected: "pref-provider-status-connected",
+  disconnected: "pref-provider-status-disconnected",
+} as const;
 
 export { ProviderCard };
 export type { ProviderCardProps };

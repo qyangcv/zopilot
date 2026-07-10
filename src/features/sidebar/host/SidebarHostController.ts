@@ -143,7 +143,6 @@ class SidebarHostController {
       win: this.win,
       surface: this.surface,
       workspaceCoordinator: this.workspaceCoordinator,
-      getSourceUniverse: () => this.sourceUniverse,
       isOpen: () => this.open,
       nextToken: () => ++this.selectionToken,
       getToken: () => this.selectionToken,

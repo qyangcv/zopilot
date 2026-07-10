@@ -1,7 +1,11 @@
 import type { ReactElement, ReactNode } from "react";
-import { config } from "../../../../package.json";
+import {
+  l10nAttributes,
+  type FluentArgs,
+  type LocalizedMessage,
+} from "../localization";
 
-export { NavButton, PageHeader, T };
+export { LocalizedMessageText, NavButton, PageHeader, T };
 
 function PageHeader({
   action,
@@ -51,15 +55,27 @@ function NavButton({
 }
 
 function T({
+  args,
   children,
   id,
 }: {
-  children: ReactNode;
-  id: string;
+  args?: FluentArgs;
+  children?: ReactNode;
+  id: LocalizedMessage["id"];
 }): ReactElement {
-  return <span data-l10n-id={getLocalizedId(id)}>{children}</span>;
+  return <span {...l10nAttributes(id, args)}>{children}</span>;
 }
 
-function getLocalizedId(id: string): string {
-  return id.startsWith(`${config.addonRef}-`) ? id : `${config.addonRef}-${id}`;
+function LocalizedMessageText({
+  children,
+  message,
+}: {
+  children?: ReactNode;
+  message: LocalizedMessage;
+}): ReactElement {
+  return (
+    <T args={message.args} id={message.id}>
+      {children}
+    </T>
+  );
 }

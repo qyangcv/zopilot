@@ -1,15 +1,8 @@
-import type { WorkspaceIdentity } from "../../domain/conversation";
-
-type WorkspaceFactory = {
-  createLibraryWorkspace(input: {
-    libraryID: number;
-    label?: string;
-  }): Promise<WorkspaceIdentity>;
-  createCollectionWorkspace(input: {
-    libraryID: number;
-    collectionKey: string;
-  }): Promise<WorkspaceIdentity | null>;
-};
+import {
+  createCollectionWorkspaceIdentity,
+  createLibraryWorkspaceIdentity,
+  type WorkspaceIdentity,
+} from "../../domain/conversation";
 
 type SelectedWorkspaceResult =
   | {
@@ -24,10 +17,7 @@ type SelectedWorkspaceResult =
       label: string;
     };
 
-async function resolveSelectedWorkspace(
-  win: Window,
-  factory: WorkspaceFactory,
-): Promise<SelectedWorkspaceResult> {
+function resolveSelectedWorkspace(win: Window): SelectedWorkspaceResult {
   const pane = (win as Window & { ZoteroPane?: _ZoteroTypes.ZoteroPane })
     .ZoteroPane;
   const row = pane?.getCollectionTreeRow?.() as
@@ -53,13 +43,16 @@ async function resolveSelectedWorkspace(
 
   if (row.isCollection()) {
     if (!ref.key) return { status: "unsupported", rowID, label };
-    const workspace = await factory.createCollectionWorkspace({
-      libraryID,
-      collectionKey: ref.key,
-    });
-    return workspace
-      ? { status: "ready", rowID, label, workspace }
-      : { status: "unavailable", rowID, label };
+    return {
+      status: "ready",
+      rowID,
+      label,
+      workspace: createCollectionWorkspaceIdentity({
+        libraryID,
+        collectionKey: ref.key,
+        label,
+      }),
+    };
   }
 
   if (row.isLibrary() || row.isGroup()) {
@@ -67,7 +60,7 @@ async function resolveSelectedWorkspace(
       status: "ready",
       rowID,
       label,
-      workspace: await factory.createLibraryWorkspace({ libraryID, label }),
+      workspace: createLibraryWorkspaceIdentity({ libraryID, label }),
     };
   }
 
@@ -88,4 +81,4 @@ function isLibraryTab(win: Window): boolean {
 }
 
 export { isLibraryTab, resolveSelectedWorkspace };
-export type { SelectedWorkspaceResult, WorkspaceFactory };
+export type { SelectedWorkspaceResult };

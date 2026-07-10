@@ -7,6 +7,7 @@ import {
   type PdfHelperStatus,
 } from "../../../../document/pdf-helper/index";
 import type { DependencyState } from "../types";
+import { dependencyErrorMessage } from "./dependencyMessages";
 
 export { dependencyNavCount, usePdfHelperDependency };
 
@@ -27,7 +28,7 @@ function usePdfHelperDependency(): {
       .catch((error) =>
         setDependencyState({
           status: "error",
-          message: stringifyError(error),
+          message: dependencyErrorMessage(error, "check"),
         }),
       );
   }, []);
@@ -49,7 +50,7 @@ function usePdfHelperDependency(): {
         setDependencyState({
           status: "error",
           helper: currentHelper,
-          message: stringifyError(error),
+          message: dependencyErrorMessage(error, "install"),
         }),
       );
   }, [dependencyState]);
@@ -63,7 +64,7 @@ function usePdfHelperDependency(): {
         setDependencyState({
           status: "error",
           helper: currentHelper,
-          message: stringifyError(error),
+          message: dependencyErrorMessage(error, "remove"),
         }),
       );
   }, [dependencyState]);
@@ -99,8 +100,4 @@ function getDependencyHelper(
   return state.status === "ready" || state.status === "error"
     ? state.helper
     : undefined;
-}
-
-function stringifyError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

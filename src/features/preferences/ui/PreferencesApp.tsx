@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { DependenciesPanel } from "./dependencies/DependenciesPanel";
 import { PromptPanel } from "./prompts/PromptPanel";
 import { ProviderPanel } from "./providers/ProviderPanel";
+import { l10nAttributes } from "../localization";
 import { NavButton, T } from "./PreferenceChrome";
 import type { PreferenceSection, PreferencesAppProps } from "./types";
 import {
@@ -33,7 +34,7 @@ function PreferencesApp({ translate }: PreferencesAppProps): ReactElement {
 
   return (
     <main className="zp-pref-shell">
-      <aside className="zp-pref-sidebar" aria-label="Zopilot 偏好设置分组">
+      <aside className="zp-pref-sidebar" {...l10nAttributes("pref-navigation")}>
         <nav className="zp-pref-nav">
           <NavButton
             active={activeSection === "providers"}
@@ -45,7 +46,7 @@ function PreferencesApp({ translate }: PreferencesAppProps): ReactElement {
                 : undefined
             }
             icon={<PlugZap size={16} />}
-            label={<T id="pref-nav-providers">Provider</T>}
+            label={<T id="pref-nav-providers">模型服务</T>}
             onClick={() => setActiveSection("providers")}
           />
           <NavButton
@@ -59,7 +60,7 @@ function PreferencesApp({ translate }: PreferencesAppProps): ReactElement {
             active={activeSection === "prompts"}
             count={promptEditor.prompts.length || undefined}
             icon={<PencilSparkles size={16} />}
-            label={<T id="pref-nav-prompts">Prompt</T>}
+            label={<T id="pref-nav-prompts">提示词</T>}
             onClick={() => setActiveSection("prompts")}
           />
         </nav>

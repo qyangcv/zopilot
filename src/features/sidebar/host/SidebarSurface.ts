@@ -75,7 +75,7 @@ class SidebarSurface {
   ensureMounted(): void {
     this.deckAdapter.mount();
     this.libraryAdapter.mount();
-    if (this.options.isOpen()) {
+    if (this.options.isOpen() && !this.deckPanel?.isConnected) {
       if (this.activeKind === "reader") this.attach();
       if (this.activeKind === "library") this.attachLibrary();
     }
@@ -145,9 +145,10 @@ class SidebarSurface {
   }
 
   private activatePanel(kind: SidebarSurfaceKind, panel: HTMLElement): void {
+    const panelChanged = this.deckPanel !== panel;
     this.activeKind = kind;
     this.deckPanel = panel;
-    this.ensureDeckHost(panel);
+    if (!this.deckHost || panelChanged) this.ensureDeckHost(panel);
   }
 
   private ensureDeckHost(panel: HTMLElement): void {

@@ -1,6 +1,7 @@
 import { CircleAlert, LoaderCircle, PackageCheck } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 import type { PdfHelperInstallProgress } from "../../../../document/pdf-helper/index";
+import type { LocalizedMessage } from "../../localization";
 import type { DependencyState } from "../types";
 import { T } from "../PreferenceChrome";
 
@@ -78,7 +79,13 @@ function DependencyStatus({ state }: { state: DependencyState }): ReactElement {
   );
 }
 
-function BusyStatus({ id, text }: { id: string; text: string }): ReactElement {
+function BusyStatus({
+  id,
+  text,
+}: {
+  id: LocalizedMessage["id"];
+  text: string;
+}): ReactElement {
   return (
     <div className="zp-pref-status">
       <LoaderCircle className="zp-pref-spin" size={16} />
@@ -97,9 +104,9 @@ function installProgressLabel(
 ): ReactNode {
   switch (phase) {
     case "manifest":
-      return <T id="pref-dependencies-progress-manifest">读取 manifest</T>;
+      return <T id="pref-dependencies-progress-manifest">读取版本清单</T>;
     case "download":
-      return <T id="pref-dependencies-progress-download">下载 helper</T>;
+      return <T id="pref-dependencies-progress-download">下载解析工具</T>;
     case "verify":
       return <T id="pref-dependencies-progress-verify">校验下载</T>;
     case "write":

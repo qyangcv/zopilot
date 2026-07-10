@@ -36,22 +36,33 @@ class SidebarHostBindings {
   }
 
   private bindContextRefresh(): Array<() => void> {
-    const targets = [
-      this.options.doc.getElementById("zotero-pane"),
-      this.options.doc.getElementById("zotero-collections-tree"),
-      this.options.doc.getElementById("zotero-items-tree"),
-    ].filter((target): target is HTMLElement => Boolean(target));
     const refreshSoon = () => {
       this.options.win.setTimeout(this.options.syncWithSelectedContext, 0);
     };
-    for (const target of targets) {
-      target.addEventListener("click", refreshSoon);
-      target.addEventListener("keyup", refreshSoon);
-    }
-    return targets.map((target) => () => {
-      target.removeEventListener("click", refreshSoon);
-      target.removeEventListener("keyup", refreshSoon);
-    });
+    const handleTreeInteraction = (event: Event) => {
+      const target = event.target as Element | null;
+      if (!target || typeof target.closest !== "function") return;
+      if (!target.closest("#zotero-collections-tree, #zotero-items-tree")) {
+        return;
+      }
+      refreshSoon();
+    };
+    this.options.doc.addEventListener("mousedown", handleTreeInteraction, true);
+    this.options.doc.addEventListener("keyup", handleTreeInteraction, true);
+    return [
+      () => {
+        this.options.doc.removeEventListener(
+          "mousedown",
+          handleTreeInteraction,
+          true,
+        );
+        this.options.doc.removeEventListener(
+          "keyup",
+          handleTreeInteraction,
+          true,
+        );
+      },
+    ];
   }
 
   private bindLayoutRefresh(): Array<() => void> {

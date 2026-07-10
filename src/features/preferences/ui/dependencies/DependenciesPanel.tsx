@@ -2,7 +2,7 @@ import { Download, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
 import type { PdfHelperStatus } from "../../../../document/pdf-helper/index";
 import type { DependencyState } from "../types";
-import { PageHeader, T } from "../PreferenceChrome";
+import { LocalizedMessageText, PageHeader, T } from "../PreferenceChrome";
 import { DependencyPathList } from "./DependencyPathList";
 import { DependencyProgress, DependencyStatus } from "./DependencyStatus";
 
@@ -33,7 +33,7 @@ function DependenciesPanel({
       <PageHeader
         description={
           <T id="pref-dependencies-description">
-            管理 Zopilot 的 PDF 解析依赖。
+            管理 Zopilot 的 PDF 解析工具，无需向系统 Python 安装软件包。
           </T>
         }
         title={<T id="pref-dependencies-title">依赖管理</T>}
@@ -89,7 +89,7 @@ function DependenciesPanel({
         {helper ? <DependencyPathList helper={helper} /> : null}
         {state.status === "error" ? (
           <div className="zp-pref-message" data-kind="error" role="status">
-            {state.message}
+            <LocalizedMessageText message={state.message} />
           </div>
         ) : null}
       </div>
@@ -108,7 +108,7 @@ function DependencyHeading({
     <div className="zp-pref-dependency-heading">
       <div className="zp-pref-dependency-title-row">
         <h3>
-          <T id="pref-pdf-helper-card-title">PDF 解析 helper</T>
+          <T id="pref-pdf-helper-card-title">PDF 解析工具</T>
         </h3>
         {state.status === "installing" ? null : (
           <DependencyStatus state={state} />
@@ -116,9 +116,11 @@ function DependencyHeading({
         {helper ? (
           <span className="zp-pref-dependency-meta">
             <span>
-              {helper.status === "unsupported"
-                ? "unsupported"
-                : helper.platform}
+              {helper.status === "unsupported" ? (
+                <T id="pref-dependencies-platform-unsupported">不支持</T>
+              ) : (
+                helper.platform
+              )}
             </span>
             <span>v{helper.installedVersion || helper.latestVersion}</span>
           </span>
@@ -126,7 +128,7 @@ function DependencyHeading({
       </div>
       <p>
         <T id="pref-pdf-helper-card-description">
-          用于解析 PDF、提取文本、渲染页面图片。
+          用于解析 PDF、提取文本和渲染页面图片。
         </T>
       </p>
     </div>

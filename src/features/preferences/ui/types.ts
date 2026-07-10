@@ -3,6 +3,7 @@ import type {
   PdfHelperStatus,
 } from "../../../document/pdf-helper/index";
 import type { SidebarPromptView } from "../../sidebar/ui/types";
+import type { LocalizedMessage } from "../localization";
 
 type PreferencesAppProps = {
   translate: () => void;
@@ -19,11 +20,15 @@ type DependencyState =
   | { status: "installing"; progress?: PdfHelperInstallProgress }
   | { status: "removing" }
   | { status: "ready"; helper: PdfHelperStatus }
-  | { status: "error"; helper?: PdfHelperStatus; message: string };
+  | {
+      status: "error";
+      helper?: PdfHelperStatus;
+      message: LocalizedMessage;
+    };
 
 type PromptMessage = {
   kind: "error" | "success";
-  text: string;
+  message: LocalizedMessage;
 };
 
 export type {

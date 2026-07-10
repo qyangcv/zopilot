@@ -18,6 +18,8 @@ jobs:
         uses: zotero-plugin-dev/workflows/setup-js@main
       - name: Run Lint
         run: npm run lint:check
+      - name: Check preference localization
+        run: npm run test:l10n
 
   build:
     runs-on: ubuntu-latest

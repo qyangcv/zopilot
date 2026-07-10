@@ -3,7 +3,6 @@ import {
   isLibraryTab,
   resolveSelectedWorkspace,
 } from "../../../integrations/zotero/selectedWorkspace";
-import type { ZoteroSourceUniverse } from "../../../integrations/zotero/ZoteroWorkspaceService";
 import type { SidebarDisplayState } from "../workspace/WorkspaceCoordinator";
 import { WorkspaceCoordinator } from "../workspace/WorkspaceCoordinator";
 import { SidebarSurface } from "./SidebarSurface";
@@ -14,7 +13,6 @@ type LibrarySelectionOptions = {
   win: Window;
   surface: SidebarSurface;
   workspaceCoordinator: WorkspaceCoordinator;
-  getSourceUniverse: () => ZoteroSourceUniverse;
   isOpen: () => boolean;
   nextToken: () => number;
   getToken: () => number;
@@ -52,10 +50,9 @@ class LibrarySelectionCoordinator {
     ReadyDisplayState | undefined
   > {
     if (!isLibraryTab(this.options.win)) return undefined;
-    const selected = await resolveSelectedWorkspace(
-      this.options.win,
-      this.options.getSourceUniverse(),
-    );
+    const token = this.options.nextToken();
+    const selected = resolveSelectedWorkspace(this.options.win);
+    if (!this.options.canCommit(token)) return undefined;
     const ready = this.options.getReadyDisplayState();
     if (
       selected.status === "ready" &&
@@ -65,7 +62,6 @@ class LibrarySelectionCoordinator {
     ) {
       return ready;
     }
-    const token = this.options.nextToken();
     await this.loadResolvedWorkspace(selected, token);
     return this.options.getReadyDisplayState();
   }
@@ -79,10 +75,9 @@ class LibrarySelectionCoordinator {
       return;
     }
     this.options.surface.attachLibrary();
-    const selected = await resolveSelectedWorkspace(
-      this.options.win,
-      this.options.getSourceUniverse(),
-    );
+    const token = this.options.nextToken();
+    const selected = resolveSelectedWorkspace(this.options.win);
+    if (!this.options.canCommit(token)) return;
     const ready = this.options.getReadyDisplayState();
     if (
       selected.status === "ready" &&
@@ -93,19 +88,16 @@ class LibrarySelectionCoordinator {
       this.options.surface.refreshToolbar();
       return;
     }
-    await this.loadResolvedWorkspace(selected, this.options.nextToken());
+    await this.loadResolvedWorkspace(selected, token);
   }
 
   private async loadSelectedWorkspace(token: number): Promise<void> {
-    const selected = await resolveSelectedWorkspace(
-      this.options.win,
-      this.options.getSourceUniverse(),
-    );
+    const selected = resolveSelectedWorkspace(this.options.win);
     await this.loadResolvedWorkspace(selected, token);
   }
 
   private async loadResolvedWorkspace(
-    selected: Awaited<ReturnType<typeof resolveSelectedWorkspace>>,
+    selected: ReturnType<typeof resolveSelectedWorkspace>,
     token: number,
   ): Promise<void> {
     if (!this.options.canCommit(token)) return;

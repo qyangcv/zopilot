@@ -3,13 +3,14 @@ import type {
   AgentModelEntry,
   ProviderProfile,
 } from "../../../../domain/agent/types";
-import { PageHeader, T } from "../PreferenceChrome";
+import type { LocalizedMessage } from "../../localization";
+import { LocalizedMessageText, PageHeader, T } from "../PreferenceChrome";
 import { AddProviderForm } from "./AddProviderForm";
 import { ProviderCard } from "./ProviderCard";
 
 type ProviderPanelProps = {
   checkingProviderId?: string;
-  message?: string;
+  message?: LocalizedMessage;
   onCheck: (profileId: string) => void;
   onCreate: (input: {
     preset?: "openai-compatible";
@@ -34,8 +35,12 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
   return (
     <section className="zp-pref-page">
       <PageHeader
-        description={<T id="pref-provider-description">管理 AI Providers。</T>}
-        title={<T id="pref-provider-title">Provider</T>}
+        description={
+          <T id="pref-provider-description">
+            管理 Codex CLI 和兼容 OpenAI API 的模型服务。
+          </T>
+        }
+        title={<T id="pref-provider-title">模型服务</T>}
       />
       <AddProviderForm
         onCreate={props.onCreate}
@@ -55,7 +60,7 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
       </div>
       {props.message ? (
         <div className="zp-pref-status zp-pref-status-message">
-          {props.message}
+          <LocalizedMessageText message={props.message} />
         </div>
       ) : null}
     </section>

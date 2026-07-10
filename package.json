@@ -34,6 +34,7 @@
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
     "test:unit": "node --import ./test/register-ts-loader.mjs ./node_modules/mocha/bin/mocha \"test/unit/**/*.test.ts\" \"test/unit/**/*.test.tsx\"",
+    "test:l10n": "node --import ./test/register-ts-loader.mjs ./node_modules/mocha/bin/mocha test/unit/preferences/localizationResources.test.ts test/unit/preferences/providerMessages.test.ts",
     "update-deps": "npm update --save"
   },
   "dependencies": {

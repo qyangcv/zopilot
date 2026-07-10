@@ -1,7 +1,8 @@
 import { ArrowLeft, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
 import { type ReactElement } from "react";
+import { l10nAttributes } from "../../localization";
 import type { PromptEditorMode, PromptMessage, PromptView } from "../types";
-import { PageHeader, T } from "../PreferenceChrome";
+import { LocalizedMessageText, PageHeader, T } from "../PreferenceChrome";
 
 export { PromptPanel };
 
@@ -82,7 +83,7 @@ function PromptListPage({
             创建可从 Zopilot 侧边栏快速插入的模板问题。
           </T>
         }
-        title={<T id="pref-prompts-title">Prompt</T>}
+        title={<T id="pref-prompts-title">提示词</T>}
       />
       <div className="zp-pref-prompt-list-actions">
         <button
@@ -91,7 +92,7 @@ function PromptListPage({
           type="button"
         >
           <Plus size={14} />
-          <T id="pref-prompt-new">新建 Prompt</T>
+          <T id="pref-prompt-new">新建提示词</T>
         </button>
       </div>
       <div className="zp-pref-prompt-list-panel">
@@ -121,13 +122,13 @@ function PromptListPage({
           ))
         ) : (
           <div className="zp-pref-empty">
-            <T id="pref-prompt-empty">暂无自定义 Prompt</T>
+            <T id="pref-prompt-empty">暂无自定义提示词</T>
           </div>
         )}
       </div>
       {message ? (
         <div className="zp-pref-message" data-kind={message.kind} role="status">
-          {message.text}
+          <LocalizedMessageText message={message.message} />
         </div>
       ) : null}
     </section>
@@ -166,10 +167,9 @@ function PromptEditPage({
       >
         <header className="zp-pref-prompt-edit-header">
           <button
-            aria-label="返回 Prompt 列表"
             className="zp-pref-back-button"
+            {...l10nAttributes("pref-prompt-back-button")}
             onClick={onBack}
-            title="返回 Prompt 列表"
             type="button"
           >
             <ArrowLeft size={15} />
@@ -202,7 +202,7 @@ function PromptEditPage({
               data-kind={message.kind}
               role="status"
             >
-              {message.text}
+              <LocalizedMessageText message={message.message} />
             </div>
           ) : null}
           <div className="zp-pref-actions zp-pref-prompt-edit-actions">
