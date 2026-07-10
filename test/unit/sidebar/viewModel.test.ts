@@ -19,6 +19,8 @@ describe("sidebar view model", function () {
     assert.isFalse(state.composerEnabled);
     assert.equal(state.sessionsMode, "history");
     assert.deepEqual(state.messages, []);
+    assert.deepEqual(state.models, []);
+    assert.equal(state.selectedModel, "");
   });
 
   it("keeps empty conversations message-free for the UI empty state", function () {

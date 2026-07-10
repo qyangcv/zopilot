@@ -91,7 +91,7 @@ describe("CodexBridge", function () {
     const conversation = createConversation("conv-a");
     const promise = bridge.instance.sendPrompt("Question", {
       conversation,
-      model: "gpt-5.5",
+      model: "gpt-5.6-terra",
       effort: "high",
     });
     await bridge.flush();
@@ -99,7 +99,7 @@ describe("CodexBridge", function () {
     const start = bridge.requests[0];
     assert.strictEqual(start.method, "turn/start");
     assert.strictEqual(start.params.threadId, "thread-conv-a");
-    assert.strictEqual(start.params.model, "gpt-5.5");
+    assert.strictEqual(start.params.model, "gpt-5.6-terra");
     assert.strictEqual(start.params.reasoningEffort, "high");
     assert.strictEqual(start.params.effort, "high");
 

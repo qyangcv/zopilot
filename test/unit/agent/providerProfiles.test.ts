@@ -16,7 +16,8 @@ describe("ProviderProfileStore", function () {
 
     assert.equal(snapshot.activeProviderId, "codex-cli.default");
     assert.equal(snapshot.profiles[0].kind, "codex-cli");
-    assert.equal(snapshot.profiles[0].defaultModel, "gpt-5.5");
+    assert.deepEqual(snapshot.profiles[0].models, []);
+    assert.isUndefined(snapshot.profiles[0].defaultModel);
   });
 
   it("persists Codex CLI test status in subsequent snapshots", function () {
@@ -33,6 +34,21 @@ describe("ProviderProfileStore", function () {
     assert.equal(profile.models[0]?.id, "gpt-5.6");
     assert.equal(profile.defaultModel, "gpt-5.6");
     assert.equal(profile.lastCheckedAt, "2026-07-05T05:17:47.000Z");
+  });
+
+  it("derives the Codex default from the live catalog, not the removed legacy preference", function () {
+    const store = new ProviderProfileStore();
+
+    Zotero.Prefs.set("extensions.zotero.zopilot.codex.model", "gpt-5.5", true);
+    store.updateCodexProvider({
+      status: "connected",
+      models: [
+        { id: "gpt-5.6-sol", displayName: "GPT-5.6-Sol" },
+        { id: "gpt-5.5", displayName: "GPT-5.5" },
+      ],
+    });
+
+    assert.equal(store.getSnapshot().profiles[0].defaultModel, "gpt-5.6-sol");
   });
 
   it("creates BYOK profiles while keeping API keys out of snapshots", function () {

@@ -147,20 +147,17 @@ class ProviderProfileStore {
   }
 
   updateCodexProvider(input: {
-    defaultModel?: string;
     models?: AgentModelEntry[];
     status?: ProviderProfile["status"];
     lastCheckedAt?: string;
     lastDiagnostic?: ProviderProfile["lastDiagnostic"];
   }): ProviderProfile {
     const profile = createCodexProviderProfile({
-      defaultModel: input.defaultModel,
       models: input.models,
       status: input.status,
     });
     profile.lastCheckedAt = input.lastCheckedAt;
     profile.lastDiagnostic = input.lastDiagnostic;
-    setPref("codex.model", profile.defaultModel || "gpt-5.5");
     this.repository.writeCodexStatus(profile);
     this.notify();
     return profile;
@@ -199,11 +196,9 @@ class ProviderProfileStore {
   }
 
   private readProfiles(): ProviderProfile[] {
-    const codexModel = String(getPref("codex.model") || "");
     const codexStatus = this.repository.readCodexStatus();
     const profiles = [
       createCodexProviderProfile({
-        defaultModel: codexModel,
         models: codexStatus.models,
         status: codexStatus.status,
       }),

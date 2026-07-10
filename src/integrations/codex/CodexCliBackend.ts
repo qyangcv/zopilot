@@ -1,7 +1,6 @@
 import { getCodexBridge } from "./CodexBridge";
 import { diagnoseCodexConnection, type CodexDiagnostic } from "./diagnostics";
 import type { CodexDiscoverySubprocessModule } from "./cliDiscovery";
-import { DEFAULT_CODEX_MODEL } from "../../domain/agent/modelCatalog";
 import type {
   AgentBackend,
   AgentCancelInput,
@@ -55,14 +54,12 @@ class CodexCliBackend implements AgentBackend {
 
   async listModels(): Promise<AgentModelEntry[]> {
     const models = await getCodexBridge().listModels();
-    return models.length
-      ? models.map((model) => ({
-          id: model.slug,
-          displayName: model.displayName,
-          supportedReasoningEfforts: model.supportedReasoningEfforts,
-          defaultReasoningEffort: model.defaultReasoningEffort,
-        }))
-      : [DEFAULT_CODEX_MODEL];
+    return models.map((model) => ({
+      id: model.slug,
+      displayName: model.displayName,
+      supportedReasoningEfforts: model.supportedReasoningEfforts,
+      defaultReasoningEffort: model.defaultReasoningEffort,
+    }));
   }
 
   async sendPrompt(

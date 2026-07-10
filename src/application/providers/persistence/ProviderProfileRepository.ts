@@ -56,7 +56,6 @@ class ProviderProfileRepository {
       ACTIVE_PROVIDER_PREF,
       CODEX_STATUS_PREF,
       SECRETS_PREF,
-      "codex.model",
     ]) {
       prefs.registerObserver?.(`${config.prefsPrefix}.${key}`, listener);
     }

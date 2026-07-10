@@ -7,7 +7,6 @@ import type {
 
 export {
   CODEX_PROVIDER_ID,
-  DEFAULT_CODEX_MODEL,
   PROVIDER_PRESETS,
   createCodexProviderProfile,
   createPresetProviderProfile,
@@ -16,13 +15,6 @@ export {
 };
 
 const CODEX_PROVIDER_ID = "codex-cli.default";
-
-const DEFAULT_CODEX_MODEL: AgentModelEntry = {
-  id: "gpt-5.5",
-  displayName: "GPT-5.5",
-  supportedReasoningEfforts: ["medium"],
-  defaultReasoningEffort: "medium",
-};
 
 type PresetDefinition = {
   preset: Exclude<AgentProviderPreset, "codex-cli">;
@@ -54,23 +46,17 @@ const PROVIDER_PRESETS: PresetDefinition[] = [
 
 function createCodexProviderProfile(
   input: {
-    defaultModel?: string;
     models?: AgentModelEntry[];
     status?: ProviderProfile["status"];
   } = {},
 ): ProviderProfile {
-  const models = input.models?.length ? input.models : [DEFAULT_CODEX_MODEL];
-  const defaultModel =
-    input.defaultModel &&
-    models.some((model) => model.id === input.defaultModel)
-      ? input.defaultModel
-      : models[0]?.id || DEFAULT_CODEX_MODEL.id;
+  const models = input.models || [];
   return {
     id: CODEX_PROVIDER_ID,
     kind: "codex-cli",
     preset: "codex-cli",
     displayName: "Codex CLI",
-    defaultModel,
+    defaultModel: models[0]?.id,
     models,
     capabilities: createCapabilities("codex-cli"),
     timeoutMs: 180000,

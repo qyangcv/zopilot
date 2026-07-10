@@ -61,7 +61,6 @@ class AgentBackendManager {
     const result = await this.getBackend(profile.id).checkStatus();
     if (profile.kind === "codex-cli") {
       getProviderProfileStore().updateCodexProvider({
-        defaultModel: profile.defaultModel,
         models: result.models,
         status: result.status,
         lastCheckedAt: new Date().toISOString(),

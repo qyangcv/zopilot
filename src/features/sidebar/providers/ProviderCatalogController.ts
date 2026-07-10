@@ -1,5 +1,4 @@
 import { getAgentBackendManager } from "../../../application/agent/BackendManager";
-import { getProviderProfileStore } from "../../../application/providers/ProviderProfileService";
 import type {
   AgentDiagnostic,
   AgentModelEntry,
@@ -17,7 +16,6 @@ import {
   parseSavedSelectedModels,
   resolveSelectedModel,
 } from "./modelPreferences";
-import { DEFAULT_MODEL } from "../state/viewModel";
 
 type ProviderCatalogControllerOptions = {
   getViewState: () => SidebarState;
@@ -69,12 +67,10 @@ class ProviderCatalogController {
     if (!selected) {
       return;
     }
-    const manager = getAgentBackendManager();
-    const active = getProviderProfileStore().getProfile(providerProfileId);
     this.saveSelectedModel(providerProfileId, model);
-    manager.setActiveProvider(providerProfileId);
-    if (active?.kind === "codex-cli") {
-      setPref("codex.model", model);
+    const manager = getAgentBackendManager();
+    if (manager.getSnapshot().activeProviderId !== providerProfileId) {
+      manager.setActiveProvider(providerProfileId);
     }
     this.updateModelSelection(viewState.models, providerProfileId, model);
     this.options.updateViewState({
@@ -126,11 +122,7 @@ class ProviderCatalogController {
         models.map((model) => agentModelToSidebarModel(model, profile)),
       );
       if (!availableModels.length) {
-        this.updateModelSelection(
-          [DEFAULT_MODEL],
-          DEFAULT_MODEL.providerProfileId,
-          DEFAULT_MODEL.slug,
-        );
+        this.updateModelSelection([], snapshot.activeProviderId, "");
         await this.refreshActiveBackendDiagnostic();
         return;
       }
@@ -154,9 +146,9 @@ class ProviderCatalogController {
         return;
       }
       this.updateModelSelection(
-        [DEFAULT_MODEL],
-        DEFAULT_MODEL.providerProfileId,
-        DEFAULT_MODEL.slug,
+        [],
+        getAgentBackendManager().getSnapshot().activeProviderId,
+        "",
       );
       await this.refreshActiveBackendDiagnostic(error);
     }
@@ -243,12 +235,7 @@ class ProviderCatalogController {
   }
 
   private readSavedSelectedModels(): Record<string, string> {
-    const saved = parseSavedSelectedModels(getPref(SELECTED_MODELS_PREF));
-    const legacyCodexModel = String(getPref("codex.model") || "").trim();
-    if (legacyCodexModel) {
-      saved[DEFAULT_MODEL.providerProfileId] = legacyCodexModel;
-    }
-    return saved;
+    return parseSavedSelectedModels(getPref(SELECTED_MODELS_PREF));
   }
 
   private saveSelectedModel(providerProfileId: string, model: string): void {

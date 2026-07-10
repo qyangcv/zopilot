@@ -1,14 +1,10 @@
 import { getString } from "../../../app/localization";
+import { CODEX_PROVIDER_ID } from "../../../domain/agent/modelCatalog";
 import type { Conversation } from "../../../domain/conversation";
-import type {
-  SidebarMessageView,
-  SidebarModelView,
-  SidebarState,
-} from "../ui/types";
+import type { SidebarMessageView, SidebarState } from "../ui/types";
 import { extractReaderLocators } from "../context/readerNavigation";
 
 export {
-  DEFAULT_MODEL,
   createConversationMessages,
   createInitialSidebarState,
   createSessionView,
@@ -18,15 +14,6 @@ type StreamingMessage = {
   text: string;
   interrupted: boolean;
   running: boolean;
-};
-
-const DEFAULT_MODEL: SidebarModelView = {
-  slug: "gpt-5.5",
-  displayName: "GPT-5.5",
-  providerProfileId: "codex-cli.default",
-  providerLabel: "Codex CLI",
-  supportedReasoningEfforts: ["medium"],
-  defaultReasoningEffort: "medium",
 };
 
 function createInitialSidebarState(label: string): SidebarState {
@@ -39,11 +26,11 @@ function createInitialSidebarState(label: string): SidebarState {
     sessionsMode: "history",
     composerEnabled: false,
     busy: false,
-    models: [DEFAULT_MODEL],
-    selectedProviderId: DEFAULT_MODEL.providerProfileId,
-    selectedModel: DEFAULT_MODEL.slug,
-    selectedReasoningEffort: "medium",
-    availableReasoningEfforts: DEFAULT_MODEL.supportedReasoningEfforts,
+    models: [],
+    selectedProviderId: CODEX_PROVIDER_ID,
+    selectedModel: "",
+    selectedReasoningEffort: undefined,
+    availableReasoningEfforts: [],
     backendStatus: "checking",
     backendDiagnosticMessage: undefined,
     activeProviderLabel: "Codex CLI",
