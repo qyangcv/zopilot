@@ -1,12 +1,12 @@
 import { assert } from "chai";
 import { renderToStaticMarkup } from "react-dom/server";
-import { DependenciesPanel } from "../../../src/modules/preferences/app/DependenciesPanel.tsx";
-import { PreferencesApp } from "../../../src/modules/preferences/app/PreferencesApp.tsx";
-import { PromptPanel } from "../../../src/modules/preferences/app/PromptPanel.tsx";
+import { DependenciesPanel } from "../../../src/features/preferences/ui/dependencies/DependenciesPanel.tsx";
+import { PreferencesApp } from "../../../src/features/preferences/ui/PreferencesApp.tsx";
+import { PromptPanel } from "../../../src/features/preferences/ui/prompts/PromptPanel.tsx";
 import type {
   DependencyState,
   PromptView,
-} from "../../../src/modules/preferences/app/types.ts";
+} from "../../../src/features/preferences/ui/types.ts";
 
 describe("PreferencesApp", function () {
   beforeEach(function () {

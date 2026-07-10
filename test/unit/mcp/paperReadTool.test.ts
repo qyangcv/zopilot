@@ -1,9 +1,9 @@
 import { assert } from "chai";
-import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
+import { createPaperReadTool } from "../../../src/integrations/mcp/tools/paperRead.ts";
 import {
   PAPER_BINDING_MISSING_MESSAGE,
   type BoundWorkspaceScope,
-} from "../../../src/mcp/paperBinding.ts";
+} from "../../../src/integrations/mcp/workspaceBinding.ts";
 import type { BuiltContext } from "../../../src/document/types.ts";
 
 describe("paper_read MCP tool", function () {

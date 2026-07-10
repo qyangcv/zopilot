@@ -2,11 +2,11 @@ import { assert } from "chai";
 import {
   buildSidebarCommands,
   filterSidebarCommands,
-} from "../../../src/modules/sidebar/app/commandRegistry.ts";
+} from "../../../src/features/sidebar/ui/commandRegistry.ts";
 import type {
   SidebarPromptView,
   SidebarState,
-} from "../../../src/modules/sidebar/app/types.ts";
+} from "../../../src/features/sidebar/ui/types.ts";
 
 describe("sidebar command registry", function () {
   before(function () {

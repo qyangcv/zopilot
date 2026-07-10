@@ -2,7 +2,7 @@ import { assert } from "chai";
 import {
   readSubprocessStream,
   waitForSubprocessResult,
-} from "../../../src/utils/subprocess.ts";
+} from "../../../src/runtime/process/subprocess.ts";
 
 describe("subprocess utilities", function () {
   it("drains stream chunks until an empty read", async function () {

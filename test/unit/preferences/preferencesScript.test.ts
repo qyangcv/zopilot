@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { initPreferencesPane } from "../../../src/modules/preferences/preferencesPane.ts";
+import { initPreferencesPane } from "../../../src/features/preferences/mountPreferencesApp.ts";
 
 describe("preferences pane script", function () {
   it("waits for the React root before rendering", function () {

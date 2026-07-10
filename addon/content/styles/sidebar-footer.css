@@ -103,17 +103,10 @@
 }
 
 .zp-ui-select-popup {
-  width: 100%;
-  max-height: inherit;
   overflow: auto;
   padding-block: 4px;
-  border: 1px solid var(--zp-border);
   border-radius: 7px;
-  background: var(--zp-popover);
-  color: CanvasText;
   box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
-  font: menu;
-  font-size: 12px;
 }
 
 .zp-ui-select-option {

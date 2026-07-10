@@ -28,7 +28,7 @@ export default defineConfig({
     },
     esbuildOptions: [
       {
-        entryPoints: ["src/index.ts"],
+        entryPoints: ["src/app/index.ts"],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,
         },
@@ -37,14 +37,14 @@ export default defineConfig({
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
       },
       {
-        entryPoints: ["src/modules/preferences/preferencesPane.ts"],
+        entryPoints: ["src/features/preferences/mountPreferencesApp.ts"],
         bundle: true,
         format: "iife",
         target: "firefox115",
         outfile: ".scaffold/build/addon/content/preferences.js",
       },
       {
-        entryPoints: ["src/byokRuntime/server.ts"],
+        entryPoints: ["src/integrations/byok/runtime/serverEntry.ts"],
         bundle: true,
         platform: "node",
         format: "cjs",

@@ -186,3 +186,19 @@
 .zp-send-button:disabled {
   opacity: 0.45;
 }
+/* Shared floating-surface foundation */
+
+:where(
+  .zp-mention-popover,
+  .zp-command-menu,
+  .zp-floating-panel,
+  .zp-ui-select-popup
+) {
+  width: 100%;
+  max-height: inherit;
+  border: 1px solid var(--zp-border);
+  background: var(--zp-popover);
+  color: CanvasText;
+  font: menu;
+  font-size: 12px;
+}

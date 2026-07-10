@@ -1,17 +1,10 @@
 /* Composer popovers and command menu */
 
 .zp-mention-popover {
-  width: 100%;
-  max-height: inherit;
   overflow: auto;
   padding-block: 4px;
-  border: 1px solid var(--zp-border);
   border-radius: 7px;
-  background: var(--zp-popover);
-  color: CanvasText;
   box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
-  font: menu;
-  font-size: 12px;
   scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
   scrollbar-width: thin;
 }
@@ -30,16 +23,9 @@
 }
 
 .zp-command-menu {
-  width: 100%;
-  max-height: inherit;
   overflow: hidden;
-  border: 1px solid var(--zp-border);
   border-radius: 7px;
-  background: var(--zp-popover);
-  color: CanvasText;
   box-shadow: 0 8px 20px color-mix(in srgb, CanvasText 14%, transparent);
-  font: menu;
-  font-size: 12px;
 }
 
 .zp-command-menu-header {
@@ -134,16 +120,9 @@
 /* Prompt panel */
 
 .zp-floating-panel {
-  width: 100%;
-  max-height: inherit;
   overflow: hidden;
-  border: 1px solid var(--zp-border);
   border-radius: 8px;
-  background: var(--zp-popover);
-  color: CanvasText;
   box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 10%, transparent);
-  font: menu;
-  font-size: 12px;
 }
 
 .zp-floating-panel-header {

@@ -8,7 +8,7 @@ import {
   selectPdfHelperArtifact,
   updatePdfHelperDependency,
   type PdfHelperManifest,
-} from "../../../src/document/pdfHelper.ts";
+} from "../../../src/document/pdf-helper/index.ts";
 
 describe("PDF helper", function () {
   afterEach(function () {

@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { DocumentContextBuilder } from "../../../src/document/contextBuilder.ts";
+import { DocumentContextBuilder } from "../../../src/application/document/DocumentContextBuilder.ts";
 import type {
   Material,
   SourceIdentity,

@@ -5,8 +5,8 @@ import {
   parseSavedReasoningEfforts,
   parseSavedSelectedModels,
   resolveSelectedModel,
-} from "../../../src/modules/sidebar/modelPreferences.ts";
-import type { SidebarModelView } from "../../../src/modules/sidebar/app/types.ts";
+} from "../../../src/features/sidebar/providers/modelPreferences.ts";
+import type { SidebarModelView } from "../../../src/features/sidebar/ui/types.ts";
 
 describe("sidebar model preferences", function () {
   it("keeps a saved reasoning effort when the selected model still supports it", function () {

@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { copyText } from "../../../src/modules/sidebar/app/clipboard.ts";
+import { copyText } from "../../../src/features/sidebar/ui/clipboard.ts";
 
 describe("sidebar clipboard", function () {
   afterEach(function () {

@@ -5,7 +5,7 @@ import {
   loadPromptViews,
   subscribePromptViews,
   updateCustomPrompt,
-} from "../../../src/modules/sidebar/promptStore.ts";
+} from "../../../src/features/sidebar/prompts/promptStore.ts";
 
 describe("sidebar prompt store", function () {
   beforeEach(function () {

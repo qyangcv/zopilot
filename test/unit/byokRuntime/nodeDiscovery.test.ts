@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { resolveNodeBinaryPath } from "../../../src/byokRuntime/nodeDiscovery.ts";
+import { resolveNodeBinaryPath } from "../../../src/integrations/byok/runtime/nodeDiscovery.ts";
 
 describe("BYOK Node discovery", function () {
   let existingPaths: Set<string>;

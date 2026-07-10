@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { pickLocalAttachment } from "../../../src/modules/sidebar/attachmentUpload.ts";
+import { pickLocalAttachment } from "../../../src/features/sidebar/context/attachmentUpload.ts";
 
 describe("sidebar attachment upload", function () {
   before(function () {

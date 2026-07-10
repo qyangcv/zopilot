@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { ProviderProfileStore } from "../../../src/agent/providerProfiles.ts";
+import { ProviderProfileStore } from "../../../src/application/providers/ProviderProfileService.ts";
 
 describe("ProviderProfileStore", function () {
   beforeEach(function () {

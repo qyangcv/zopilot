@@ -1,13 +1,13 @@
 import { assert } from "chai";
-import { SidebarSessionCoordinator } from "../../../src/modules/sidebar/sessionCoordinator.ts";
-import { createItemWorkspaceIdentity } from "../../../src/shared/conversation.ts";
-import type { Conversation } from "../../../src/shared/conversation.ts";
+import { SidebarSessionCoordinator } from "../../../src/features/sidebar/chat/SessionCoordinator.ts";
+import { createItemWorkspaceIdentity } from "../../../src/domain/conversation.ts";
+import type { Conversation } from "../../../src/domain/conversation.ts";
 import type {
   SidebarReadyDisplayState,
   SidebarSessionCoordinatorOptions,
-} from "../../../src/modules/sidebar/sessionCoordinator.ts";
-import type { SidebarState } from "../../../src/modules/sidebar/app/types.ts";
-import { createInitialSidebarState } from "../../../src/modules/sidebar/viewModel.ts";
+} from "../../../src/features/sidebar/chat/SessionCoordinator.ts";
+import type { SidebarState } from "../../../src/features/sidebar/ui/types.ts";
+import { createInitialSidebarState } from "../../../src/features/sidebar/state/viewModel.ts";
 
 describe("sidebar session coordinator", function () {
   before(function () {

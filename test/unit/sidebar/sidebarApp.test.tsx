@@ -4,14 +4,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   Message,
   SidebarApp,
-} from "../../../src/modules/sidebar/app/SidebarApp.tsx";
+} from "../../../src/features/sidebar/ui/SidebarApp.tsx";
 import type {
   SidebarActions,
   SidebarMessageView,
   SidebarPromptView,
   SidebarState,
-} from "../../../src/modules/sidebar/app/types.ts";
-import type { Conversation } from "../../../src/shared/conversation.ts";
+} from "../../../src/features/sidebar/ui/types.ts";
+import type { Conversation } from "../../../src/domain/conversation.ts";
 
 describe("SidebarApp", function () {
   before(function () {

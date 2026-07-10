@@ -11,11 +11,11 @@ import {
 import { existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { ConversationStore } from "../../../src/store/conversationStore.ts";
+import { ConversationStore } from "../../../src/runtime/persistence/conversations/ConversationService.ts";
 import {
   createItemWorkspaceIdentity,
   type PaperIdentity,
-} from "../../../src/shared/conversation.ts";
+} from "../../../src/domain/conversation.ts";
 
 let rootDir: string;
 const originalConsole = globalThis.console;

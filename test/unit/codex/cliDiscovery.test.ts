@@ -2,7 +2,7 @@ import { assert } from "chai";
 import {
   buildCodexSubprocessEnvironment,
   resolveCodexBinaryPath,
-} from "../../../src/codex/cliDiscovery.ts";
+} from "../../../src/integrations/codex/cliDiscovery.ts";
 
 const originalConsole = globalThis.console;
 

@@ -9,7 +9,7 @@ import {
   platformPathJoin,
   splitPathEntries,
   SUPPORTED_PDF_HELPER_PLATFORMS,
-} from "../../../src/utils/platform.ts";
+} from "../../../src/runtime/platform/host.ts";
 
 describe("platform utilities", function () {
   it("detects supported PDF helper host platforms", function () {

@@ -2,7 +2,7 @@ import { assert } from "chai";
 import {
   checkCodexConnection,
   diagnoseCodexConnection,
-} from "../../../src/codex/diagnostics.ts";
+} from "../../../src/integrations/codex/diagnostics.ts";
 
 describe("Codex connection diagnostics", function () {
   let existingPaths: Set<string>;

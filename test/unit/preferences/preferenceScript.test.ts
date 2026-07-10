@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { registerPreferencePane } from "../../../src/modules/preferenceScript.ts";
+import { registerPreferencePane } from "../../../src/features/preferences/registerPreferencePane.ts";
 
 describe("preference pane registration", function () {
   let previousAddon: unknown;

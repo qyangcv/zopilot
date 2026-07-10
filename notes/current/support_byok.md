@@ -147,46 +147,38 @@ Zopilot 仍然自己负责：
   不是 conversation partition key；
 - provider-specific failures 归一化为一小组 user-facing diagnostics。
 
-## 需要移除的现有耦合
+## 已完成的现有耦合移除
 
-当前代码把 Codex 当成 backend boundary：
+重构前代码把 Codex 当成 backend boundary；现在已经完成以下迁移：
 
-- `src/codex/bridge.ts` 负责 model listing、thread opening、prompt sending、
-  MCP config injection、streaming event handling 和 interrupt。
-- `src/modules/sidebar/controller.ts` 直接调用 `getCodexBridge()`。
-- `src/shared/conversation.ts` 存储 `codexThreadId` 和 `codexTurnId`。
-- `src/modules/preferences/app/ConnectionPanel.tsx` 是 Codex connection
-  panel，而不是 agent/backend configuration panel。
+- `src/integrations/codex/` 分别维护 Bridge、thread manager、turn registry 和
+  Codex backend adapter。
+- `src/features/sidebar/chat/TurnCoordinator.ts` 通过 application backend
+  manager 调用选中的 backend，不再直接调用 Codex Bridge。
+- `src/domain/conversation.ts` 只定义持久化 contract；Codex thread/turn 字段
+  作为 adapter metadata 保持兼容。
+- `src/features/preferences/ui/providers/ProviderPanel.tsx` 统一管理 Codex CLI
+  与 BYOK provider，不再存在 Codex-only Connection panel。
 - `addon/prefs.js` 存储 Codex-specific model 和 reasoning prefs。
 - locale strings 和 UI status names 使用 Codex-specific labels。
 
-这些都是 migration targets。第一步重构应该先把 Codex 包到新的 backend
-interface 后面，再实现 BYOK。
+上述 migration targets 已完成；保留的 Codex-specific prefs 和 locale 只用于
+Codex adapter 自身能力，不再决定整个 agent/backend 边界。
 
 ## 模块级目标结构
 
-建议的 module layout：
+已落地的 module layout：
 
 ```text
-src/agent/
-  types.ts
-  registry.ts
-  backendManager.ts
-  capabilities.ts
-  errors.ts
-  modelCatalog.ts
-  providerProfiles.ts
-  backends/
-    codexCliBackend.ts
-    openaiCompatibleAgentsBackend.ts
-  tools/
-    paperReadTool.ts
-    attachmentContextTool.ts
-  session/
-    zopilotSession.ts
-    contextPolicy.ts
-  diagnostics/
-    backendDiagnostics.ts
+src/
+  domain/agent/                 # contracts、capabilities、errors、model catalog
+  application/agent/           # BackendManager、BackendRegistry、prompt policy
+  application/providers/       # profile service、repository、secret store、codec
+  integrations/codex/          # Codex adapter、Bridge、thread/turn lifecycle
+  integrations/byok/           # OpenAI-compatible adapter 与隔离 runtime
+  integrations/mcp/            # paper_read 与 workspace binding
+  features/sidebar/            # backend-neutral chat orchestration
+  features/preferences/        # unified provider management
 ```
 
 这是概念结构。最终文件拆分可以遵循本仓库既有风格，但 ownership 应保持

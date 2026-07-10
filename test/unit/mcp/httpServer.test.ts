@@ -1,9 +1,9 @@
 import { assert } from "chai";
-import type { JsonValue } from "../../../src/codex/types.ts";
-import type { ConversationMetadata } from "../../../src/shared/conversation.ts";
-import { createMcpHttpHandler } from "../../../src/mcp/httpServer.ts";
-import { createPaperBindingHeaders } from "../../../src/mcp/paperBinding.ts";
-import { createPaperReadTool } from "../../../src/mcp/tools/paperRead.ts";
+import type { JsonValue } from "../../../src/runtime/json/types.ts";
+import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
+import { createMcpHttpHandler } from "../../../src/integrations/mcp/httpServer.ts";
+import { createPaperBindingHeaders } from "../../../src/integrations/mcp/workspaceBinding.ts";
+import { createPaperReadTool } from "../../../src/integrations/mcp/tools/paperRead.ts";
 import type { BuiltContext } from "../../../src/document/types.ts";
 
 const TOKEN = "test-token";

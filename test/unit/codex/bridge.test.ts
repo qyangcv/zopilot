@@ -1,8 +1,8 @@
 import { assert } from "chai";
-import { buildCodexAppServerArguments } from "../../../src/codex/appServerConfig.ts";
-import { CodexBridge } from "../../../src/codex/bridge.ts";
-import { shutdownMcpHttpServer } from "../../../src/mcp/httpServer.ts";
-import type { ConversationMetadata } from "../../../src/shared/conversation.ts";
+import { buildCodexAppServerArguments } from "../../../src/integrations/codex/appServerConfig.ts";
+import { CodexBridge } from "../../../src/integrations/codex/CodexBridge.ts";
+import { shutdownMcpHttpServer } from "../../../src/integrations/mcp/httpServer.ts";
+import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
 
 describe("CodexBridge", function () {
   beforeEach(function () {
@@ -282,7 +282,9 @@ function createBridgeHarness(): {
   const bridge = instance as unknown as {
     start: () => Promise<void>;
     getTimeoutMs: () => number;
-    conversationThreads: Map<string, string>;
+    threads: {
+      threads: Map<string, string>;
+    };
     process: unknown;
     handleLine: (line: string) => void;
   };
@@ -310,10 +312,7 @@ function createBridgeHarness(): {
       bridge.handleLine(JSON.stringify({ method, params }));
     },
     cacheThread: (conversationId) => {
-      bridge.conversationThreads.set(
-        conversationId,
-        `thread-${conversationId}`,
-      );
+      bridge.threads.threads.set(conversationId, `thread-${conversationId}`);
     },
   };
 }

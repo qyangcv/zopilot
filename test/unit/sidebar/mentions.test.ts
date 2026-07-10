@@ -3,8 +3,8 @@ import {
   findMentionQuery,
   matchMentionCandidates,
   sourceToMention,
-} from "../../../src/modules/sidebar/app/mentions.ts";
-import type { PaperSourceRef } from "../../../src/shared/conversation.ts";
+} from "../../../src/features/sidebar/ui/mentions.ts";
+import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
 
 describe("sidebar source mentions", function () {
   it("keeps spaces inside the active @ query", function () {

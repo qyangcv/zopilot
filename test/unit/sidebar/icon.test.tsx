@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Icon, type IconName } from "../../../src/modules/sidebar/app/Icon.tsx";
-import { renderStaticIconHtml } from "../../../src/modules/sidebar/app/staticIcons.ts";
+import { Icon, type IconName } from "../../../src/features/sidebar/ui/Icon.tsx";
+import { renderStaticIconHtml } from "../../../src/features/sidebar/ui/staticIcons.ts";
 
 describe("sidebar Icon", function () {
   it("renders known icons through the shared icon wrapper", function () {

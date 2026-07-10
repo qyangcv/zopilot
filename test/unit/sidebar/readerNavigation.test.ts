@@ -3,7 +3,7 @@ import {
   extractReaderLocators,
   navigateReaderLocator,
   readerLocatorToLocation,
-} from "../../../src/modules/sidebar/readerNavigation.ts";
+} from "../../../src/features/sidebar/context/readerNavigation.ts";
 
 describe("sidebar reader navigation", function () {
   it("extracts page and annotation locators from assistant text", function () {

@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { calculateFloatingPosition } from "../../../src/modules/sidebar/app/ui/floatingPosition.ts";
+import { calculateFloatingPosition } from "../../../src/features/sidebar/ui/primitives/floatingPosition.ts";
 
 describe("floating popover positioning", function () {
   it("anchors a select popup above the trigger and aligns its leading edge", function () {

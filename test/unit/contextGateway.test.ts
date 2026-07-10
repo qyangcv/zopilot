@@ -1,6 +1,6 @@
 import { assert } from "chai";
-import { ZoteroContextGateway } from "../../src/zotero/contextGateway.ts";
-import type { PaperScope } from "../../src/zotero/types.ts";
+import { ZoteroContextGateway } from "../../src/integrations/zotero/ZoteroContextGateway.ts";
+import type { PaperScope } from "../../src/integrations/zotero/types.ts";
 
 type MockItem = {
   id: number;

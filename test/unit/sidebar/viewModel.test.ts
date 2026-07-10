@@ -3,8 +3,8 @@ import {
   createConversationMessages,
   createInitialSidebarState,
   createSessionView,
-} from "../../../src/modules/sidebar/viewModel.ts";
-import type { Conversation } from "../../../src/shared/conversation.ts";
+} from "../../../src/features/sidebar/state/viewModel.ts";
+import type { Conversation } from "../../../src/domain/conversation.ts";
 
 describe("sidebar view model", function () {
   before(function () {

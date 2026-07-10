@@ -1,0 +1,27 @@
+/* Preferences shell */
+
+#zopilot-preferences-root {
+  color-scheme: light dark;
+  min-height: 520px;
+}
+
+.zp-pref-shell {
+  --zp-pref-bg: Canvas;
+  --zp-pref-panel: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+  --zp-pref-panel-strong: color-mix(in srgb, Canvas 88%, CanvasText 12%);
+  --zp-pref-border: color-mix(in srgb, CanvasText 18%, transparent);
+  --zp-pref-border-strong: color-mix(in srgb, CanvasText 26%, transparent);
+  --zp-pref-muted: color-mix(in srgb, CanvasText 62%, transparent);
+  --zp-pref-accent: AccentColor;
+  --zp-pref-danger: #c9342f;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--zp-pref-border);
+  border-radius: 8px;
+  background: var(--zp-pref-bg);
+  color: CanvasText;
+  font: menu;
+  font-size: 13px;
+}

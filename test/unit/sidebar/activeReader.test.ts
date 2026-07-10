@@ -4,7 +4,7 @@ import {
   getSelectedPDFReaderAsync,
   getSelectedReader,
   isPDFReader,
-} from "../../../src/zotero/reader.ts";
+} from "../../../src/integrations/zotero/reader.ts";
 
 type MockReader = {
   itemID?: number;

@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   getCodeLanguage,
   highlightCodeWithShiki,
-} from "../../../src/modules/sidebar/app/codeHighlighting.ts";
-import { MarkdownView } from "../../../src/modules/sidebar/app/MarkdownView.tsx";
-import { renderMarkdownToHtml } from "../../../src/modules/sidebar/app/markdownRenderer.ts";
+} from "../../../src/features/sidebar/ui/codeHighlighting.ts";
+import { MarkdownView } from "../../../src/features/sidebar/ui/MarkdownView.tsx";
+import { renderMarkdownToHtml } from "../../../src/features/sidebar/ui/markdownRenderer.ts";
 
 function renderMarkdown(markdown: string): string {
   return renderToStaticMarkup(

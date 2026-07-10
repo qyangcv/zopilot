@@ -1,7 +1,7 @@
 import { assert } from "chai";
-import { ZoteroPdfSourceResolver } from "../../../src/document/sourceResolver.ts";
+import { ZoteroPdfSourceResolver } from "../../../src/integrations/zotero/ZoteroPdfSourceResolver.ts";
 import type { WorkspaceQueryScope } from "../../../src/document/types.ts";
-import type { PaperSourceRef } from "../../../src/shared/conversation.ts";
+import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
 
 type MockItem = {
   id: number;

@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { createLogger } from "../../../src/utils/logger.ts";
+import { createLogger } from "../../../src/runtime/logging/logger.ts";
 
 type TestGlobals = typeof globalThis & {
   __env__?: "production" | "development";

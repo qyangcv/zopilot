@@ -1,10 +1,10 @@
 import { assert } from "chai";
-import { buildCodexMcpServersConfig } from "../../../src/codex/mcpConfig.ts";
-import type { ConversationMetadata } from "../../../src/shared/conversation.ts";
+import { buildCodexMcpServersConfig } from "../../../src/integrations/codex/mcpConfig.ts";
+import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
 import {
   MCP_ENDPOINT_PATH,
   shutdownMcpHttpServer,
-} from "../../../src/mcp/httpServer.ts";
+} from "../../../src/integrations/mcp/httpServer.ts";
 
 type McpServerConfig = {
   url: string;

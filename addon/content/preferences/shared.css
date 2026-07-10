@@ -1,0 +1,124 @@
+/* Page layout and shared controls */
+
+.zp-pref-main {
+  min-width: 0;
+  overflow: auto;
+  padding: 24px 28px 28px;
+}
+.zp-pref-page {
+  display: flex;
+  max-width: 980px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+.zp-pref-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.zp-pref-page-header h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.zp-pref-page-header p,
+.zp-pref-card p {
+  margin: 6px 0 0;
+  color: var(--zp-pref-muted);
+  line-height: 1.45;
+}
+.zp-pref-card,
+.zp-pref-prompt-list-panel,
+.zp-pref-list-card,
+.zp-pref-editor-card {
+  border: 1px solid var(--zp-pref-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+}
+.zp-pref-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+.zp-pref-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.zp-pref-card h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+.zp-pref-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 30px;
+  border: 1px solid var(--zp-pref-border-strong);
+  border-radius: 6px;
+  cursor: default;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+.zp-pref-button:disabled {
+  border-color: var(--zp-pref-border);
+  background: color-mix(in srgb, Canvas 88%, CanvasText 12%);
+  color: var(--zp-pref-muted);
+  opacity: 1;
+}
+.zp-pref-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.zp-pref-button-primary {
+  background: color-mix(in srgb, var(--zp-pref-accent) 20%, Canvas);
+  color: CanvasText;
+}
+.zp-pref-button-secondary {
+  background: var(--zp-pref-panel);
+  color: CanvasText;
+}
+.zp-pref-button-danger {
+  background: color-mix(in srgb, var(--zp-pref-danger) 12%, Canvas);
+  color: CanvasText;
+}
+.zp-pref-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--zp-pref-border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  color: var(--zp-pref-muted);
+  font-size: 12px;
+}
+.zp-pref-status-connected {
+  color: color-mix(in srgb, #2f8f46 78%, CanvasText);
+}
+.zp-pref-status-missing {
+  color: var(--zp-pref-danger);
+}
+.zp-pref-status-disconnected {
+  color: var(--zp-pref-danger);
+}
+.zp-pref-status-unchecked {
+  color: var(--zp-pref-muted);
+}
+.zp-pref-status-message {
+  border-radius: 6px;
+}
+.zp-pref-spin {
+  animation: zp-pref-spin 1s linear infinite;
+}

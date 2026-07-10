@@ -1,6 +1,6 @@
 import { assert } from "chai";
-import { __sidebarControllerTestHooks } from "../../../src/modules/sidebar/controller.ts";
-import { createItemWorkspaceIdentity } from "../../../src/shared/conversation.ts";
+import { __sidebarControllerTestHooks } from "../../../src/features/sidebar/host/SidebarHostController.ts";
+import { createItemWorkspaceIdentity } from "../../../src/domain/conversation.ts";
 
 describe("sidebar controller", function () {
   before(function () {
@@ -388,7 +388,7 @@ describe("sidebar controller", function () {
       workspace: createItemWorkspaceIdentity(paperA),
       conversation: createConversation(paperA, "conv-a", "Question A"),
     });
-    controller.loadReaderConversation = async (
+    controller.readerSelection.loadReaderConversation = async (
       reader: ReturnType<typeof createPDFReader>,
       token: number,
     ) => {

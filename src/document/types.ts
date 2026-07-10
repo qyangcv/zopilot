@@ -1,5 +1,5 @@
-import type { WorkspaceType } from "../shared/conversation";
-import type { PaperSourceRef } from "../shared/conversation";
+import type { WorkspaceType } from "../domain/conversation";
+import type { PaperSourceRef } from "../domain/conversation";
 
 export type SourceIdentity = {
   sourceId: string;

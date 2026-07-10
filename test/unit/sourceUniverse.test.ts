@@ -1,6 +1,6 @@
 import { assert } from "chai";
-import { createItemWorkspaceIdentity } from "../../src/shared/conversation.ts";
-import { ZoteroSourceUniverse } from "../../src/zotero/sourceUniverse.ts";
+import { createItemWorkspaceIdentity } from "../../src/domain/conversation.ts";
+import { ZoteroSourceUniverse } from "../../src/integrations/zotero/ZoteroWorkspaceService.ts";
 
 type MockItem = {
   id: number;

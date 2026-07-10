@@ -1,0 +1,107 @@
+/* Dependency status */
+
+.zp-pref-dependency-card {
+  gap: 12px;
+}
+.zp-pref-dependency-header {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+}
+.zp-pref-dependency-heading {
+  min-width: 0;
+}
+.zp-pref-dependency-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.zp-pref-dependency-title-row h3 {
+  margin-inline-end: 2px;
+}
+.zp-pref-dependency-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--zp-pref-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.zp-pref-progress {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+.zp-pref-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--zp-pref-muted);
+  font-size: 12px;
+}
+.zp-pref-progress progress {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--zp-pref-accent);
+}
+.zp-pref-progress-meta {
+  color: var(--zp-pref-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.zp-pref-path-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+}
+.zp-pref-path-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(92px, max-content) minmax(0, 1fr);
+  min-width: 0;
+  align-items: start;
+  gap: 6px 12px;
+}
+.zp-pref-path-row + .zp-pref-path-row::before {
+  content: "";
+  position: absolute;
+  inset-inline: 10px;
+  top: -7px;
+  border-block-start: 1px solid var(--zp-pref-border);
+}
+.zp-pref-path-row dt {
+  color: var(--zp-pref-muted);
+  font-weight: 650;
+  padding-block-start: 5px;
+}
+.zp-pref-path-row dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  padding-block-start: 5px;
+  white-space: normal;
+}
+.zp-pref-path-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 2;
+  justify-content: flex-start;
+  gap: 6px;
+}
+.zp-pref-path-action {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
