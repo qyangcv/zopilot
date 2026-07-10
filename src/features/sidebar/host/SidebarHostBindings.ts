@@ -6,7 +6,7 @@ type SidebarHostBindingsOptions = {
   win: Window;
   ensureMountedSurfaces: () => void;
   refreshContext: () => void;
-  syncWithSelectedPDFReader: () => void;
+  syncWithSelectedContext: () => void;
   isOpen: () => boolean;
   isDestroyed: () => boolean;
   areSessionsOpen: () => boolean;
@@ -38,10 +38,11 @@ class SidebarHostBindings {
   private bindContextRefresh(): Array<() => void> {
     const targets = [
       this.options.doc.getElementById("zotero-pane"),
+      this.options.doc.getElementById("zotero-collections-tree"),
       this.options.doc.getElementById("zotero-items-tree"),
     ].filter((target): target is HTMLElement => Boolean(target));
     const refreshSoon = () => {
-      this.options.win.setTimeout(this.options.syncWithSelectedPDFReader, 0);
+      this.options.win.setTimeout(this.options.syncWithSelectedContext, 0);
     };
     for (const target of targets) {
       target.addEventListener("click", refreshSoon);
@@ -61,7 +62,7 @@ class SidebarHostBindings {
       }, 0);
     };
     const reloadConversationSoon = () => {
-      this.options.win.setTimeout(this.options.syncWithSelectedPDFReader, 0);
+      this.options.win.setTimeout(this.options.syncWithSelectedContext, 0);
     };
     const observer = new this.options.win.MutationObserver(refreshLayoutSoon);
     observer.observe(this.options.doc.documentElement, {

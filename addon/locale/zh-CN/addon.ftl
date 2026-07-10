@@ -19,7 +19,7 @@ sidebar-attachment-upload = 添加附件
 sidebar-attachment-picker-title = 选择 PDF 或图片
 sidebar-attachment-context = 已添加附件
 sidebar-attachment-remove = 移除附件
-sidebar-input-placeholder = 询问当前选中的条目
+sidebar-input-placeholder = 询问当前工作区
 sidebar-send = 发送
 sidebar-stop = 停止
 sidebar-model-name = Codex
@@ -31,13 +31,10 @@ sidebar-multiple-items-selected =
         [one] 已选中 1 个条目
        *[other] 已选中 { $count } 个条目
     }
-sidebar-welcome-message = How should we approach this paper?
+sidebar-welcome-message = How should we approach this workspace?
 sidebar-command-source-add-title = 添加本地附件
 sidebar-command-source-add-description = 为下一条消息选择 PDF 或图片路径。
-sidebar-command-source-add-disabled = 请先打开论文工作区。
-sidebar-command-reader-evidence-prompt-title = 插入证据 Prompt
-sidebar-command-reader-evidence-prompt-description = 插入一个要求 Codex 查找证据并返回页码或章节定位的 Prompt。
-sidebar-command-reader-evidence-prompt-disabled = 当前无法插入证据 Prompt。
+sidebar-command-source-add-disabled = 请先选择工作区。
 sidebar-command-attachment-upload-title = 添加附件
 sidebar-command-attachment-upload-description = 为下一条消息选择 PDF 或图片路径。
 sidebar-command-attachment-upload-disabled = 请先选择工作区。
@@ -51,8 +48,8 @@ sidebar-command-category-reader = 阅读器
 sidebar-command-category-attachment = 附件
 sidebar-command-category-session = 会话
 sidebar-command-category-prompt = Prompt
-sidebar-loading-conversation = 正在加载当前论文会话...
-sidebar-unavailable-message = 打开 PDF 阅读器标签页后即可使用 paper chat。
+sidebar-loading-conversation = 正在加载当前工作区会话...
+sidebar-unavailable-message = 请选择文库或普通合集，或打开 PDF 阅读器标签页。
 sidebar-backend-starting = Working...
 sidebar-backend-status-checking = Connecting...
 sidebar-backend-status-disconnected = Provider 未连接

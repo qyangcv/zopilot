@@ -20,25 +20,39 @@ import { getSelectedItemTitle } from "../host/selectedItem";
 
 const logger = createLogger("sidebar.workspace");
 
+type SidebarHostContext =
+  | {
+      kind: "reader";
+      tabID?: string;
+      itemID?: number;
+    }
+  | {
+      kind: "library";
+      rowID: string;
+    };
+
 type SidebarDisplayState =
   | { kind: "closed"; token: number }
   | { kind: "no-reader"; token: number; label: string }
   | {
       kind: "loading";
       token: number;
-      reader: _ZoteroTypes.ReaderInstance<"pdf">;
+      hostContext?: SidebarHostContext;
+      reader?: _ZoteroTypes.ReaderInstance<"pdf">;
       label: string;
     }
   | {
       kind: "ready";
       token: number;
-      reader: _ZoteroTypes.ReaderInstance<"pdf">;
+      hostContext?: SidebarHostContext;
+      reader?: _ZoteroTypes.ReaderInstance<"pdf">;
       workspace: WorkspaceIdentity;
       conversation: Conversation;
     }
   | {
       kind: "error";
       token: number;
+      hostContext?: SidebarHostContext;
       reader?: _ZoteroTypes.ReaderInstance<"pdf">;
       label: string;
       message: string;
@@ -58,7 +72,8 @@ type WorkspaceCoordinatorOptions = {
   formatError: (error: unknown) => string;
   activateWorkspace: (input: {
     token: number;
-    reader: _ZoteroTypes.ReaderInstance<"pdf">;
+    hostContext?: SidebarHostContext;
+    reader?: _ZoteroTypes.ReaderInstance<"pdf">;
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity | null;
   }) => Promise<void>;
@@ -78,6 +93,11 @@ class WorkspaceCoordinator {
     this.options.setDisplayState({
       kind: "loading",
       token,
+      hostContext: {
+        kind: "reader",
+        tabID: reader.tabID,
+        itemID: reader.itemID,
+      },
       reader,
       label: getSelectedItemTitle(this.options.win, reader),
     });
@@ -103,6 +123,11 @@ class WorkspaceCoordinator {
     try {
       await this.options.activateWorkspace({
         token,
+        hostContext: {
+          kind: "reader",
+          tabID: reader.tabID,
+          itemID: reader.itemID,
+        },
         reader,
         workspace,
         currentSource: paper,
@@ -118,6 +143,11 @@ class WorkspaceCoordinator {
       this.options.setDisplayState({
         kind: "error",
         token,
+        hostContext: {
+          kind: "reader",
+          tabID: reader.tabID,
+          itemID: reader.itemID,
+        },
         reader,
         label: workspace.workspaceLabel,
         message: this.options.formatError(error),
@@ -127,7 +157,8 @@ class WorkspaceCoordinator {
 
   async loadWorkspaceConversation(input: {
     token: number;
-    reader: _ZoteroTypes.ReaderInstance<"pdf">;
+    hostContext?: SidebarHostContext;
+    reader?: _ZoteroTypes.ReaderInstance<"pdf">;
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity | null;
   }): Promise<void> {
@@ -141,6 +172,7 @@ class WorkspaceCoordinator {
     this.options.setDisplayState({
       kind: "ready",
       token: input.token,
+      hostContext: input.hostContext,
       reader: input.reader,
       workspace: input.workspace,
       conversation,
@@ -158,6 +190,7 @@ class WorkspaceCoordinator {
       this.options.setDisplayState({
         kind: "ready",
         token: input.token,
+        hostContext: input.hostContext,
         reader: input.reader,
         workspace: snapshot.workspace,
         conversation,
@@ -190,7 +223,6 @@ class WorkspaceCoordinator {
         .getSourceUniverse()
         .createLibraryWorkspace({
           libraryID: ready.workspace.libraryID,
-          currentSource,
         });
     } else if (type === "collection") {
       const collectionKey =
@@ -200,7 +232,6 @@ class WorkspaceCoordinator {
         ? await this.options.getSourceUniverse().createCollectionWorkspace({
             libraryID: ready.workspace.libraryID,
             collectionKey,
-            currentSource,
           })
         : null;
     } else {
@@ -214,9 +245,10 @@ class WorkspaceCoordinator {
     if (workspace) {
       await this.options.activateWorkspace({
         token,
+        hostContext: ready.hostContext,
         reader: ready.reader,
         workspace,
-        currentSource,
+        currentSource: type === "item" ? currentSource : undefined,
       });
     }
   }
@@ -236,14 +268,13 @@ class WorkspaceCoordinator {
       .createCollectionWorkspace({
         libraryID: ready.workspace.libraryID,
         collectionKey,
-        currentSource: ready.workspace.defaultSource,
       });
     if (workspace) {
       await this.options.activateWorkspace({
         token,
+        hostContext: ready.hostContext,
         reader: ready.reader,
         workspace,
-        currentSource: ready.workspace.defaultSource,
       });
     }
   }
@@ -262,6 +293,7 @@ class WorkspaceCoordinator {
       .createItemWorkspace(source);
     await this.options.activateWorkspace({
       token,
+      hostContext: ready.hostContext,
       reader: ready.reader,
       workspace,
       currentSource: paperSourceRefToIdentity(source),
@@ -285,6 +317,7 @@ class WorkspaceCoordinator {
 export { WorkspaceCoordinator };
 export type {
   ReadyDisplayState,
+  SidebarHostContext,
   SidebarDisplayState,
   WorkspaceCoordinatorOptions,
 };

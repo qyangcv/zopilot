@@ -6,6 +6,7 @@ import {
 } from "./ContextPaneAdapter";
 import { STYLE_URI } from "./constants";
 import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
+import { LibraryItemPaneAdapter } from "./LibraryItemPaneAdapter";
 import { LegacyReaderToolbarCleanup } from "./LegacyReaderToolbarCleanup";
 
 const logger = createLogger("sidebar.surface");
@@ -14,18 +15,23 @@ type SidebarSurfaceOptions = {
   pluginID: string;
   isDestroyed: () => boolean;
   isOpen: () => boolean;
-  onDeckStateChange: (state: ContextPaneActiveState) => void;
+  onActiveSurfaceChange: (kind: SidebarSurfaceKind, active: boolean) => void;
   onUnavailable: () => void;
   onReady: () => void;
 };
+
+type SidebarSurfaceKind = "reader" | "library";
 
 class SidebarSurface {
   private readonly doc: Document;
   private styleNode?: ProcessingInstruction;
   private readonly deckAdapter: ContextPaneDeckAdapter;
+  private readonly libraryAdapter: LibraryItemPaneAdapter;
   private deckHost?: ZopilotDeckHost;
   private deckHostLoading = false;
   private deckPanel?: HTMLElement;
+  private activeKind?: SidebarSurfaceKind;
+  private transitioning = false;
   private readonly toolbarCleanup: LegacyReaderToolbarCleanup;
 
   constructor(
@@ -34,7 +40,11 @@ class SidebarSurface {
   ) {
     this.doc = win.document;
     this.deckAdapter = new ContextPaneDeckAdapter(win, {
-      onActiveStateChange: options.onDeckStateChange,
+      onActiveStateChange: (state) => this.handleReaderStateChange(state),
+    });
+    this.libraryAdapter = new LibraryItemPaneAdapter(win, {
+      onActiveChange: (active) =>
+        this.handleAdapterStateChange("library", active),
     });
     this.toolbarCleanup = new LegacyReaderToolbarCleanup({
       pluginID: options.pluginID,
@@ -49,31 +59,71 @@ class SidebarSurface {
     this.injectStylesheet();
     this.toolbarCleanup.mount();
     this.deckAdapter.mount();
+    this.libraryAdapter.mount();
     this.ensureMounted();
   }
 
   destroy(): void {
-    this.destroyDeckHost();
+    this.deckHost?.destroy();
+    this.deckHost = undefined;
     this.deckAdapter.destroy();
+    this.libraryAdapter.destroy();
     this.styleNode?.remove();
     this.toolbarCleanup.destroy();
   }
 
   ensureMounted(): void {
     this.deckAdapter.mount();
-    if (this.options.isOpen()) this.attach();
+    this.libraryAdapter.mount();
+    if (this.options.isOpen()) {
+      if (this.activeKind === "reader") this.attach();
+      if (this.activeKind === "library") this.attachLibrary();
+    }
     this.toolbarCleanup.refresh();
   }
 
   attach(reader?: _ZoteroTypes.ReaderInstance): void {
+    this.transitioning = true;
     this.ensureNativeContextPaneVisible(reader);
-    this.mountPanel();
     this.deckAdapter.select("zopilot");
+    const panel = this.deckAdapter.ensurePanel();
+    this.transitioning = false;
+    if (!panel) {
+      logger.warn(
+        "failed to mount Zopilot context pane deck",
+        this.deckAdapter.getUnavailableResult(),
+      );
+      this.options.onUnavailable();
+      return;
+    }
+    this.activatePanel("reader", panel);
+  }
+
+  attachLibrary(): void {
+    this.transitioning = true;
+    const selected = this.libraryAdapter.selectZopilot();
+    const panel = this.libraryAdapter.ensurePanel();
+    this.transitioning = false;
+    if (!selected || !panel) {
+      logger.warn(
+        "failed to mount Zopilot library item pane deck",
+        this.libraryAdapter.getUnavailableResult(),
+      );
+      this.options.onUnavailable();
+      return;
+    }
+    this.activatePanel("library", panel);
   }
 
   close(restoreItemPane = false): void {
-    this.destroyDeckHost();
-    if (restoreItemPane) this.deckAdapter.select("item");
+    this.transitioning = true;
+    if (restoreItemPane) {
+      this.deckAdapter.select("item");
+      this.libraryAdapter.selectNative();
+    }
+    this.transitioning = false;
+    this.activeKind = undefined;
+    this.deckPanel = undefined;
     this.toolbarCleanup.refresh();
   }
 
@@ -94,22 +144,19 @@ class SidebarSurface {
     this.doc.insertBefore(this.styleNode, this.doc.documentElement);
   }
 
-  private mountPanel(): void {
-    const panel = this.deckAdapter.ensurePanel();
-    if (!panel) {
-      logger.warn(
-        "failed to mount Zopilot context pane deck",
-        this.deckAdapter.getUnavailableResult(),
-      );
-      this.options.onUnavailable();
-      return;
-    }
+  private activatePanel(kind: SidebarSurfaceKind, panel: HTMLElement): void {
+    this.activeKind = kind;
     this.deckPanel = panel;
     this.ensureDeckHost(panel);
   }
 
   private ensureDeckHost(panel: HTMLElement): void {
-    if (this.deckHost || this.deckHostLoading) return;
+    if (this.deckHost) {
+      this.deckHost.attach(panel);
+      this.options.onReady();
+      return;
+    }
+    if (this.deckHostLoading) return;
     this.deckHostLoading = true;
     void this.createDeckHost(panel);
   }
@@ -120,8 +167,13 @@ class SidebarSurface {
       if (this.options.isDestroyed() || this.deckPanel !== panel) return;
       const deckHost = await createZopilotDeckHost(panel);
       if (this.options.isDestroyed() || this.deckPanel !== panel) {
-        deckHost.destroy();
-        return;
+        const currentPanel = this.deckPanel;
+        if (!this.options.isDestroyed() && currentPanel) {
+          deckHost.attach(currentPanel);
+        } else {
+          deckHost.destroy();
+          return;
+        }
       }
       this.deckHost = deckHost;
       this.options.onReady();
@@ -141,10 +193,23 @@ class SidebarSurface {
     }
   }
 
-  private destroyDeckHost(): void {
-    this.deckHost?.destroy();
-    this.deckHost = undefined;
-    this.deckPanel = undefined;
+  private handleReaderStateChange(state: ContextPaneActiveState): void {
+    this.handleAdapterStateChange("reader", state === "zopilot");
+  }
+
+  private handleAdapterStateChange(
+    kind: SidebarSurfaceKind,
+    active: boolean,
+  ): void {
+    if (this.transitioning) return;
+    if (active) {
+      if (kind === "reader") this.attach();
+      else this.attachLibrary();
+    } else if (this.activeKind === kind) {
+      this.activeKind = undefined;
+      this.deckPanel = undefined;
+    }
+    this.options.onActiveSurfaceChange(kind, active);
   }
 
   private ensureNativeContextPaneVisible(
@@ -176,4 +241,4 @@ function isElementVisible(element: Element | null): boolean {
 }
 
 export { SidebarSurface };
-export type { SidebarSurfaceOptions };
+export type { SidebarSurfaceKind, SidebarSurfaceOptions };

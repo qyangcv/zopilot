@@ -28,20 +28,6 @@ function buildSidebarCommands(state: SidebarState): SidebarCommandView[] {
         : getString("sidebar-command-source-add-disabled"),
     },
     {
-      id: "reader.evidencePrompt",
-      title: getString("sidebar-command-reader-evidence-prompt-title"),
-      description: getString(
-        "sidebar-command-reader-evidence-prompt-description",
-      ),
-      keywords: ["reader", "page", "evidence", "prompt", "证据", "页码"],
-      category: "reader",
-      icon: "reader",
-      available: canUseComposer,
-      disabledReason: canUseComposer
-        ? undefined
-        : getString("sidebar-command-reader-evidence-prompt-disabled"),
-    },
-    {
       id: "attachment.upload",
       title: getString("sidebar-command-attachment-upload-title"),
       description: getString("sidebar-command-attachment-upload-description"),

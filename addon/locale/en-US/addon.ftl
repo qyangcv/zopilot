@@ -19,7 +19,7 @@ sidebar-attachment-upload = Add attachment
 sidebar-attachment-picker-title = Choose PDF or image
 sidebar-attachment-context = Attached files
 sidebar-attachment-remove = Remove attachment
-sidebar-input-placeholder = Ask about the selected item
+sidebar-input-placeholder = Ask about the current workspace
 sidebar-send = Send
 sidebar-stop = Stop
 sidebar-model-name = Local Codex
@@ -31,13 +31,10 @@ sidebar-multiple-items-selected =
         [one] 1 item selected
        *[other] { $count } items selected
     }
-sidebar-welcome-message = How should we approach this paper?
+sidebar-welcome-message = How should we approach this workspace?
 sidebar-command-source-add-title = Add local attachment
 sidebar-command-source-add-description = Choose a PDF or image path for the next message.
-sidebar-command-source-add-disabled = Open a paper workspace first.
-sidebar-command-reader-evidence-prompt-title = Insert evidence prompt
-sidebar-command-reader-evidence-prompt-description = Insert a prompt that asks Codex to find evidence with page or section locators.
-sidebar-command-reader-evidence-prompt-disabled = Composer is not ready for evidence prompt insertion.
+sidebar-command-source-add-disabled = Select a workspace first.
 sidebar-command-attachment-upload-title = Add attachment
 sidebar-command-attachment-upload-description = Choose a PDF or image path for the next message.
 sidebar-command-attachment-upload-disabled = Select a workspace first.
@@ -51,8 +48,8 @@ sidebar-command-category-reader = reader
 sidebar-command-category-attachment = attachment
 sidebar-command-category-session = session
 sidebar-command-category-prompt = prompt
-sidebar-loading-conversation = Loading paper chat...
-sidebar-unavailable-message = Open a PDF reader tab to use paper chat.
+sidebar-loading-conversation = Loading the current workspace conversation...
+sidebar-unavailable-message = Select a library or regular collection, or open a PDF reader tab.
 sidebar-backend-starting = Working...
 sidebar-backend-status-checking = Connecting provider...
 sidebar-backend-status-disconnected = Provider not connected

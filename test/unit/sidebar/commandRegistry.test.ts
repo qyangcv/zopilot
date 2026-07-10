@@ -20,7 +20,6 @@ describe("sidebar command registry", function () {
     assert.deepEqual([...categories].sort(), [
       "attachment",
       "prompt",
-      "reader",
       "session",
       "source",
     ]);
@@ -34,11 +33,15 @@ describe("sidebar command registry", function () {
       title: "添加本地附件",
       description: "为下一条消息选择 PDF 或图片路径。",
     });
-    assert.deepInclude(commands[1], {
-      id: "reader.evidencePrompt",
-      title: "插入证据 Prompt",
-      description: "插入一个要求 Codex 查找证据并返回页码或章节定位的 Prompt。",
-    });
+  });
+
+  it("omits the evidence prompt command", function () {
+    const commands = buildSidebarCommands(createState());
+
+    assert.notInclude(
+      commands.map((command) => command.id),
+      "reader.evidencePrompt",
+    );
   });
 
   it("filters commands with Chinese aliases", function () {
@@ -128,15 +131,6 @@ function installLocaleMock(): void {
       "为下一条消息选择 PDF 或图片路径。",
     ],
     ["sidebar-command-source-add-disabled", "请先打开论文工作区。"],
-    ["sidebar-command-reader-evidence-prompt-title", "插入证据 Prompt"],
-    [
-      "sidebar-command-reader-evidence-prompt-description",
-      "插入一个要求 Codex 查找证据并返回页码或章节定位的 Prompt。",
-    ],
-    [
-      "sidebar-command-reader-evidence-prompt-disabled",
-      "当前无法插入证据 Prompt。",
-    ],
     ["sidebar-command-attachment-upload-title", "添加附件"],
     [
       "sidebar-command-attachment-upload-description",

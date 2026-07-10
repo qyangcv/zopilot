@@ -6,6 +6,7 @@ export { createZopilotDeckHost };
 export type { ZopilotDeckHost };
 
 type ZopilotDeckHost = {
+  attach: (panel: HTMLElement) => void;
   render: (state: SidebarState, actions: SidebarActions) => void;
   focus: () => void;
   refreshContext: () => void;
@@ -35,8 +36,15 @@ async function createZopilotDeckHost(
   const { ZopilotUIProvider } = await import("../ui/primitives/index");
   installGlobals();
   const root = createRoot(mountNode);
+  let currentPanel = panel;
 
   return {
+    attach(nextPanel) {
+      if (mountNode.parentElement === nextPanel) return;
+      nextPanel.replaceChildren(mountNode, portalRoot);
+      currentPanel = nextPanel;
+      installGlobals();
+    },
     render(state, actions) {
       installGlobals();
       root.render(
@@ -46,10 +54,10 @@ async function createZopilotDeckHost(
       );
     },
     focus() {
-      panel.focus();
+      currentPanel.focus();
     },
     refreshContext() {
-      panel.toggleAttribute("data-zopilot-mounted", true);
+      currentPanel.toggleAttribute("data-zopilot-mounted", true);
     },
     destroy() {
       installGlobals();

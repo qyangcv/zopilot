@@ -44,6 +44,7 @@ function useComposerDraft(
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [promptPickerOpen, setPromptPickerOpen] = useState(false);
+  const workspaceKeyRef = useRef(state.context.workspaceKey || "");
   const [commandAnchor, setCommandAnchor] = useState<"button" | "input">(
     "input",
   );
@@ -65,6 +66,18 @@ function useComposerDraft(
   useEffect(() => {
     textareaRef.current?.focus();
   }, [state.focusToken]);
+
+  useEffect(() => {
+    const workspaceKey = state.context.workspaceKey || "";
+    if (workspaceKeyRef.current === workspaceKey) return;
+    workspaceKeyRef.current = workspaceKey;
+    setDraft("");
+    setMentions([]);
+    setLocalAttachments([]);
+    setCommandOpen(false);
+    setCommandQuery("");
+    setPromptPickerOpen(false);
+  }, [state.context.workspaceKey]);
 
   useEffect(() => {
     resizeTextarea(textareaRef.current);
@@ -166,12 +179,6 @@ function useComposerDraft(
     }
     if (command.id === "session.history") {
       actions.toggleSessions();
-      return;
-    }
-    if (command.id === "reader.evidencePrompt") {
-      insertPrompt(
-        "Find the strongest evidence in this paper and include page or section locators.",
-      );
       return;
     }
     if (command.id.startsWith("prompt.")) {

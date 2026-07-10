@@ -13,6 +13,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { ConversationStore } from "../../../src/runtime/persistence/conversations/ConversationService.ts";
 import {
+  createCollectionWorkspaceIdentity,
   createItemWorkspaceIdentity,
   type PaperIdentity,
 } from "../../../src/domain/conversation.ts";
@@ -84,6 +85,31 @@ describe("ConversationStore", function () {
     assert.strictEqual(reloadedB?.metadata.id, conversationB.metadata.id);
     assert.lengthOf(reloadedB?.messages || [], 0);
     assert.notStrictEqual(reloadedA?.metadata.id, reloadedB?.metadata.id);
+  });
+
+  it("clears a transient reader source when reopening a collection workspace", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const store = new ConversationStore(rootDir);
+    const readerWorkspace = createCollectionWorkspaceIdentity({
+      libraryID: 1,
+      collectionKey: "COLL",
+      label: "Collection",
+      defaultSource: paper,
+    });
+    const libraryWorkspace = createCollectionWorkspaceIdentity({
+      libraryID: 1,
+      collectionKey: "COLL",
+      label: "Collection",
+    });
+
+    const created =
+      await store.getOrCreateLatestWorkspaceConversation(readerWorkspace);
+    assert.equal(created.metadata.defaultSource?.paperKey, paper.paperKey);
+
+    const reopened =
+      await store.getOrCreateLatestWorkspaceConversation(libraryWorkspace);
+    assert.equal(reopened.metadata.id, created.metadata.id);
+    assert.isUndefined(reopened.metadata.defaultSource);
   });
 
   it("lists, activates, and archives sessions within one workspace", async function () {

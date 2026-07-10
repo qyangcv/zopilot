@@ -13,7 +13,7 @@ export type { SidebarReadyDisplayState, SidebarSessionCoordinatorOptions };
 type SidebarReadyDisplayState = {
   kind: "ready";
   token: number;
-  reader: _ZoteroTypes.ReaderInstance<"pdf">;
+  reader?: _ZoteroTypes.ReaderInstance<"pdf">;
   workspace: WorkspaceIdentity;
   conversation: Conversation;
 };
@@ -42,7 +42,7 @@ type SidebarSessionStore = {
 
 type SidebarSessionCoordinatorOptions = {
   getReadyDisplayState: () => SidebarReadyDisplayState | undefined;
-  getReadyStateForSelectedReader: () => Promise<
+  getReadyStateForActiveContext: () => Promise<
     SidebarReadyDisplayState | undefined
   >;
   getViewState: () => SidebarState;
@@ -117,7 +117,7 @@ class SidebarSessionCoordinator {
   }
 
   async createNewSession(): Promise<void> {
-    const ready = await this.options.getReadyStateForSelectedReader();
+    const ready = await this.options.getReadyStateForActiveContext();
     if (!ready) {
       return;
     }

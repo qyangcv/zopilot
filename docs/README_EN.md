@@ -8,7 +8,7 @@ Zopilot is a modern Zotero AI plugin that brings AI into the Zopilot sidebar as 
 
 ## Highlights
 
-- Standalone sidebar window
+- One shared sidebar across the Zotero library view and PDF reader
 - Minimal, information-dense UI design
 - Supports BYOK (OpenAI-compatible API) and Codex CLI
 
@@ -48,6 +48,7 @@ Zopilot is a modern Zotero AI plugin that brings AI into the Zopilot sidebar as 
 ## Features
 
 - Native Zotero workspace support, allowing you to ask questions about papers in a library or collection
+- The library-view sidebar follows the library or collection selected in Zotero's left pane
 - Supports Codex CLI with a Codex subscription and BYOK with OpenAI-compatible APIs
 - Supports attachment uploads, including local PDFs and images
 - Supports saved session history

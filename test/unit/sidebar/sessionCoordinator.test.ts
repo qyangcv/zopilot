@@ -121,7 +121,7 @@ function createHarness({
   };
   const coordinator = new SidebarSessionCoordinator({
     getReadyDisplayState: () => ready,
-    getReadyStateForSelectedReader: async () => ready,
+    getReadyStateForActiveContext: async () => ready,
     getViewState: () => state,
     updateViewState(patch) {
       state = {

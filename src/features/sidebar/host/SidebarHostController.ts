@@ -7,8 +7,8 @@ import type {
 } from "../../../domain/conversation";
 import { ZoteroSourceUniverse } from "../../../integrations/zotero/ZoteroWorkspaceService";
 import { getSelectedPDFReader } from "../../../integrations/zotero/reader";
+import { isLibraryTab } from "../../../integrations/zotero/selectedWorkspace";
 import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
-import type { ContextPaneActiveState } from "./contextPaneProbe";
 import { getSelectedItemTitle } from "./selectedItem";
 import { SidebarSessionCoordinator } from "../chat/SessionCoordinator";
 import { loadPromptViews, subscribePromptViews } from "../prompts/promptStore";
@@ -19,6 +19,7 @@ import { ProviderCatalogController } from "../providers/ProviderCatalogControlle
 import { TurnCoordinator, type RunningTurn } from "../chat/TurnCoordinator";
 import {
   WorkspaceCoordinator,
+  type SidebarHostContext,
   type SidebarDisplayState,
 } from "../workspace/WorkspaceCoordinator";
 import { projectSidebarState } from "../state/projectSidebarState";
@@ -31,6 +32,8 @@ import { SidebarSurface } from "./SidebarSurface";
 import { formatBackendError } from "../chat/formatBackendError";
 import { createSidebarActions } from "./createSidebarActions";
 import { ReaderSelectionCoordinator } from "./ReaderSelectionCoordinator";
+import { LibrarySelectionCoordinator } from "./LibrarySelectionCoordinator";
+import type { SidebarSurfaceKind } from "./SidebarSurface";
 
 const controllers = new WeakMap<Window, SidebarHostController>();
 export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
@@ -75,6 +78,7 @@ class SidebarHostController {
   private readonly providerCatalog: ProviderCatalogController;
   private readonly workspaceCoordinator: WorkspaceCoordinator;
   private readonly readerSelection: ReaderSelectionCoordinator;
+  private readonly librarySelection: LibrarySelectionCoordinator;
   private readonly runningTurns = new Map<string, RunningTurn>();
   private readonly turnCoordinator: TurnCoordinator;
   private readonly hostBindings: SidebarHostBindings;
@@ -92,7 +96,8 @@ class SidebarHostController {
       pluginID: config.addonID,
       isDestroyed: () => this.destroyed,
       isOpen: () => this.open,
-      onDeckStateChange: (state) => this.handleDeckStateChange(state),
+      onActiveSurfaceChange: (kind, active) =>
+        this.handleActiveSurfaceChange(kind, active),
       onUnavailable: () => this.setOpen(false),
       onReady: () => this.renderApp(),
     });
@@ -134,6 +139,24 @@ class SidebarHostController {
       setOpen: (open) => this.setOpen(open),
       renderDisplayState: () => this.renderDisplayState(),
     });
+    this.librarySelection = new LibrarySelectionCoordinator({
+      win: this.win,
+      surface: this.surface,
+      workspaceCoordinator: this.workspaceCoordinator,
+      getSourceUniverse: () => this.sourceUniverse,
+      isOpen: () => this.open,
+      nextToken: () => ++this.selectionToken,
+      getToken: () => this.selectionToken,
+      canCommit: (token) => this.canCommitSelection(token),
+      getDisplayState: () => this.displayState,
+      getReadyDisplayState: () => this.getReadyDisplayState(),
+      setDisplayState: (state) => this.setDisplayState(state),
+      setClosedDisplayState: (token) => {
+        this.displayState = { kind: "closed", token };
+      },
+      setOpen: (open) => this.setOpen(open),
+      renderDisplayState: () => this.renderDisplayState(),
+    });
     this.pdfHelperGuard = new PdfHelperPromptGuard(() =>
       this.renderDisplayState(),
     );
@@ -144,7 +167,7 @@ class SidebarHostController {
       runningTurns: this.runningTurns,
       getViewState: () => this.viewState,
       getReadyConversation: async () =>
-        (await this.getReadyStateForSelectedReader())?.conversation,
+        (await this.getReadyStateForActiveContext())?.conversation,
       getActiveConversationId: () =>
         this.getReadyDisplayState()?.conversation.metadata.id,
       ensurePromptReady: (conversation) =>
@@ -163,8 +186,7 @@ class SidebarHostController {
     });
     this.sessions = new SidebarSessionCoordinator({
       getReadyDisplayState: () => this.getReadyDisplayState(),
-      getReadyStateForSelectedReader: () =>
-        this.getReadyStateForSelectedReader(),
+      getReadyStateForActiveContext: () => this.getReadyStateForActiveContext(),
       getViewState: () => this.viewState,
       updateViewState: (patch) => this.updateViewState(patch),
       setReadyConversation: (conversation) =>
@@ -184,8 +206,8 @@ class SidebarHostController {
       win: this.win,
       ensureMountedSurfaces: () => this.ensureMountedSurfaces(),
       refreshContext: () => this.refreshContext(),
-      syncWithSelectedPDFReader: () => {
-        void this.syncWithSelectedPDFReader();
+      syncWithSelectedContext: () => {
+        void this.syncWithSelectedContext();
       },
       isOpen: () => this.open,
       isDestroyed: () => this.destroyed,
@@ -211,7 +233,11 @@ class SidebarHostController {
   }
 
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
-    this.readerSelection.refreshContext(reader);
+    if (isLibraryTab(this.win)) {
+      this.librarySelection.refreshContext();
+    } else {
+      this.readerSelection.refreshContext(reader);
+    }
   }
 
   private ensureMountedSurfaces(): void {
@@ -232,7 +258,8 @@ class SidebarHostController {
 
   private async loadWorkspaceConversation(input: {
     token: number;
-    reader: _ZoteroTypes.ReaderInstance<"pdf">;
+    hostContext?: SidebarHostContext;
+    reader?: _ZoteroTypes.ReaderInstance<"pdf">;
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity | null;
   }): Promise<void> {
@@ -289,10 +316,12 @@ class SidebarHostController {
     return this.displayState.kind === "ready" ? this.displayState : undefined;
   }
 
-  private async getReadyStateForSelectedReader(): Promise<
+  private async getReadyStateForActiveContext(): Promise<
     Extract<DisplayState, { kind: "ready" }> | undefined
   > {
-    return this.readerSelection.getReadyStateForSelectedReader();
+    return isLibraryTab(this.win)
+      ? this.librarySelection.getReadyStateForSelectedWorkspace()
+      : this.readerSelection.getReadyStateForSelectedReader();
   }
 
   private setReadyConversation(conversation: Conversation): void {
@@ -333,7 +362,11 @@ class SidebarHostController {
     const wasOpen = this.open;
     this.open = open;
     if (open) {
-      this.surface.attach();
+      if (isLibraryTab(this.win)) {
+        this.surface.attachLibrary();
+      } else {
+        this.surface.attach(getSelectedPDFReader(this.win));
+      }
     } else {
       this.closeZopilotPane({ restoreItemPane: true });
       return;
@@ -371,14 +404,16 @@ class SidebarHostController {
     });
   }
 
-  private handleDeckStateChange(state: ContextPaneActiveState): void {
+  private handleActiveSurfaceChange(
+    kind: SidebarSurfaceKind,
+    active: boolean,
+  ): void {
     if (this.destroyed) {
       return;
     }
-    if (state === "zopilot") {
-      if (!this.open) {
-        this.openZopilotPane();
-      }
+    if (active) {
+      if (kind === "library") this.librarySelection.openPane();
+      else this.openZopilotPane();
       return;
     }
     if (this.open) {
@@ -386,7 +421,21 @@ class SidebarHostController {
     }
   }
 
-  private async syncWithSelectedPDFReader(): Promise<void> {
+  private async syncWithSelectedContext(): Promise<void> {
+    if (isLibraryTab(this.win)) {
+      if (
+        this.open &&
+        this.getReadyDisplayState()?.hostContext?.kind !== "library"
+      ) {
+        this.surface.attachLibrary();
+      }
+      await this.librarySelection.syncWithSelectedWorkspace();
+      return;
+    }
+    const ready = this.getReadyDisplayState();
+    if (this.open && ready?.hostContext?.kind !== "reader" && !ready?.reader) {
+      this.surface.attach(getSelectedPDFReader(this.win));
+    }
     await this.readerSelection.syncWithSelectedPDFReader();
   }
 

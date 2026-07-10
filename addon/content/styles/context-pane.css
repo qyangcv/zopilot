@@ -1,6 +1,7 @@
 /* Context pane host */
 
-#zopilot-context-pane-deck {
+#zopilot-context-pane-deck,
+#zopilot-library-item-pane-deck {
   --zp-composer-height: 112px;
   --zp-header-height: 39px;
   --zp-app-bg: color-mix(in srgb, Field 74%, Canvas 26%);

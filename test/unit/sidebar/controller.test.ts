@@ -119,7 +119,6 @@ describe("sidebar controller", function () {
       workspaceTitle: "Large Language Models",
       collectionKey: "COLL",
       collectionPath: ["Large Language Models"],
-      defaultSource: paper,
     };
     let loadedWorkspaceKey = "";
     controller.selectionToken = 1;
@@ -131,7 +130,7 @@ describe("sidebar controller", function () {
       }) {
         assert.equal(input.libraryID, 1);
         assert.equal(input.collectionKey, "COLL");
-        assert.strictEqual(input.currentSource, paper);
+        assert.isUndefined(input.currentSource);
         return collectionWorkspace;
       },
     };
@@ -184,7 +183,6 @@ describe("sidebar controller", function () {
       workspaceTitle: "Large Language Models",
       collectionKey: "COLL",
       collectionPath: ["Large Language Models"],
-      defaultSource: paper,
     };
     let loadToken = 0;
     controller.open = true;
@@ -402,7 +400,7 @@ describe("sidebar controller", function () {
       });
     };
 
-    const ready = await controller.getReadyStateForSelectedReader();
+    const ready = await controller.getReadyStateForActiveContext();
 
     assert.equal(ready?.workspace.workspaceKey, "item:1:BBB");
     assert.equal(controller.viewState.context.label, "Paper B");
@@ -436,7 +434,7 @@ describe("sidebar controller", function () {
       conversation: createConversation(paper, "conv-a", "Question A"),
     });
 
-    await controller.syncWithSelectedPDFReader();
+    await controller.syncWithSelectedContext();
 
     assert.equal(controller.selectionToken, 1);
     assert.equal(controller.getReadyDisplayState()?.token, 1);
