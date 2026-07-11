@@ -669,6 +669,10 @@
   color: var(--zp-muted);
 }
 
+.zp-message-footer .zp-message-actions {
+  transform: translateX(-4px);
+}
+
 .zp-message-footer {
   display: flex;
   align-items: center;
