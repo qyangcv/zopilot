@@ -11,13 +11,12 @@ import {
 import { FloatingPortal } from "./FloatingPortal";
 
 export { SingleSelect };
-export type { SingleSelectOption, SingleSelectVariant };
+export type { SingleSelectOption };
 
 type SingleSelectVariant = "compact" | "form";
 
 type SingleSelectOption = {
   disabled?: boolean;
-  groupChild?: boolean;
   groupIcon?: ReactNode;
   groupLabel?: string;
   icon?: ReactNode;
@@ -145,7 +144,6 @@ function SingleSelect({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         className="zp-single-select-trigger"
-        data-indicator-hidden={!showIndicator || undefined}
         data-popup-open={open || undefined}
         disabled={disabled}
         onClick={(event) => {
@@ -177,7 +175,6 @@ function SingleSelect({
           minWidth={resolvedPopupMinWidth}
           onDismiss={() => closeSelect(false)}
           preferredSide={resolvedPreferredSide}
-          renderInlineWithoutPortal={false}
           width={
             variant === "form" ? triggerRef.current?.offsetWidth : undefined
           }
@@ -215,7 +212,7 @@ function SingleSelect({
                   aria-selected={option.value === value}
                   className="zp-single-select-option"
                   data-active={index === activeIndex || undefined}
-                  data-group-child={option.groupChild || undefined}
+                  data-group-child={option.groupLabel ? true : undefined}
                   data-selected={option.value === value || undefined}
                   disabled={option.disabled}
                   id={`${listboxId}-option-${index}`}

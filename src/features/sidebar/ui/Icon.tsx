@@ -28,8 +28,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactElement, SVGProps } from "react";
-import { BRAND_ICON_PATH } from "./brandIcon";
+import type { ReactElement } from "react";
+import { BrandIcon } from "../../../ui/BrandIcon";
 
 const ICONS = {
   add: Plus,
@@ -103,23 +103,5 @@ export function Icon({
       size={size}
       strokeWidth={strokeWidth}
     />
-  );
-}
-
-function BrandIcon({
-  size = 16,
-  ...props
-}: SVGProps<SVGSVGElement> & { size?: number }): ReactElement {
-  return (
-    <svg
-      {...props}
-      fill="currentColor"
-      height={size}
-      viewBox="0 0 24 24"
-      width={size}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d={BRAND_ICON_PATH} stroke="none" />
-    </svg>
   );
 }

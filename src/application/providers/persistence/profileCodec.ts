@@ -1,7 +1,7 @@
 import {
   createLegacyProviderDisplayName,
   createProviderProfile,
-  createProviderDisplayName,
+  getProviderDefinition,
   isProviderId,
   resolveProviderId,
 } from "../../../domain/agent/modelCatalog";
@@ -78,7 +78,7 @@ function normalizeStoredDisplayName(
   // chosen in the edit form remains untouched.
   const legacyName = createLegacyProviderDisplayName(input.baseURL);
   return input.displayName === legacyName
-    ? createProviderDisplayName(input.baseURL, resolveProviderId(input.baseURL))
+    ? getProviderDefinition(resolveProviderId(input.baseURL)).displayName
     : input.displayName;
 }
 

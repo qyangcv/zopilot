@@ -1,10 +1,4 @@
-export {
-  calculateFloatingPosition,
-  type FloatingAlign,
-  type FloatingPosition,
-  type FloatingRect,
-  type FloatingSide,
-};
+export { calculateFloatingPosition, type FloatingAlign, type FloatingSide };
 
 type FloatingAlign = "start" | "end" | "stretch";
 type FloatingSide = "above" | "below";

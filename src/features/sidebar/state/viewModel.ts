@@ -126,7 +126,7 @@ function toMessageView(
     ),
     providerBrand:
       message.providerBrand ||
-      resolveProviderBrand({ kind: message.backendKind, model: message.model }),
+      resolveProviderBrand({ kind: message.backendKind }),
     trace: message.trace,
     completedAt: formatBeijingTimestamp(
       message.completedAt || message.createdAt,

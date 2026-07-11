@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { ComposerBindings } from "./composerBindings";
 import { Icon } from "./Icon";
-import { ProviderBrandIcon } from "./ProviderBrandIcon";
+import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 import type { SidebarActions, SidebarState } from "./types";
 import { SingleSelect } from "../../../ui/primitives/index";
 
@@ -78,7 +78,6 @@ function ComposerFooter({
                 groupIcon: model.providerBrand ? (
                   <ProviderBrandIcon brand={model.providerBrand} size={14} />
                 ) : undefined,
-                groupChild: true,
                 groupLabel: model.providerLabel,
                 label: model.displayName,
                 triggerIcon: model.providerBrand ? (

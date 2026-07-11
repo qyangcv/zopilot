@@ -6,9 +6,7 @@ type ProviderBrand = AgentProviderId | "openai" | "generic";
 type ProviderBrandSource = {
   kind?: AgentBackendKind;
   providerId?: AgentProviderId;
-  displayName?: string;
   baseURL?: string;
-  model?: string;
 };
 
 function resolveProviderBrand(source: ProviderBrandSource): ProviderBrand {

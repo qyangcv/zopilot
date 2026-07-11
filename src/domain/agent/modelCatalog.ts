@@ -10,7 +10,6 @@ export {
   PROVIDER_CATALOG,
   createCodexProviderProfile,
   createProviderProfile,
-  createProviderDisplayName,
   createLegacyProviderDisplayName,
   getProviderDefinition,
   isProviderId,
@@ -173,14 +172,6 @@ function modelFromId(id: string): AgentModelEntry {
     supportedReasoningEfforts,
     defaultReasoningEffort: "medium",
   };
-}
-
-function createProviderDisplayName(
-  baseURL: string | undefined,
-  providerId?: AgentProviderId,
-): string {
-  if (providerId) return getProviderDefinition(providerId).displayName;
-  return getProviderDefinition(resolveProviderId(baseURL)).displayName;
 }
 
 function resolveProviderId(baseURL: string | undefined): AgentProviderId {

@@ -1,4 +1,4 @@
-import { BRAND_ICON_PATH } from "./brandIcon";
+import { BRAND_ICON_PATH } from "../../../ui/BrandIcon";
 
 type StaticIconName = "brand" | "copied" | "copy";
 

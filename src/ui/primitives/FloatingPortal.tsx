@@ -47,7 +47,6 @@ function FloatingPortal({
   offset = 6,
   onDismiss,
   preferredSide = "above",
-  renderInlineWithoutPortal = true,
   width,
   zIndex = 7,
 }: {
@@ -60,7 +59,6 @@ function FloatingPortal({
   offset?: number;
   onDismiss: () => void;
   preferredSide?: FloatingSide;
-  renderInlineWithoutPortal?: boolean;
   width?: number;
   zIndex?: number;
 }): ReactElement | null {
@@ -125,9 +123,7 @@ function FloatingPortal({
     zIndex,
   ]);
 
-  if (!portalRoot) {
-    return renderInlineWithoutPortal ? <>{children}</> : null;
-  }
+  if (!portalRoot) return null;
   return createPortal(
     <div
       className="zp-dismiss-layer"

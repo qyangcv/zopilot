@@ -10,7 +10,7 @@ import { localized, type LocalizedMessage } from "../../localization";
 import { LocalizedMessageText, T } from "../PreferenceChrome";
 import { providerErrorMessage } from "./providerMessages";
 import { SingleSelect } from "../../../../ui/primitives/index";
-import { ProviderBrandIcon } from "../../../sidebar/ui/ProviderBrandIcon";
+import { ProviderBrandIcon } from "../../../../ui/ProviderBrandIcon";
 
 type AddProviderFormProps = {
   onCreate: (input: {

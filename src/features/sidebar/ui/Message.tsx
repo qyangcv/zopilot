@@ -5,7 +5,7 @@ import { ContextChips } from "./ContextChips";
 import { MarkdownView } from "./MarkdownView";
 import type { SidebarMessageView } from "./types";
 import { TracePanel } from "./TracePanel";
-import { ProviderBrandIcon } from "./ProviderBrandIcon";
+import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 
 export function Message({
   busy,

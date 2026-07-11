@@ -13,7 +13,7 @@ import type {
 } from "../../../../domain/agent/types";
 import { l10nAttributes, type LocalizedMessage } from "../../localization";
 import { T } from "../PreferenceChrome";
-import { ProviderBrandIcon } from "../../../sidebar/ui/ProviderBrandIcon";
+import { ProviderBrandIcon } from "../../../../ui/ProviderBrandIcon";
 
 type ProviderCardProps = {
   checking: boolean;

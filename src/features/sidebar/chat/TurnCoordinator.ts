@@ -91,10 +91,7 @@ class TurnCoordinator {
       model: viewState.selectedModel,
       reasoningEffort: viewState.selectedReasoningEffort,
       providerProfileId: viewState.selectedProviderId,
-      providerBrand: resolveProviderBrand({
-        ...selectedProfile,
-        model: viewState.selectedModel,
-      }),
+      providerBrand: resolveProviderBrand(selectedProfile),
       interrupting: false,
       interrupted: false,
     };
@@ -180,10 +177,7 @@ class TurnCoordinator {
         backendId: result.backendId,
         backendKind: completedProfile.kind,
         providerProfileId: result.providerProfileId,
-        providerBrand: resolveProviderBrand({
-          ...completedProfile,
-          model: runningTurn.model,
-        }),
+        providerBrand: resolveProviderBrand(completedProfile),
         backendRunId: result.runId,
         backendTurnId: result.turnId,
         capabilitySnapshot: completedProfile.capabilities,
@@ -220,10 +214,9 @@ class TurnCoordinator {
             failedProfile?.kind ||
             getAgentBackendManager().getActiveProfile().kind,
           providerProfileId: runningTurn.providerProfileId,
-          providerBrand: resolveProviderBrand({
-            ...(failedProfile || getAgentBackendManager().getActiveProfile()),
-            model: runningTurn.model,
-          }),
+          providerBrand: resolveProviderBrand(
+            failedProfile || getAgentBackendManager().getActiveProfile(),
+          ),
           backendRunId: runningTurn.runId,
           backendTurnId: runningTurn.turnId,
           model: runningTurn.model,

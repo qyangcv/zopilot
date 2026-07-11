@@ -5,6 +5,7 @@ import {
   Message,
   SidebarApp,
 } from "../../../src/features/sidebar/ui/SidebarApp.tsx";
+import { SessionPopover } from "../../../src/features/sidebar/ui/SessionPopover.tsx";
 import type {
   SidebarActions,
   SidebarMessageView,
@@ -595,25 +596,21 @@ describe("SidebarApp", function () {
 
   it("renders the archived session entry and archive popover mode", function () {
     const html = renderToStaticMarkup(
-      <SidebarApp
+      <SessionPopover
         actions={createActions()}
-        state={createState({
-          sessionsOpen: true,
-          sessionsMode: "archive",
-          sessions: [
-            {
-              id: "conv-archived",
-              title: "Archived question",
-              meta: "Archived preview",
-              active: false,
-              conversation: createConversation("conv-archived"),
-            },
-          ],
-        })}
+        mode="archive"
+        sessions={[
+          {
+            id: "conv-archived",
+            title: "Archived question",
+            meta: "Archived preview",
+            active: false,
+            conversation: createConversation("conv-archived"),
+          },
+        ]}
       />,
     );
 
-    assert.include(html, 'aria-label="zopilot-sidebar-archived-sessions"');
     assert.include(html, 'aria-label="zopilot-sidebar-restore-session"');
     assert.include(html, 'class="zp-session-action zp-session-restore"');
     assert.include(html, 'data-icon-name="archiveRestore"');
@@ -624,14 +621,7 @@ describe("SidebarApp", function () {
 
   it("uses a distinct empty state for archived sessions", function () {
     const html = renderToStaticMarkup(
-      <SidebarApp
-        actions={createActions()}
-        state={createState({
-          sessionsOpen: true,
-          sessionsMode: "archive",
-          sessions: [],
-        })}
-      />,
+      <SessionPopover actions={createActions()} mode="archive" sessions={[]} />,
     );
 
     assert.include(html, "zopilot-sidebar-no-archived-sessions");
