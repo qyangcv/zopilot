@@ -43,7 +43,7 @@ function createInitialSidebarState(label: string): SidebarState {
     selectedModel: "",
     selectedReasoningEffort: undefined,
     availableReasoningEfforts: [],
-    backendStatus: "checking",
+    backendStatus: "idle",
     backendDiagnosticMessage: undefined,
     activeProviderLabel: "Codex CLI",
     focusToken: 0,

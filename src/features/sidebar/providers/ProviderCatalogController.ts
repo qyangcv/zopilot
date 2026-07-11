@@ -28,6 +28,7 @@ const logger = createLogger("sidebar.providers");
 
 class ProviderCatalogController {
   private refreshPromise?: Promise<void>;
+  private profileCatalogSignature?: string;
 
   constructor(private readonly options: ProviderCatalogControllerOptions) {}
 
@@ -43,14 +44,23 @@ class ProviderCatalogController {
 
   subscribe(): () => void {
     return getAgentBackendManager().subscribe((snapshot) => {
+      const firstSnapshot = this.profileCatalogSignature === undefined;
+      const nextSignature = createProviderCatalogSignature(snapshot);
+      const catalogChanged =
+        this.profileCatalogSignature !== undefined &&
+        this.profileCatalogSignature !== nextSignature;
+      this.profileCatalogSignature = nextSignature;
       const active = snapshot.profiles.find(
         (profile) => profile.id === snapshot.activeProviderId,
       );
       if (!active || this.options.isDestroyed()) {
         return;
       }
+      if (firstSnapshot) {
+        this.hydrateCachedCatalog(snapshot.profiles, snapshot.activeProviderId);
+      }
       this.options.updateViewState({ activeProviderLabel: active.displayName });
-      if (this.options.isOpen()) {
+      if (catalogChanged && this.options.isOpen()) {
         void this.refresh();
       }
     });
@@ -102,10 +112,6 @@ class ProviderCatalogController {
   }
 
   private async refreshOnce(): Promise<void> {
-    this.options.updateViewState({
-      backendStatus: "checking",
-      backendDiagnosticMessage: undefined,
-    });
     try {
       const manager = getAgentBackendManager();
       const snapshot = manager.getSnapshot();
@@ -157,10 +163,6 @@ class ProviderCatalogController {
   }
 
   async refreshActiveBackendDiagnostic(error?: unknown): Promise<void> {
-    this.options.updateViewState({
-      backendStatus: "disconnected",
-      backendDiagnosticMessage: undefined,
-    });
     let diagnostic: AgentDiagnostic | undefined;
     try {
       diagnostic = (await getAgentBackendManager().checkActiveStatus())
@@ -192,6 +194,24 @@ class ProviderCatalogController {
         selectedModel,
         this.readSavedReasoningEfforts(),
       ),
+    );
+  }
+
+  private hydrateCachedCatalog(
+    profiles: ProviderProfile[],
+    activeProviderId: string,
+  ): void {
+    const models = profiles
+      .filter((profile) => profile.enabled)
+      .flatMap((profile) =>
+        profile.models.map((model) => agentModelToSidebarModel(model, profile)),
+      );
+    if (!models.length) return;
+    const selected = this.resolveSelectedModel(models, activeProviderId);
+    this.updateModelSelection(
+      models,
+      selected.providerProfileId,
+      selected.slug,
     );
   }
 
@@ -273,5 +293,23 @@ function parseModelSelectValue(value: string): {
   };
 }
 
-export { ProviderCatalogController };
+function createProviderCatalogSignature(input: {
+  activeProviderId?: string;
+  profiles: ProviderProfile[];
+}): string {
+  return JSON.stringify(
+    input.profiles.map((profile) => ({
+      id: profile.id,
+      providerId: profile.providerId,
+      displayName: profile.displayName,
+      enabled: profile.enabled,
+      baseURL: profile.baseURL,
+      hasApiKey: profile.hasApiKey,
+      capabilities: profile.capabilities,
+      models: profile.models,
+    })),
+  );
+}
+
+export { ProviderCatalogController, createProviderCatalogSignature };
 export type { ProviderCatalogControllerOptions };

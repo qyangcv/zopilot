@@ -38,10 +38,6 @@
   color: color-mix(in srgb, CanvasText 58%, Canvas);
 }
 
-.zp-backend-status[data-status="checking"] .zp-status-icon {
-  animation: zp-spin 0.9s linear infinite;
-}
-
 .zp-backend-status[data-status="disconnected"] .zp-status-icon {
   color: var(--zp-danger);
 }
@@ -66,11 +62,5 @@
 @keyframes zp-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .zp-backend-status[data-status="checking"] .zp-status-icon {
-    animation: none;
   }
 }

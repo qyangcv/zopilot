@@ -678,20 +678,19 @@ describe("SidebarApp", function () {
     assert.notInclude(html, 'data-icon-name="select"');
   });
 
-  it("shows a non-blocking backend status while checking", function () {
+  it("shows model controls while the initial connection test is idle", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
-          backendStatus: "checking",
+          backendStatus: "idle",
         })}
       />,
     );
 
-    assert.include(html, "zopilot-sidebar-backend-status-checking");
-    assert.include(html, 'class="zp-backend-status"');
-    assert.include(html, 'data-icon-name="checking"');
-    assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
+    assert.notInclude(html, "zp-backend-status");
+    assert.notInclude(html, 'data-icon-name="checking"');
+    assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
 
@@ -705,7 +704,6 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.notInclude(html, "zopilot-sidebar-backend-status-checking");
     assert.notInclude(html, "zopilot-sidebar-backend-status-disconnected");
     assert.notInclude(html, "zp-backend-status");
     assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
@@ -727,7 +725,6 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "Codex CLI not found");
-    assert.notInclude(html, "zopilot-sidebar-backend-status-checking");
     assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
   });
@@ -737,7 +734,7 @@ describe("SidebarApp", function () {
       <SidebarApp
         actions={createActions()}
         state={createState({
-          backendStatus: "checking",
+          backendStatus: "idle",
           messages: [
             {
               id: "complete",

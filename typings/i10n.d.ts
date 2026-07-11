@@ -152,7 +152,6 @@ export type FluentMessageId =
   | 'sidebar-backend-empty-response'
   | 'sidebar-backend-error'
   | 'sidebar-backend-starting'
-  | 'sidebar-backend-status-checking'
   | 'sidebar-backend-status-disconnected'
   | 'sidebar-chat-workspace'
   | 'sidebar-close'

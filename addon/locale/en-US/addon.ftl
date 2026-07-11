@@ -44,7 +44,6 @@ sidebar-trace-tool-failed = Failed
 sidebar-trace-tool-arguments = Arguments
 sidebar-trace-tool-result = Result
 sidebar-trace-tool-error = Error
-sidebar-backend-status-checking = Connecting provider...
 sidebar-backend-status-disconnected = Provider not connected
 sidebar-pdf-helper-not-installed = PDF helper is not installed. Open Zopilot Settings > Dependencies and install the latest helper ({ $latest }) before sending.
 sidebar-pdf-helper-update-required = PDF helper needs an update. Installed: { $installed }, latest: { $latest }. Open Zopilot Settings > Dependencies and click Update.

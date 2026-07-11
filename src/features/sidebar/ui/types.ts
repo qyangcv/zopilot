@@ -89,7 +89,7 @@ export type SidebarState = {
   selectedModel: string;
   selectedReasoningEffort?: string;
   availableReasoningEfforts: string[];
-  backendStatus: "checking" | "connected" | "disconnected";
+  backendStatus: "idle" | "connected" | "disconnected";
   backendDiagnosticMessage?: string;
   activeProviderLabel?: string;
   focusToken: number;

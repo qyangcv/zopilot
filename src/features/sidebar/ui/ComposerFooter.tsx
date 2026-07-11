@@ -52,22 +52,14 @@ function ComposerFooter({
         >
           <Icon name="paperclip" size={15} />
         </button>
-        {state.backendStatus !== "connected" ? (
+        {state.backendStatus === "disconnected" ? (
           <span className="zp-backend-status" data-status={state.backendStatus}>
-            <Icon
-              className="zp-status-icon"
-              name={
-                state.backendStatus === "checking" ? "checking" : "disconnected"
-              }
-              size={13}
-            />
-            {state.backendStatus === "checking"
-              ? getString("sidebar-backend-status-checking")
-              : state.backendDiagnosticMessage ||
-                getString("sidebar-backend-status-disconnected")}
+            <Icon className="zp-status-icon" name="disconnected" size={13} />
+            {state.backendDiagnosticMessage ||
+              getString("sidebar-backend-status-disconnected")}
           </span>
         ) : null}
-        {state.backendStatus === "connected" ? (
+        {state.backendStatus !== "disconnected" ? (
           <ModelSelector actions={actions} state={state} />
         ) : null}
       </div>

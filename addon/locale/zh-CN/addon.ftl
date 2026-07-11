@@ -44,7 +44,6 @@ sidebar-trace-tool-failed = 失败
 sidebar-trace-tool-arguments = 参数
 sidebar-trace-tool-result = 结果
 sidebar-trace-tool-error = 错误
-sidebar-backend-status-checking = Connecting...
 sidebar-backend-status-disconnected = Provider 未连接
 sidebar-pdf-helper-not-installed = 尚未安装 PDF 解析 helper。请打开 Zopilot 设置 > 依赖管理，安装最新 helper（{ $latest }）后再发送。
 sidebar-pdf-helper-update-required = PDF 解析 helper 需要更新。已安装：{ $installed }，最新：{ $latest }。请打开 Zopilot 设置 > 依赖管理，点击“更新”。
