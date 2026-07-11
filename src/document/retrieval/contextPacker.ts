@@ -145,15 +145,7 @@ function buildSectionOutline(material: Material): string {
     ).entries(),
   )
     .slice(0, 24)
-    .map(([label, chunk]) => {
-      const page =
-        chunk.pageStart === undefined
-          ? ""
-          : chunk.pageEnd && chunk.pageEnd !== chunk.pageStart
-            ? ` (pages ${chunk.pageStart}-${chunk.pageEnd})`
-            : ` (page ${chunk.pageStart})`;
-      return `- ${label}${page}`;
-    });
+    .map(([label]) => `- ${label}`);
   if (!sections.length) {
     return "";
   }

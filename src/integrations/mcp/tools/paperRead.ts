@@ -73,7 +73,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
       name: "paper_read",
       title: "Read Zopilot paper context",
       description:
-        "Retrieve traceable evidence from the PDF material cache for the current Zopilot workspace. Returns context excerpts, document structure, locators, pages, and artifact paths; it does not answer for the agent.",
+        "Retrieve evidence from the PDF material cache for the current Zopilot workspace. Returns context excerpts, document structure, and artifact paths; it does not answer for the agent.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -81,7 +81,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           question: {
             type: "string",
             description:
-              "The paper-specific reading question or locator intent, such as Figure 2, Table 1, page 5, a section title, or a natural-language information need.",
+              "The paper-specific reading question or natural-language information need.",
           },
           sourceIds: {
             type: "array",

@@ -457,8 +457,6 @@ class SidebarHostController {
         hideSessions: () => this.sessions.hidePopover(),
         interruptActiveTurn: () => this.interruptActiveTurn(),
         openExternalLink: (url) => this.contextActions.openExternalLink(url),
-        openReaderLocator: (locator) =>
-          void this.contextActions.openReaderLocator(locator),
         selectModel: (model) => this.selectModel(model),
         selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
         selectWorkspaceMode: (type) => void this.selectWorkspaceMode(type),

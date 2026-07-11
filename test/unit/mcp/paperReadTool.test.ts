@@ -41,7 +41,7 @@ describe("paper_read MCP tool", function () {
     assert.include(result.content[0].text, "Workspace: item item:1:PAPER-A");
     assert.include(result.content[0].text, "Evidence 1");
     assert.include(result.content[0].text, "label=Figure 2");
-    assert.include(result.content[0].text, "page=5");
+    assert.notInclude(result.content[0].text, "page=5");
     assert.include(result.content[0].text, "image=/cache/assets/page-0005.png");
     assert.notInclude(result.content[0].text, "Parser warning");
     assert.notInclude(result.content[0].text, "Markdown extraction failed");

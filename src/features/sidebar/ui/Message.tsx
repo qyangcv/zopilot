@@ -14,7 +14,6 @@ export function Message({
   onCopy,
   onEdit,
   onOpenLink,
-  onOpenLocator,
   onSubmit,
 }: {
   busy: boolean;
@@ -23,9 +22,6 @@ export function Message({
   onCopy: (message: SidebarMessageView) => void;
   onEdit: (message: SidebarMessageView) => void;
   onOpenLink: (url: string) => void;
-  onOpenLocator: (
-    locator: NonNullable<SidebarMessageView["locators"]>[number],
-  ) => void;
   onSubmit: (message: SidebarMessageView) => void;
 }): ReactElement {
   const isAssistant = message.role === "assistant";
@@ -99,10 +95,8 @@ export function Message({
           <AssistantFooter
             completedAt={completedAt}
             copied={copiedId === `${message.id}-text`}
-            locators={message.locators || []}
             message={message}
             onCopy={() => onCopy(message)}
-            onOpenLocator={onOpenLocator}
             responseDuration={message.responseDuration}
           />
         ) : (
@@ -128,20 +122,14 @@ export function Message({
 function AssistantFooter({
   completedAt,
   copied,
-  locators,
   message,
   onCopy,
-  onOpenLocator,
   responseDuration,
 }: {
   completedAt?: string;
   copied: boolean;
-  locators: NonNullable<SidebarMessageView["locators"]>;
   message: SidebarMessageView;
   onCopy: () => void;
-  onOpenLocator: (
-    locator: NonNullable<SidebarMessageView["locators"]>[number],
-  ) => void;
   responseDuration?: string;
 }): ReactElement | null {
   if (message.running || message.transient) {
@@ -167,17 +155,6 @@ function AssistantFooter({
   return (
     <div className="zp-message-footer">
       <div className="zp-message-actions">
-        {locators.map((locator) => (
-          <button
-            className="zp-locator-chip"
-            key={`${locator.kind}-${locator.label}`}
-            onClick={() => onOpenLocator(locator)}
-            title={getString("sidebar-open-reader-location")}
-            type="button"
-          >
-            {locator.label}
-          </button>
-        ))}
         <IconAction
           active={copied}
           icon="copy"

@@ -1,4 +1,4 @@
-/* Composer popovers and command menu */
+/* Composer popovers */
 
 .zp-mention-popover {
   overflow: auto;
@@ -22,98 +22,9 @@
   background: color-mix(in srgb, CanvasText 28%, transparent);
 }
 
-.zp-command-menu {
-  overflow: hidden;
-  border-radius: 7px;
-  box-shadow: 0 8px 20px color-mix(in srgb, CanvasText 14%, transparent);
-}
-
-.zp-command-menu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 8px 6px 10px;
-  border-bottom: 1px solid var(--zp-subtle-border);
-  color: var(--zp-muted-strong);
-  font-weight: 600;
-}
-
-.zp-command-list {
-  display: flex;
-  flex-direction: column;
-  max-height: min(310px, 44vh);
-  overflow: auto;
-  padding: 4px;
-}
-
-.zp-command-row {
-  appearance: none;
-  -moz-appearance: none;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  min-height: 52px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-  font: inherit;
-  margin: 0;
-  padding: 7px 8px;
-  text-align: start;
-}
-
-.zp-command-row:hover,
-.zp-command-row[data-active] {
-  background: var(--zp-panel-strong);
-}
-
-.zp-command-row:disabled {
-  opacity: 0.52;
-}
-
-.zp-command-main {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.25;
-}
-
-.zp-command-title,
-.zp-command-description {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zp-command-title {
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.zp-command-description,
-.zp-command-category,
-.zp-command-empty {
+.zp-panel-empty {
   color: var(--zp-muted);
   font-size: 11px;
-}
-
-.zp-command-category {
-  align-self: start;
-  justify-self: end;
-  line-height: 1.25;
-  padding-block-start: 1px;
-}
-
-.zp-command-empty {
   padding: 10px;
 }
 

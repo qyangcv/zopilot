@@ -323,7 +323,7 @@ class ByokAgentRunner {
           .string()
           .optional()
           .describe(
-            "The paper-specific reading question, locator intent, section, figure, table, or page request.",
+            "The paper-specific reading question or natural-language information need.",
           ),
         sourceIds: z
           .array(z.string())

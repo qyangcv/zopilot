@@ -1,19 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   LocalAttachmentRef,
   SourceMention,
 } from "../../../../domain/conversation";
 import type { ComposerBindings } from "../composerBindings";
 import { resizeTextarea } from "../composerLayout";
-import {
-  buildSidebarCommands,
-  filterSidebarCommands,
-} from "../commandRegistry";
-import type {
-  SidebarActions,
-  SidebarCommandView,
-  SidebarState,
-} from "../types";
+import type { SidebarActions, SidebarState } from "../types";
 import { useMentionPicker } from "./useMentionPicker";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
@@ -41,27 +33,16 @@ function useComposerDraft(
   const [localAttachments, setLocalAttachments] = useState<
     LocalAttachmentRef[]
   >([]);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [commandQuery, setCommandQuery] = useState("");
   const [promptPickerOpen, setPromptPickerOpen] = useState(false);
   const workspaceKeyRef = useRef(state.context.workspaceKey || "");
-  const [commandAnchor, setCommandAnchor] = useState<"button" | "input">(
-    "input",
-  );
   const bottomDockRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const commandButtonRef = useRef<HTMLButtonElement | null>(null);
   const promptButtonRef = useRef<HTMLButtonElement | null>(null);
   const sourceCandidates = state.sourceCandidates || [];
   const currentSourceId = sourceCandidates.find(
     (source) => source.paperKey === state.context.paperKey,
   )?.sourceId;
-  const commands = useMemo(() => buildSidebarCommands(state), [state]);
-  const visibleCommands = useMemo(
-    () => filterSidebarCommands(commands, commandQuery),
-    [commandQuery, commands],
-  );
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -74,8 +55,6 @@ function useComposerDraft(
     setDraft("");
     setMentions([]);
     setLocalAttachments([]);
-    setCommandOpen(false);
-    setCommandQuery("");
     setPromptPickerOpen(false);
   }, [state.context.workspaceKey]);
 
@@ -85,14 +64,6 @@ function useComposerDraft(
 
   const updateDraftWithoutMention = (text: string) => {
     setDraft(text);
-    if (text.startsWith("/")) {
-      setCommandAnchor("input");
-      setCommandOpen(true);
-      setCommandQuery(text.slice(1));
-    } else {
-      setCommandOpen(false);
-      setCommandQuery("");
-    }
   };
   const mentionPicker = useMentionPicker({
     currentSourceId,
@@ -163,47 +134,13 @@ function useComposerDraft(
       .catch(() => undefined);
   };
 
-  const executeCommand = (command: SidebarCommandView) => {
-    if (!command.available) {
-      return;
-    }
-    setCommandOpen(false);
-    setCommandQuery("");
-    if (command.id === "source.add" || command.id === "attachment.upload") {
-      addLocalAttachment();
-      return;
-    }
-    if (command.id === "session.new") {
-      actions.createNewSession();
-      return;
-    }
-    if (command.id === "session.history") {
-      actions.toggleSessions();
-      return;
-    }
-    if (command.id.startsWith("prompt.")) {
-      const prompt = state.prompts.find(
-        (item) => command.id === `prompt.${item.id}`,
-      );
-      if (prompt) {
-        insertPrompt(prompt.body);
-      }
-    }
-  };
-
   return {
     bindings: {
       activeMentionIndex: mentionPicker.activeMentionIndex,
       addLocalAttachment,
       bottomDockRef,
-      commandAnchor,
-      commandAnchorRef:
-        commandAnchor === "button" ? commandButtonRef : textareaRef,
-      commandButtonRef,
-      commandOpen,
       composerRef,
       draft,
-      executeCommand,
       insertPrompt,
       localAttachments,
       mentionCandidates: mentionPicker.mentionCandidates,
@@ -222,15 +159,11 @@ function useComposerDraft(
         );
       },
       selectMention: mentionPicker.selectMention,
-      setCommandAnchor,
-      setCommandOpen,
-      setCommandQuery,
       setMentionQuery: mentionPicker.setMentionQuery,
       setPromptPickerOpen,
       submit: () => submit(),
       textareaRef,
       updateDraft,
-      visibleCommands,
     },
     insertPrompt,
     submit,

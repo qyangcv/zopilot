@@ -1,7 +1,6 @@
 import type { LocalAttachmentRef } from "../../../domain/conversation";
 import { createLogger } from "../../../runtime/logging/logger";
 import { pickLocalAttachment } from "./attachmentUpload";
-import { navigateReaderLocator, type ReaderLocator } from "./readerNavigation";
 import type { ReadyDisplayState } from "../workspace/WorkspaceCoordinator";
 
 const logger = createLogger("sidebar.contextActions");
@@ -23,22 +22,6 @@ class SidebarContextActions {
         workspaceKey: ready.workspace.workspaceKey,
       });
       return undefined;
-    }
-  }
-
-  async openReaderLocator(locator: ReaderLocator): Promise<void> {
-    const ready = this.getReadyState();
-    const itemID = ready?.workspace.defaultSource?.attachmentItemID;
-    try {
-      await navigateReaderLocator(this.win, locator, {
-        itemID,
-        reader: ready?.reader,
-      });
-    } catch (error) {
-      logger.error("failed to navigate Zotero reader locator", error, {
-        locator,
-        itemID,
-      });
     }
   }
 

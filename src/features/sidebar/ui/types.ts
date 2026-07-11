@@ -5,7 +5,6 @@ import type {
   SourceMention,
   WorkspaceType,
 } from "../../../domain/conversation";
-import type { ReaderLocator } from "../context/readerNavigation";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import type { ProviderBrand } from "../../../domain/agent/providerBrand";
 
@@ -24,7 +23,6 @@ export type SidebarMessageView = {
   running?: boolean;
   trace?: AgentTraceItem[];
   finalStarted?: boolean;
-  locators?: ReaderLocator[];
 };
 
 export type SidebarModelView = {
@@ -66,24 +64,6 @@ type SidebarSessionView = {
 };
 
 export type SidebarSessionMode = "history" | "archive";
-
-export type SidebarCommandCategory =
-  | "source"
-  | "reader"
-  | "attachment"
-  | "prompt"
-  | "session";
-
-export type SidebarCommandView = {
-  id: string;
-  title: string;
-  description: string;
-  keywords: string[];
-  category: SidebarCommandCategory;
-  icon: string;
-  available: boolean;
-  disabledReason?: string;
-};
 
 export type SidebarPromptView = {
   id: string;
@@ -129,7 +109,6 @@ export type SidebarActions = {
   createNewSession: () => void;
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
-  openReaderLocator: (locator: ReaderLocator) => void;
   selectModel: (model: string) => void;
   selectReasoningEffort: (effort: string) => void;
   selectWorkspaceMode: (type: WorkspaceType) => void;

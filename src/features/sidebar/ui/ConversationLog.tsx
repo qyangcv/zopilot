@@ -8,7 +8,7 @@ import { Message } from "./Message";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
 
 type ConversationLogProps = {
-  actions: Pick<SidebarActions, "openExternalLink" | "openReaderLocator">;
+  actions: Pick<SidebarActions, "openExternalLink">;
   copiedId: string | null;
   logRef: RefObject<HTMLElement | null>;
   onCopy: (message: SidebarMessageView) => void;
@@ -54,17 +54,12 @@ function ConversationLog({
           <div className="zp-empty-welcome-hints">
             <p className="zp-empty-welcome-hint">
               <span>使用</span>
-              <Icon name="command" size={14} />
-              <span>来查看所有可用命令</span>
-            </p>
-            <p className="zp-empty-welcome-hint">
-              <span>使用</span>
               <Icon name="prompt" size={14} />
               <span>插入自定义 prompt</span>
             </p>
             <p className="zp-empty-welcome-hint">
               <span>使用</span>
-              <Icon name="add" size={14} />
+              <Icon name="paperclip" size={14} />
               <span>添加 PDF 或图片附件</span>
             </p>
             <p className="zp-empty-welcome-hint">
@@ -88,7 +83,6 @@ function ConversationLog({
             );
           }}
           onOpenLink={actions.openExternalLink}
-          onOpenLocator={actions.openReaderLocator}
           onSubmit={(messageToSubmit) =>
             onSubmit(
               messageToSubmit.text,

@@ -43,7 +43,7 @@ describe("floating popover positioning", function () {
     assert.equal(position.maxHeight, 164);
   });
 
-  it("stretches mention and command popups to the textarea width", function () {
+  it("stretches an input-anchored popup to the textarea width", function () {
     const position = calculateFloatingPosition({
       align: "stretch",
       anchorRect: rect({ bottom: 520, left: 24, right: 376, top: 470 }),

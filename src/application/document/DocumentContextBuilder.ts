@@ -161,7 +161,6 @@ function formatContextForTool(context: BuiltContext): string {
       [
         `Evidence ${index + 1}`,
         item.type === "artifact" && item.label ? `label=${item.label}` : "",
-        item.page !== undefined ? `page=${item.page}` : "",
         item.sectionPath.length
           ? `section=${item.sectionPath.join(" > ")}`
           : "",

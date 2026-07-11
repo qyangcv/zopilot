@@ -8,7 +8,6 @@ type SidebarActionHandlers = {
   hideSessions: () => void;
   interruptActiveTurn: () => void;
   openExternalLink: (url: string) => void;
-  openReaderLocator: SidebarActions["openReaderLocator"];
   restoreSession: SidebarActions["restoreSession"];
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
@@ -30,7 +29,6 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     hideSessions: handlers.hideSessions,
     interruptActiveTurn: handlers.interruptActiveTurn,
     openExternalLink: handlers.openExternalLink,
-    openReaderLocator: (locator) => handlers.openReaderLocator(locator),
     selectModel: handlers.selectModel,
     selectReasoningEffort: handlers.selectReasoningEffort,
     selectWorkspaceMode: handlers.selectWorkspaceMode,

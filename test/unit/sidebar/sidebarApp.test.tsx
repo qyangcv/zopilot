@@ -265,7 +265,6 @@ describe("SidebarApp", function () {
       onCopy: () => undefined,
       onEdit: (message) => inserted.push(message),
       onOpenLink: () => undefined,
-      onOpenLocator: () => undefined,
       onSubmit: (message) => submitted.push(message),
     });
 
@@ -377,12 +376,10 @@ describe("SidebarApp", function () {
     assert.include(html, 'class="zp-empty-welcome"');
     assert.include(html, "How should we approach this paper?");
     assert.include(html, "插入自定义 prompt");
-    assert.include(html, "来查看所有可用命令");
     assert.include(html, "添加 PDF 或图片附件");
     assert.include(html, "使用 @ 在文库/合集中选择论文");
     assert.include(html, 'data-icon-name="prompt"');
-    assert.include(html, 'data-icon-name="command"');
-    assert.include(html, 'data-icon-name="add"');
+    assert.include(html, 'data-icon-name="paperclip"');
     assert.notInclude(html, "zp-message-assistant");
     assert.notInclude(html, 'data-icon-name="brand"');
   });
@@ -716,9 +713,9 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zp-backend-status");
     assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
-    assert.include(html, 'aria-label="zopilot-sidebar-command-menu"');
     assert.include(html, 'aria-label="zopilot-sidebar-prompts"');
     assert.include(html, 'aria-label="zopilot-sidebar-add-context"');
+    assert.include(html, 'data-icon-name="paperclip"');
   });
 
   it("shows a backend diagnostic without model controls after a failed connection", function () {
@@ -825,7 +822,6 @@ function createActions(): SidebarActions {
     hideSessions: () => undefined,
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,
-    openReaderLocator: () => undefined,
     selectModel: () => undefined,
     selectReasoningEffort: () => undefined,
     selectWorkspaceMode: () => undefined,

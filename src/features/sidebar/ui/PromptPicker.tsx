@@ -53,7 +53,7 @@ export function PromptPicker({
           </div>
         ))}
         {prompts.length === 0 ? (
-          <div className="zp-command-empty">
+          <div className="zp-panel-empty">
             {getString("sidebar-prompt-empty")}
           </div>
         ) : null}

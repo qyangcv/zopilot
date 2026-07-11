@@ -5,7 +5,6 @@ import type {
   SidebarModelView,
   SidebarState,
 } from "../ui/types";
-import { extractReaderLocators } from "../context/readerNavigation";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import {
   resolveProviderBrand,
@@ -136,8 +135,6 @@ function toMessageView(
       message.role === "assistant" && message.completedAt && userCreatedAt
         ? formatResponseDuration(userCreatedAt, message.completedAt)
         : undefined,
-    locators:
-      message.role === "assistant" ? extractReaderLocators(message.text) : [],
   };
 }
 

@@ -712,27 +712,6 @@
   border-radius: 5px;
 }
 
-.zp-locator-chip {
-  appearance: none;
-  -moz-appearance: none;
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  border: 1px solid var(--zp-subtle-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--zp-accent);
-  cursor: default;
-  font: menu;
-  font-size: 11px;
-  margin: 0;
-  padding: 0 6px;
-}
-
-.zp-locator-chip:hover {
-  background: var(--zp-panel-strong);
-}
-
 .zp-message-action[data-active] {
   color: var(--zp-accent);
 }

@@ -16,38 +16,15 @@ function ComposerFooter({
 }): ReactElement {
   const {
     addLocalAttachment,
-    commandButtonRef,
-    commandOpen,
     draft,
     localAttachments,
     mentions,
     promptButtonRef,
-    setCommandAnchor,
-    setCommandOpen,
-    setCommandQuery,
     setPromptPickerOpen,
   } = bindings;
   return (
     <div className="zp-composer-footer">
       <div className="zp-composer-meta">
-        <button
-          aria-label={getString("sidebar-command-menu")}
-          aria-expanded={commandOpen}
-          aria-haspopup="dialog"
-          className="zp-context-add"
-          disabled={!state.composerEnabled}
-          onClick={(event) => {
-            event.stopPropagation();
-            setCommandAnchor("button");
-            setCommandOpen((open) => !open);
-            setCommandQuery("");
-          }}
-          ref={commandButtonRef}
-          title={getString("sidebar-command-menu")}
-          type="button"
-        >
-          <Icon name="command" size={15} />
-        </button>
         <button
           aria-label={getString("sidebar-prompts")}
           className="zp-context-add"
@@ -73,7 +50,7 @@ function ComposerFooter({
           title={getString("sidebar-add-context")}
           type="button"
         >
-          <Icon name="add" size={15} />
+          <Icon name="paperclip" size={15} />
         </button>
         {state.backendStatus !== "connected" ? (
           <span className="zp-backend-status" data-status={state.backendStatus}>

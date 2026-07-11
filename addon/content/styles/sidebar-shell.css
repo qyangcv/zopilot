@@ -190,7 +190,6 @@
 
 :where(
   .zp-mention-popover,
-  .zp-command-menu,
   .zp-floating-panel,
   .zp-ui-select-popup
 ) {
