@@ -2,7 +2,7 @@ import type { KeyboardEvent, MouseEvent, ReactElement, ReactNode } from "react";
 import { getString } from "../../../../app/localization";
 import { Icon } from "../Icon";
 import type { SidebarCollectionOption, SidebarState } from "../types";
-import { FloatingPortal } from "../primitives/index";
+import { FloatingPortal } from "../../../../ui/primitives/index";
 import { WorkspaceMenuRow } from "./WorkspaceMenuRow";
 import type { WorkspaceMenuModel } from "./useWorkspaceMenuState";
 import { ROOT_COLLECTION_KEY } from "./workspaceTree";

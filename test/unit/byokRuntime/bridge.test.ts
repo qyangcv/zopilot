@@ -198,7 +198,7 @@ function createProfile(): ProviderProfileWithSecret {
   return {
     id: "provider-a",
     kind: "openai-compatible",
-    preset: "openai-compatible",
+    providerId: "custom",
     displayName: "Provider A",
     baseURL: "https://provider.example/v1",
     apiKeyRef: "provider-a",

@@ -1,6 +1,6 @@
 import type { ReactElement, RefObject } from "react";
 import { getString } from "../../../app/localization";
-import { FloatingPortal } from "./primitives/index";
+import { FloatingPortal } from "../../../ui/primitives/index";
 import { Icon } from "./Icon";
 import { SessionPopover } from "./SessionPopover";
 import type { SidebarActions, SidebarState } from "./types";

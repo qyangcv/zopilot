@@ -6,7 +6,7 @@ import { ContextChips } from "./ContextChips";
 import { MentionPopover } from "./MentionPopover";
 import { MAX_SOURCE_MENTIONS, findMentionQuery } from "./mentions";
 import type { SidebarState } from "./types";
-import { FloatingPortal } from "./primitives/index";
+import { FloatingPortal } from "../../../ui/primitives/index";
 
 const ZOTERO_NO_NATIVE_INPUT_PROPS = { "no-native": "true" } as const;
 

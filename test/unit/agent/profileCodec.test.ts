@@ -27,6 +27,7 @@ describe("provider profile codec", function () {
 
     assert.lengthOf(profiles, 1);
     assert.equal(profiles[0]?.id, "deepseek.legacy");
+    assert.equal(profiles[0]?.providerId, "deepseek");
     assert.equal(profiles[0]?.models[0]?.id, "deepseek-chat");
     assert.notProperty(profiles[0] as object, "hasApiKey");
     assert.notProperty(
@@ -59,6 +60,8 @@ describe("provider profile codec", function () {
     );
 
     assert.equal(profiles[0]?.displayName, "DeepSeek");
+    assert.equal(profiles[0]?.providerId, "deepseek");
     assert.equal(profiles[1]?.displayName, "Research Gateway");
+    assert.equal(profiles[1]?.providerId, "deepseek");
   });
 });

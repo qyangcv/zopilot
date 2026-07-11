@@ -4,7 +4,7 @@ import { ComposerFooter } from "./ComposerFooter";
 import type { ComposerBindings } from "./composerBindings";
 import { PromptPicker } from "./PromptPicker";
 import type { SidebarActions, SidebarState } from "./types";
-import { FloatingPortal } from "./primitives/index";
+import { FloatingPortal } from "../../../ui/primitives/index";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 
 function Composer({

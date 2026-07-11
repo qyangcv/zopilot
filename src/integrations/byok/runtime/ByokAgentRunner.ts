@@ -83,7 +83,7 @@ class ByokAgentRunner {
     let currentResponse = 0;
     try {
       const provider = createOpenAICompatible({
-        name: params.profile.preset,
+        name: params.profile.providerId,
         baseURL: normalizeBaseURL(params.profile.baseURL || ""),
         apiKey: params.profile.apiKey,
         includeUsage: params.profile.capabilities.usageMetadata,

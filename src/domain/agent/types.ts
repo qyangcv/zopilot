@@ -7,12 +7,16 @@ import type { AgentTraceEvent } from "./trace";
 
 export type AgentBackendKind = "codex-cli" | "openai-compatible";
 
-export type AgentProviderPreset =
-  | "codex-cli"
-  | "openai-compatible"
+export type AgentProviderId =
+  | "codex"
+  | "openrouter"
   | "deepseek"
   | "z-ai"
-  | "minimax";
+  | "minimax"
+  | "moonshot"
+  | "alibaba-bailian"
+  | "xiaomi-mimo"
+  | "custom";
 
 export type AgentCapabilityKey =
   | "streaming"
@@ -65,7 +69,7 @@ export type AgentDiagnostic = {
 export type ProviderProfile = {
   id: string;
   kind: AgentBackendKind;
-  preset: AgentProviderPreset;
+  providerId: AgentProviderId;
   displayName: string;
   baseURL?: string;
   apiKeyRef?: string;
@@ -86,7 +90,7 @@ export type ProviderProfileWithSecret = ProviderProfile & {
 };
 
 export type ProviderProfileInput = {
-  preset?: Exclude<AgentProviderPreset, "codex-cli">;
+  providerId: Exclude<AgentProviderId, "codex">;
   displayName?: string;
   baseURL?: string;
   apiKey?: string;

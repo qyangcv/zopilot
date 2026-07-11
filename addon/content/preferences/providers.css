@@ -9,6 +9,11 @@
 .zp-pref-provider-card {
   gap: 12px;
 }
+.zp-pref-provider-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .zp-pref-provider-steps {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -71,7 +76,8 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
-.zp-pref-form-grid label {
+.zp-pref-form-grid label,
+.zp-pref-form-field {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -80,8 +86,7 @@
   font-size: 12px;
   font-weight: 650;
 }
-.zp-pref-form-grid input,
-.zp-pref-form-grid select {
+.zp-pref-form-grid input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;

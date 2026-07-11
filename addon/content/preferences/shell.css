@@ -1,11 +1,6 @@
 /* Preferences shell */
 
 #zopilot-preferences-root {
-  color-scheme: light dark;
-  min-height: 520px;
-}
-
-.zp-pref-shell {
   --zp-pref-bg: Canvas;
   --zp-pref-panel: color-mix(in srgb, Canvas 94%, CanvasText 6%);
   --zp-pref-panel-strong: color-mix(in srgb, Canvas 88%, CanvasText 12%);
@@ -14,6 +9,12 @@
   --zp-pref-muted: color-mix(in srgb, CanvasText 62%, transparent);
   --zp-pref-accent: AccentColor;
   --zp-pref-danger: #c9342f;
+  position: relative;
+  color-scheme: light dark;
+  min-height: 520px;
+}
+
+.zp-pref-shell {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
   min-height: 520px;
@@ -24,4 +25,22 @@
   color: CanvasText;
   font: menu;
   font-size: 13px;
+}
+
+.zp-pref-react-root {
+  min-height: 520px;
+}
+
+.zp-pref-portal-root {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: CanvasText;
+  font: menu;
+}
+
+.zp-pref-portal-root > * {
+  pointer-events: auto;
 }

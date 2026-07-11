@@ -4,6 +4,7 @@ import { l10nAttributes } from "./localization";
 import type { PreferencesAppProps } from "./ui/PreferencesApp";
 
 export { initPreferencesPane };
+export { createPreferenceMountTargets };
 export type { PreferencePaneDependencies, PreferencePaneRenderApp };
 
 declare const document: PreferencePaneDocument | undefined;
@@ -70,24 +71,56 @@ function mountReactPreferencesApp(
   dependencies: PreferencePaneDependencies,
 ): PreferencePaneRenderApp {
   let reactRoot: Root | undefined;
+  let portalRoot: HTMLElement | undefined;
   return (root, props) => {
     void (async () => {
       try {
         installChromeWindowGlobals(root);
-        const [{ createElement }, { createRoot }, { PreferencesApp }] =
-          await Promise.all([
-            import("react"),
-            import("react-dom/client"),
-            import("./ui/PreferencesApp"),
-          ]);
+        const [
+          { createElement },
+          { createRoot },
+          { PreferencesApp },
+          { ZopilotUIProvider },
+        ] = await Promise.all([
+          import("react"),
+          import("react-dom/client"),
+          import("./ui/PreferencesApp"),
+          import("../../ui/primitives/index"),
+        ]);
         installChromeWindowGlobals(root);
-        reactRoot ??= createRoot(root);
-        reactRoot.render(createElement(PreferencesApp, props));
+        if (!reactRoot) {
+          const targets = createPreferenceMountTargets(root);
+          const mountNode = targets.mountNode;
+          portalRoot = targets.portalRoot;
+          reactRoot = createRoot(mountNode);
+        }
+        reactRoot.render(
+          createElement(ZopilotUIProvider, {
+            children: createElement(PreferencesApp, props),
+            portalRoot,
+          }),
+        );
       } catch (error) {
         renderMountError(root, error, dependencies);
       }
     })();
   };
+}
+
+function createPreferenceMountTargets(root: HTMLElement): {
+  mountNode: HTMLElement;
+  portalRoot: HTMLElement;
+} {
+  const ownerDocument = root.ownerDocument;
+  if (!ownerDocument) {
+    throw new Error("Preference pane has no owner document.");
+  }
+  const mountNode = ownerDocument.createElement("div");
+  const portalRoot = ownerDocument.createElement("div");
+  mountNode.className = "zp-pref-react-root";
+  portalRoot.className = "zp-pref-portal-root";
+  root.replaceChildren(mountNode, portalRoot);
+  return { mountNode, portalRoot };
 }
 
 function renderMountError(

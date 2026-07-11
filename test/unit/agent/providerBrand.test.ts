@@ -6,30 +6,29 @@ describe("provider brand", function () {
     assert.equal(resolveProviderBrand({ kind: "codex-cli" }), "codex");
   });
 
-  it("recognizes BYOK providers from their configured identity", function () {
+  it("uses an explicit provider ID as the stable brand identity", function () {
     assert.equal(
       resolveProviderBrand({
         kind: "openai-compatible",
-        baseURL: "https://api.deepseek.com/v1",
+        providerId: "openrouter",
+        baseURL: "https://proxy.example/v1",
         model: "deepseek-v4-flash",
       }),
+      "openrouter",
+    );
+  });
+
+  it("recognizes legacy profiles from their configured endpoint", function () {
+    assert.equal(
+      resolveProviderBrand({ baseURL: "https://api.deepseek.com/v1" }),
       "deepseek",
     );
-    assert.equal(
-      resolveProviderBrand({
-        kind: "openai-compatible",
-        displayName: "Z.AI",
-        model: "glm-5",
-      }),
-      "z-ai",
-    );
-    assert.equal(resolveProviderBrand({ model: "MiniMax-M2.5" }), "minimax");
   });
 
   it("falls back safely for unknown OpenAI-compatible providers", function () {
     assert.equal(
       resolveProviderBrand({ baseURL: "https://provider.example/v1" }),
-      "generic",
+      "custom",
     );
   });
 });

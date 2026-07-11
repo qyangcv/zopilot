@@ -1,26 +1,42 @@
 import { LoaderCircle, Plus, RotateCcw } from "lucide-react";
-import { useMemo, useState, type ReactElement } from "react";
+import { useId, useMemo, useState, type ReactElement } from "react";
 import type { AgentModelEntry } from "../../../../domain/agent/types";
+import type { AgentProviderId } from "../../../../domain/agent/types";
+import {
+  PROVIDER_CATALOG,
+  getProviderDefinition,
+} from "../../../../domain/agent/modelCatalog";
 import { localized, type LocalizedMessage } from "../../localization";
 import { LocalizedMessageText, T } from "../PreferenceChrome";
 import { providerErrorMessage } from "./providerMessages";
+import { SingleSelect } from "../../../../ui/primitives/index";
+import { ProviderBrandIcon } from "../../../sidebar/ui/ProviderBrandIcon";
 
 type AddProviderFormProps = {
   onCreate: (input: {
-    preset?: "openai-compatible";
+    providerId: Exclude<AgentProviderId, "codex">;
     displayName?: string;
     baseURL?: string;
     apiKey?: string;
     models?: AgentModelEntry[];
   }) => void;
   onListModels: (input: {
+    providerId: Exclude<AgentProviderId, "codex">;
     baseURL: string;
     apiKey: string;
   }) => Promise<AgentModelEntry[]>;
 };
 
 function AddProviderForm(props: AddProviderFormProps): ReactElement {
-  const [baseURL, setBaseURL] = useState("");
+  const providerLabelId = `zp-provider-label-${useId().replaceAll(":", "")}`;
+  const selectableProviders = PROVIDER_CATALOG.filter(
+    (provider) => provider.selectable,
+  );
+  const [providerId, setProviderId] =
+    useState<Exclude<AgentProviderId, "codex">>("openrouter");
+  const [baseURL, setBaseURL] = useState(
+    getProviderDefinition("openrouter").defaultBaseURL || "",
+  );
   const [apiKey, setApiKey] = useState("");
   const [models, setModels] = useState<AgentModelEntry[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
@@ -43,6 +59,7 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
     setMessage(undefined);
     try {
       const nextModels = await props.onListModels({
+        providerId,
         baseURL: baseURL.trim(),
         apiKey,
       });
@@ -61,12 +78,12 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
   const createProvider = () => {
     if (!canCreate) return;
     props.onCreate({
-      preset: "openai-compatible",
+      providerId,
       baseURL: baseURL.trim(),
       apiKey,
       models: selectedEntries,
     });
-    setBaseURL("");
+    setBaseURL(getProviderDefinition(providerId).defaultBaseURL || "");
     setApiKey("");
     resetModels();
     setMessage(localized("pref-provider-added"));
@@ -93,6 +110,32 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
             <T id="pref-provider-step-credentials">1. 服务地址与 API 密钥</T>
           </h4>
           <div className="zp-pref-form-grid">
+            <div className="zp-pref-form-field">
+              <span id={providerLabelId}>
+                <T id="pref-provider-kind">Provider</T>
+              </span>
+              <SingleSelect
+                aria-labelledby={providerLabelId}
+                onChange={(value) => {
+                  const nextProviderId = value as Exclude<
+                    AgentProviderId,
+                    "codex"
+                  >;
+                  setProviderId(nextProviderId);
+                  setBaseURL(
+                    getProviderDefinition(nextProviderId).defaultBaseURL || "",
+                  );
+                  resetModels();
+                }}
+                options={selectableProviders.map((provider) => ({
+                  icon: <ProviderBrandIcon brand={provider.id} size={16} />,
+                  label: provider.displayName,
+                  value: provider.id,
+                }))}
+                value={providerId}
+                variant="form"
+              />
+            </div>
             <label>
               <T id="pref-provider-base-url">API 基础地址</T>
               <input

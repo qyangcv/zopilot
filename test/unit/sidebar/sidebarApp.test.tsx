@@ -649,6 +649,7 @@ describe("SidebarApp", function () {
               displayName: "GPT-5.5",
               providerProfileId: "codex-cli.default",
               providerLabel: "Codex CLI",
+              providerBrand: "codex",
               supportedReasoningEfforts: ["low", "high", "xhigh"],
               defaultReasoningEffort: "medium",
             },
@@ -672,13 +673,14 @@ describe("SidebarApp", function () {
 
     assert.include(html, 'aria-haspopup="listbox"');
     assert.include(html, "GPT-5.5");
+    assert.include(html, 'data-provider-brand="codex"');
+    assert.equal(countOccurrences(html, 'data-provider-brand="codex"'), 1);
     assert.include(html, "High");
     assert.notInclude(html, "<select");
     assert.notInclude(html, "inline-size:calc(");
     assert.notInclude(html, 'data-icon-name="model"');
     assert.notInclude(html, 'data-icon-name="reason"');
     assert.notInclude(html, 'data-icon-name="select"');
-    assert.notInclude(html, "zp-ui-select-icon");
   });
 
   it("shows a non-blocking backend status while checking", function () {

@@ -2,8 +2,9 @@ import type { ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { ComposerBindings } from "./composerBindings";
 import { Icon } from "./Icon";
+import { ProviderBrandIcon } from "./ProviderBrandIcon";
 import type { SidebarActions, SidebarState } from "./types";
-import { Select } from "./primitives/index";
+import { SingleSelect } from "../../../ui/primitives/index";
 
 function ComposerFooter({
   actions,
@@ -69,13 +70,20 @@ function ComposerFooter({
         ) : null}
         {state.backendStatus === "connected" ? (
           <>
-            <Select
+            <SingleSelect
               aria-label={getString("sidebar-model-name")}
               disabled={!state.models.length}
               onChange={actions.selectModel}
               options={state.models.map((model) => ({
+                groupIcon: model.providerBrand ? (
+                  <ProviderBrandIcon brand={model.providerBrand} size={14} />
+                ) : undefined,
+                groupChild: true,
                 groupLabel: model.providerLabel,
                 label: model.displayName,
+                triggerIcon: model.providerBrand ? (
+                  <ProviderBrandIcon brand={model.providerBrand} size={14} />
+                ) : undefined,
                 value: createModelSelectValue(
                   model.providerProfileId,
                   model.slug,
@@ -87,9 +95,10 @@ function ComposerFooter({
                 state.selectedProviderId,
                 state.selectedModel,
               )}
+              variant="compact"
             />
             {state.availableReasoningEfforts.length ? (
-              <Select
+              <SingleSelect
                 aria-label={getString("sidebar-reasoning-depth")}
                 onChange={actions.selectReasoningEffort}
                 options={state.availableReasoningEfforts.map((effort) => ({
@@ -100,6 +109,7 @@ function ComposerFooter({
                 showIndicator={false}
                 title={getString("sidebar-reasoning-depth")}
                 value={state.selectedReasoningEffort || ""}
+                variant="compact"
               />
             ) : null}
           </>

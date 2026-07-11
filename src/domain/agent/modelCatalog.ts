@@ -1,77 +1,107 @@
 import { createCapabilities } from "./capabilities";
 import type {
   AgentModelEntry,
-  AgentProviderPreset,
+  AgentProviderId,
   ProviderProfile,
 } from "./types";
 
 export {
   CODEX_PROVIDER_ID,
-  PROVIDER_PRESETS,
+  PROVIDER_CATALOG,
   createCodexProviderProfile,
-  createPresetProviderProfile,
+  createProviderProfile,
   createProviderDisplayName,
   createLegacyProviderDisplayName,
+  getProviderDefinition,
+  isProviderId,
   modelFromId,
+  resolveProviderId,
 };
+export type { ProviderDefinition };
 
 const CODEX_PROVIDER_ID = "codex-cli.default";
 
-type PresetDefinition = {
-  preset: Exclude<AgentProviderPreset, "codex-cli">;
+type ProviderDefinition = {
+  id: AgentProviderId;
   displayName: string;
-  baseURL?: string;
+  defaultBaseURL?: string;
+  domains: readonly string[];
+  iconFile?: string;
+  selectable: boolean;
 };
 
-const PROVIDER_PRESETS: PresetDefinition[] = [
+/** Single source of truth for provider identity, name, endpoint, and icon. */
+const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
   {
-    preset: "openai-compatible",
-    displayName: "OpenAI compatible",
+    id: "codex",
+    displayName: "Codex CLI",
+    domains: [],
+    iconFile: "codex-color.svg",
+    selectable: false,
   },
   {
-    preset: "deepseek",
+    id: "openrouter",
+    displayName: "OpenRouter",
+    defaultBaseURL: "https://openrouter.ai/api/v1",
+    domains: ["openrouter.ai"],
+    iconFile: "openrouter.svg",
+    selectable: true,
+  },
+  {
+    id: "deepseek",
     displayName: "DeepSeek",
-    baseURL: "https://api.deepseek.com",
+    defaultBaseURL: "https://api.deepseek.com",
+    domains: ["deepseek.com"],
+    iconFile: "deepseek-color.svg",
+    selectable: true,
   },
   {
-    preset: "z-ai",
-    displayName: "Z.AI / GLM",
-    baseURL: "https://api.z.ai/api/paas/v4",
+    id: "z-ai",
+    displayName: "Z.AI",
+    defaultBaseURL: "https://api.z.ai/api/paas/v4",
+    domains: ["z.ai"],
+    iconFile: "zai.svg",
+    selectable: true,
   },
   {
-    preset: "minimax",
+    id: "minimax",
     displayName: "MiniMax",
-    baseURL: "https://api.minimax.io/v1",
+    defaultBaseURL: "https://api.minimaxi.com/v1",
+    domains: ["minimaxi.com", "minimax.io"],
+    iconFile: "minimax-color.svg",
+    selectable: true,
   },
-];
-
-/**
- * Display names for well-known OpenAI-compatible endpoints. Keep transport
- * presets separate from branding: most of these providers use the generic
- * OpenAI-compatible backend, but should still have a human-friendly name.
- */
-const PROVIDER_DOMAIN_NAMES: ReadonlyArray<{
-  domains: readonly string[];
-  displayName: string;
-}> = [
-  { domains: ["deepseek.com"], displayName: "DeepSeek" },
-  { domains: ["openai.com"], displayName: "OpenAI" },
-  { domains: ["openrouter.ai"], displayName: "OpenRouter" },
-  { domains: ["z.ai"], displayName: "Z.AI / GLM" },
-  { domains: ["bigmodel.cn"], displayName: "Zhipu AI / GLM" },
-  { domains: ["minimax.io", "minimaxi.com"], displayName: "MiniMax" },
-  { domains: ["moonshot.cn", "moonshot.ai"], displayName: "Moonshot AI" },
   {
-    domains: ["siliconflow.cn", "siliconflow.com"],
-    displayName: "SiliconFlow",
+    id: "moonshot",
+    displayName: "Moonshot AI",
+    defaultBaseURL: "https://api.moonshot.cn/v1",
+    domains: ["moonshot.cn", "moonshot.ai"],
+    iconFile: "moonshot.svg",
+    selectable: true,
   },
-  { domains: ["dashscope.aliyuncs.com"], displayName: "Alibaba Cloud / Qwen" },
-  { domains: ["volces.com"], displayName: "Volcano Engine / Ark" },
-  { domains: ["together.xyz"], displayName: "Together AI" },
-  { domains: ["fireworks.ai"], displayName: "Fireworks AI" },
-  { domains: ["mistral.ai"], displayName: "Mistral AI" },
-  { domains: ["x.ai"], displayName: "xAI" },
-];
+  {
+    id: "alibaba-bailian",
+    displayName: "阿里云百炼",
+    defaultBaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    domains: ["dashscope.aliyuncs.com", "maas.aliyuncs.com"],
+    iconFile: "bailian-color.svg",
+    selectable: true,
+  },
+  {
+    id: "xiaomi-mimo",
+    displayName: "Xiaomi MiMo",
+    defaultBaseURL: "https://api.xiaomimimo.com/v1",
+    domains: ["xiaomimimo.com"],
+    iconFile: "xiaomimimo.svg",
+    selectable: true,
+  },
+  {
+    id: "custom",
+    displayName: "Custom OpenAI Compatible",
+    domains: [],
+    selectable: true,
+  },
+] as const;
 
 function createCodexProviderProfile(
   input: {
@@ -80,14 +110,15 @@ function createCodexProviderProfile(
   } = {},
 ): ProviderProfile {
   const models = input.models || [];
+  const provider = getProviderDefinition("codex");
   return {
     id: CODEX_PROVIDER_ID,
     kind: "codex-cli",
-    preset: "codex-cli",
-    displayName: "Codex CLI",
+    providerId: provider.id,
+    displayName: provider.displayName,
     defaultModel: models[0]?.id,
     models,
-    capabilities: createCapabilities("codex-cli"),
+    capabilities: createCapabilities(provider.id),
     timeoutMs: 180000,
     retryCount: 0,
     enabled: true,
@@ -95,9 +126,9 @@ function createCodexProviderProfile(
   };
 }
 
-function createPresetProviderProfile(input: {
+function createProviderProfile(input: {
   id: string;
-  preset?: Exclude<AgentProviderPreset, "codex-cli">;
+  providerId: Exclude<AgentProviderId, "codex">;
   displayName?: string;
   baseURL?: string;
   defaultModel?: string;
@@ -110,26 +141,23 @@ function createPresetProviderProfile(input: {
   hasApiKey?: boolean;
   apiKeyRef?: string;
 }): ProviderProfile {
-  const presetName = input.preset || "openai-compatible";
-  const preset = getPreset(presetName);
+  const provider = getProviderDefinition(input.providerId);
   const models = input.models?.length
-    ? input.models.map((model) => modelFromId(model.id, presetName))
+    ? input.models.map((model) => modelFromId(model.id))
     : input.defaultModel
-      ? [modelFromId(input.defaultModel, presetName)]
+      ? [modelFromId(input.defaultModel)]
       : [];
-  const defaultModel = input.defaultModel || models[0]?.id;
   return {
     id: input.id,
     kind: "openai-compatible",
-    preset: presetName,
-    displayName:
-      input.displayName || createProviderDisplayName(input.baseURL, preset),
-    baseURL: input.baseURL || preset.baseURL,
+    providerId: provider.id,
+    displayName: input.displayName || provider.displayName,
+    baseURL: input.baseURL || provider.defaultBaseURL,
     apiKeyRef: input.apiKeyRef || input.id,
     hasApiKey: input.hasApiKey,
-    defaultModel,
+    defaultModel: input.defaultModel || models[0]?.id,
     models,
-    capabilities: createCapabilities(presetName, input.capabilities),
+    capabilities: createCapabilities(provider.id, input.capabilities),
     timeoutMs: input.timeoutMs || 180000,
     retryCount: input.retryCount ?? 1,
     enabled: input.enabled ?? true,
@@ -137,53 +165,54 @@ function createPresetProviderProfile(input: {
   };
 }
 
-function modelFromId(
-  id: string,
-  preset: Exclude<AgentProviderPreset, "codex-cli"> = "openai-compatible",
-): AgentModelEntry {
-  const supportedReasoningEfforts =
-    preset === "openai-compatible" ||
-    preset === "deepseek" ||
-    preset === "z-ai" ||
-    preset === "minimax"
-      ? ["low", "medium", "high"]
-      : [];
+function modelFromId(id: string): AgentModelEntry {
+  const supportedReasoningEfforts = ["low", "medium", "high"];
   return {
     id,
     displayName: id,
     supportedReasoningEfforts,
-    defaultReasoningEffort: supportedReasoningEfforts.includes("medium")
-      ? "medium"
-      : undefined,
+    defaultReasoningEffort: "medium",
   };
 }
 
 function createProviderDisplayName(
   baseURL: string | undefined,
-  preset?: PresetDefinition,
+  providerId?: AgentProviderId,
 ): string {
-  if (preset && preset.preset !== "openai-compatible") {
-    return preset.displayName;
-  }
-  if (!baseURL) {
-    return preset?.displayName || "OpenAI compatible";
-  }
+  if (providerId) return getProviderDefinition(providerId).displayName;
+  return getProviderDefinition(resolveProviderId(baseURL)).displayName;
+}
+
+function resolveProviderId(baseURL: string | undefined): AgentProviderId {
+  if (!baseURL) return "custom";
   try {
     const hostname = new URL(baseURL).hostname.toLowerCase().replace(/\.$/, "");
-    const knownProvider = PROVIDER_DOMAIN_NAMES.find(({ domains }) =>
-      domains.some(
-        (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
-      ),
-    );
     return (
-      knownProvider?.displayName || createLegacyProviderDisplayName(baseURL)
+      PROVIDER_CATALOG.find((provider) =>
+        provider.domains.some(
+          (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+        ),
+      )?.id || "custom"
     );
   } catch {
-    return "OpenAI compatible";
+    return "custom";
   }
 }
 
-/** The pre-branding name is retained so persisted automatic names can migrate. */
+function getProviderDefinition(
+  providerId: AgentProviderId,
+): ProviderDefinition {
+  return (
+    PROVIDER_CATALOG.find((provider) => provider.id === providerId) ||
+    PROVIDER_CATALOG[PROVIDER_CATALOG.length - 1]
+  );
+}
+
+function isProviderId(value: unknown): value is AgentProviderId {
+  return PROVIDER_CATALOG.some((provider) => provider.id === value);
+}
+
+/** Retained only to recognize automatic names saved by older releases. */
 function createLegacyProviderDisplayName(baseURL: string | undefined): string {
   if (!baseURL) return "OpenAI compatible";
   try {
@@ -191,13 +220,4 @@ function createLegacyProviderDisplayName(baseURL: string | undefined): string {
   } catch {
     return "OpenAI compatible";
   }
-}
-
-function getPreset(
-  preset: Exclude<AgentProviderPreset, "codex-cli">,
-): PresetDefinition {
-  return (
-    PROVIDER_PRESETS.find((item) => item.preset === preset) ||
-    PROVIDER_PRESETS[0]
-  );
 }

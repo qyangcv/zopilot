@@ -33,7 +33,7 @@ async function createZopilotDeckHost(
     import("react-dom/client"),
     import("../ui/SidebarApp"),
   ]);
-  const { ZopilotUIProvider } = await import("../ui/primitives/index");
+  const { ZopilotUIProvider } = await import("../../../ui/primitives/index");
   installGlobals();
   const root = createRoot(mountNode);
   let currentPanel = panel;

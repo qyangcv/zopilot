@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import type {
   AgentModelEntry,
+  AgentProviderId,
   ProviderProfile,
 } from "../../../../domain/agent/types";
 import type { LocalizedMessage } from "../../localization";
@@ -13,7 +14,7 @@ type ProviderPanelProps = {
   message?: LocalizedMessage;
   onCheck: (profileId: string) => void;
   onCreate: (input: {
-    preset?: "openai-compatible";
+    providerId: Exclude<AgentProviderId, "codex">;
     displayName?: string;
     baseURL?: string;
     apiKey?: string;
@@ -21,6 +22,7 @@ type ProviderPanelProps = {
   }) => void;
   onDelete: (profileId: string) => void;
   onListModels: (input: {
+    providerId: Exclude<AgentProviderId, "codex">;
     baseURL: string;
     apiKey: string;
   }) => Promise<AgentModelEntry[]>;

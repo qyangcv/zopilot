@@ -1,7 +1,31 @@
 import { assert } from "chai";
-import { initPreferencesPane } from "../../../src/features/preferences/mountPreferencesApp.ts";
+import {
+  createPreferenceMountTargets,
+  initPreferencesPane,
+} from "../../../src/features/preferences/mountPreferencesApp.ts";
 
 describe("preferences pane script", function () {
+  it("creates a dedicated portal root instead of relying on document.body", function () {
+    const children: unknown[] = [];
+    const ownerDocument = {
+      createElement() {
+        return { className: "" };
+      },
+    };
+    const root = {
+      ownerDocument,
+      replaceChildren(...items: unknown[]) {
+        children.push(...items);
+      },
+    } as unknown as HTMLElement;
+
+    const targets = createPreferenceMountTargets(root);
+
+    assert.equal(targets.mountNode.className, "zp-pref-react-root");
+    assert.equal(targets.portalRoot.className, "zp-pref-portal-root");
+    assert.deepEqual(children, [targets.mountNode, targets.portalRoot]);
+  });
+
   it("waits for the React root before rendering", function () {
     const timers: Array<() => void> = [];
     let rootElement: RootElement | null = null;

@@ -6,3 +6,6 @@
 @import url("styles/sidebar-composer.css");
 @import url("styles/sidebar-popovers.css");
 @import url("styles/sidebar-footer.css");
+@import url("shared/floating.css");
+@import url("shared/provider-brand-icon.css");
+@import url("shared/single-select.css");

@@ -1,4 +1,4 @@
-import type { AgentCapabilities, AgentProviderPreset } from "./types";
+import type { AgentCapabilities, AgentProviderId } from "./types";
 
 export {
   CODEX_CAPABILITIES,
@@ -29,11 +29,11 @@ const OPENAI_COMPATIBLE_BASELINE_CAPABILITIES: AgentCapabilities = {
 };
 
 function createCapabilities(
-  preset: AgentProviderPreset,
+  providerId: AgentProviderId,
   overrides: Partial<AgentCapabilities> = {},
 ): AgentCapabilities {
   const base =
-    preset === "codex-cli"
+    providerId === "codex"
       ? CODEX_CAPABILITIES
       : OPENAI_COMPATIBLE_BASELINE_CAPABILITIES;
   return {

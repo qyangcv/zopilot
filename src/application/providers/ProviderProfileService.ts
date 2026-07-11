@@ -2,7 +2,7 @@ import { getPref, setPref } from "../../runtime/preferences/prefs";
 import {
   CODEX_PROVIDER_ID,
   createCodexProviderProfile,
-  createPresetProviderProfile,
+  createProviderProfile,
 } from "../../domain/agent/modelCatalog";
 import type {
   AgentCapabilities,
@@ -75,10 +75,9 @@ class ProviderProfileStore {
   }
 
   createProvider(input: ProviderProfileInput): ProviderProfile {
-    const preset = input.preset || "openai-compatible";
-    const profile = createPresetProviderProfile({
-      id: createProfileId(preset),
-      preset,
+    const profile = createProviderProfile({
+      id: createProfileId(input.providerId),
+      providerId: input.providerId,
       displayName: input.displayName,
       baseURL: input.baseURL,
       models: input.models,

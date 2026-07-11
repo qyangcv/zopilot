@@ -254,6 +254,7 @@ function agentModelToSidebarModel(
     displayName: model.displayName,
     providerProfileId: profile.id,
     providerLabel: profile.displayName,
+    providerBrand: profile.providerId,
     supportedReasoningEfforts: model.supportedReasoningEfforts,
     defaultReasoningEffort: model.defaultReasoningEffort,
   };

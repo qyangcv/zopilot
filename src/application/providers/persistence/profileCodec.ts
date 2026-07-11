@@ -1,11 +1,13 @@
 import {
   createLegacyProviderDisplayName,
-  createPresetProviderProfile,
+  createProviderProfile,
   createProviderDisplayName,
+  isProviderId,
+  resolveProviderId,
 } from "../../../domain/agent/modelCatalog";
 import type {
   AgentModelEntry,
-  AgentProviderPreset,
+  AgentProviderId,
   ProviderProfile,
 } from "../../../domain/agent/types";
 import { createTimestampId } from "../../../runtime/ids/timestampId";
@@ -44,16 +46,14 @@ function parseStoredProfiles(raw: unknown): StoredProviderProfile[] {
 }
 
 function normalizeStoredProfile(
-  input: Partial<ProviderProfile>,
+  input: Partial<ProviderProfile> & { preset?: unknown },
 ): StoredProviderProfile {
-  const preset = isOpenAICompatiblePreset(input.preset)
-    ? input.preset
-    : "openai-compatible";
+  const providerId = resolveStoredProviderId(input);
   const displayName = normalizeStoredDisplayName(input);
   return toStoredProviderProfile(
-    createPresetProviderProfile({
-      id: typeof input.id === "string" ? input.id : createProfileId(preset),
-      preset,
+    createProviderProfile({
+      id: typeof input.id === "string" ? input.id : createProfileId(providerId),
+      providerId,
       displayName,
       baseURL: input.baseURL,
       models: Array.isArray(input.models) ? input.models : undefined,
@@ -78,7 +78,7 @@ function normalizeStoredDisplayName(
   // chosen in the edit form remains untouched.
   const legacyName = createLegacyProviderDisplayName(input.baseURL);
   return input.displayName === legacyName
-    ? createProviderDisplayName(input.baseURL)
+    ? createProviderDisplayName(input.baseURL, resolveProviderId(input.baseURL))
     : input.displayName;
 }
 
@@ -136,19 +136,25 @@ function isProviderStatus(value: unknown): value is ProviderProfile["status"] {
   );
 }
 
-function isOpenAICompatiblePreset(
-  preset: unknown,
-): preset is Exclude<AgentProviderPreset, "codex-cli"> {
-  return (
-    preset === "openai-compatible" ||
-    preset === "deepseek" ||
-    preset === "z-ai" ||
-    preset === "minimax"
-  );
+function resolveStoredProviderId(
+  input: Partial<ProviderProfile> & { preset?: unknown },
+): Exclude<AgentProviderId, "codex"> {
+  if (isProviderId(input.providerId) && input.providerId !== "codex") {
+    return input.providerId;
+  }
+  if (
+    input.preset === "deepseek" ||
+    input.preset === "z-ai" ||
+    input.preset === "minimax"
+  ) {
+    return input.preset;
+  }
+  const detected = resolveProviderId(input.baseURL);
+  return detected === "codex" ? "custom" : detected;
 }
 
-function createProfileId(preset: AgentProviderPreset): string {
-  return createTimestampId(preset, { separator: ".", randomLength: 6 });
+function createProfileId(providerId: AgentProviderId): string {
+  return createTimestampId(providerId, { separator: ".", randomLength: 6 });
 }
 
 export {

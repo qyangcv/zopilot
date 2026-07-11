@@ -29,6 +29,12 @@ describe("PreferencesApp", function () {
     assert.include(html, "lucide-pencil-sparkles");
     assert.include(html, 'data-l10n-id="zopilot-pref-provider-title"');
     assert.include(html, 'data-l10n-id="zopilot-pref-provider-add"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-provider-kind"');
+    assert.include(html, 'class="zp-single-select" data-variant="form"');
+    assert.include(html, "lucide-chevron-down");
+    assert.include(html, "OpenRouter");
+    assert.include(html, 'value="https://openrouter.ai/api/v1"');
+    assert.notInclude(html, "<select");
     assert.notInclude(html, "zp-pref-brand");
   });
 

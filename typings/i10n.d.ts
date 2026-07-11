@@ -120,6 +120,7 @@ export type FluentMessageId =
   | 'pref-provider-edit'
   | 'pref-provider-key-missing'
   | 'pref-provider-key-saved'
+  | 'pref-provider-kind'
   | 'pref-provider-list-models'
   | 'pref-provider-listing-models'
   | 'pref-provider-models-available'

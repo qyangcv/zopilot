@@ -30,6 +30,7 @@ export type SidebarModelView = {
   displayName: string;
   providerProfileId: string;
   providerLabel: string;
+  providerBrand?: ProviderBrand;
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
 };

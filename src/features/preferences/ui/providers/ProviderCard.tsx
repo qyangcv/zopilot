@@ -13,6 +13,7 @@ import type {
 } from "../../../../domain/agent/types";
 import { l10nAttributes, type LocalizedMessage } from "../../localization";
 import { T } from "../PreferenceChrome";
+import { ProviderBrandIcon } from "../../../sidebar/ui/ProviderBrandIcon";
 
 type ProviderCardProps = {
   checking: boolean;
@@ -46,7 +47,10 @@ function ProviderCard({
     <div className="zp-pref-card zp-pref-provider-card">
       <div className="zp-pref-card-header">
         <div>
-          <h3>{profile.displayName}</h3>
+          <h3 className="zp-pref-provider-title">
+            <ProviderBrandIcon brand={profile.providerId} size={18} />
+            {profile.displayName}
+          </h3>
           <p>
             {profile.kind === "codex-cli" ? (
               <T id="pref-provider-codex-description">本地 Codex CLI 后端</T>

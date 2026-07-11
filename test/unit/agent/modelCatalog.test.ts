@@ -1,59 +1,87 @@
 import { assert } from "chai";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
-  createPresetProviderProfile,
-  createProviderDisplayName,
+  PROVIDER_CATALOG,
+  createProviderProfile,
+  getProviderDefinition,
+  resolveProviderId,
 } from "../../../src/domain/agent/modelCatalog.ts";
 
-describe("provider display names", function () {
-  it("uses canonical brand names for known compatible endpoints", function () {
-    assert.equal(
-      createProviderDisplayName("https://api.deepseek.com"),
-      "DeepSeek",
-    );
-    assert.equal(
-      createProviderDisplayName("https://open.bigmodel.cn/api/paas/v4"),
-      "Zhipu AI / GLM",
-    );
-    assert.equal(
-      createProviderDisplayName("https://api.openrouter.ai/v1"),
-      "OpenRouter",
-    );
-  });
-
-  it("matches only complete domain suffixes", function () {
-    assert.equal(
-      createProviderDisplayName("https://deepseek.com.example.org/v1"),
-      "deepseek.com.example.org",
+describe("provider catalog", function () {
+  it("contains exactly the selectable built-in providers", function () {
+    assert.deepEqual(
+      PROVIDER_CATALOG.filter((provider) => provider.selectable).map(
+        (provider) => provider.id,
+      ),
+      [
+        "openrouter",
+        "deepseek",
+        "z-ai",
+        "minimax",
+        "moonshot",
+        "alibaba-bailian",
+        "xiaomi-mimo",
+        "custom",
+      ],
     );
   });
 
-  it("keeps a useful hostname fallback for unknown and local services", function () {
+  it("gives every branded provider one name, endpoint, and icon", function () {
+    for (const provider of PROVIDER_CATALOG.filter(
+      (item) => item.selectable && item.id !== "custom",
+    )) {
+      assert.isNotEmpty(provider.displayName);
+      assert.match(provider.defaultBaseURL || "", /^https:\/\//u);
+      assert.isNotEmpty(provider.iconFile);
+      assert.isTrue(
+        existsSync(
+          fileURLToPath(
+            new URL(
+              `../../../addon/content/icons/providers/${provider.iconFile}`,
+              import.meta.url,
+            ),
+          ),
+        ),
+        `Missing icon asset for ${provider.id}`,
+      );
+    }
+  });
+
+  it("uses the domestic default endpoints selected for the catalog", function () {
     assert.equal(
-      createProviderDisplayName("https://api.models.example.org/v1"),
-      "models.example.org",
+      getProviderDefinition("minimax").defaultBaseURL,
+      "https://api.minimaxi.com/v1",
     );
     assert.equal(
-      createProviderDisplayName("http://localhost:11434/v1"),
-      "localhost",
+      getProviderDefinition("moonshot").defaultBaseURL,
+      "https://api.moonshot.cn/v1",
+    );
+    assert.equal(
+      getProviderDefinition("alibaba-bailian").defaultBaseURL,
+      "https://dashscope.aliyuncs.com/compatible-mode/v1",
     );
   });
 
-  it("lets an explicit name and a non-generic preset take precedence", function () {
+  it("resolves known endpoints without using model-name guesses", function () {
     assert.equal(
-      createPresetProviderProfile({
-        id: "custom",
-        displayName: "Research Gateway",
-        baseURL: "https://api.deepseek.com",
-      }).displayName,
-      "Research Gateway",
+      resolveProviderId("https://openrouter.ai/api/v1"),
+      "openrouter",
     );
-    assert.equal(
-      createPresetProviderProfile({
-        id: "deepseek",
-        preset: "deepseek",
-        baseURL: "https://gateway.example.org",
-      }).displayName,
-      "DeepSeek",
-    );
+    assert.equal(resolveProviderId("https://api.deepseek.com"), "deepseek");
+    assert.equal(resolveProviderId("https://proxy.example/v1"), "custom");
+  });
+
+  it("allows users to override a provider endpoint and display name", function () {
+    const profile = createProviderProfile({
+      id: "deepseek-proxy",
+      providerId: "deepseek",
+      displayName: "Research Gateway",
+      baseURL: "https://proxy.example/v1",
+    });
+
+    assert.equal(profile.providerId, "deepseek");
+    assert.equal(profile.displayName, "Research Gateway");
+    assert.equal(profile.baseURL, "https://proxy.example/v1");
   });
 });

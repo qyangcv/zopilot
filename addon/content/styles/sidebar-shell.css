@@ -42,18 +42,6 @@
   pointer-events: auto;
 }
 
-.zp-dismiss-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: auto;
-}
-
-.zp-floating-layer {
-  position: absolute;
-  min-width: 0;
-  pointer-events: auto;
-}
-
 .zp-sidebar *,
 .zp-sidebar *::before,
 .zp-sidebar *::after,
@@ -188,11 +176,7 @@
 }
 /* Shared floating-surface foundation */
 
-:where(
-  .zp-mention-popover,
-  .zp-floating-panel,
-  .zp-ui-select-popup
-) {
+:where(.zp-mention-popover, .zp-floating-panel) {
   width: 100%;
   max-height: inherit;
   border: 1px solid var(--zp-border);

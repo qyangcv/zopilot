@@ -33,7 +33,7 @@ class CodexCliBackend implements AgentBackend {
     this.profile = profile;
     this.id = profile.id;
     this.label = profile.displayName;
-    this.capabilities = createCapabilities("codex-cli");
+    this.capabilities = createCapabilities("codex");
   }
 
   async checkStatus(): Promise<BackendStatusResult> {

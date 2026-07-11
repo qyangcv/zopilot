@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAgentBackendManager } from "../../../../application/agent/BackendManager";
-import { createPresetProviderProfile } from "../../../../domain/agent/modelCatalog";
+import { createProviderProfile } from "../../../../domain/agent/modelCatalog";
 import { getProviderProfileStore } from "../../../../application/providers/ProviderProfileService";
 import type {
   AgentModelEntry,
@@ -33,6 +33,7 @@ function useProviderProfiles(): {
   deleteProvider: (profileId: string) => void;
   checkProvider: (profileId: string) => void;
   listProviderModels: (input: {
+    providerId: ProviderProfileInput["providerId"];
     baseURL: string;
     apiKey: string;
   }) => Promise<AgentModelEntry[]>;
@@ -97,11 +98,14 @@ function useProviderProfiles(): {
   }, []);
 
   const listProviderModels = useCallback(
-    async (input: { baseURL: string; apiKey: string }) => {
-      const profile = createPresetProviderProfile({
+    async (input: {
+      providerId: ProviderProfileInput["providerId"];
+      baseURL: string;
+      apiKey: string;
+    }) => {
+      const profile = createProviderProfile({
         id: "provider-draft",
-        preset: "openai-compatible",
-        displayName: "OpenAI compatible",
+        providerId: input.providerId,
         baseURL: input.baseURL,
         models: [],
         hasApiKey: true,

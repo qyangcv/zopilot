@@ -71,7 +71,7 @@ function parseOpenAIModelList(value: unknown): AgentModelEntry[] {
         item && typeof item === "object" && typeof (item as any).id === "string"
           ? (item as any).id
           : undefined;
-      return id ? modelFromId(id, "openai-compatible") : undefined;
+      return id ? modelFromId(id) : undefined;
     })
     .filter((item: AgentModelEntry | undefined): item is AgentModelEntry =>
       Boolean(item),

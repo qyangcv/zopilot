@@ -37,14 +37,6 @@ function ZopilotUIProvider({
   );
 }
 
-function Portal({ children }: { children: ReactNode }): ReactElement {
-  const { portalRoot } = useZopilotUI();
-  if (!portalRoot) {
-    return <>{children}</>;
-  }
-  return createPortal(children, portalRoot) as ReactElement;
-}
-
 function FloatingPortal({
   align = "start",
   anchorRef,
@@ -55,6 +47,7 @@ function FloatingPortal({
   offset = 6,
   onDismiss,
   preferredSide = "above",
+  renderInlineWithoutPortal = true,
   width,
   zIndex = 7,
 }: {
@@ -67,9 +60,10 @@ function FloatingPortal({
   offset?: number;
   onDismiss: () => void;
   preferredSide?: FloatingSide;
+  renderInlineWithoutPortal?: boolean;
   width?: number;
   zIndex?: number;
-}): ReactElement {
+}): ReactElement | null {
   const { portalRoot } = useZopilotUI();
   const [style, setStyle] = useState<CSSProperties>({
     visibility: "hidden",
@@ -78,14 +72,8 @@ function FloatingPortal({
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
-    if (!portalRoot || !anchor) {
-      return;
-    }
-    const ownerDocument = portalRoot.ownerDocument;
-    if (!ownerDocument) {
-      return;
-    }
-    const win = ownerDocument.defaultView;
+    if (!portalRoot || !anchor) return;
+    const win = portalRoot.ownerDocument?.defaultView;
     const updatePosition = () => {
       const next = calculateFloatingPosition({
         align,
@@ -137,36 +125,22 @@ function FloatingPortal({
     zIndex,
   ]);
 
-  return (
-    <Portal>
-      <DismissLayer onDismiss={onDismiss}>
-        <div className="zp-floating-layer" style={style}>
-          {children}
-        </div>
-      </DismissLayer>
-    </Portal>
-  );
-}
-
-function DismissLayer({
-  children,
-  onDismiss,
-}: {
-  children: ReactNode;
-  onDismiss: () => void;
-}): ReactElement {
-  return (
+  if (!portalRoot) {
+    return renderInlineWithoutPortal ? <>{children}</> : null;
+  }
+  return createPortal(
     <div
       className="zp-dismiss-layer"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onDismiss();
-        }
+        if (event.target === event.currentTarget) onDismiss();
       }}
     >
-      {children}
-    </div>
-  );
+      <div className="zp-floating-layer" style={style}>
+        {children}
+      </div>
+    </div>,
+    portalRoot,
+  ) as ReactElement;
 }
 
 function useZopilotUI(): ZopilotUIContextValue {

@@ -1,14 +1,7 @@
 import type { ReactElement } from "react";
 import type { ProviderBrand } from "../../../domain/agent/providerBrand";
+import { getProviderDefinition } from "../../../domain/agent/modelCatalog";
 import { Icon } from "./Icon";
-
-const PROVIDER_ICON_FILES: Partial<Record<ProviderBrand, string>> = {
-  codex: "codex-color.svg",
-  openai: "openai.svg",
-  deepseek: "deepseek-color.svg",
-  minimax: "minimax-color.svg",
-  "z-ai": "zhipu-color.svg",
-};
 
 function ProviderBrandIcon({
   brand,
@@ -19,7 +12,12 @@ function ProviderBrandIcon({
   className?: string;
   size?: number;
 }): ReactElement {
-  const file = PROVIDER_ICON_FILES[brand];
+  const file =
+    brand === "openai"
+      ? "openai.svg"
+      : brand === "generic"
+        ? undefined
+        : getProviderDefinition(brand).iconFile;
   if (!file) {
     return (
       <span

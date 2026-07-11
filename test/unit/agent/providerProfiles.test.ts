@@ -54,6 +54,7 @@ describe("ProviderProfileStore", function () {
   it("creates BYOK profiles while keeping API keys out of snapshots", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
+      providerId: "deepseek",
       apiKey: "sk-test-secret",
       baseURL: "https://api.deepseek.com",
       models: [{ id: "deepseek-chat", displayName: "deepseek-chat" }],
@@ -75,7 +76,7 @@ describe("ProviderProfileStore", function () {
   it("updates and deletes BYOK profiles with Codex fallback", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
-      preset: "minimax",
+      providerId: "minimax",
       apiKey: "secret-a",
       baseURL: "https://api.minimax.io/v1",
       models: [{ id: "MiniMax-M1", displayName: "MiniMax-M1" }],
@@ -99,7 +100,7 @@ describe("ProviderProfileStore", function () {
   it("keeps BYOK models as the provider source of truth", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
-      preset: "deepseek",
+      providerId: "deepseek",
       apiKey: "secret-a",
       baseURL: "https://api.deepseek.com",
       models: [{ id: "deepseek-chat", displayName: "deepseek-chat" }],
