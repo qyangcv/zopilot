@@ -29,8 +29,8 @@
 }
 
 .zp-portal-root {
-  position: absolute;
-  z-index: 20;
+  position: fixed;
+  z-index: 2147483000;
   inset: 0;
   overflow: hidden;
   pointer-events: none;

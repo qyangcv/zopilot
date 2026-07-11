@@ -2,9 +2,8 @@ import type { ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { ComposerBindings } from "./composerBindings";
 import { Icon } from "./Icon";
-import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
+import { ModelSelector } from "./ModelSelector";
 import type { SidebarActions, SidebarState } from "./types";
-import { SingleSelect } from "../../../ui/primitives/index";
 
 function ComposerFooter({
   actions,
@@ -69,49 +68,7 @@ function ComposerFooter({
           </span>
         ) : null}
         {state.backendStatus === "connected" ? (
-          <>
-            <SingleSelect
-              aria-label={getString("sidebar-model-name")}
-              disabled={!state.models.length}
-              onChange={actions.selectModel}
-              options={state.models.map((model) => ({
-                groupIcon: model.providerBrand ? (
-                  <ProviderBrandIcon brand={model.providerBrand} size={14} />
-                ) : undefined,
-                groupLabel: model.providerLabel,
-                label: model.displayName,
-                triggerIcon: model.providerBrand ? (
-                  <ProviderBrandIcon brand={model.providerBrand} size={14} />
-                ) : undefined,
-                value: createModelSelectValue(
-                  model.providerProfileId,
-                  model.slug,
-                ),
-              }))}
-              showIndicator={false}
-              title={getString("sidebar-model-name")}
-              value={createModelSelectValue(
-                state.selectedProviderId,
-                state.selectedModel,
-              )}
-              variant="compact"
-            />
-            {state.availableReasoningEfforts.length ? (
-              <SingleSelect
-                aria-label={getString("sidebar-reasoning-depth")}
-                onChange={actions.selectReasoningEffort}
-                options={state.availableReasoningEfforts.map((effort) => ({
-                  label: formatEffortLabel(effort),
-                  value: effort,
-                }))}
-                popupMinWidth={96}
-                showIndicator={false}
-                title={getString("sidebar-reasoning-depth")}
-                value={state.selectedReasoningEffort || ""}
-                variant="compact"
-              />
-            ) : null}
-          </>
+          <ModelSelector actions={actions} state={state} />
         ) : null}
       </div>
       <button
@@ -142,17 +99,6 @@ function ComposerFooter({
       </button>
     </div>
   );
-}
-
-function formatEffortLabel(effort: string): string {
-  return effort.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase());
-}
-
-function createModelSelectValue(
-  providerProfileId: string,
-  model: string,
-): string {
-  return `${providerProfileId}\u0000${model}`;
 }
 
 export { ComposerFooter };

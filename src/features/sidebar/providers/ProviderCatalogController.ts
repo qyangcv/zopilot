@@ -11,7 +11,6 @@ import type { SidebarState } from "../ui/types";
 import {
   buildModelSelectionPatch,
   createReasoningPreferenceKey,
-  getReasoningEffortsForModel,
   parseSavedReasoningEfforts,
   parseSavedSelectedModels,
   resolveSelectedModel,
@@ -58,6 +57,14 @@ class ProviderCatalogController {
   }
 
   selectModel(value: string): void {
+    this.applyModelSelection(value);
+  }
+
+  selectModelEffort(value: string, effort: string): void {
+    this.applyModelSelection(value, effort);
+  }
+
+  private applyModelSelection(value: string, effort?: string): void {
     const { providerProfileId, model } = parseModelSelectValue(value);
     const viewState = this.options.getViewState();
     const selected = viewState.models.find(
@@ -67,7 +74,13 @@ class ProviderCatalogController {
     if (!selected) {
       return;
     }
+    if (effort && !selected.supportedReasoningEfforts.includes(effort)) {
+      return;
+    }
     this.saveSelectedModel(providerProfileId, model);
+    if (effort) {
+      this.saveReasoningEffort(providerProfileId, model, effort);
+    }
     const manager = getAgentBackendManager();
     if (manager.getSnapshot().activeProviderId !== providerProfileId) {
       manager.setActiveProvider(providerProfileId);
@@ -78,25 +91,14 @@ class ProviderCatalogController {
     });
   }
 
-  selectReasoningEffort(effort: string): void {
-    const viewState = this.options.getViewState();
-    const efforts = getReasoningEffortsForModel(
-      viewState.selectedProviderId,
-      viewState.selectedModel,
-      viewState.models,
-    );
-    if (!efforts.includes(effort)) {
-      return;
-    }
+  private saveReasoningEffort(
+    providerProfileId: string,
+    model: string,
+    effort: string,
+  ): void {
     const saved = this.readSavedReasoningEfforts();
-    saved[
-      createReasoningPreferenceKey(
-        viewState.selectedProviderId,
-        viewState.selectedModel,
-      )
-    ] = effort;
+    saved[createReasoningPreferenceKey(providerProfileId, model)] = effort;
     setPref("codex.reasoningEfforts", JSON.stringify(saved));
-    this.options.updateViewState({ selectedReasoningEffort: effort });
   }
 
   private async refreshOnce(): Promise<void> {

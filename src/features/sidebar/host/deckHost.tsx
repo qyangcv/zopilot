@@ -20,12 +20,18 @@ async function createZopilotDeckHost(
   if (!doc) {
     throw new Error("Zopilot deck panel has no owner document");
   }
+  const overlayHost = doc.documentElement;
+  if (!overlayHost) {
+    throw new Error("Zopilot deck document has no root element");
+  }
   const mountNode = doc.createElementNS(HTML_NS, "div") as HTMLElement;
   const portalRoot = doc.createElementNS(HTML_NS, "div") as HTMLElement;
   mountNode.className = "zp-react-root zp-root";
   portalRoot.id = PORTAL_ROOT_ID;
   portalRoot.className = "zp-portal-root";
-  panel.replaceChildren(mountNode, portalRoot);
+  panel.replaceChildren(mountNode);
+  overlayHost.append(portalRoot);
+  syncPortalTheme(panel, portalRoot);
 
   const installGlobals = () => installChromeWindowGlobals(mountNode);
   installGlobals();
@@ -41,12 +47,15 @@ async function createZopilotDeckHost(
   return {
     attach(nextPanel) {
       if (mountNode.parentElement === nextPanel) return;
-      nextPanel.replaceChildren(mountNode, portalRoot);
+      nextPanel.replaceChildren(mountNode);
       currentPanel = nextPanel;
+      if (!portalRoot.isConnected) overlayHost.append(portalRoot);
+      syncPortalTheme(currentPanel, portalRoot);
       installGlobals();
     },
     render(state, actions) {
       installGlobals();
+      syncPortalTheme(currentPanel, portalRoot);
       root.render(
         <ZopilotUIProvider portalRoot={portalRoot}>
           <SidebarApp actions={actions} state={state} />
@@ -66,4 +75,14 @@ async function createZopilotDeckHost(
       portalRoot.remove();
     },
   };
+}
+
+function syncPortalTheme(panel: HTMLElement, portalRoot: HTMLElement): void {
+  const style = panel.ownerDocument?.defaultView?.getComputedStyle(panel);
+  if (!style) return;
+  for (const property of Array.from(style)) {
+    if (property.startsWith("--zp-")) {
+      portalRoot.style.setProperty(property, style.getPropertyValue(property));
+    }
+  }
 }

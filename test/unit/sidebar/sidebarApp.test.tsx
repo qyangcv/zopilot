@@ -628,7 +628,7 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zopilot-sidebar-no-sessions");
   });
 
-  it("renders model and effort selectors without native select sizing", function () {
+  it("renders one model trigger for the cascading model and effort menu", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -662,10 +662,15 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, 'aria-haspopup="listbox"');
+    assert.include(html, 'data-full-trigger-label="true"');
     assert.include(html, "GPT-5.5");
     assert.include(html, 'data-provider-brand="codex"');
     assert.equal(countOccurrences(html, 'data-provider-brand="codex"'), 1);
-    assert.include(html, "High");
+    assert.equal(countOccurrences(html, 'aria-haspopup="listbox"'), 1);
+    assert.include(html, 'class="zp-single-select-trigger-primary">GPT-5.5');
+    assert.include(html, 'class="zp-single-select-trigger-separator">·');
+    assert.include(html, 'class="zp-single-select-trigger-detail">High');
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
     assert.notInclude(html, "<select");
     assert.notInclude(html, "inline-size:calc(");
     assert.notInclude(html, 'data-icon-name="model"');
@@ -704,7 +709,7 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zopilot-sidebar-backend-status-disconnected");
     assert.notInclude(html, "zp-backend-status");
     assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
-    assert.include(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
     assert.include(html, 'aria-label="zopilot-sidebar-prompts"');
     assert.include(html, 'aria-label="zopilot-sidebar-add-context"');
     assert.include(html, 'data-icon-name="paperclip"');
@@ -815,7 +820,7 @@ function createActions(): SidebarActions {
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,
     selectModel: () => undefined,
-    selectReasoningEffort: () => undefined,
+    selectModelEffort: () => undefined,
     selectWorkspaceMode: () => undefined,
     selectCollectionWorkspace: () => undefined,
     selectItemWorkspace: () => undefined,

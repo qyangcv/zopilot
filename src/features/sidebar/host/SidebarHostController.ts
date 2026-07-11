@@ -291,8 +291,8 @@ class SidebarHostController {
     this.providerCatalog.selectModel(value);
   }
 
-  private selectReasoningEffort(effort: string): void {
-    this.providerCatalog.selectReasoningEffort(effort);
+  private selectModelEffort(model: string, effort: string): void {
+    this.providerCatalog.selectModelEffort(model, effort);
   }
 
   private async selectWorkspaceMode(type: WorkspaceType): Promise<void> {
@@ -458,7 +458,8 @@ class SidebarHostController {
         interruptActiveTurn: () => this.interruptActiveTurn(),
         openExternalLink: (url) => this.contextActions.openExternalLink(url),
         selectModel: (model) => this.selectModel(model),
-        selectReasoningEffort: (effort) => this.selectReasoningEffort(effort),
+        selectModelEffort: (model, effort) =>
+          this.selectModelEffort(model, effort),
         selectWorkspaceMode: (type) => void this.selectWorkspaceMode(type),
         selectCollectionWorkspace: (collectionKey) =>
           void this.selectCollectionWorkspace(collectionKey),

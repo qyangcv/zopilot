@@ -2,6 +2,8 @@ import { assert } from "chai";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   SingleSelect,
+  calculateSubmenuStyle,
+  findDefaultSubOption,
   findFirstEnabledIndex,
   findLastEnabledIndex,
   findNextEnabledIndex,
@@ -77,5 +79,56 @@ describe("SingleSelect", function () {
     assert.equal(listbox.scrollTop, 50);
     keepOptionVisible(listbox, optionAbove);
     assert.equal(listbox.scrollTop, 20);
+  });
+
+  it("places a cascading submenu on the side with enough room", function () {
+    const right = calculateSubmenuStyle(
+      { top: 20, bottom: 220, left: 40, right: 200 },
+      { top: 80, bottom: 110 },
+      { left: 0, right: 400 },
+      100,
+      96,
+    );
+    const left = calculateSubmenuStyle(
+      { top: 20, bottom: 220, left: 180, right: 340 },
+      { top: 190, bottom: 220 },
+      { left: 0, right: 360 },
+      100,
+      96,
+    );
+
+    assert.equal(right.insetInlineStart, "100%");
+    assert.isUndefined(right.insetInlineEnd);
+    assert.equal(right.top, 25);
+    assert.equal(left.insetInlineEnd, "100%");
+    assert.isUndefined(left.insetInlineStart);
+    assert.equal(left.top, 100);
+  });
+
+  it("resolves a model click to its enabled default sub-option", function () {
+    assert.deepEqual(
+      findDefaultSubOption({
+        label: "GPT",
+        value: "gpt",
+        subDefaultValue: "high",
+        subOptions: [
+          { label: "Low", value: "low" },
+          { label: "High", value: "high" },
+        ],
+      }),
+      { label: "High", value: "high" },
+    );
+    assert.deepEqual(
+      findDefaultSubOption({
+        label: "GPT",
+        value: "gpt",
+        subDefaultValue: "disabled",
+        subOptions: [
+          { label: "Disabled", value: "disabled", disabled: true },
+          { label: "Medium", value: "medium" },
+        ],
+      }),
+      { label: "Medium", value: "medium" },
+    );
   });
 });

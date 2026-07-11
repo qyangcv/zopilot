@@ -12,7 +12,7 @@ type SidebarActionHandlers = {
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
   selectModel: (model: string) => void;
-  selectReasoningEffort: (effort: string) => void;
+  selectModelEffort: (model: string, effort: string) => void;
   selectWorkspaceMode: (type: WorkspaceType) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   switchSession: SidebarActions["switchSession"];
@@ -30,7 +30,7 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     interruptActiveTurn: handlers.interruptActiveTurn,
     openExternalLink: handlers.openExternalLink,
     selectModel: handlers.selectModel,
-    selectReasoningEffort: handlers.selectReasoningEffort,
+    selectModelEffort: handlers.selectModelEffort,
     selectWorkspaceMode: handlers.selectWorkspaceMode,
     selectCollectionWorkspace: handlers.selectCollectionWorkspace,
     selectItemWorkspace: handlers.selectItemWorkspace,

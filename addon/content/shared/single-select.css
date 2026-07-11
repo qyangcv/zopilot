@@ -31,11 +31,30 @@
 }
 
 .zp-single-select-label > span:last-child,
-.zp-single-select-option > span:last-child {
+.zp-single-select-option-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zp-single-select-trigger-value {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.zp-single-select-trigger-primary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-single-select-trigger-separator,
+.zp-single-select-trigger-detail {
+  flex: 0 0 auto;
 }
 
 .zp-single-select-indicator {
@@ -62,6 +81,18 @@
   color: CanvasText;
   outline: none;
   padding-block: 4px;
+}
+
+.zp-single-select-cascade {
+  position: relative;
+  width: 100%;
+  max-height: inherit;
+}
+
+.zp-single-select-submenu {
+  position: absolute;
+  z-index: 1;
+  min-width: 0;
 }
 
 .zp-single-select-option-wrap {
@@ -173,6 +204,16 @@
   outline: 0;
   padding: 1px 4px;
   text-align: center;
+}
+
+.zp-single-select[data-variant="compact"][data-full-trigger-label] {
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.zp-single-select[data-variant="compact"][data-full-trigger-label]
+  .zp-single-select-trigger {
+  max-width: 100%;
 }
 
 .zp-single-select[data-variant="compact"] .zp-single-select-label {
