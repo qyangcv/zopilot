@@ -41,10 +41,10 @@ export function Message({
           <ProviderBrandIcon
             brand={message.providerBrand || "generic"}
             className="zp-message-avatar"
-            size={17}
+            size={20}
           />
         ) : (
-          <Icon className="zp-message-avatar" name="brand" size={17} />
+          <Icon className="zp-message-avatar" name="brand" size={20} />
         )
       ) : null}
       <div

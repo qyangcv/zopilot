@@ -37,9 +37,11 @@ function projectSidebarState(
             interrupted: runningTurn.interrupted,
             running: !runningTurn.interrupted,
             model: runningTurn.model,
+            providerProfileId: runningTurn.providerProfileId,
             providerBrand: runningTurn.providerBrand,
           }
         : undefined,
+      input.viewState.models,
     );
     const pdfHelperNotice =
       input.pdfHelperNotice?.conversationId === state.conversation.metadata.id

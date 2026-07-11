@@ -39,4 +39,26 @@ describe("provider profile codec", function () {
     assert.deepEqual(parseStoredProfiles("not-json"), []);
     assert.deepEqual(parseStoredProfiles(JSON.stringify({ id: "wrong" })), []);
   });
+
+  it("upgrades legacy automatic hostnames without overwriting custom names", function () {
+    const profiles = parseStoredProfiles(
+      JSON.stringify([
+        {
+          id: "deepseek.auto",
+          preset: "openai-compatible",
+          displayName: "deepseek.com",
+          baseURL: "https://api.deepseek.com",
+        },
+        {
+          id: "deepseek.custom",
+          preset: "openai-compatible",
+          displayName: "Research Gateway",
+          baseURL: "https://api.deepseek.com",
+        },
+      ]),
+    );
+
+    assert.equal(profiles[0]?.displayName, "DeepSeek");
+    assert.equal(profiles[1]?.displayName, "Research Gateway");
+  });
 });

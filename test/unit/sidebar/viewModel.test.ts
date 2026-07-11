@@ -60,6 +60,38 @@ describe("sidebar view model", function () {
     });
   });
 
+  it("uses the model catalog display name for saved and streaming answers", function () {
+    const conversation = createConversation();
+    conversation.messages[1].providerProfileId = "codex-cli.default";
+    const models = [
+      {
+        slug: "gpt-5.3-codex",
+        displayName: "GPT-5.3-Codex",
+        providerProfileId: "codex-cli.default",
+        providerLabel: "Codex CLI",
+        supportedReasoningEfforts: [],
+      },
+    ];
+
+    const messages = createConversationMessages(
+      conversation,
+      {
+        text: "Partial",
+        trace: [],
+        finalStarted: false,
+        interrupted: false,
+        running: true,
+        model: "gpt-5.3-codex",
+        providerProfileId: "codex-cli.default",
+        providerBrand: "codex",
+      },
+      models,
+    );
+
+    assert.equal(messages[1].model, "GPT-5.3-Codex");
+    assert.equal(messages[2].model, "GPT-5.3-Codex");
+  });
+
   it("formats response durations in minutes and seconds", function () {
     const conversation = createConversation();
     conversation.messages[1].completedAt = "2026-06-13T07:03:27.000Z";

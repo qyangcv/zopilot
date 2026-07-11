@@ -94,8 +94,8 @@
 }
 
 .zp-message-avatar {
-  width: 17px;
-  height: 17px;
+  width: 20px;
+  height: 20px;
   margin-top: 2px;
   color: var(--zp-accent);
 }
@@ -291,7 +291,7 @@
   color: CanvasText;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 400;
   padding: 0;
   text-overflow: ellipsis;
   white-space: nowrap;

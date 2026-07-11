@@ -11,6 +11,7 @@ export {
   createCodexProviderProfile,
   createPresetProviderProfile,
   createProviderDisplayName,
+  createLegacyProviderDisplayName,
   modelFromId,
 };
 
@@ -42,6 +43,34 @@ const PROVIDER_PRESETS: PresetDefinition[] = [
     displayName: "MiniMax",
     baseURL: "https://api.minimax.io/v1",
   },
+];
+
+/**
+ * Display names for well-known OpenAI-compatible endpoints. Keep transport
+ * presets separate from branding: most of these providers use the generic
+ * OpenAI-compatible backend, but should still have a human-friendly name.
+ */
+const PROVIDER_DOMAIN_NAMES: ReadonlyArray<{
+  domains: readonly string[];
+  displayName: string;
+}> = [
+  { domains: ["deepseek.com"], displayName: "DeepSeek" },
+  { domains: ["openai.com"], displayName: "OpenAI" },
+  { domains: ["openrouter.ai"], displayName: "OpenRouter" },
+  { domains: ["z.ai"], displayName: "Z.AI / GLM" },
+  { domains: ["bigmodel.cn"], displayName: "Zhipu AI / GLM" },
+  { domains: ["minimax.io", "minimaxi.com"], displayName: "MiniMax" },
+  { domains: ["moonshot.cn", "moonshot.ai"], displayName: "Moonshot AI" },
+  {
+    domains: ["siliconflow.cn", "siliconflow.com"],
+    displayName: "SiliconFlow",
+  },
+  { domains: ["dashscope.aliyuncs.com"], displayName: "Alibaba Cloud / Qwen" },
+  { domains: ["volces.com"], displayName: "Volcano Engine / Ark" },
+  { domains: ["together.xyz"], displayName: "Together AI" },
+  { domains: ["fireworks.ai"], displayName: "Fireworks AI" },
+  { domains: ["mistral.ai"], displayName: "Mistral AI" },
+  { domains: ["x.ai"], displayName: "xAI" },
 ];
 
 function createCodexProviderProfile(
@@ -139,6 +168,24 @@ function createProviderDisplayName(
   if (!baseURL) {
     return preset?.displayName || "OpenAI compatible";
   }
+  try {
+    const hostname = new URL(baseURL).hostname.toLowerCase().replace(/\.$/, "");
+    const knownProvider = PROVIDER_DOMAIN_NAMES.find(({ domains }) =>
+      domains.some(
+        (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+      ),
+    );
+    return (
+      knownProvider?.displayName || createLegacyProviderDisplayName(baseURL)
+    );
+  } catch {
+    return "OpenAI compatible";
+  }
+}
+
+/** The pre-branding name is retained so persisted automatic names can migrate. */
+function createLegacyProviderDisplayName(baseURL: string | undefined): string {
+  if (!baseURL) return "OpenAI compatible";
   try {
     return new URL(baseURL).hostname.replace(/^api\./, "");
   } catch {

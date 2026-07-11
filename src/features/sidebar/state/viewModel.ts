@@ -1,6 +1,10 @@
 import { CODEX_PROVIDER_ID } from "../../../domain/agent/modelCatalog";
 import type { Conversation } from "../../../domain/conversation";
-import type { SidebarMessageView, SidebarState } from "../ui/types";
+import type {
+  SidebarMessageView,
+  SidebarModelView,
+  SidebarState,
+} from "../ui/types";
 import { extractReaderLocators } from "../context/readerNavigation";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import {
@@ -21,6 +25,7 @@ type StreamingMessage = {
   interrupted: boolean;
   running: boolean;
   model?: string;
+  providerProfileId?: string;
   providerBrand?: ProviderBrand;
 };
 
@@ -52,13 +57,14 @@ function createInitialSidebarState(label: string): SidebarState {
 function createConversationMessages(
   conversation: Conversation,
   streaming?: StreamingMessage,
+  models: SidebarModelView[] = [],
 ): SidebarMessageView[] {
   let lastUserCreatedAt: string | undefined;
   const messages = conversation.messages.map((message) => {
     if (message.role === "user") {
       lastUserCreatedAt = message.createdAt;
     }
-    return toMessageView(message, lastUserCreatedAt);
+    return toMessageView(message, lastUserCreatedAt, models);
   });
 
   if (!streaming) {
@@ -79,7 +85,11 @@ function createConversationMessages(
       status: streaming.interrupted ? "interrupted" : "complete",
       transient: true,
       running: streaming.running,
-      model: streaming.model,
+      model: resolveModelDisplayName(
+        models,
+        streaming.model,
+        streaming.providerProfileId,
+      ),
       providerBrand: streaming.providerBrand,
     },
   ];
@@ -101,6 +111,7 @@ function createSessionView(
 function toMessageView(
   message: Conversation["messages"][number],
   userCreatedAt?: string,
+  models: SidebarModelView[] = [],
 ): SidebarMessageView {
   return {
     id: message.id,
@@ -109,7 +120,11 @@ function toMessageView(
     mentions: message.mentions,
     localAttachments: message.localAttachments,
     status: message.status,
-    model: message.model,
+    model: resolveModelDisplayName(
+      models,
+      message.model,
+      message.providerProfileId,
+    ),
     providerBrand:
       message.providerBrand ||
       resolveProviderBrand({ kind: message.backendKind, model: message.model }),
@@ -124,6 +139,20 @@ function toMessageView(
     locators:
       message.role === "assistant" ? extractReaderLocators(message.text) : [],
   };
+}
+
+function resolveModelDisplayName(
+  models: SidebarModelView[],
+  model?: string,
+  providerProfileId?: string,
+): string | undefined {
+  if (!model) return undefined;
+  const match = models.find(
+    (candidate) =>
+      candidate.slug === model &&
+      (!providerProfileId || candidate.providerProfileId === providerProfileId),
+  );
+  return match?.displayName || model;
 }
 
 function formatResponseDuration(
