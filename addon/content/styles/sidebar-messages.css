@@ -230,28 +230,34 @@
 }
 
 .zp-trace-tool {
-  border: 1px solid var(--zp-subtle-border);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--zp-panel) 58%, transparent);
-  overflow: hidden;
+  border: 0;
+  background: transparent;
 }
 
-.zp-trace-tool[data-status="failed"] {
-  border-color: color-mix(in srgb, #c33 45%, var(--zp-subtle-border));
+.zp-trace-tool + .zp-trace-tool {
+  margin-block-start: -4px;
 }
 
 .zp-trace-tool-header {
   display: flex;
   align-items: center;
   gap: 5px;
-  min-height: 30px;
-  cursor: default;
+  min-height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
   list-style: none;
-  padding: 3px 7px;
+  margin-inline-start: -4px;
+  padding: 2px 4px;
+  transition: background-color 120ms ease;
 }
 
 .zp-trace-tool-header::-webkit-details-marker {
   display: none;
+}
+
+.zp-trace-tool-header:hover,
+.zp-trace-tool[open] > .zp-trace-tool-header {
+  background: color-mix(in srgb, CanvasText 5%, transparent);
 }
 
 .zp-trace-tool-name {
@@ -280,7 +286,6 @@
 
 .zp-trace-tool-meta {
   flex: 0 0 auto;
-  margin-inline-start: auto;
   color: var(--zp-muted);
   font-size: 10px;
   font-weight: 400;
@@ -292,8 +297,9 @@
 }
 
 .zp-trace-tool-body {
-  border-block-start: 1px solid var(--zp-subtle-border);
-  padding: 6px 7px;
+  margin: 2px 0 4px 8px;
+  border-inline-start: 1px solid var(--zp-subtle-border);
+  padding: 4px 0 4px 9px;
 }
 
 .zp-trace-progress,

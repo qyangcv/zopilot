@@ -192,7 +192,6 @@ function useToolDuration(item: ToolTraceItem): number | undefined {
 }
 
 function formatDuration(durationMs: number): string {
-  const seconds = durationMs / 1_000;
-  if (seconds >= 10) return `${Math.round(seconds)}s`;
-  return `${Number(seconds.toFixed(1))}s`;
+  const seconds = Math.max(0.1, durationMs / 1_000);
+  return `${seconds.toFixed(1)}s`;
 }

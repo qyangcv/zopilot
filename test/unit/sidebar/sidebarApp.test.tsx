@@ -93,13 +93,16 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "sidebar-trace-commentary");
     assert.include(html, "Checking the evidence");
     assert.include(html, "paper_read");
-    assert.include(html, "3s");
+    assert.include(html, "3.0s");
     assert.include(html, "Final answer");
   });
 
   it("renders every tool call separately with duration and expandable payloads", function () {
-    const completedCalls = [1, 2, 3].map(
-      (index): NonNullable<SidebarMessageView["trace"]>[number] => ({
+    const completedCalls = [0, 1_000, 10_000].map(
+      (
+        durationMs,
+        index,
+      ): NonNullable<SidebarMessageView["trace"]>[number] => ({
         id: `call-${index}`,
         type: "tool",
         name: "paper_read",
@@ -107,7 +110,7 @@ describe("SidebarApp", function () {
         arguments: `{"question":"part ${index}"}`,
         result: `Evidence ${index}`,
         status: "completed",
-        durationMs: index * 1_000,
+        durationMs,
       }),
     );
     const html = renderToStaticMarkup(
@@ -164,9 +167,10 @@ describe("SidebarApp", function () {
       ),
       1,
     );
-    assert.include(html, "1s");
-    assert.include(html, "2s");
-    assert.include(html, "3s");
+    assert.include(html, "0.1s");
+    assert.include(html, "1.0s");
+    assert.include(html, "10.0s");
+    assert.notInclude(html, ">0s<");
     assert.include(html, "sidebar-trace-tool-arguments");
     assert.include(html, "sidebar-trace-tool-result");
     assert.include(html, 'data-status="running"');
