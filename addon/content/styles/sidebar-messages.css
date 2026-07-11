@@ -13,8 +13,24 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px 12px 10px;
+  padding-block: 12px 10px;
+  padding-inline: 8px 14px;
+  scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
+  scrollbar-width: thin;
   background: transparent;
+}
+
+.zp-chat-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zp-chat-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zp-chat-log::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, CanvasText 28%, transparent);
 }
 
 .zp-chat-log[data-empty] {
@@ -74,6 +90,7 @@
 
 .zp-message-assistant {
   align-items: flex-start;
+  padding-inline-end: 12px;
 }
 
 .zp-message-avatar {
@@ -86,7 +103,6 @@
 .zp-answer-model {
   display: flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
   min-height: 20px;
   color: var(--zp-muted-strong);
@@ -132,8 +148,7 @@
 }
 
 .zp-provider-brand-icon-generic {
-  background: color-mix(in srgb, var(--zp-muted) 18%, transparent);
-  color: var(--zp-muted-strong);
+  color: var(--zp-accent);
 }
 
 .zp-message-stack,
@@ -665,13 +680,21 @@
   color: var(--zp-muted);
 }
 
-.zp-message-time,
+.zp-message-footer .zp-message-time,
+.zp-message-footer .zp-message-duration,
 .zp-message-status {
   overflow: hidden;
+  font: menu;
   font-size: 11px;
+  font-weight: 400;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zp-message-duration {
+  align-self: center;
+  margin-inline-start: 3px;
 }
 
 .zp-message-time {

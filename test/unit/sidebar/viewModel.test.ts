@@ -48,6 +48,7 @@ describe("sidebar view model", function () {
       ["msg-user", "msg-assistant", "zp-streaming-assistant-conv-a"],
     );
     assert.equal(messages[1].completedAt, "2026-06-13 15:30");
+    assert.equal(messages[1].responseDuration, "30min 0s");
     assert.deepInclude(messages[2], {
       role: "assistant",
       text: "Partial",
@@ -57,6 +58,33 @@ describe("sidebar view model", function () {
       model: "deepseek-v4-flash",
       providerBrand: "deepseek",
     });
+  });
+
+  it("formats response durations in minutes and seconds", function () {
+    const conversation = createConversation();
+    conversation.messages[1].completedAt = "2026-06-13T07:03:27.000Z";
+
+    const messages = createConversationMessages(conversation);
+
+    assert.equal(messages[1].responseDuration, "3min 27s");
+  });
+
+  it("formats responses shorter than one minute in seconds", function () {
+    const conversation = createConversation();
+    conversation.messages[1].completedAt = "2026-06-13T07:00:57.000Z";
+
+    const messages = createConversationMessages(conversation);
+
+    assert.equal(messages[1].responseDuration, "57s");
+  });
+
+  it("omits a response duration when the saved timestamps are invalid", function () {
+    const conversation = createConversation();
+    conversation.messages[1].completedAt = "not-a-timestamp";
+
+    const messages = createConversationMessages(conversation);
+
+    assert.isUndefined(messages[1].responseDuration);
   });
 
   it("keeps local attachments on user message views", function () {

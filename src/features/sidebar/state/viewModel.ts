@@ -53,7 +53,13 @@ function createConversationMessages(
   conversation: Conversation,
   streaming?: StreamingMessage,
 ): SidebarMessageView[] {
-  const messages = conversation.messages.map(toMessageView);
+  let lastUserCreatedAt: string | undefined;
+  const messages = conversation.messages.map((message) => {
+    if (message.role === "user") {
+      lastUserCreatedAt = message.createdAt;
+    }
+    return toMessageView(message, lastUserCreatedAt);
+  });
 
   if (!streaming) {
     return messages;
@@ -94,6 +100,7 @@ function createSessionView(
 
 function toMessageView(
   message: Conversation["messages"][number],
+  userCreatedAt?: string,
 ): SidebarMessageView {
   return {
     id: message.id,
@@ -110,9 +117,28 @@ function toMessageView(
     completedAt: formatBeijingTimestamp(
       message.completedAt || message.createdAt,
     ),
+    responseDuration:
+      message.role === "assistant" && message.completedAt && userCreatedAt
+        ? formatResponseDuration(userCreatedAt, message.completedAt)
+        : undefined,
     locators:
       message.role === "assistant" ? extractReaderLocators(message.text) : [],
   };
+}
+
+function formatResponseDuration(
+  startedAt: string,
+  completedAt: string,
+): string | undefined {
+  const durationMs =
+    new Date(completedAt).getTime() - new Date(startedAt).getTime();
+  if (!Number.isFinite(durationMs) || durationMs < 0) {
+    return undefined;
+  }
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`;
 }
 
 function getStreamingMessageId(conversationId: string): string {

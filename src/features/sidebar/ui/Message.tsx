@@ -37,7 +37,15 @@ export function Message({
       data-status={message.status}
     >
       {isAssistant ? (
-        <Icon className="zp-message-avatar" name="brand" size={17} />
+        message.model ? (
+          <ProviderBrandIcon
+            brand={message.providerBrand || "generic"}
+            className="zp-message-avatar"
+            size={17}
+          />
+        ) : (
+          <Icon className="zp-message-avatar" name="brand" size={17} />
+        )
       ) : null}
       <div
         className={isAssistant ? "zp-message-stack" : "zp-message-user-stack"}
@@ -46,7 +54,6 @@ export function Message({
           <>
             {message.model ? (
               <div className="zp-answer-model">
-                <ProviderBrandIcon brand={message.providerBrand || "generic"} />
                 <span>{message.model}</span>
               </div>
             ) : null}
@@ -96,6 +103,7 @@ export function Message({
             message={message}
             onCopy={() => onCopy(message)}
             onOpenLocator={onOpenLocator}
+            responseDuration={message.responseDuration}
           />
         ) : (
           <div className="zp-message-actions">
@@ -124,6 +132,7 @@ function AssistantFooter({
   message,
   onCopy,
   onOpenLocator,
+  responseDuration,
 }: {
   completedAt?: string;
   copied: boolean;
@@ -133,6 +142,7 @@ function AssistantFooter({
   onOpenLocator: (
     locator: NonNullable<SidebarMessageView["locators"]>[number],
   ) => void;
+  responseDuration?: string;
 }): ReactElement | null {
   if (message.running || message.transient) {
     return null;
@@ -174,6 +184,9 @@ function AssistantFooter({
           label={getString("sidebar-copy-text")}
           onClick={onCopy}
         />
+        {responseDuration ? (
+          <span className="zp-message-duration">{responseDuration}</span>
+        ) : null}
       </div>
       <time className="zp-message-time">{completedAt}</time>
     </div>

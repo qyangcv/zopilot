@@ -429,6 +429,7 @@ describe("SidebarApp", function () {
               text: "Done",
               status: "complete",
               completedAt: "2026-06-13 15:30",
+              responseDuration: "3min 27s",
               model: "gpt-5.3-codex",
               providerBrand: "codex",
               trace: [
@@ -450,6 +451,11 @@ describe("SidebarApp", function () {
     assert.include(html, "gpt-5.3-codex");
     assert.include(
       html,
+      'class="zp-provider-brand-icon zp-message-avatar" data-provider-brand="codex"',
+    );
+    assert.notInclude(html, 'data-icon-name="brand"');
+    assert.include(
+      html,
       "chrome://zopilot/content/icons/providers/codex-color.svg",
     );
     assert.isBelow(
@@ -457,6 +463,11 @@ describe("SidebarApp", function () {
       html.indexOf('class="zp-trace"'),
     );
     assert.include(html, 'data-icon-name="copy"');
+    assert.include(html, 'class="zp-message-duration">3min 27s</span>');
+    assert.isAbove(
+      html.indexOf('class="zp-message-duration"'),
+      html.indexOf('data-icon-name="copy"'),
+    );
     assert.include(html, "2026-06-13 15:30");
   });
 
@@ -485,6 +496,31 @@ describe("SidebarApp", function () {
       html,
       "chrome://zopilot/content/icons/providers/deepseek-color.svg",
     );
+    assert.notInclude(html, 'data-icon-name="brand"');
+  });
+
+  it("falls back to the Zopilot avatar for an unknown provider", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "unknown-provider-answer",
+              role: "assistant",
+              text: "Done",
+              status: "complete",
+              model: "custom-model",
+              providerBrand: "generic",
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, 'data-provider-brand="generic"');
+    assert.include(html, 'data-icon-name="brand"');
+    assert.include(html, "custom-model");
   });
 
   it("does not render the paper context chip above the composer", function () {

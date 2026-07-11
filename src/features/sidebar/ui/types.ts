@@ -17,6 +17,7 @@ export type SidebarMessageView = {
   localAttachments?: LocalAttachmentRef[];
   status?: "complete" | "error" | "interrupted";
   completedAt?: string;
+  responseDuration?: string;
   model?: string;
   providerBrand?: ProviderBrand;
   transient?: boolean;

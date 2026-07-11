@@ -12,9 +12,11 @@ const PROVIDER_ICON_FILES: Partial<Record<ProviderBrand, string>> = {
 
 function ProviderBrandIcon({
   brand,
+  className,
   size = 16,
 }: {
   brand: ProviderBrand;
+  className?: string;
   size?: number;
 }): ReactElement {
   const file = PROVIDER_ICON_FILES[brand];
@@ -22,18 +24,26 @@ function ProviderBrandIcon({
     return (
       <span
         aria-hidden="true"
-        className="zp-provider-brand-icon zp-provider-brand-icon-generic"
+        className={[
+          "zp-provider-brand-icon",
+          "zp-provider-brand-icon-generic",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         data-provider-brand={brand}
         style={{ height: size, width: size }}
       >
-        <Icon name="prompt" size={Math.max(10, size - 4)} />
+        <Icon name="brand" size={size} />
       </span>
     );
   }
   return (
     <span
       aria-hidden="true"
-      className="zp-provider-brand-icon"
+      className={["zp-provider-brand-icon", className]
+        .filter(Boolean)
+        .join(" ")}
       data-provider-brand={brand}
       style={{ height: size, width: size }}
     >
