@@ -61,7 +61,7 @@ function WorkspaceMenuRow({
           {active ? <Icon name="check" size={13} /> : null}
         </span>
         <span className="zp-workspace-menu-count">
-          {itemCount === undefined ? null : itemCount.toLocaleString()}
+          {itemCount === undefined ? null : String(itemCount)}
         </span>
         <WorkspaceDisclosure
           expanded={expanded}

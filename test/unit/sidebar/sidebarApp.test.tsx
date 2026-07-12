@@ -637,6 +637,41 @@ describe("SidebarApp", function () {
     );
   });
 
+  it("renders four-digit workspace counts without grouping separators", function () {
+    const menuRowHtml = renderToStaticMarkup(
+      <WorkspaceMenuRow
+        active={false}
+        iconName="workspaceLibrary"
+        itemCount={1316}
+        label="Library"
+        onKeyDown={() => undefined}
+        onMouseDown={() => undefined}
+        title="Library"
+      />,
+    );
+    const triggerHtml = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          context: {
+            label: "Library",
+            workspaceKey: "library:1",
+            workspaceType: "library",
+          },
+          libraryItemCount: 1316,
+        })}
+      />,
+    );
+
+    assert.include(menuRowHtml, 'class="zp-workspace-menu-count">1316</span>');
+    assert.include(
+      triggerHtml,
+      'class="zp-workspace-trigger-count">1316</span>',
+    );
+    assert.notInclude(menuRowHtml, "1,316");
+    assert.notInclude(triggerHtml, "1,316");
+  });
+
   it("renders compact paper mention candidates with FileText icons", function () {
     const html = renderToStaticMarkup(
       <MentionPopover

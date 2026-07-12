@@ -10,10 +10,12 @@ function WorkspaceSelector({
   actions,
   horizontalBoundaryRef,
   state,
+  verticalBoundaryRef,
 }: {
   actions: SidebarActions;
   horizontalBoundaryRef?: RefObject<HTMLElement | null>;
   state: SidebarState;
+  verticalBoundaryRef?: RefObject<HTMLElement | null>;
 }): ReactElement {
   const model = useWorkspaceMenuState(actions, state);
   return (
@@ -50,7 +52,7 @@ function WorkspaceSelector({
         </span>
         {model.workspaceItemCount === undefined ? null : (
           <span className="zp-workspace-trigger-count">
-            {model.workspaceItemCount.toLocaleString()}
+            {String(model.workspaceItemCount)}
           </span>
         )}
         <Icon
@@ -63,6 +65,7 @@ function WorkspaceSelector({
         horizontalBoundaryRef={horizontalBoundaryRef}
         model={model}
         state={state}
+        verticalBoundaryRef={verticalBoundaryRef}
       />
     </div>
   );

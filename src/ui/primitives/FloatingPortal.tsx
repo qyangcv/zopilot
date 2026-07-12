@@ -49,6 +49,7 @@ function FloatingPortal({
   offset = 6,
   onDismiss,
   preferredSide = "above",
+  verticalBoundaryRef,
   width,
   zIndex = 7,
 }: {
@@ -63,6 +64,7 @@ function FloatingPortal({
   offset?: number;
   onDismiss: () => void;
   preferredSide?: FloatingSide;
+  verticalBoundaryRef?: RefObject<HTMLElement | null>;
   width?: number;
   zIndex?: number;
 }): ReactElement | null {
@@ -77,6 +79,7 @@ function FloatingPortal({
     if (!portalRoot || !anchor) return;
     const win = portalRoot.ownerDocument?.defaultView;
     const horizontalBoundary = horizontalBoundaryRef?.current;
+    const verticalBoundary = verticalBoundaryRef?.current;
     const updatePosition = () => {
       const next = calculateFloatingPosition({
         align,
@@ -88,6 +91,7 @@ function FloatingPortal({
         offset,
         preferredSide,
         rootRect: portalRoot.getBoundingClientRect(),
+        verticalBoundaryRect: verticalBoundary?.getBoundingClientRect(),
         width,
       });
       const resolvedMaxHeight =
@@ -120,6 +124,13 @@ function FloatingPortal({
     if (horizontalBoundary && horizontalBoundary !== anchor) {
       resizeObserver?.observe(horizontalBoundary);
     }
+    if (
+      verticalBoundary &&
+      verticalBoundary !== anchor &&
+      verticalBoundary !== horizontalBoundary
+    ) {
+      resizeObserver?.observe(verticalBoundary);
+    }
     return () => {
       win?.removeEventListener("resize", updatePosition);
       win?.removeEventListener("scroll", updatePosition, true);
@@ -136,6 +147,7 @@ function FloatingPortal({
     offset,
     portalRoot,
     preferredSide,
+    verticalBoundaryRef,
     width,
     zIndex,
   ]);

@@ -19,6 +19,7 @@ export function SidebarApp({
   state: SidebarState;
 }): ReactElement {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const sidebarRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const archiveButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -37,6 +38,7 @@ export function SidebarApp({
     <aside
       aria-label={getString("sidebar-title")}
       className="zp-sidebar"
+      ref={sidebarRef}
       role="complementary"
     >
       <SidebarHeader
@@ -57,7 +59,12 @@ export function SidebarApp({
         onSubmit={composer.submit}
         state={state}
       />
-      <Composer actions={actions} bindings={composer.bindings} state={state} />
+      <Composer
+        actions={actions}
+        bindings={composer.bindings}
+        sidebarBoundaryRef={sidebarRef}
+        state={state}
+      />
     </aside>
   );
 }

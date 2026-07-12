@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, RefObject } from "react";
 import { ComposerEditor } from "./ComposerEditor";
 import { ComposerFooter } from "./ComposerFooter";
 import type { ComposerBindings } from "./composerBindings";
@@ -10,10 +10,12 @@ import { WorkspaceSelector } from "./WorkspaceSelector";
 function Composer({
   actions,
   bindings,
+  sidebarBoundaryRef,
   state,
 }: {
   actions: SidebarActions;
   bindings: ComposerBindings;
+  sidebarBoundaryRef: RefObject<HTMLElement | null>;
   state: SidebarState;
 }): ReactElement {
   return (
@@ -34,6 +36,7 @@ function Composer({
         <WorkspaceSelector
           actions={actions}
           horizontalBoundaryRef={bindings.bottomDockRef}
+          verticalBoundaryRef={sidebarBoundaryRef}
           state={state}
         />
       </div>

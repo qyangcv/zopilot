@@ -17,10 +17,12 @@ function WorkspaceMenu({
   horizontalBoundaryRef,
   model,
   state,
+  verticalBoundaryRef,
 }: {
   horizontalBoundaryRef?: RefObject<HTMLElement | null>;
   model: WorkspaceMenuModel;
   state: SidebarState;
+  verticalBoundaryRef?: RefObject<HTMLElement | null>;
 }): ReactElement | null {
   if (!model.open) return null;
   const onKeyDown =
@@ -79,6 +81,7 @@ function WorkspaceMenu({
       minWidth={0}
       onDismiss={() => model.setOpen(false)}
       preferredSide="above"
+      verticalBoundaryRef={verticalBoundaryRef}
       width={420}
       zIndex={8}
     >

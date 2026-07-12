@@ -33,6 +33,7 @@ function calculateFloatingPosition({
   offset = 6,
   preferredSide = "above",
   rootRect,
+  verticalBoundaryRect,
   width,
 }: {
   align?: FloatingAlign;
@@ -46,9 +47,11 @@ function calculateFloatingPosition({
   offset?: number;
   preferredSide?: FloatingSide;
   rootRect: FloatingRect;
+  verticalBoundaryRect?: FloatingRect;
   width?: number;
 }): FloatingPosition {
   const boundaryRect = horizontalBoundaryRect || rootRect;
+  const verticalBoundary = verticalBoundaryRect || rootRect;
   const boundaryMargin = horizontalMargin ?? margin;
   const boundaryLeft = boundaryRect.left - rootRect.left;
   const boundaryRight = boundaryRect.right - rootRect.left;
@@ -73,11 +76,11 @@ function calculateFloatingPosition({
   );
   const availableAbove = Math.max(
     1,
-    anchorRect.top - rootRect.top - offset - margin,
+    anchorRect.top - verticalBoundary.top - offset - margin,
   );
   const availableBelow = Math.max(
     1,
-    rootRect.bottom - anchorRect.bottom - offset - margin,
+    verticalBoundary.bottom - anchorRect.bottom - offset - margin,
   );
   const side =
     preferredSide === "above"
