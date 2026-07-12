@@ -2,6 +2,7 @@ import { assert } from "chai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DependenciesPanel } from "../../../src/features/preferences/ui/dependencies/DependenciesPanel.tsx";
 import { PreferencesApp } from "../../../src/features/preferences/ui/PreferencesApp.tsx";
+import { createProviderUpdateInput } from "../../../src/features/preferences/ui/providers/ProviderCard.tsx";
 import { PromptPanel } from "../../../src/features/preferences/ui/prompts/PromptPanel.tsx";
 import type {
   DependencyState,
@@ -36,6 +37,24 @@ describe("PreferencesApp", function () {
     assert.include(html, 'value="https://openrouter.ai/api/v1"');
     assert.notInclude(html, "<select");
     assert.notInclude(html, "zp-pref-brand");
+  });
+
+  it("does not overwrite a saved API key when the edit form leaves it unchanged", function () {
+    const unchanged = createProviderUpdateInput({
+      displayName: "DeepSeek",
+      baseURL: "https://api.deepseek.com",
+      apiKey: "sk-saved-secret",
+      savedApiKey: "sk-saved-secret",
+    });
+    const changed = createProviderUpdateInput({
+      displayName: "DeepSeek",
+      baseURL: "https://api.deepseek.com",
+      apiKey: "sk-new-secret",
+      savedApiKey: "sk-saved-secret",
+    });
+
+    assert.notProperty(unchanged, "apiKey");
+    assert.equal(changed.apiKey, "sk-new-secret");
   });
 
   it("renders prompt list mode without the editor form", function () {

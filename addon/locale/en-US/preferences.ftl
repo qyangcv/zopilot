@@ -47,11 +47,7 @@ pref-provider-models-enabled =
     }
 pref-provider-no-models = No models saved
 pref-provider-name = Name
-pref-provider-api-key-input-saved =
-    .placeholder = Saved
 pref-provider-save = Save
-pref-provider-check-connected = Provider connection succeeded.
-pref-provider-check-failed = Provider connection test failed.
 pref-provider-diagnostic-missing-codex-cli = Codex CLI is not installed or its executable could not be found.
 pref-provider-diagnostic-codex-not-signed-in = Codex CLI is not signed in.
 pref-provider-diagnostic-profile-incomplete = The provider configuration is incomplete.

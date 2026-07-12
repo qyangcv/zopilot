@@ -69,10 +69,10 @@ function PreferencesApp({ translate }: PreferencesAppProps): ReactElement {
         {activeSection === "providers" ? (
           <ProviderPanel
             checkingProviderId={providers.state.checkingProviderId}
-            message={providers.state.message}
             onCheck={providers.checkProvider}
             onCreate={providers.createProvider}
             onDelete={providers.deleteProvider}
+            onReadApiKey={providers.readProviderApiKey}
             onUpdate={providers.updateProvider}
             onListModels={providers.listProviderModels}
             profiles={providers.state.profiles}

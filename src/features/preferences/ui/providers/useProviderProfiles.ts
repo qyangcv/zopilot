@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAgentBackendManager } from "../../../../application/agent/BackendManager";
+import { normalizeBackendError } from "../../../../domain/agent/errors";
 import { createProviderProfile } from "../../../../domain/agent/modelCatalog";
 import { getProviderProfileStore } from "../../../../application/providers/ProviderProfileService";
 import type {
@@ -8,11 +9,6 @@ import type {
   ProviderProfileInput,
 } from "../../../../domain/agent/types";
 import { getByokRuntimeBridge } from "../../../../integrations/byok/ByokRuntimeBridge";
-import { localized, type LocalizedMessage } from "../../localization";
-import {
-  providerDiagnosticMessage,
-  providerErrorMessage,
-} from "./providerMessages";
 
 export { useProviderProfiles };
 
@@ -20,7 +16,6 @@ type ProviderProfilesState = {
   activeProviderId: string;
   profiles: ProviderProfile[];
   checkingProviderId?: string;
-  message?: LocalizedMessage;
 };
 
 function useProviderProfiles(): {
@@ -31,6 +26,7 @@ function useProviderProfiles(): {
     input: Partial<ProviderProfileInput>,
   ) => void;
   deleteProvider: (profileId: string) => void;
+  readProviderApiKey: (profileId: string) => string;
   checkProvider: (profileId: string) => void;
   listProviderModels: (input: {
     providerId: ProviderProfileInput["providerId"];
@@ -68,31 +64,41 @@ function useProviderProfiles(): {
     getProviderProfileStore().deleteProvider(profileId);
   }, []);
 
+  const readProviderApiKey = useCallback(
+    (profileId: string) =>
+      getProviderProfileStore().getProfile(profileId)?.apiKey || "",
+    [],
+  );
+
   const checkProvider = useCallback((profileId: string) => {
     setState((current) => ({
       ...current,
       checkingProviderId: profileId,
-      message: undefined,
     }));
     void getAgentBackendManager()
       .checkStatus(profileId)
-      .then((result) => {
-        setState((current) => ({
-          ...current,
-          checkingProviderId: undefined,
-          message:
-            result.status === "connected"
-              ? localized("pref-provider-check-connected")
-              : result.diagnostic
-                ? providerDiagnosticMessage(result.diagnostic.code)
-                : localized("pref-provider-check-failed"),
-        }));
-      })
       .catch((error) => {
+        const store = getProviderProfileStore();
+        const profile = store.getProfile(profileId);
+        const diagnostic = normalizeBackendError(error);
+        if (profile?.kind === "codex-cli") {
+          store.updateCodexProvider({
+            status: "disconnected",
+            lastCheckedAt: new Date().toISOString(),
+            lastDiagnostic: diagnostic,
+          });
+        } else if (profile) {
+          store.updateProvider(profileId, {
+            status: "disconnected",
+            lastCheckedAt: new Date().toISOString(),
+            lastDiagnostic: diagnostic,
+          });
+        }
+      })
+      .finally(() => {
         setState((current) => ({
           ...current,
           checkingProviderId: undefined,
-          message: providerErrorMessage(error),
         }));
       });
   }, []);
@@ -123,6 +129,7 @@ function useProviderProfiles(): {
     createProvider,
     updateProvider,
     deleteProvider,
+    readProviderApiKey,
     checkProvider,
     listProviderModels,
   };

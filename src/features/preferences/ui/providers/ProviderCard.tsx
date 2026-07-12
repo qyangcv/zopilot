@@ -6,7 +6,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { useState, type ReactElement } from "react";
+import { useId, useState, type ReactElement } from "react";
 import type {
   AgentModelEntry,
   ProviderProfile,
@@ -19,6 +19,7 @@ type ProviderCardProps = {
   checking: boolean;
   onCheck: () => void;
   onDelete: () => void;
+  onReadApiKey: () => string;
   onUpdate: (input: {
     displayName?: string;
     baseURL?: string;
@@ -31,16 +32,40 @@ function ProviderCard({
   checking,
   onCheck,
   onDelete,
+  onReadApiKey,
   onUpdate,
   profile,
 }: ProviderCardProps): ReactElement {
+  const status = checking ? "checking" : profile.status;
+  const apiKeyInputId = `zp-provider-api-key-${useId().replaceAll(":", "")}`;
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [baseURL, setBaseURL] = useState(profile.baseURL || "");
   const [apiKey, setApiKey] = useState("");
+  const [savedApiKey, setSavedApiKey] = useState("");
+  const toggleEditor = () => {
+    if (editing) {
+      setEditing(false);
+      return;
+    }
+    const currentApiKey = onReadApiKey();
+    setDisplayName(profile.displayName);
+    setBaseURL(profile.baseURL || "");
+    setApiKey(currentApiKey);
+    setSavedApiKey(currentApiKey);
+    setEditing(true);
+  };
   const save = () => {
-    onUpdate({ displayName, baseURL, apiKey });
+    onUpdate(
+      createProviderUpdateInput({
+        displayName,
+        baseURL,
+        apiKey,
+        savedApiKey,
+      }),
+    );
     setApiKey("");
+    setSavedApiKey("");
     setEditing(false);
   };
   return (
@@ -79,7 +104,7 @@ function ProviderCard({
             <>
               <button
                 className="zp-pref-button zp-pref-button-secondary"
-                onClick={() => setEditing((value) => !value)}
+                onClick={toggleEditor}
                 type="button"
               >
                 <KeyRound size={14} />
@@ -97,13 +122,15 @@ function ProviderCard({
           ) : null}
         </div>
       </div>
-      <div className={`zp-pref-status zp-pref-status-${profile.status}`}>
-        {profile.status === "connected" ? (
+      <div className={`zp-pref-status zp-pref-status-${status}`}>
+        {status === "connected" ? (
           <PlugZap size={16} />
+        ) : status === "checking" ? (
+          <LoaderCircle className="zp-pref-spin" size={16} />
         ) : (
           <CircleAlert size={16} />
         )}
-        <T id={getStatusMessageId(profile.status)} />
+        <T id={getStatusMessageId(status)} />
         {profile.kind !== "codex-cli" ? (
           profile.hasApiKey ? (
             <>
@@ -153,19 +180,18 @@ function ProviderCard({
               onChange={(event) => setBaseURL(event.currentTarget.value)}
             />
           </label>
-          <label>
-            <T id="pref-provider-api-key">API 密钥</T>
+          <div className="zp-pref-form-field">
+            <label htmlFor={apiKeyInputId}>
+              <T id="pref-provider-api-key">API 密钥</T>
+            </label>
             <input
               autoComplete="off"
-              {...(profile.hasApiKey
-                ? l10nAttributes("pref-provider-api-key-input-saved")
-                : {})}
-              placeholder=""
+              id={apiKeyInputId}
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.currentTarget.value)}
             />
-          </label>
+          </div>
           <div className="zp-pref-button-group">
             <button
               className="zp-pref-button zp-pref-button-primary"
@@ -201,5 +227,18 @@ const STATUS_MESSAGE_IDS = {
   disconnected: "pref-provider-status-disconnected",
 } as const;
 
-export { ProviderCard };
+function createProviderUpdateInput(input: {
+  displayName: string;
+  baseURL: string;
+  apiKey: string;
+  savedApiKey: string;
+}): { displayName: string; baseURL: string; apiKey?: string } {
+  return {
+    displayName: input.displayName,
+    baseURL: input.baseURL,
+    ...(input.apiKey !== input.savedApiKey ? { apiKey: input.apiKey } : {}),
+  };
+}
+
+export { ProviderCard, createProviderUpdateInput };
 export type { ProviderCardProps };

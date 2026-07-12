@@ -114,6 +114,7 @@ describe("ProviderProfileStore", function () {
       store.getProfile(profile.id)?.models[0]?.id,
       "deepseek-v4-flash",
     );
+    assert.equal(store.getProfile(profile.id)?.apiKey, "secret-a");
   });
 });
 

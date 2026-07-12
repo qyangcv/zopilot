@@ -4,14 +4,12 @@ import type {
   AgentProviderId,
   ProviderProfile,
 } from "../../../../domain/agent/types";
-import type { LocalizedMessage } from "../../localization";
-import { LocalizedMessageText, PageHeader, T } from "../PreferenceChrome";
+import { PageHeader, T } from "../PreferenceChrome";
 import { AddProviderForm } from "./AddProviderForm";
 import { ProviderCard } from "./ProviderCard";
 
 type ProviderPanelProps = {
   checkingProviderId?: string;
-  message?: LocalizedMessage;
   onCheck: (profileId: string) => void;
   onCreate: (input: {
     providerId: Exclude<AgentProviderId, "codex">;
@@ -26,6 +24,7 @@ type ProviderPanelProps = {
     baseURL: string;
     apiKey: string;
   }) => Promise<AgentModelEntry[]>;
+  onReadApiKey: (profileId: string) => string;
   onUpdate: (
     profileId: string,
     input: { displayName?: string; baseURL?: string; apiKey?: string },
@@ -55,16 +54,12 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
             key={profile.id}
             onCheck={() => props.onCheck(profile.id)}
             onDelete={() => props.onDelete(profile.id)}
+            onReadApiKey={() => props.onReadApiKey(profile.id)}
             onUpdate={(input) => props.onUpdate(profile.id, input)}
             profile={profile}
           />
         ))}
       </div>
-      {props.message ? (
-        <div className="zp-pref-status zp-pref-status-message">
-          <LocalizedMessageText message={props.message} />
-        </div>
-      ) : null}
     </section>
   );
 }
