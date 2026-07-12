@@ -37,7 +37,7 @@ function ConversationLog({
   onSubmit,
   state,
 }: ConversationLogProps): ReactElement {
-  const showWelcome = state.messages.length === 0;
+  const showWelcome = state.composerEnabled && state.messages.length === 0;
   return (
     <main
       aria-live="polite"

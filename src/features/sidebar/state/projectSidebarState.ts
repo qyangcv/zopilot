@@ -73,11 +73,9 @@ function projectSidebarState(
 
   const label = state.kind === "closed" ? input.getClosedLabel() : state.label;
   const message =
-    state.kind === "loading"
-      ? getString("sidebar-loading-conversation")
-      : state.kind === "error"
-        ? state.message
-        : getString("sidebar-unavailable-message");
+    state.kind === "error"
+      ? state.message
+      : getString("sidebar-unavailable-message");
   return {
     title: label,
     context: { label },
@@ -89,15 +87,18 @@ function projectSidebarState(
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: loadPromptViews(),
-    messages: [
-      {
-        id: `zp-status-${state.token}`,
-        role: "assistant",
-        text: message,
-        status: "complete",
-        transient: true,
-      },
-    ],
+    messages:
+      state.kind === "loading"
+        ? []
+        : [
+            {
+              id: `zp-status-${state.token}`,
+              role: "assistant",
+              text: message,
+              status: "complete",
+              transient: true,
+            },
+          ],
   };
 }
 

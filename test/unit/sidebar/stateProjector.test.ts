@@ -50,6 +50,22 @@ describe("sidebar state projector", function () {
     assert.isTrue(patch.busy);
     assert.equal(patch.messages?.at(-1)?.text, "Partial answer");
   });
+
+  it("does not project a transient message while loading a workspace", function () {
+    const patch = projectSidebarState({
+      displayState: {
+        kind: "loading",
+        token: 2,
+        label: "Paper",
+      },
+      viewState: createInitialSidebarState("Paper"),
+      runningTurns: new Map(),
+      getClosedLabel: () => "Unused",
+    });
+
+    assert.deepEqual(patch.messages, []);
+    assert.isFalse(patch.composerEnabled);
+  });
 });
 
 function createConversation(): Conversation {

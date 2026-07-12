@@ -329,10 +329,7 @@ describe("sidebar controller", function () {
     controller.refreshRunningTurnView(runningTurn);
 
     assert.equal(controller.viewState.title, "Paper B");
-    assert.deepEqual(
-      controller.viewState.messages.map((item: any) => item.text),
-      ["zopilot-sidebar-loading-conversation"],
-    );
+    assert.deepEqual(controller.viewState.messages, []);
 
     controller.setDisplayState({
       kind: "ready",

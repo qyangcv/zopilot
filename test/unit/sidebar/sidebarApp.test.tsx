@@ -403,6 +403,19 @@ describe("SidebarApp", function () {
     assert.notInclude(html, 'data-icon-name="brand"');
   });
 
+  it("keeps the conversation area blank while a workspace is loading", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({ composerEnabled: false, messages: [] })}
+      />,
+    );
+
+    assert.notInclude(html, 'class="zp-empty-welcome"');
+    assert.notInclude(html, "zp-message-assistant");
+    assert.notInclude(html, 'data-icon-name="brand"');
+  });
+
   it("opts the composer textarea out of Zotero native input styling", function () {
     const html = renderToStaticMarkup(
       <SidebarApp actions={createActions()} state={createState()} />,
