@@ -144,7 +144,9 @@
 }
 
 .zp-mention-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   inline-size: 100%;
   min-inline-size: 0;
   background: transparent;
@@ -163,9 +165,9 @@
   opacity: 0.5;
 }
 
-.zp-mention-title,
-.zp-mention-meta {
+.zp-mention-title {
   display: block;
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -173,13 +175,12 @@
 }
 
 .zp-mention-title {
+  flex: 1 1 auto;
   font-weight: 600;
   line-height: 16px;
 }
 
-.zp-mention-meta {
+.zp-mention-icon {
+  flex: 0 0 auto;
   color: var(--zp-muted);
-  font-size: 11px;
-  line-height: 14px;
-  margin-block-start: 2px;
 }

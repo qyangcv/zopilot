@@ -83,7 +83,7 @@ function ContextChip({
       <Icon
         className="zp-context-chip-icon zp-local-attachment-icon"
         name={icon}
-        size={13}
+        size={12}
       />
       <span className="zp-context-chip-text zp-local-attachment-name">
         {label}

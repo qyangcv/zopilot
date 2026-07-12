@@ -215,5 +215,7 @@ export type FluentMessageId =
   | 'sidebar-workspace-level'
   | 'sidebar-workspace-library'
   | 'sidebar-workspace-my-library'
+  | 'sidebar-workspace-subcollection'
   | 'sidebar-workspace-toggle-collections'
+  | 'sidebar-workspace-tooltip'
   | 'sidebar-workspace-unavailable';

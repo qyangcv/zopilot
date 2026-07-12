@@ -10,8 +10,8 @@ function WorkspaceMenuRow({
   hasChildren = false,
   iconName,
   indent = 0,
+  itemCount,
   label,
-  meta,
   onKeyDown,
   onMouseDown,
   onToggleDisclosure,
@@ -23,8 +23,8 @@ function WorkspaceMenuRow({
   hasChildren?: boolean;
   iconName: IconName;
   indent?: number;
+  itemCount?: number;
   label: string;
-  meta: string;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   onMouseDown: (event: MouseEvent<HTMLElement>) => void;
   onToggleDisclosure?: () => void;
@@ -52,21 +52,23 @@ function WorkspaceMenuRow({
         style={{ paddingInlineStart: `${10 + indent}px` }}
       >
         <Icon className="zp-workspace-menu-icon" name={iconName} size={14} />
-        <span className="zp-workspace-menu-text">
-          <span className="zp-workspace-menu-label">
-            {formatWorkspaceMenuLabel(label)}
-          </span>
-          <span className="zp-workspace-menu-meta">{meta}</span>
+        <span className="zp-workspace-menu-label">
+          {formatWorkspaceMenuLabel(label)}
         </span>
       </span>
-      <span className="zp-workspace-menu-check">
-        {active ? <Icon name="check" size={13} /> : null}
+      <span className="zp-workspace-menu-trailing">
+        <span className="zp-workspace-menu-check">
+          {active ? <Icon name="check" size={13} /> : null}
+        </span>
+        <span className="zp-workspace-menu-count">
+          {itemCount === undefined ? null : itemCount.toLocaleString()}
+        </span>
+        <WorkspaceDisclosure
+          expanded={expanded}
+          onToggle={onToggleDisclosure}
+          visible={hasChildren}
+        />
       </span>
-      <WorkspaceDisclosure
-        expanded={expanded}
-        onToggle={onToggleDisclosure}
-        visible={hasChildren}
-      />
     </div>
   );
 }

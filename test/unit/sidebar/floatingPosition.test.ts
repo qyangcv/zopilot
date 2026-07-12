@@ -56,6 +56,46 @@ describe("floating popover positioning", function () {
     assert.equal(position.width, 352);
     assert.equal(position.left, 24);
   });
+
+  it("shrinks a popup to a narrow horizontal boundary", function () {
+    const position = calculateFloatingPosition({
+      anchorRect: rect({ bottom: 580, left: 100, right: 240, top: 558 }),
+      horizontalBoundaryRect: rect({
+        bottom: 600,
+        left: 90,
+        right: 390,
+        top: 0,
+      }),
+      horizontalMargin: 0,
+      maxWidth: 420,
+      minWidth: 0,
+      rootRect: rect({ bottom: 600, left: 0, right: 800, top: 0 }),
+      width: 420,
+    });
+
+    assert.equal(position.width, 300);
+    assert.equal(position.left, 90);
+  });
+
+  it("grows within a wide boundary up to the configured maximum", function () {
+    const position = calculateFloatingPosition({
+      anchorRect: rect({ bottom: 580, left: 100, right: 240, top: 558 }),
+      horizontalBoundaryRect: rect({
+        bottom: 600,
+        left: 90,
+        right: 690,
+        top: 0,
+      }),
+      horizontalMargin: 0,
+      maxWidth: 420,
+      minWidth: 0,
+      rootRect: rect({ bottom: 600, left: 0, right: 800, top: 0 }),
+      width: 420,
+    });
+
+    assert.equal(position.width, 420);
+    assert.equal(position.left, 100);
+  });
 });
 
 function rect({

@@ -197,6 +197,7 @@ class WorkspaceCoordinator {
       });
       this.options.updateViewState({
         sourceCandidates: snapshot.sources,
+        libraryItemCount: snapshot.libraryItemCount,
         collectionOptions: snapshot.collections,
       });
     } catch (error) {

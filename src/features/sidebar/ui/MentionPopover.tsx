@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { PaperSourceRef } from "../../../domain/conversation";
+import { Icon } from "./Icon";
 
 export function MentionPopover({
   activeIndex,
@@ -55,10 +56,8 @@ export function MentionPopover({
           tabIndex={-1}
           title={source.title}
         >
+          <Icon className="zp-mention-icon" name="paperMention" size={14} />
           <span className="zp-mention-title">{source.title}</span>
-          <span className="zp-mention-meta">
-            {[source.year, source.creators?.[0]].filter(Boolean).join(" · ")}
-          </span>
         </div>
       ))}
     </div>

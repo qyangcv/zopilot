@@ -617,11 +617,7 @@
 .zp-message-bubble {
   max-width: 100%;
   overflow-wrap: anywhere;
-  border: 1px solid var(--zp-bubble-border);
-  border-radius: 8px;
-  background: var(--zp-bubble);
   padding: 7px 9px;
-  color: CanvasText;
 }
 
 .zp-message-user-content {
@@ -632,12 +628,6 @@
 
 .zp-message-attachments {
   max-width: 100%;
-}
-
-.zp-message-attachments .zp-context-chip,
-.zp-message-attachment {
-  background: color-mix(in srgb, Canvas 70%, CanvasText 6%);
-  padding-inline-start: 7px;
 }
 
 .zp-message-actions {

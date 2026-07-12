@@ -63,7 +63,7 @@ function ConversationLog({
               <span>添加 PDF 或图片附件</span>
             </p>
             <p className="zp-empty-welcome-hint">
-              使用 @ 在文库/合集中选择论文
+              使用 @ 在文库/分类中选择论文
             </p>
           </div>
         </div>

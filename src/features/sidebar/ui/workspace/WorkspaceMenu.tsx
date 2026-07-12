@@ -1,4 +1,10 @@
-import type { KeyboardEvent, MouseEvent, ReactElement, ReactNode } from "react";
+import type {
+  KeyboardEvent,
+  MouseEvent,
+  ReactElement,
+  ReactNode,
+  RefObject,
+} from "react";
 import { getString } from "../../../../app/localization";
 import { Icon } from "../Icon";
 import type { SidebarCollectionOption, SidebarState } from "../types";
@@ -8,9 +14,11 @@ import type { WorkspaceMenuModel } from "./useWorkspaceMenuState";
 import { ROOT_COLLECTION_KEY } from "./workspaceTree";
 
 function WorkspaceMenu({
+  horizontalBoundaryRef,
   model,
   state,
 }: {
+  horizontalBoundaryRef?: RefObject<HTMLElement | null>;
   model: WorkspaceMenuModel;
   state: SidebarState;
 }): ReactElement | null {
@@ -45,9 +53,9 @@ function WorkspaceMenu({
           hasChildren={collection.hasChildren}
           iconName="workspaceCollection"
           indent={(collection.level + 1) * 18}
+          itemCount={collection.itemCount}
           key={collection.key}
           label={collection.label}
-          meta={getString("sidebar-workspace-collection")}
           onKeyDown={onKeyDown(select)}
           onMouseDown={onMouseDown(select)}
           onToggleDisclosure={() => model.toggleCollection(collection.key)}
@@ -65,11 +73,13 @@ function WorkspaceMenu({
     <FloatingPortal
       align="start"
       anchorRef={model.triggerRef}
+      horizontalBoundaryRef={horizontalBoundaryRef}
+      horizontalMargin={0}
       maxWidth={420}
-      minWidth={280}
+      minWidth={0}
       onDismiss={() => model.setOpen(false)}
       preferredSide="above"
-      width={320}
+      width={420}
       zIndex={8}
     >
       <div
@@ -109,22 +119,23 @@ function WorkspaceMenu({
             </button>
           </span>
         </div>
-        <WorkspaceMenuRow
-          active={model.workspaceType === "item"}
-          iconName="workspaceItem"
-          label={model.itemLabel}
-          meta={getString("sidebar-workspace-item")}
-          onKeyDown={onKeyDown(() => model.closeAndSelectType("item"))}
-          onMouseDown={onMouseDown(() => model.closeAndSelectType("item"))}
-          title={model.itemLabel}
-        />
+        {model.showItemWorkspace ? (
+          <WorkspaceMenuRow
+            active={model.workspaceType === "item"}
+            iconName="workspaceItem"
+            label={model.itemLabel}
+            onKeyDown={onKeyDown(() => model.closeAndSelectType("item"))}
+            onMouseDown={onMouseDown(() => model.closeAndSelectType("item"))}
+            title={model.itemLabel}
+          />
+        ) : null}
         <WorkspaceMenuRow
           active={model.workspaceType === "library"}
           expanded={model.libraryExpanded}
           hasChildren={Boolean(model.collectionOptions.length)}
           iconName="workspaceLibrary"
+          itemCount={state.libraryItemCount}
           label={model.libraryLabel}
-          meta={getString("sidebar-workspace-library")}
           onKeyDown={onKeyDown(() => model.closeAndSelectType("library"))}
           onMouseDown={onMouseDown(() => model.closeAndSelectType("library"))}
           onToggleDisclosure={() =>

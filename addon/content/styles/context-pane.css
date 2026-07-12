@@ -12,10 +12,13 @@
   --zp-composer-control-hover: color-mix(in srgb, Canvas 88%, CanvasText 12%);
   --zp-popover: color-mix(in srgb, Canvas 62%, Field 38%);
   --zp-composer-bg: color-mix(in srgb, Field 84%, CanvasText 8%);
-  --zp-chip-bg: color-mix(in srgb, Canvas 82%, CanvasText 7%);
-  --zp-chip-border: color-mix(in srgb, CanvasText 9%, transparent);
-  --zp-bubble: color-mix(in srgb, Field 76%, CanvasText 8%);
-  --zp-bubble-border: color-mix(in srgb, CanvasText 6%, transparent);
+  --zp-composer-surface-border: var(--zp-border);
+  --zp-composer-surface-radius: 8px;
+  --zp-chip-bg: color-mix(in srgb, Canvas 97%, CanvasText 3%);
+  --zp-chip-border: color-mix(in srgb, CanvasText 22%, transparent);
+  --zp-chip-hover-bg: Canvas;
+  --zp-chip-hover-border: color-mix(in srgb, CanvasText 30%, transparent);
+  --zp-chip-text: color-mix(in srgb, CanvasText 76%, Canvas);
   --zp-border: color-mix(in srgb, CanvasText 7%, transparent);
   --zp-subtle-border: color-mix(in srgb, CanvasText 6%, transparent);
   --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);

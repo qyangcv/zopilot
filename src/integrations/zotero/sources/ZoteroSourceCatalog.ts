@@ -14,6 +14,7 @@ type SourceUniverseSnapshot = {
   workspace: WorkspaceIdentity;
   sources: PaperSourceRef[];
   collections: SourceUniverseCollectionOption[];
+  libraryItemCount: number;
 };
 
 class ZoteroSourceCatalog {
@@ -27,17 +28,19 @@ class ZoteroSourceCatalog {
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity;
   }): Promise<SourceUniverseSnapshot> {
-    const collections = await this.collections.listOptions(
-      input.workspace.libraryID,
-    );
-    const sources = await this.resolveSources(
-      input.workspace,
-      input.currentSource,
-    );
+    const [collections, libraryItems] = await Promise.all([
+      this.collections.listOptions(input.workspace.libraryID),
+      this.zotero.Items.getAll(input.workspace.libraryID, true, false),
+    ]);
+    const sources =
+      input.workspace.workspaceType === "library"
+        ? await this.sourcesFromItems(libraryItems, input.currentSource)
+        : await this.resolveSources(input.workspace, input.currentSource);
     return {
       workspace: input.workspace,
       sources,
       collections,
+      libraryItemCount: libraryItems.length,
     };
   }
 

@@ -34,6 +34,7 @@ describe("sidebar state projector", function () {
       displayState: {
         kind: "ready",
         token: 1,
+        hostContext: { kind: "reader", tabID: "tab-1", itemID: 11 },
         reader: { itemID: 11 } as _ZoteroTypes.ReaderInstance<"pdf">,
         workspace: conversation.metadata,
         conversation,
@@ -45,6 +46,7 @@ describe("sidebar state projector", function () {
 
     assert.equal(patch.title, "Paper / Question");
     assert.equal(patch.context?.workspaceKey, "item:1:ITEM");
+    assert.equal(patch.context?.hostContextKind, "reader");
     assert.isTrue(patch.busy);
     assert.equal(patch.messages?.at(-1)?.text, "Partial answer");
   });

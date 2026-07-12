@@ -6,6 +6,12 @@ import {
   SidebarApp,
 } from "../../../src/features/sidebar/ui/SidebarApp.tsx";
 import { SessionPopover } from "../../../src/features/sidebar/ui/SessionPopover.tsx";
+import { MentionPopover } from "../../../src/features/sidebar/ui/MentionPopover.tsx";
+import {
+  getWorkspaceMenuExpansion,
+  useWorkspaceMenuState,
+} from "../../../src/features/sidebar/ui/workspace/useWorkspaceMenuState.ts";
+import { WorkspaceMenuRow } from "../../../src/features/sidebar/ui/workspace/WorkspaceMenuRow.tsx";
 import type {
   SidebarActions,
   SidebarMessageView,
@@ -204,7 +210,7 @@ describe("SidebarApp", function () {
 
     assert.include(
       html,
-      'class="zp-markdown-rendered zp-message-bubble zp-message-markdown"',
+      'class="zp-markdown-rendered zp-message-bubble zp-composer-surface zp-message-markdown"',
     );
     assert.include(html, "<strong>bold</strong>");
     assert.include(html, "<li>item</li>");
@@ -230,7 +236,7 @@ describe("SidebarApp", function () {
 
     assert.include(
       html,
-      'class="zp-markdown-rendered zp-message-bubble zp-message-markdown"',
+      'class="zp-markdown-rendered zp-message-bubble zp-composer-surface zp-message-markdown"',
     );
     assert.include(html, "<p><strong>bold</strong> text</p>");
   });
@@ -315,7 +321,10 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.include(html, 'class="zp-message-bubble zp-message-user-content"');
+    assert.include(
+      html,
+      'class="zp-message-bubble zp-composer-surface zp-message-user-content"',
+    );
     assert.include(
       html,
       'class="zp-context-chips zp-local-attachments zp-message-attachments"',
@@ -382,7 +391,7 @@ describe("SidebarApp", function () {
     assert.include(html, "How should we approach this paper?");
     assert.include(html, "插入自定义 prompt");
     assert.include(html, "添加 PDF 或图片附件");
-    assert.include(html, "使用 @ 在文库/合集中选择论文");
+    assert.include(html, "使用 @ 在文库/分类中选择论文");
     assert.include(html, 'data-icon-name="prompt"');
     assert.include(html, 'data-icon-name="paperclip"');
     assert.notInclude(html, "zp-message-assistant");
@@ -577,25 +586,145 @@ describe("SidebarApp", function () {
     assert.include(html, 'class="zp-workspace-status-row"');
     assert.include(html, "zp-workspace-trigger");
     assert.include(html, 'aria-label="zopilot-sidebar-workspace-current"');
-    assert.include(html, 'data-icon-name="workspace"');
-    assert.include(
-      html,
-      '<span class="zp-workspace-trigger-label">zopilot-sidebar-chat-workspace</span>',
-    );
+    assert.include(html, 'data-icon-name="workspaceItem"');
     assert.include(
       html,
       `<span class="zp-workspace-trigger-text">${paperTitle}</span>`,
     );
-    assert.include(
-      html,
-      '<span class="zp-workspace-type-badge">zopilot-sidebar-workspace-item</span>',
-    );
+    assert.include(html, 'class="zp-workspace-trigger-count">1</span>');
+    assert.notInclude(html, "zp-workspace-trigger-label");
+    assert.notInclude(html, "zp-workspace-type-badge");
     assert.notInclude(html, "zp-context-row");
     assert.notInclude(html, "zp-context-chip");
     assert.notInclude(
       html,
       '<span class="zp-workspace-trigger-text">zopilot-sidebar-workspace-item</span>',
     );
+  });
+
+  it("renders compact workspace rows with item counts and no metadata line", function () {
+    const html = renderToStaticMarkup(
+      <WorkspaceMenuRow
+        active
+        hasChildren
+        iconName="workspaceCollection"
+        itemCount={128}
+        label="Reasoning"
+        onKeyDown={() => undefined}
+        onMouseDown={() => undefined}
+        title="Reasoning"
+      />,
+    );
+
+    assert.include(html, "Reasoning");
+    assert.include(html, 'class="zp-workspace-menu-trailing"');
+    assert.include(html, 'class="zp-workspace-menu-count">128</span>');
+    assert.include(html, 'data-icon-name="check"');
+    assert.include(html, 'class="zp-workspace-menu-expander"');
+    assert.notInclude(html, "zp-workspace-menu-meta");
+    assert.isBelow(
+      html.indexOf("zp-workspace-menu-check"),
+      html.indexOf("zp-workspace-menu-count"),
+    );
+    assert.isBelow(
+      html.indexOf("zp-workspace-menu-count"),
+      html.indexOf("zp-workspace-menu-expander"),
+    );
+  });
+
+  it("renders compact paper mention candidates with FileText icons", function () {
+    const html = renderToStaticMarkup(
+      <MentionPopover
+        activeIndex={0}
+        candidates={[
+          {
+            sourceId: "source-a",
+            paperKey: "1:AAA",
+            libraryID: 1,
+            parentItemKey: "AAA",
+            attachmentItemID: 11,
+            attachmentKey: "PDF",
+            title: "Paper A",
+            year: "2026",
+            creators: ["Ada Lovelace"],
+          },
+        ]}
+        disabled={false}
+        onClose={() => undefined}
+        onSelect={() => undefined}
+      />,
+    );
+
+    assert.include(html, 'data-icon-name="paperMention"');
+    assert.include(html, "Paper A");
+    assert.notInclude(html, "2026");
+    assert.notInclude(html, "Ada Lovelace");
+    assert.notInclude(html, "zp-mention-meta");
+  });
+
+  it("hides the paper workspace row on the main library surface", function () {
+    const html = renderToStaticMarkup(
+      <WorkspaceMenuStateProbe
+        state={createState({
+          context: {
+            label: "ToRead",
+            hostContextKind: "library",
+            workspaceKey: "collection:1:TOREAD",
+            workspaceType: "collection",
+            collectionKey: "TOREAD",
+          },
+        })}
+      />,
+    );
+
+    assert.include(html, 'data-show-item-workspace="false"');
+    assert.include(html, "zopilot-sidebar-workspace-my-library");
+  });
+
+  it("formats nested workspace tooltips and expands their ancestor path", function () {
+    const collectionOptions = [
+      {
+        key: "LLM",
+        label: "Large Language Models",
+        path: ["Large Language Models"],
+        level: 0,
+        hasChildren: true,
+        itemCount: 8,
+      },
+      {
+        key: "AGENTS",
+        label: "Agents",
+        path: ["Large Language Models", "Agents"],
+        level: 1,
+        parentKey: "LLM",
+        hasChildren: false,
+        itemCount: 3,
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <WorkspaceMenuStateProbe
+        state={createState({
+          context: {
+            label: "Agents",
+            hostContextKind: "library",
+            workspaceKey: "collection:1:AGENTS",
+            workspaceType: "collection",
+            collectionKey: "AGENTS",
+          },
+          collectionOptions,
+        })}
+      />,
+    );
+    const expansion = getWorkspaceMenuExpansion(
+      "collection",
+      "AGENTS",
+      collectionOptions,
+    );
+
+    assert.include(html, "zopilot-sidebar-workspace-tooltip");
+    assert.include(html, 'data-item-count="3"');
+    assert.isTrue(expansion.libraryExpanded);
+    assert.deepEqual([...expansion.expandedCollections], ["LLM"]);
   });
 
   it("renders the archived session entry and archive popover mode", function () {
@@ -806,6 +935,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     backendStatus: "connected",
     focusToken: 0,
     sourceCandidates: [],
+    libraryItemCount: 0,
     collectionOptions: [],
     prompts: TEST_PROMPTS,
     ...patch,
@@ -832,6 +962,23 @@ function createActions(): SidebarActions {
     toggleArchivedSessions: () => undefined,
     toggleSessions: () => undefined,
   };
+}
+
+function WorkspaceMenuStateProbe({
+  state,
+}: {
+  state: SidebarState;
+}): ReactElement {
+  const model = useWorkspaceMenuState(createActions(), state);
+  return (
+    <span
+      data-item-count={model.workspaceItemCount}
+      data-show-item-workspace={model.showItemWorkspace}
+      title={model.workspaceTooltip}
+    >
+      {model.libraryLabel}
+    </span>
+  );
 }
 
 function createConversation(id: string): Conversation {

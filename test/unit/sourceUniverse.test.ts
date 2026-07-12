@@ -166,6 +166,7 @@ describe("ZoteroSourceUniverse", function () {
         parentKey: collection.parentKey,
         hasChildren: collection.hasChildren,
         level: collection.level,
+        itemCount: collection.itemCount,
       })),
       [
         {
@@ -173,15 +174,18 @@ describe("ZoteroSourceUniverse", function () {
           parentKey: undefined,
           hasChildren: true,
           level: 0,
+          itemCount: 2,
         },
         {
           key: "CHILD",
           parentKey: "COLL",
           hasChildren: false,
           level: 1,
+          itemCount: 1,
         },
       ],
     );
+    assert.equal(snapshot.libraryItemCount, 2);
     assert.sameMembers(
       sources.map((source) => source.title),
       ["Parent Paper", "Child Paper"],
@@ -357,6 +361,18 @@ function installZoteroMock(
             params: unknown[],
             options?: { onRow?: (row: unknown) => void },
           ) => {
+            if (sql.includes("collectionAncestry")) {
+              const rows = db.collections.map((collection) => ({
+                collectionID: collection.id,
+                itemCount: new Set(db.collectionItems.get(collection.key) || [])
+                  .size,
+              }));
+              if (options?.onRow) {
+                rows.forEach(options.onRow);
+                return undefined;
+              }
+              return rows;
+            }
             if (sql.includes("WITH RECURSIVE")) {
               const collectionKey = String(params[1]);
               const rows = (db.collectionItems.get(collectionKey) || []).map(

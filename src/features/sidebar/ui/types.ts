@@ -37,6 +37,7 @@ export type SidebarModelView = {
 
 export type SidebarContextView = {
   label: string;
+  hostContextKind?: "reader" | "library";
   workspaceKey?: string;
   workspaceType?: WorkspaceType;
   collectionKey?: string;
@@ -54,6 +55,7 @@ export type SidebarCollectionOption = {
   level: number;
   parentKey?: string;
   hasChildren: boolean;
+  itemCount: number;
 };
 
 type SidebarSessionView = {
@@ -94,6 +96,7 @@ export type SidebarState = {
   activeProviderLabel?: string;
   focusToken: number;
   sourceCandidates: PaperSourceRef[];
+  libraryItemCount: number;
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
 };

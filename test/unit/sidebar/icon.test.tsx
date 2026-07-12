@@ -12,13 +12,14 @@ describe("sidebar Icon", function () {
       "brand",
       "checking",
       "close",
-      "context",
       "copied",
       "copy",
       "disconnected",
       "edit",
       "history",
       "newChat",
+      "attachmentImage",
+      "attachmentPdf",
       "paperMention",
       "resend",
       "send",
@@ -62,10 +63,26 @@ describe("sidebar Icon", function () {
     assert.include(archiveRestore, 'data-icon-name="archiveRestore"');
   });
 
-  it("uses the closed folder icon for workspace", function () {
-    const workspace = renderToStaticMarkup(<Icon name="workspace" size={15} />);
+  it("uses the requested icons for file context and workspaces", function () {
+    const paper = renderToStaticMarkup(<Icon name="paperMention" />);
+    const pdf = renderToStaticMarkup(<Icon name="attachmentPdf" />);
+    const image = renderToStaticMarkup(<Icon name="attachmentImage" />);
+    const item = renderToStaticMarkup(<Icon name="workspaceItem" />);
+    const library = renderToStaticMarkup(<Icon name="workspaceLibrary" />);
+    const collection = renderToStaticMarkup(
+      <Icon name="workspaceCollection" />,
+    );
 
-    assert.include(workspace, "lucide-folder-closed");
-    assert.include(workspace, 'data-icon-name="workspace"');
+    assert.include(paper, "lucide-file-text");
+    assert.include(pdf, "lucide-file-plus-corner");
+    assert.include(image, "lucide-file-image");
+    assert.include(item, "lucide-file-text");
+    assert.include(library, "lucide-landmark");
+    assert.include(collection, "lucide-folder");
+    assert.notInclude(paper, "data-icon-tone");
+    assert.notInclude(pdf, "data-icon-tone");
+    assert.notInclude(image, "data-icon-tone");
+    assert.notInclude(library, "data-icon-tone");
+    assert.notInclude(collection, "data-icon-tone");
   });
 });

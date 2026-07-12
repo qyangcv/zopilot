@@ -41,6 +41,8 @@ function FloatingPortal({
   align = "start",
   anchorRef,
   children,
+  horizontalBoundaryRef,
+  horizontalMargin,
   maxHeight,
   maxWidth = 360,
   minWidth = 160,
@@ -53,6 +55,8 @@ function FloatingPortal({
   align?: FloatingAlign;
   anchorRef: RefObject<HTMLElement | null>;
   children: ReactNode;
+  horizontalBoundaryRef?: RefObject<HTMLElement | null>;
+  horizontalMargin?: number;
   maxHeight?: number;
   maxWidth?: number;
   minWidth?: number;
@@ -72,10 +76,13 @@ function FloatingPortal({
     const anchor = anchorRef.current;
     if (!portalRoot || !anchor) return;
     const win = portalRoot.ownerDocument?.defaultView;
+    const horizontalBoundary = horizontalBoundaryRef?.current;
     const updatePosition = () => {
       const next = calculateFloatingPosition({
         align,
         anchorRect: anchor.getBoundingClientRect(),
+        horizontalBoundaryRect: horizontalBoundary?.getBoundingClientRect(),
+        horizontalMargin,
         maxWidth,
         minWidth,
         offset,
@@ -106,13 +113,23 @@ function FloatingPortal({
     updatePosition();
     win?.addEventListener("resize", updatePosition);
     win?.addEventListener("scroll", updatePosition, true);
+    const resizeObserver = win?.ResizeObserver
+      ? new win.ResizeObserver(updatePosition)
+      : undefined;
+    resizeObserver?.observe(anchor);
+    if (horizontalBoundary && horizontalBoundary !== anchor) {
+      resizeObserver?.observe(horizontalBoundary);
+    }
     return () => {
       win?.removeEventListener("resize", updatePosition);
       win?.removeEventListener("scroll", updatePosition, true);
+      resizeObserver?.disconnect();
     };
   }, [
     align,
     anchorRef,
+    horizontalBoundaryRef,
+    horizontalMargin,
     maxHeight,
     maxWidth,
     minWidth,

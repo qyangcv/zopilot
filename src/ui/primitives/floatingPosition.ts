@@ -24,6 +24,8 @@ type FloatingPosition = {
 function calculateFloatingPosition({
   align = "start",
   anchorRect,
+  horizontalBoundaryRect,
+  horizontalMargin,
   margin = 8,
   maxWidth = 360,
   minHeight = 96,
@@ -35,6 +37,8 @@ function calculateFloatingPosition({
 }: {
   align?: FloatingAlign;
   anchorRect: FloatingRect;
+  horizontalBoundaryRect?: FloatingRect;
+  horizontalMargin?: number;
   margin?: number;
   maxWidth?: number;
   minHeight?: number;
@@ -44,7 +48,11 @@ function calculateFloatingPosition({
   rootRect: FloatingRect;
   width?: number;
 }): FloatingPosition {
-  const usableWidth = Math.max(1, rootRect.width - margin * 2);
+  const boundaryRect = horizontalBoundaryRect || rootRect;
+  const boundaryMargin = horizontalMargin ?? margin;
+  const boundaryLeft = boundaryRect.left - rootRect.left;
+  const boundaryRight = boundaryRect.right - rootRect.left;
+  const usableWidth = Math.max(1, boundaryRect.width - boundaryMargin * 2);
   const widthLimit = Math.max(1, Math.min(maxWidth, usableWidth));
   const preferredWidth = width ?? anchorRect.width;
   const resolvedWidth = Math.max(
@@ -57,8 +65,11 @@ function calculateFloatingPosition({
     align === "end" ? anchorEnd - resolvedWidth : anchorStart;
   const left = clamp(
     unclampedLeft,
-    margin,
-    Math.max(margin, rootRect.width - margin - resolvedWidth),
+    boundaryLeft + boundaryMargin,
+    Math.max(
+      boundaryLeft + boundaryMargin,
+      boundaryRight - boundaryMargin - resolvedWidth,
+    ),
   );
   const availableAbove = Math.max(
     1,

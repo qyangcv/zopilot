@@ -51,6 +51,7 @@ function projectSidebarState(
       title: `${state.conversation.metadata.workspaceTitle} / ${state.conversation.metadata.label}`,
       context: {
         label: state.workspace.workspaceLabel,
+        hostContextKind: state.hostContext?.kind,
         workspaceKey: state.workspace.workspaceKey,
         workspaceType: state.workspace.workspaceType,
         collectionKey: state.workspace.collectionKey,
@@ -85,6 +86,7 @@ function projectSidebarState(
     sessionsOpen: false,
     sessions: [],
     sourceCandidates: [],
+    libraryItemCount: 0,
     collectionOptions: [],
     prompts: loadPromptViews(),
     messages: [

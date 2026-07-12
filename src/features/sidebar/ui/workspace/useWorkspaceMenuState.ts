@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { getString } from "../../../../app/localization";
 import type { WorkspaceType } from "../../../../domain/conversation";
 import type {
@@ -16,6 +16,7 @@ function useWorkspaceMenuState(actions: SidebarActions, state: SidebarState) {
     () => new Set(),
   );
   const hasWorkspace = Boolean(state.context.workspaceKey);
+  const showItemWorkspace = state.context.hostContextKind !== "library";
   const workspaceType = state.context.workspaceType || "item";
   const collectionOptions = state.collectionOptions || [];
   const currentCollection = collectionOptions.find(
@@ -34,19 +35,33 @@ function useWorkspaceMenuState(actions: SidebarActions, state: SidebarState) {
       : workspaceType === "collection"
         ? currentCollection?.label || state.context.label
         : itemLabel;
-  const workspaceTypeLabel = getWorkspaceTypeLabel(workspaceType);
+  const workspaceTypeLabel = getWorkspaceTypeLabel(
+    workspaceType,
+    currentCollection?.level,
+  );
+  const workspaceItemCount = !hasWorkspace
+    ? undefined
+    : workspaceType === "library"
+      ? state.libraryItemCount
+      : workspaceType === "collection"
+        ? currentCollection?.itemCount
+        : 1;
   const workspaceTooltip = hasWorkspace
-    ? `${getString("sidebar-workspace-current")}: ${workspaceTypeLabel} - ${
-        workspaceLabel
-      }`
+    ? getString("sidebar-workspace-tooltip", {
+        args: { label: workspaceLabel, type: workspaceTypeLabel },
+      })
     : getString("sidebar-workspace-unavailable");
 
-  useEffect(() => {
-    if (open) {
-      setLibraryExpanded(false);
-      setExpandedCollections(new Set());
-    }
-  }, [collectionOptions, open]);
+  const openToCurrentWorkspace = () => {
+    const expansion = getWorkspaceMenuExpansion(
+      workspaceType,
+      state.context.collectionKey,
+      collectionOptions,
+    );
+    setLibraryExpanded(expansion.libraryExpanded);
+    setExpandedCollections(expansion.expandedCollections);
+    setOpen(true);
+  };
 
   const closeAndSelectType = (type: WorkspaceType) => {
     setOpen(false);
@@ -97,25 +112,57 @@ function useWorkspaceMenuState(actions: SidebarActions, state: SidebarState) {
     libraryExpanded,
     libraryLabel,
     open,
+    openToCurrentWorkspace,
     setLibraryExpanded,
     setOpen,
+    showItemWorkspace,
     toggleAllCollections,
     toggleCollection,
     triggerRef,
     workspaceLabel,
+    workspaceItemCount,
     workspaceTooltip,
     workspaceType,
     workspaceTypeLabel,
   };
 }
 
-function getWorkspaceTypeLabel(type: WorkspaceType): string {
+function getWorkspaceTypeLabel(type: WorkspaceType, level?: number): string {
   if (type === "library") return getString("sidebar-workspace-library");
-  if (type === "collection") return getString("sidebar-workspace-collection");
+  if (type === "collection") {
+    return getString(
+      level && level > 0
+        ? "sidebar-workspace-subcollection"
+        : "sidebar-workspace-collection",
+    );
+  }
   return getString("sidebar-workspace-item");
+}
+
+function getWorkspaceMenuExpansion(
+  workspaceType: WorkspaceType,
+  collectionKey: string | undefined,
+  collectionOptions: SidebarCollectionOption[],
+): {
+  libraryExpanded: boolean;
+  expandedCollections: Set<string>;
+} {
+  if (workspaceType !== "collection" || !collectionKey) {
+    return { libraryExpanded: false, expandedCollections: new Set() };
+  }
+  const byKey = new Map(
+    collectionOptions.map((option) => [option.key, option]),
+  );
+  const expandedCollections = new Set<string>();
+  let parentKey = byKey.get(collectionKey)?.parentKey;
+  while (parentKey) {
+    expandedCollections.add(parentKey);
+    parentKey = byKey.get(parentKey)?.parentKey;
+  }
+  return { libraryExpanded: true, expandedCollections };
 }
 
 type WorkspaceMenuModel = ReturnType<typeof useWorkspaceMenuState>;
 
-export { useWorkspaceMenuState };
+export { getWorkspaceMenuExpansion, useWorkspaceMenuState };
 export type { WorkspaceMenuModel, SidebarCollectionOption };

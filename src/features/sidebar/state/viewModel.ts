@@ -48,6 +48,7 @@ function createInitialSidebarState(label: string): SidebarState {
     activeProviderLabel: "Codex CLI",
     focusToken: 0,
     sourceCandidates: [],
+    libraryItemCount: 0,
     collectionOptions: [],
     prompts: [],
   };

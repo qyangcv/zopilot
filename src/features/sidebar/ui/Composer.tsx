@@ -20,7 +20,7 @@ function Composer({
     <div className="zp-bottom-dock" ref={bindings.bottomDockRef}>
       <form
         aria-busy={state.busy}
-        className="zp-composer"
+        className="zp-composer zp-composer-surface"
         onSubmit={(event) => {
           event.preventDefault();
           bindings.submit();
@@ -31,7 +31,11 @@ function Composer({
         <ComposerFooter actions={actions} bindings={bindings} state={state} />
       </form>
       <div className="zp-workspace-status-row">
-        <WorkspaceSelector actions={actions} state={state} />
+        <WorkspaceSelector
+          actions={actions}
+          horizontalBoundaryRef={bindings.bottomDockRef}
+          state={state}
+        />
       </div>
     </div>
   );

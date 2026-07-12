@@ -72,7 +72,7 @@ export function Message({
             </div>
           </>
         ) : message.localAttachments?.length || message.mentions?.length ? (
-          <div className="zp-message-bubble zp-message-user-content">
+          <div className="zp-message-bubble zp-composer-surface zp-message-user-content">
             <ContextChips
               attachments={message.localAttachments}
               className="zp-message-attachments"
@@ -86,7 +86,7 @@ export function Message({
           </div>
         ) : (
           <MarkdownView
-            className="zp-message-bubble zp-message-markdown"
+            className="zp-message-bubble zp-composer-surface zp-message-markdown"
             markdown={message.text}
             onOpenLink={onOpenLink}
           />

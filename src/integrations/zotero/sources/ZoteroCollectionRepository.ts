@@ -16,6 +16,7 @@ type SourceUniverseCollectionOption = {
   level: number;
   parentKey?: string;
   hasChildren: boolean;
+  itemCount: number;
 };
 
 type CollectionWorkspaceInfo = {
@@ -60,6 +61,7 @@ class ZoteroCollectionRepository {
   ): Promise<SourceUniverseCollectionOption[]> {
     const records = await this.listRecords(libraryID);
     const childCounts = countChildren(records);
+    const itemCounts = await this.listItemCounts(libraryID, records);
     return records
       .map((collection) => {
         const path = collectionPath(collection, records);
@@ -74,6 +76,7 @@ class ZoteroCollectionRepository {
           level: Math.max(0, path.length - 1),
           parentKey: parent?.key,
           hasChildren: Boolean(childCounts.get(collection.id)),
+          itemCount: itemCounts.get(collection.id) || 0,
         };
       })
       .sort((left, right) =>
@@ -121,6 +124,78 @@ class ZoteroCollectionRepository {
       name: collection.name || collection.key,
       parentID: collection.parentID,
     }));
+  }
+
+  private async listItemCounts(
+    libraryID: number,
+    records: CollectionRecord[],
+  ): Promise<Map<number, number>> {
+    const dbCounts = await this.itemCountsFromDB(libraryID);
+    if (dbCounts) {
+      return dbCounts;
+    }
+    const collections = await this.listRawCollections(libraryID);
+    return new Map(
+      records.map((record) => {
+        const collection = collections.find((item) => item.id === record.id);
+        return [
+          record.id,
+          collection ? collectCollectionItems(collection).length : 0,
+        ];
+      }),
+    );
+  }
+
+  private async itemCountsFromDB(
+    libraryID: number,
+  ): Promise<Map<number, number> | null> {
+    const db = (this.zotero as unknown as { DB?: ZoteroDBLike }).DB;
+    if (!db?.queryAsync) {
+      return null;
+    }
+    try {
+      const rows = await queryRows(
+        db,
+        `WITH RECURSIVE collectionAncestry(descendantID, ancestorID) AS (
+            SELECT collectionID, collectionID
+              FROM collections
+             WHERE libraryID = ?
+               AND NOT EXISTS (
+                 SELECT 1 FROM deletedCollections DC
+                  WHERE DC.collectionID = collections.collectionID
+               )
+            UNION ALL
+            SELECT A.descendantID, C.parentCollectionID
+              FROM collectionAncestry A
+              JOIN collections C ON C.collectionID = A.ancestorID
+             WHERE C.parentCollectionID IS NOT NULL
+          )
+          SELECT A.ancestorID AS collectionID,
+                 COUNT(DISTINCT CI.itemID) AS itemCount
+            FROM collectionAncestry A
+            JOIN collectionItems CI ON CI.collectionID = A.descendantID
+           WHERE NOT EXISTS (
+             SELECT 1 FROM deletedItems DI WHERE DI.itemID = CI.itemID
+           )
+           GROUP BY A.ancestorID`,
+        [libraryID],
+        (row) => {
+          const collectionID = numberValue(row, "collectionID", 0);
+          const itemCount = numberValue(row, "itemCount", 1);
+          return typeof collectionID === "number" &&
+            typeof itemCount === "number"
+            ? { collectionID, itemCount }
+            : null;
+        },
+      );
+      return new Map(rows.map((row) => [row.collectionID, row.itemCount]));
+    } catch (error) {
+      logger.warn("failed to count Zotero collection items from DB", {
+        error,
+        libraryID,
+      });
+      return null;
+    }
   }
 
   private async listRecordsFromDB(
