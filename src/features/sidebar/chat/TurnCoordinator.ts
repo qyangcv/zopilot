@@ -81,6 +81,9 @@ class TurnCoordinator {
       },
     );
     this.options.setReadyConversation(conversation);
+    if (this.options.areSessionsOpen()) {
+      this.options.refreshSessions();
+    }
     const viewState = this.options.getViewState();
     const selectedProfile =
       getProviderProfileStore().getProfile(viewState.selectedProviderId) ||

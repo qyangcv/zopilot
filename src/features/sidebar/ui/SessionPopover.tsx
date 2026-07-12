@@ -1,4 +1,4 @@
-import { type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import { Icon } from "./Icon";
 import type { SidebarActions, SidebarState } from "./types";
@@ -13,6 +13,7 @@ export function SessionPopover({
   sessions: SidebarState["sessions"];
 }): ReactElement {
   const archived = mode === "archive";
+  const now = useRelativeTimeClock(sessions.length > 0);
   return (
     <div
       className="zp-session-popover"
@@ -36,7 +37,9 @@ export function SessionPopover({
                 type="button"
               >
                 <span className="zp-session-label">{session.title}</span>
-                <span className="zp-session-meta">{session.meta}</span>
+                <span className="zp-session-meta">
+                  {formatSessionRelativeTime(session.meta, now)}
+                </span>
               </button>
               {archived ? null : (
                 <button
@@ -73,3 +76,50 @@ export function SessionPopover({
     </div>
   );
 }
+
+type SessionRelativeTime = {
+  count: number;
+  unit: "now" | "minutes" | "hours" | "days" | "weeks";
+};
+
+function resolveSessionRelativeTime(
+  value: string,
+  now = Date.now(),
+): SessionRelativeTime {
+  const timestamp = new Date(value).getTime();
+  const elapsedMs = Number.isFinite(timestamp)
+    ? Math.max(0, now - timestamp)
+    : 0;
+  const elapsedMinutes = Math.floor(elapsedMs / 60_000);
+  if (elapsedMinutes < 1) return { count: 0, unit: "now" };
+  if (elapsedMinutes < 60) {
+    return { count: elapsedMinutes, unit: "minutes" };
+  }
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return { count: elapsedHours, unit: "hours" };
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  if (elapsedDays < 7) return { count: elapsedDays, unit: "days" };
+  return { count: Math.floor(elapsedDays / 7), unit: "weeks" };
+}
+
+function formatSessionRelativeTime(value: string, now = Date.now()): string {
+  const relative = resolveSessionRelativeTime(value, now);
+  if (relative.unit === "now") {
+    return getString("sidebar-session-time-now");
+  }
+  return getString(`sidebar-session-time-${relative.unit}`, {
+    args: { count: relative.count },
+  });
+}
+
+function useRelativeTimeClock(enabled: boolean): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!enabled) return;
+    const interval = globalThis.setInterval(() => setNow(Date.now()), 30_000);
+    return () => globalThis.clearInterval(interval);
+  }, [enabled]);
+  return now;
+}
+
+export { formatSessionRelativeTime, resolveSessionRelativeTime };

@@ -77,6 +77,29 @@ describe("floating popover positioning", function () {
     assert.equal(position.left, 90);
   });
 
+  it("keeps an end-aligned header popup inside the sidebar boundary", function () {
+    const position = calculateFloatingPosition({
+      align: "end",
+      anchorRect: rect({ bottom: 70, left: 610, right: 638, top: 42 }),
+      horizontalBoundaryRect: rect({
+        bottom: 700,
+        left: 390,
+        right: 750,
+        top: 20,
+      }),
+      maxWidth: 420,
+      minWidth: 240,
+      preferredSide: "below",
+      rootRect: rect({ bottom: 800, left: 0, right: 900, top: 0 }),
+      width: 300,
+    });
+
+    assert.equal(position.width, 300);
+    assert.equal(position.left, 398);
+    assert.isAtLeast(position.left, 390);
+    assert.isAtMost(position.left + position.width, 750);
+  });
+
   it("grows within a wide boundary up to the configured maximum", function () {
     const position = calculateFloatingPosition({
       anchorRect: rect({ bottom: 580, left: 100, right: 240, top: 558 }),

@@ -5,7 +5,10 @@ import {
   Message,
   SidebarApp,
 } from "../../../src/features/sidebar/ui/SidebarApp.tsx";
-import { SessionPopover } from "../../../src/features/sidebar/ui/SessionPopover.tsx";
+import {
+  resolveSessionRelativeTime,
+  SessionPopover,
+} from "../../../src/features/sidebar/ui/SessionPopover.tsx";
 import { MentionPopover } from "../../../src/features/sidebar/ui/MentionPopover.tsx";
 import {
   getWorkspaceMenuExpansion,
@@ -750,6 +753,31 @@ describe("SidebarApp", function () {
     assert.include(html, "zopilot-sidebar-archived-sessions");
     assert.include(html, "Archived question");
     assert.notInclude(html, "zopilot-sidebar-delete-session");
+  });
+
+  it("groups session timestamps into Copilot-style relative units", function () {
+    const now = new Date("2026-07-12T04:00:00.000Z").getTime();
+
+    assert.deepEqual(
+      resolveSessionRelativeTime("2026-07-12T03:59:40.000Z", now),
+      { count: 0, unit: "now" },
+    );
+    assert.deepEqual(
+      resolveSessionRelativeTime("2026-07-12T03:48:00.000Z", now),
+      { count: 12, unit: "minutes" },
+    );
+    assert.deepEqual(
+      resolveSessionRelativeTime("2026-07-11T17:00:00.000Z", now),
+      { count: 11, unit: "hours" },
+    );
+    assert.deepEqual(
+      resolveSessionRelativeTime("2026-07-09T04:00:00.000Z", now),
+      { count: 3, unit: "days" },
+    );
+    assert.deepEqual(
+      resolveSessionRelativeTime("2026-06-21T04:00:00.000Z", now),
+      { count: 3, unit: "weeks" },
+    );
   });
 
   it("uses a distinct empty state for archived sessions", function () {

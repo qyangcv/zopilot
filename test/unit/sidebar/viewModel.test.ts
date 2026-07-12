@@ -156,8 +156,44 @@ describe("sidebar view model", function () {
 
     assert.equal(view.id, "conv-a");
     assert.equal(view.title, "Summarize the method section in two paragraphs.");
-    assert.equal(view.meta, "A concise assistant preview");
+    assert.equal(view.meta, "2026-06-13T07:00:00.000Z");
     assert.isTrue(view.active);
+  });
+
+  it("omits paper mentions and attachments from session titles", function () {
+    const conversation = createConversation();
+    conversation.messages[0].text =
+      "@CodeV: Code with Images @figure.png Compare their evidence.";
+
+    const view = createSessionView(conversation);
+
+    assert.equal(view.title, "Compare their evidence.");
+  });
+
+  it("does not restore a context-only mention from the metadata label", function () {
+    const conversation = createConversation();
+    conversation.messages[0].text = "@CodeV: Code with Images";
+    conversation.metadata.label = "@CodeV: Code with Images";
+
+    const view = createSessionView(conversation);
+
+    assert.equal(view.title, "Use the selected context.");
+  });
+
+  it("uses the latest user message timestamp for session metadata", function () {
+    const conversation = createConversation();
+    conversation.messages.push({
+      id: "msg-user-latest",
+      conversationId: "conv-a",
+      role: "user",
+      text: "Follow up",
+      createdAt: "2026-06-13T08:31:42.000Z",
+      status: "complete",
+    });
+
+    const view = createSessionView(conversation);
+
+    assert.equal(view.meta, "2026-06-13T08:31:42.000Z");
   });
 });
 

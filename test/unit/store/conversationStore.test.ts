@@ -126,14 +126,14 @@ describe("ConversationStore", function () {
     });
     await waitForTimestampTick();
     const second = await store.createWorkspaceConversation(workspace);
-    const other = await store.createWorkspaceConversation(otherWorkspace);
+    await store.createWorkspaceConversation(otherWorkspace);
 
     let paperSessions = await store.listWorkspaceConversations(
       workspace.workspaceKey,
     );
     assert.deepEqual(
       paperSessions.map((conversation) => conversation.metadata.id),
-      [second.metadata.id, first.metadata.id],
+      [first.metadata.id],
     );
     assert.strictEqual(first.metadata.label, "First session question");
 
@@ -150,8 +150,9 @@ describe("ConversationStore", function () {
     );
     assert.deepEqual(
       paperSessions.map((conversation) => conversation.metadata.id),
-      [second.metadata.id],
+      [],
     );
+    await store.archiveWorkspaceConversation(second.metadata);
     const archivedSessions = await store.listArchivedWorkspaceConversations(
       workspace.workspaceKey,
     );
@@ -169,7 +170,7 @@ describe("ConversationStore", function () {
     );
     assert.deepEqual(
       paperSessions.map((conversation) => conversation.metadata.id),
-      [activated.metadata.id, second.metadata.id],
+      [activated.metadata.id],
     );
     assert.isUndefined(paperSessions[0]?.metadata.archived);
     assert.deepEqual(
@@ -181,13 +182,43 @@ describe("ConversationStore", function () {
     );
     assert.deepEqual(
       otherSessions.map((conversation) => conversation.metadata.id),
-      [other.metadata.id],
+      [],
     );
     const otherArchivedSessions =
       await store.listArchivedWorkspaceConversations(
         otherWorkspace.workspaceKey,
       );
     assert.deepEqual(otherArchivedSessions, []);
+  });
+
+  it("orders history by the latest user message instead of activation time", async function () {
+    const workspace = createItemWorkspaceIdentity(
+      createPaper("1:AAA", "AAA", "Paper A"),
+    );
+    const store = new ConversationStore(rootDir);
+
+    let older = await store.createWorkspaceConversation(workspace);
+    older = await store.addMessage(older.metadata, {
+      role: "user",
+      text: "Older question",
+    });
+    await waitForTimestampTick();
+    let newer = await store.createWorkspaceConversation(workspace);
+    newer = await store.addMessage(newer.metadata, {
+      role: "user",
+      text: "Newer question",
+    });
+    await waitForTimestampTick();
+
+    await store.activateWorkspaceConversation(older.metadata);
+    const history = await store.listWorkspaceConversations(
+      workspace.workspaceKey,
+    );
+
+    assert.deepEqual(
+      history.map((conversation) => conversation.metadata.id),
+      [newer.metadata.id, older.metadata.id],
+    );
   });
 
   it("persists assistant completion metadata and interrupted status", async function () {

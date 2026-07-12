@@ -97,6 +97,7 @@ function SidebarHeader({
         <FloatingPortal
           align="end"
           anchorRef={sessionAnchorRef}
+          horizontalBoundaryRef={headerRef}
           maxWidth={420}
           minWidth={240}
           onDismiss={actions.hideSessions}

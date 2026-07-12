@@ -66,12 +66,13 @@ class ConversationStore {
     const activeMetadata = metadata
       .filter((item) => !item.archived)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return Promise.all(
+    const conversations = await Promise.all(
       activeMetadata.map(async (item) => ({
         metadata: item,
         messages: await this.repository.readMessages(item),
       })),
     );
+    return conversations.filter(hasUserMessage).sort(byLatestUserMessage);
   }
 
   async listArchivedWorkspaceConversations(
@@ -81,12 +82,13 @@ class ConversationStore {
     const archivedMetadata = metadata
       .filter((item) => item.archived)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return Promise.all(
+    const conversations = await Promise.all(
       archivedMetadata.map(async (item) => ({
         metadata: item,
         messages: await this.repository.readMessages(item),
       })),
     );
+    return conversations.filter(hasUserMessage).sort(byLatestUserMessage);
   }
 
   async createWorkspaceConversation(
@@ -296,4 +298,26 @@ function createId(prefix: string): string {
 
 function defaultConversationLabel(createdAt: string): string {
   return new Date(createdAt).toLocaleString();
+}
+
+function hasUserMessage(conversation: Conversation): boolean {
+  return conversation.messages.some((message) => message.role === "user");
+}
+
+function byLatestUserMessage(left: Conversation, right: Conversation): number {
+  const messageOrder = getLatestUserMessageAt(right).localeCompare(
+    getLatestUserMessageAt(left),
+  );
+  return (
+    messageOrder ||
+    right.metadata.createdAt.localeCompare(left.metadata.createdAt) ||
+    right.metadata.id.localeCompare(left.metadata.id)
+  );
+}
+
+function getLatestUserMessageAt(conversation: Conversation): string {
+  return (
+    conversation.messages.findLast((message) => message.role === "user")
+      ?.createdAt || ""
+  );
 }

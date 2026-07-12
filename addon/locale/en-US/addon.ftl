@@ -7,6 +7,27 @@ sidebar-archived-sessions = Archived sessions
 sidebar-new-chat = New chat
 sidebar-no-sessions = No sessions yet
 sidebar-no-archived-sessions = No archived sessions
+sidebar-session-time-now = Just now
+sidebar-session-time-minutes =
+    { $count ->
+        [one] 1 minute ago
+       *[other] { $count } minutes ago
+    }
+sidebar-session-time-hours =
+    { $count ->
+        [one] 1 hour ago
+       *[other] { $count } hours ago
+    }
+sidebar-session-time-days =
+    { $count ->
+        [one] 1 day ago
+       *[other] { $count } days ago
+    }
+sidebar-session-time-weeks =
+    { $count ->
+        [one] 1 week ago
+       *[other] { $count } weeks ago
+    }
 sidebar-delete-session = Archive session
 sidebar-restore-session = Unarchive session
 sidebar-add-context = Add attachment

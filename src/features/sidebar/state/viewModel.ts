@@ -102,7 +102,7 @@ function createSessionView(
   return {
     id: conversation.metadata.id,
     title: getSessionTitle(conversation),
-    meta: formatSessionMeta(conversation),
+    meta: getLastUserMessageAt(conversation),
     active: activeConversationId === conversation.metadata.id,
     conversation,
   };
@@ -176,20 +176,47 @@ function getSessionTitle(conversation: Conversation): string {
   const firstUserMessage = conversation.messages.find(
     (message) => message.role === "user",
   );
+  const userText = firstUserMessage
+    ? stripSessionContext(firstUserMessage, conversation)
+    : "";
   return truncateLabel(
-    firstUserMessage?.text ||
-      conversation.metadata.label ||
-      conversation.metadata.createdAt,
+    firstUserMessage
+      ? userText || "Use the selected context."
+      : conversation.metadata.label || conversation.metadata.createdAt,
     54,
   );
 }
 
-function formatSessionMeta(conversation: Conversation): string {
-  const preview = conversation.metadata.latestPreview?.trim();
-  if (preview) {
-    return truncateLabel(preview, 72);
+function getLastUserMessageAt(conversation: Conversation): string {
+  const lastUserMessage = conversation.messages.findLast(
+    (message) => message.role === "user",
+  );
+  return lastUserMessage?.createdAt || conversation.metadata.createdAt;
+}
+
+function stripSessionContext(
+  message: Conversation["messages"][number],
+  conversation: Conversation,
+): string {
+  let text = message.text;
+  const contextLabels = [
+    ...(message.mentions || []).map((mention) => mention.title),
+    ...(message.localAttachments || []).map(
+      (attachment) => attachment.filename,
+    ),
+    conversation.metadata.defaultSource?.title,
+  ].filter((label): label is string => Boolean(label?.trim()));
+
+  for (const label of new Set(contextLabels)) {
+    const escaped = escapeRegExp(label.trim());
+    text = text
+      .replace(new RegExp(`@\\s*${escaped}`, "giu"), " ")
+      .replace(
+        new RegExp(`\\[(?:附件|attachment)\\s*[:：]\\s*${escaped}\\]`, "giu"),
+        " ",
+      );
   }
-  return new Date(conversation.metadata.createdAt).toLocaleString();
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function formatBeijingTimestamp(value: string): string {
@@ -214,6 +241,10 @@ function truncateLabel(value: string, maxLength: number): string {
     return text;
   }
   return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function pad2(value: number): string {
