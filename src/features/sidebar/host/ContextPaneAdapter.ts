@@ -11,16 +11,15 @@ import {
 } from "./contextPaneProbe";
 
 type ContextPaneDeckAdapterOptions = {
-  onActiveStateChange?: (state: ContextPaneActiveState) => void;
+  onActivate?: () => void;
+  onDeactivate?: () => void;
 };
 
 const logger = createLogger("sidebar.contextPane");
 
 class ContextPaneDeckAdapter {
-  private activeState: ContextPaneActiveState = "item";
   private panel?: Element;
   private sidenav?: ContextPaneSidenavAdapter;
-  private mounted = false;
   private unavailable?: ContextPaneUnavailableResult;
 
   constructor(
@@ -37,23 +36,20 @@ class ContextPaneDeckAdapter {
     }
     if (!this.sidenav) {
       this.sidenav = new ContextPaneSidenavAdapter(this.win, probe.sidenav, {
-        onActivate: () => this.select("zopilot"),
-        onActivateNativePane: (state) => this.select(state),
+        onActivate: () => this.options.onActivate?.(),
+        onActivateNativePane: (state) => {
+          this.select(state);
+          this.options.onDeactivate?.();
+        },
       });
     }
     this.sidenav.mount();
-    this.sidenav.setActive(this.activeState === "zopilot");
-    this.mounted = true;
     this.unavailable = undefined;
     return probe;
   }
 
   getUnavailableResult(): ContextPaneUnavailableResult | undefined {
     return this.unavailable;
-  }
-
-  getActiveState(): ContextPaneActiveState {
-    return this.activeState;
   }
 
   getPanel(): HTMLElement | undefined {
@@ -92,8 +88,12 @@ class ContextPaneDeckAdapter {
           : probe.itemDeck;
     if (!panel) return false;
     this.selectPanel(probe, panel);
-    this.setActiveState(state);
+    this.sidenav?.setActive(state === "zopilot");
     return true;
+  }
+
+  deactivate(): void {
+    this.sidenav?.setActive(false);
   }
 
   focusPanel(): void {
@@ -101,7 +101,6 @@ class ContextPaneDeckAdapter {
   }
 
   destroy(): void {
-    this.mounted = false;
     this.sidenav?.destroy();
     this.sidenav = undefined;
     this.panel?.remove();
@@ -139,16 +138,6 @@ class ContextPaneDeckAdapter {
     }
     const index = Array.prototype.indexOf.call(probe.deck.children, panel);
     if (index >= 0) probe.deck.selectedIndex = index;
-  }
-
-  private setActiveState(state: ContextPaneActiveState): void {
-    if (this.activeState === state && this.mounted) {
-      this.sidenav?.setActive(state === "zopilot");
-      return;
-    }
-    this.activeState = state;
-    this.sidenav?.setActive(state === "zopilot");
-    this.options.onActiveStateChange?.(state);
   }
 }
 

@@ -360,13 +360,7 @@ class SidebarHostController {
   private setOpen(open: boolean): void {
     const wasOpen = this.open;
     this.open = open;
-    if (open) {
-      if (isLibraryTab(this.win)) {
-        this.surface.attachLibrary();
-      } else {
-        this.surface.attach(getSelectedPDFReader(this.win));
-      }
-    } else {
+    if (!open) {
       this.closeZopilotPane({ restoreItemPane: true });
       return;
     }
@@ -422,17 +416,10 @@ class SidebarHostController {
 
   private async syncWithSelectedContext(): Promise<void> {
     if (isLibraryTab(this.win)) {
-      if (
-        this.open &&
-        this.getReadyDisplayState()?.hostContext?.kind !== "library"
-      ) {
-        this.surface.attachLibrary();
-      }
       await this.librarySelection.syncWithSelectedWorkspace();
       return;
     }
-    const ready = this.getReadyDisplayState();
-    if (this.open && ready?.hostContext?.kind !== "reader" && !ready?.reader) {
+    if (this.open) {
       this.surface.attach(getSelectedPDFReader(this.win));
     }
     await this.readerSelection.syncWithSelectedPDFReader();

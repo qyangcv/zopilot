@@ -45,6 +45,67 @@ describe("sidebar host bindings", function () {
     doc.dispatch("mousedown", createTreeTarget(true));
     assert.equal(syncCount, 2);
   });
+
+  it("synchronizes context from Zotero tab notifications", function () {
+    const doc = new FakeDocument() as FakeDocument & {
+      documentElement: Element;
+    };
+    doc.documentElement = {} as Element;
+    let syncCount = 0;
+    let tabObserver: { notify: _ZoteroTypes.Notifier.Notify } | undefined;
+    let unregisteredID = "";
+    (globalThis as unknown as { Zotero: Record<string, any> }).Zotero = {
+      Notifier: {
+        registerObserver(observer: { notify: _ZoteroTypes.Notifier.Notify }) {
+          tabObserver = observer;
+          return "tab-observer";
+        },
+        unregisterObserver(id: string) {
+          unregisteredID = id;
+        },
+      },
+    };
+    const bindings = new SidebarHostBindings({
+      doc: doc as unknown as Document,
+      win: {
+        MutationObserver: class {
+          observe() {}
+          disconnect() {}
+        },
+        addEventListener() {},
+        removeEventListener() {},
+        setTimeout(callback: TimerHandler) {
+          if (typeof callback === "function") callback();
+          return 1;
+        },
+      } as unknown as Window,
+      ensureMountedSurfaces: () => undefined,
+      refreshContext: () => undefined,
+      syncWithSelectedContext: () => syncCount++,
+      isOpen: () => true,
+      isDestroyed: () => false,
+      areSessionsOpen: () => false,
+      getDeckPanel: () => undefined,
+      hideSessions: () => undefined,
+      subscribePrompts: () => () => undefined,
+      updatePrompts: () => undefined,
+      subscribeProviders: () => () => undefined,
+    });
+    const disposers = (
+      bindings as unknown as {
+        bindLayoutRefresh(): Array<() => void>;
+      }
+    ).bindLayoutRefresh();
+
+    tabObserver?.notify("select", "tab", ["reader-a"], {});
+    tabObserver?.notify("load" as never, "tab", ["reader-a"], {});
+    tabObserver?.notify("select", "item", [1], {});
+
+    assert.equal(syncCount, 2);
+    disposers.forEach((dispose) => dispose());
+    assert.equal(unregisteredID, "tab-observer");
+    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
+  });
 });
 
 type ListenerRecord = {

@@ -470,7 +470,7 @@ describe("sidebar controller", function () {
     assert.equal(controller.viewState.context.label, "Paper B");
   });
 
-  it("does not invalidate ready state when syncing the already selected reader", async function () {
+  it("reattaches the Reader surface without invalidating its ready state", async function () {
     const win = new FakeWindow(1200) as FakeWindow & {
       Zotero_Tabs: { selectedID: string; selectedType: string };
     };
@@ -497,9 +497,12 @@ describe("sidebar controller", function () {
       workspace: createItemWorkspaceIdentity(paper),
       conversation: createConversation(paper, "conv-a", "Question A"),
     });
+    let attachCount = 0;
+    controller.surface.attach = () => attachCount++;
 
     await controller.syncWithSelectedContext();
 
+    assert.equal(attachCount, 1);
     assert.equal(controller.selectionToken, 1);
     assert.equal(controller.getReadyDisplayState()?.token, 1);
   });

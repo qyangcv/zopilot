@@ -7,6 +7,7 @@ export type { ZopilotDeckHost };
 
 type ZopilotDeckHost = {
   attach: (panel: HTMLElement) => void;
+  isAttachedTo: (panel: HTMLElement) => boolean;
   render: (state: SidebarState, actions: SidebarActions) => void;
   focus: () => void;
   refreshContext: () => void;
@@ -52,6 +53,9 @@ async function createZopilotDeckHost(
       if (!portalRoot.isConnected) overlayHost.append(portalRoot);
       syncPortalTheme(currentPanel, portalRoot);
       installGlobals();
+    },
+    isAttachedTo(panel) {
+      return mountNode.parentElement === panel && mountNode.isConnected;
     },
     render(state, actions) {
       installGlobals();

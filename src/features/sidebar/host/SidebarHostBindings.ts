@@ -82,16 +82,28 @@ class SidebarHostBindings {
     });
     this.options.win.addEventListener("focus", reloadConversationSoon);
     this.options.win.addEventListener("resize", refreshLayoutSoon);
-    const tabContainer = this.options.doc.getElementById("tabbrowser-tabs");
-    tabContainer?.addEventListener("TabSelect", reloadConversationSoon);
+    const tabObserverID = Zotero.Notifier.registerObserver(
+      {
+        notify: (event, type) => {
+          if (
+            type === "tab" &&
+            (event === "select" || (event as string) === "load")
+          ) {
+            reloadConversationSoon();
+          }
+        },
+      },
+      ["tab"],
+      "zopilot-sidebar-tabs",
+      100,
+    );
     return [
       () => observer.disconnect(),
       () => {
         this.options.win.removeEventListener("focus", reloadConversationSoon);
         this.options.win.removeEventListener("resize", refreshLayoutSoon);
       },
-      () =>
-        tabContainer?.removeEventListener("TabSelect", reloadConversationSoon),
+      () => Zotero.Notifier.unregisterObserver(tabObserverID),
     ];
   }
 

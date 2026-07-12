@@ -10,7 +10,8 @@ import {
 const LIBRARY_PANEL_ID = "zopilot-library-item-pane-deck";
 const LIBRARY_PANE_NAME = "zopilot-library";
 type LibraryItemPaneAdapterOptions = {
-  onActiveChange?: (active: boolean) => void;
+  onActivate?: () => void;
+  onDeactivate?: () => void;
 };
 
 class LibraryItemPaneAdapter {
@@ -28,14 +29,14 @@ class LibraryItemPaneAdapter {
   private readonly onButtonClick = (event: Event) => {
     event.preventDefault();
     event.stopPropagation();
-    this.selectZopilot();
+    this.options.onActivate?.();
   };
 
   private readonly onButtonKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     event.stopPropagation();
-    this.selectZopilot();
+    this.options.onActivate?.();
   };
 
   private readonly onNativeButtonClick = (event: Event) => {
@@ -51,6 +52,7 @@ class LibraryItemPaneAdapter {
     const button = target.closest(".btn[data-pane]");
     if (!button || !this.listeningSidenav?.contains(button)) return;
     this.selectNative();
+    this.options.onDeactivate?.();
   };
 
   private readonly onDeckSelect = () => {
@@ -161,6 +163,10 @@ class LibraryItemPaneAdapter {
     if (selected !== this.panel) selectPanel(probe, this.panel);
   }
 
+  deactivate(): void {
+    this.setActive(false);
+  }
+
   destroy(): void {
     this.observer?.disconnect();
     this.observer = undefined;
@@ -267,7 +273,6 @@ class LibraryItemPaneAdapter {
     }
     this.active = active;
     this.syncButton();
-    this.options.onActiveChange?.(active);
   }
 
   private syncButton(): void {
