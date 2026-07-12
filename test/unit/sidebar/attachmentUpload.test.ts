@@ -22,7 +22,7 @@ describe("sidebar attachment upload", function () {
   it("returns the chosen PDF as a local attachment path", async function () {
     const picker = createPicker({
       result: 0,
-      file: { path: "/tmp/paper.pdf" },
+      files: [{ path: "/tmp/paper.pdf" }],
     });
 
     const result = await pickLocalAttachment({
@@ -33,7 +33,7 @@ describe("sidebar attachment upload", function () {
     });
 
     assert.equal(result.status, "selected");
-    assert.deepInclude(result.status === "selected" && result.attachment, {
+    assert.deepInclude(result.status === "selected" && result.attachments[0], {
       path: "/tmp/paper.pdf",
       filename: "paper.pdf",
       kind: "pdf",
@@ -44,7 +44,7 @@ describe("sidebar attachment upload", function () {
   it("returns common images as local attachment paths", async function () {
     const picker = createPicker({
       result: 0,
-      file: { path: "/tmp/figure.jpeg" },
+      files: [{ path: "/tmp/figure.jpeg" }],
     });
 
     const result = await pickLocalAttachment({
@@ -55,12 +55,35 @@ describe("sidebar attachment upload", function () {
     });
 
     assert.equal(result.status, "selected");
-    assert.deepInclude(result.status === "selected" && result.attachment, {
+    assert.deepInclude(result.status === "selected" && result.attachments[0], {
       path: "/tmp/figure.jpeg",
       filename: "figure.jpeg",
       kind: "image",
       mimeType: "image/jpeg",
     });
+  });
+
+  it("returns every file selected in multi-select mode", async function () {
+    const picker = createPicker({
+      result: 0,
+      files: [{ path: "/tmp/paper.pdf" }, { path: "/tmp/figure.png" }],
+    });
+
+    const result = await pickLocalAttachment({
+      win: createWindow(),
+      deps: {
+        createFilePicker: () => picker,
+      },
+    });
+
+    assert.equal(picker.initializedMode, picker.modeOpenMultiple);
+    assert.equal(picker.queryInterfaceCalls, 2);
+    assert.deepEqual(
+      result.status === "selected"
+        ? result.attachments.map((attachment) => attachment.path)
+        : [],
+      ["/tmp/paper.pdf", "/tmp/figure.png"],
+    );
   });
 
   it("uses a combined default picker filter so images are selectable immediately", async function () {
@@ -84,31 +107,54 @@ describe("sidebar attachment upload", function () {
 
 type FakeFilePicker = nsIFilePicker & {
   appendedFilters: Array<{ title: string; pattern: string }>;
+  initializedMode?: nsIFilePicker.Mode;
+  queryInterfaceCalls: number;
 };
 
 function createPicker({
-  file,
+  files = [],
   result,
 }: {
-  file?: unknown;
+  files?: Array<{ path: string }>;
   result: number;
 }): FakeFilePicker {
   const appendedFilters: Array<{ title: string; pattern: string }> = [];
-  return {
+  let fileIndex = 0;
+  let queryInterfaceCalls = 0;
+  const picker = {
     modeOpen: 0,
+    modeOpenMultiple: 3,
     returnOK: 0,
     filterPDF: 1024,
-    file,
-    init: () => undefined,
+    files: {
+      hasMoreElements: () => fileIndex < files.length,
+      getNext: () => ({
+        QueryInterface: () => {
+          queryInterfaceCalls += 1;
+          return files[fileIndex++];
+        },
+      }),
+    },
+    init: (
+      _browsingContext: BrowsingContext,
+      _title: string,
+      mode: nsIFilePicker.Mode,
+    ) => {
+      picker.initializedMode = mode;
+    },
     appendFilters: () => undefined,
     appendFilter(title: string, pattern: string) {
       appendedFilters.push({ title, pattern });
     },
     appendedFilters,
+    get queryInterfaceCalls() {
+      return queryInterfaceCalls;
+    },
     open(callback: { done: (result: number) => void }) {
       callback.done(result);
     },
   } as unknown as FakeFilePicker;
+  return picker;
 }
 
 function createWindow(): Window {
@@ -118,21 +164,26 @@ function createWindow(): Window {
 }
 
 function installLocaleMock(): void {
-  (
-    globalThis as typeof globalThis & {
-      addon: {
-        data: {
-          locale: {
-            current: {
-              formatMessagesSync: (
-                messages: Array<{ id: string }>,
-              ) => Array<{ value: string }>;
-            };
+  const runtime = globalThis as typeof globalThis & {
+    Components: typeof Components;
+    addon: {
+      data: {
+        locale: {
+          current: {
+            formatMessagesSync: (
+              messages: Array<{ id: string }>,
+            ) => Array<{ value: string }>;
           };
         };
       };
-    }
-  ).addon = {
+    };
+  };
+  runtime.Components = {
+    interfaces: {
+      nsIFile: {},
+    },
+  } as unknown as typeof Components;
+  runtime.addon = {
     data: {
       locale: {
         current: {

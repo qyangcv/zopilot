@@ -85,7 +85,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           },
           sourceIds: {
             type: "array",
-            maxItems: 5,
+            maxItems: 10,
             items: { type: "string" },
             description:
               "Optional Zopilot source IDs selected with @ mentions in the current workspace.",
@@ -191,11 +191,11 @@ function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
   if (
     sourceIds !== undefined &&
     (!Array.isArray(sourceIds) ||
-      sourceIds.length > 5 ||
+      sourceIds.length > 10 ||
       !sourceIds.every((item) => typeof item === "string"))
   ) {
     throw new Error(
-      "paper_read.sourceIds must be an array of up to 5 strings.",
+      "paper_read.sourceIds must be an array of up to 10 strings.",
     );
   }
   return {

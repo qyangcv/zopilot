@@ -34,7 +34,12 @@ sidebar-multiple-items-selected =
         [one] 已选中 1 个条目
        *[other] 已选中 { $count } 个条目
     }
-sidebar-welcome-message = How should we approach this workspace?
+sidebar-welcome-message = 我们应该阅读什么？
+sidebar-welcome-use = 使用
+sidebar-welcome-prompt-hint = 插入自定义 prompt
+sidebar-welcome-attachment-hint = 添加 PDF/图片 附件
+sidebar-welcome-input = 输入
+sidebar-welcome-mention-hint = 在子分类中选择论文
 sidebar-loading-conversation = 正在加载当前工作区会话...
 sidebar-unavailable-message = 请选择文库或普通分类，或打开 PDF 阅读器标签页。
 sidebar-backend-starting = Working...
@@ -86,7 +91,7 @@ sidebar-workspace-my-library = 我的文库
 sidebar-workspace-toggle-collections = 展开或折叠分类
 sidebar-workspace-expand-all = 展开所有层级
 sidebar-workspace-collapse-all = 折叠所有层级
-sidebar-mention-limit = 每条消息最多选择 5 个 source
+sidebar-mention-limit = 每条消息最多选择 10 个 source
 sidebar-paper-key = Paper key
 sidebar-parent-key = 父条目
 sidebar-attachment-key = 附件

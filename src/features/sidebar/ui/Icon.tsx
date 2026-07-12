@@ -1,6 +1,7 @@
 import {
   Archive,
   ArchiveX,
+  AtSign,
   Check,
   ChevronDown,
   ChevronRight,
@@ -33,6 +34,7 @@ const ICONS = {
   add: Plus,
   archive: Archive,
   archiveRestore: ArchiveX,
+  atSign: AtSign,
   attachmentImage: FileImage,
   attachmentPdf: FilePlusCorner,
   checking: LoaderCircle,

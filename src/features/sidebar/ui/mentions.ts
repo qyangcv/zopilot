@@ -11,7 +11,7 @@ export {
   sourceToMention,
 };
 
-const MAX_SOURCE_MENTIONS = 5;
+const MAX_SOURCE_MENTIONS = 10;
 const MENTION_TERMINATORS = new Set([
   "\n",
   "\r",

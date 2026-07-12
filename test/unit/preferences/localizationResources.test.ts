@@ -10,10 +10,28 @@ import {
 describe("preference localization resources", function () {
   let english: Map<string, string[]>;
   let chinese: Map<string, string[]>;
+  let addonEnglish: Map<string, string[]>;
+  let addonChinese: Map<string, string[]>;
 
   before(function () {
     english = readMessages("addon/locale/en-US/preferences.ftl");
     chinese = readMessages("addon/locale/zh-CN/preferences.ftl");
+    addonEnglish = readMessages("addon/locale/en-US/addon.ftl");
+    addonChinese = readMessages("addon/locale/zh-CN/addon.ftl");
+  });
+
+  it("keeps add-on locale message ids and attributes in sync", function () {
+    assert.deepEqual(
+      [...addonChinese.keys()].sort(),
+      [...addonEnglish.keys()].sort(),
+    );
+    for (const [id, attributes] of addonEnglish) {
+      assert.deepEqual(
+        addonChinese.get(id),
+        attributes,
+        `localized attributes differ for ${id}`,
+      );
+    }
   });
 
   it("keeps locale message ids and attributes in sync", function () {
@@ -32,6 +50,16 @@ describe("preference localization resources", function () {
       resolve("src/features/preferences"),
     );
     const missing = [...referenced].filter((id) => !english.has(id));
+
+    assert.deepEqual(missing, []);
+  });
+
+  it("defines every sidebar localization id referenced by the UI", function () {
+    const referenced = collectReferencedMessageIds(
+      resolve("src/features/sidebar"),
+      "sidebar",
+    );
+    const missing = [...referenced].filter((id) => !addonEnglish.has(id));
 
     assert.deepEqual(missing, []);
   });
@@ -94,11 +122,15 @@ function readMessages(file: string): Map<string, string[]> {
   );
 }
 
-function collectReferencedMessageIds(root: string): Set<string> {
+function collectReferencedMessageIds(
+  root: string,
+  prefix = "pref",
+): Set<string> {
   const ids = new Set<string>();
+  const pattern = new RegExp(`["'](${prefix}-[a-z0-9-]+)["']`, "gu");
   for (const file of listSourceFiles(root)) {
     const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(/["'](pref-[a-z0-9-]+)["']/gu)) {
+    for (const match of source.matchAll(pattern)) {
       ids.add(match[1]);
     }
   }

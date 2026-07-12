@@ -6,7 +6,7 @@ export type { AttachmentUploadResult, FilePickerDependencies };
 
 type AttachmentUploadResult =
   | { status: "cancelled" }
-  | { status: "selected"; attachment: LocalAttachmentRef };
+  | { status: "selected"; attachments: LocalAttachmentRef[] };
 
 type FilePickerDependencies = {
   createFilePicker?: () => nsIFilePicker;
@@ -32,7 +32,7 @@ async function pickLocalAttachment({
   picker.init(
     browsingContext,
     getString("sidebar-attachment-picker-title"),
-    0 as nsIFilePicker["mode"],
+    picker.modeOpenMultiple ?? (3 as nsIFilePicker.Mode),
   );
   const imagePatterns = "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.tif;*.tiff;*.bmp";
   picker.appendFilter("PDF or Images", `*.pdf;${imagePatterns}`);
@@ -40,19 +40,44 @@ async function pickLocalAttachment({
   picker.appendFilter("Images", imagePatterns);
 
   const result = await openFilePicker(picker);
-  if (result !== picker.returnOK || !picker.file) {
+  if (result !== picker.returnOK) {
     return { status: "cancelled" };
   }
 
-  const path = (picker.file as nsIFile & { path?: string }).path;
-  if (!path) {
-    throw new Error("Selected attachment does not expose an absolute path.");
+  const attachments = getSelectedFiles(picker).map((file) => {
+    const path = file.path;
+    if (!path) {
+      throw new Error("Selected attachment does not expose an absolute path.");
+    }
+    const attachment = createLocalAttachmentRef(path);
+    if (!attachment) {
+      throw new Error(`Unsupported attachment type: ${path}`);
+    }
+    return attachment;
+  });
+  if (!attachments.length) {
+    return { status: "cancelled" };
   }
-  const attachment = createLocalAttachmentRef(path);
-  if (!attachment) {
-    throw new Error(`Unsupported attachment type: ${path}`);
+  return { status: "selected", attachments };
+}
+
+function getSelectedFiles(
+  picker: nsIFilePicker,
+): Array<nsIFile & { path?: string }> {
+  const selected: Array<nsIFile & { path?: string }> = [];
+  const files = picker.files;
+  while (files.hasMoreElements()) {
+    const item = files.getNext();
+    if (!item.QueryInterface) {
+      throw new Error("Selected attachment is not an XPCOM file object.");
+    }
+    selected.push(
+      item.QueryInterface(getComponents().interfaces.nsIFile) as nsIFile & {
+        path?: string;
+      },
+    );
   }
-  return { status: "selected", attachment };
+  return selected;
 }
 
 function createLocalAttachmentRef(path: string): LocalAttachmentRef | null {
@@ -99,11 +124,7 @@ function createAttachmentId(path: string): string {
 }
 
 function createFilePicker(): nsIFilePicker {
-  const components = (
-    globalThis as typeof globalThis & {
-      Components: typeof Components;
-    }
-  ).Components;
+  const components = getComponents();
   const classes = components.classes as unknown as Record<
     string,
     { createInstance: (iid: nsJSIID<nsIFilePicker>) => nsIFilePicker }
@@ -111,6 +132,14 @@ function createFilePicker(): nsIFilePicker {
   return classes["@mozilla.org/filepicker;1"]!.createInstance(
     components.interfaces.nsIFilePicker,
   );
+}
+
+function getComponents(): typeof Components {
+  return (
+    globalThis as typeof globalThis & {
+      Components: typeof Components;
+    }
+  ).Components;
 }
 
 function openFilePicker(picker: nsIFilePicker): Promise<number> {

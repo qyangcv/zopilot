@@ -120,15 +120,21 @@ function useComposerDraft(
   const addLocalAttachment = () => {
     void actions
       .uploadAttachment()
-      .then((attachment) => {
-        if (!attachment) {
+      .then((attachments) => {
+        if (!attachments.length) {
           return;
         }
-        setLocalAttachments((items) =>
-          items.some((item) => item.path === attachment.path)
-            ? items
-            : [...items, attachment],
-        );
+        setLocalAttachments((items) => {
+          const existingPaths = new Set(items.map((item) => item.path));
+          return [
+            ...items,
+            ...attachments.filter((attachment) => {
+              if (existingPaths.has(attachment.path)) return false;
+              existingPaths.add(attachment.path);
+              return true;
+            }),
+          ];
+        });
         globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
       })
       .catch(() => undefined);

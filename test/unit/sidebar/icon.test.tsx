@@ -9,6 +9,7 @@ describe("sidebar Icon", function () {
       "add",
       "archive",
       "archiveRestore",
+      "atSign",
       "brand",
       "checking",
       "close",
@@ -32,6 +33,13 @@ describe("sidebar Icon", function () {
       assert.include(html, "zp-icon");
       assert.include(html, `data-icon-name="${name}"`);
     }
+  });
+
+  it("uses the Lucide at-sign icon for mention guidance", function () {
+    const atSign = renderToStaticMarkup(<Icon name="atSign" />);
+
+    assert.include(atSign, "lucide-at-sign");
+    assert.include(atSign, 'data-icon-name="atSign"');
   });
 
   it("renders the Remix chat-ai brand icon", function () {

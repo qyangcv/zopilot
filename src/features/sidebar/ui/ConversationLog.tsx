@@ -3,6 +3,7 @@ import type {
   LocalAttachmentRef,
   SourceMention,
 } from "../../../domain/conversation";
+import { getString } from "../../../app/localization";
 import { Icon } from "./Icon";
 import { Message } from "./Message";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
@@ -49,21 +50,23 @@ function ConversationLog({
       {showWelcome ? (
         <div className="zp-empty-welcome">
           <p className="zp-empty-welcome-title">
-            How should we approach this paper?
+            {getString("sidebar-welcome-message")}
           </p>
           <div className="zp-empty-welcome-hints">
             <p className="zp-empty-welcome-hint">
-              <span>使用</span>
+              <span>{getString("sidebar-welcome-use")}</span>
               <Icon name="prompt" size={14} />
-              <span>插入自定义 prompt</span>
+              <span>{getString("sidebar-welcome-prompt-hint")}</span>
             </p>
             <p className="zp-empty-welcome-hint">
-              <span>使用</span>
+              <span>{getString("sidebar-welcome-use")}</span>
               <Icon name="paperclip" size={14} />
-              <span>添加 PDF 或图片附件</span>
+              <span>{getString("sidebar-welcome-attachment-hint")}</span>
             </p>
             <p className="zp-empty-welcome-hint">
-              使用 @ 在文库/分类中选择论文
+              <span>{getString("sidebar-welcome-input")}</span>
+              <Icon name="atSign" size={14} />
+              <span>{getString("sidebar-welcome-mention-hint")}</span>
             </p>
           </div>
         </div>

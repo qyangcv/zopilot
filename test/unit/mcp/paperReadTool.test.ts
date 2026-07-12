@@ -11,6 +11,10 @@ describe("paper_read MCP tool", function () {
     const tool = createTool(createContext("ready"));
 
     assert.equal(tool.definition.name, "paper_read");
+    assert.equal(
+      tool.definition.inputSchema.properties?.sourceIds?.maxItems,
+      10,
+    );
     assert.include(tool.definition.description, "material cache");
     assert.isTrue(tool.definition.annotations?.readOnlyHint);
   });
@@ -162,6 +166,25 @@ describe("paper_read MCP tool", function () {
         String(error),
         "paper_read input contains unsupported field: itemId",
       );
+    }
+  });
+
+  it("rejects more than ten selected sourceIds", async function () {
+    const tool = createTool(createContext("ready"));
+
+    try {
+      await tool.call(
+        {
+          sourceIds: Array.from(
+            { length: 11 },
+            (_, index) => `source-${index}`,
+          ),
+        },
+        { workspaceScope: createScope() },
+      );
+      assert.fail("Expected too many sourceIds to fail");
+    } catch (error) {
+      assert.include(String(error), "array of up to 10 strings");
     }
   });
 });

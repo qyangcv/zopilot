@@ -45,7 +45,7 @@ function useWorkspaceMenuState(actions: SidebarActions, state: SidebarState) {
       ? state.libraryItemCount
       : workspaceType === "collection"
         ? currentCollection?.itemCount
-        : 1;
+        : undefined;
   const workspaceTooltip = hasWorkspace
     ? getString("sidebar-workspace-tooltip", {
         args: { label: workspaceLabel, type: workspaceTypeLabel },

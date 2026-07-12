@@ -11,17 +11,17 @@ class SidebarContextActions {
     private readonly getReadyState: () => ReadyDisplayState | undefined,
   ) {}
 
-  async uploadAttachment(): Promise<LocalAttachmentRef | undefined> {
+  async uploadAttachment(): Promise<LocalAttachmentRef[]> {
     const ready = this.getReadyState();
-    if (!ready) return undefined;
+    if (!ready) return [];
     try {
       const result = await pickLocalAttachment({ win: this.win });
-      return result.status === "selected" ? result.attachment : undefined;
+      return result.status === "selected" ? result.attachments : [];
     } catch (error) {
       logger.error("failed to choose local attachment", error, {
         workspaceKey: ready.workspace.workspaceKey,
       });
-      return undefined;
+      return [];
     }
   }
 

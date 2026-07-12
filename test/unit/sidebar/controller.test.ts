@@ -103,6 +103,49 @@ describe("sidebar controller", function () {
     assert.equal(controller.viewState.context.attachmentKey, "PDF");
   });
 
+  it("keeps the reader item as the item option in a library workspace", function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paper = createPaperIdentity();
+    const libraryWorkspace = {
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      libraryID: 1,
+      workspaceLabel: "我的文库",
+      workspaceTitle: "我的文库",
+    };
+    controller.setDisplayState({
+      kind: "ready",
+      token: 1,
+      hostContext: { kind: "reader", itemID: 11 },
+      reader: createPDFReader(11, "tab-a"),
+      workspace: libraryWorkspace,
+      currentSource: paper,
+      conversation: {
+        metadata: {
+          ...libraryWorkspace,
+          id: "conv-library",
+          scope: "workspace" as const,
+          label: "New session",
+          createdAt: "2026-06-16T00:00:00.000Z",
+          updatedAt: "2026-06-16T00:01:00.000Z",
+        },
+        messages: [],
+      },
+    });
+
+    assert.equal(controller.viewState.context.label, "我的文库");
+    assert.equal(
+      controller.viewState.context.paperTitle,
+      "DeepSeekMath: Pushing the Limits of Mathematical Reasoning",
+    );
+    assert.equal(controller.viewState.context.paperKey, "1:AAA");
+  });
+
   it("switches from an item workspace to its containing collection", async function () {
     const win = new FakeWindow(1200);
     const controller = new (
@@ -140,8 +183,10 @@ describe("sidebar controller", function () {
     };
     controller.loadWorkspaceConversation = async (input: {
       workspace: typeof collectionWorkspace;
+      currentSource?: typeof paper;
     }) => {
       loadedWorkspaceKey = input.workspace.workspaceKey;
+      assert.deepEqual(input.currentSource, paper);
     };
     controller.setDisplayState({
       kind: "ready",

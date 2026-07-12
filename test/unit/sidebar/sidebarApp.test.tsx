@@ -391,12 +391,14 @@ describe("SidebarApp", function () {
 
     assert.include(html, 'class="zp-chat-log" data-empty="true"');
     assert.include(html, 'class="zp-empty-welcome"');
-    assert.include(html, "How should we approach this paper?");
+    assert.include(html, "我们应该阅读什么？");
     assert.include(html, "插入自定义 prompt");
-    assert.include(html, "添加 PDF 或图片附件");
-    assert.include(html, "使用 @ 在文库/分类中选择论文");
+    assert.include(html, "添加 PDF/图片 附件");
+    assert.include(html, "输入");
+    assert.include(html, "在子分类中选择论文");
     assert.include(html, 'data-icon-name="prompt"');
     assert.include(html, 'data-icon-name="paperclip"');
+    assert.include(html, 'data-icon-name="atSign"');
     assert.notInclude(html, "zp-message-assistant");
     assert.notInclude(html, 'data-icon-name="brand"');
   });
@@ -594,7 +596,7 @@ describe("SidebarApp", function () {
       html,
       `<span class="zp-workspace-trigger-text">${paperTitle}</span>`,
     );
-    assert.include(html, 'class="zp-workspace-trigger-count">1</span>');
+    assert.notInclude(html, "zp-workspace-trigger-count");
     assert.notInclude(html, "zp-workspace-trigger-label");
     assert.notInclude(html, "zp-workspace-type-badge");
     assert.notInclude(html, "zp-context-row");
@@ -984,7 +986,7 @@ function createActions(): SidebarActions {
     selectCollectionWorkspace: () => undefined,
     selectItemWorkspace: () => undefined,
     submitPrompt: () => undefined,
-    uploadAttachment: async () => undefined,
+    uploadAttachment: async () => [],
     restoreSession: () => undefined,
     switchSession: () => undefined,
     toggleArchivedSessions: () => undefined,
@@ -1053,7 +1055,17 @@ function installLocaleMock(): void {
       locale: {
         current: {
           formatMessagesSync(messages) {
-            return messages.map((message) => ({ value: message.id }));
+            const welcomeMessages: Record<string, string> = {
+              "zopilot-sidebar-welcome-message": "我们应该阅读什么？",
+              "zopilot-sidebar-welcome-use": "使用",
+              "zopilot-sidebar-welcome-prompt-hint": "插入自定义 prompt",
+              "zopilot-sidebar-welcome-attachment-hint": "添加 PDF/图片 附件",
+              "zopilot-sidebar-welcome-input": "输入",
+              "zopilot-sidebar-welcome-mention-hint": "在子分类中选择论文",
+            };
+            return messages.map((message) => ({
+              value: welcomeMessages[message.id] || message.id,
+            }));
           },
         },
       },

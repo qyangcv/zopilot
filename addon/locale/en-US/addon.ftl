@@ -50,7 +50,12 @@ sidebar-multiple-items-selected =
         [one] 1 item selected
        *[other] { $count } items selected
     }
-sidebar-welcome-message = How should we approach this workspace?
+sidebar-welcome-message = How should we approach this paper?
+sidebar-welcome-use = Use
+sidebar-welcome-prompt-hint = to insert a custom prompt
+sidebar-welcome-attachment-hint = to add PDF/image attachments
+sidebar-welcome-input = Type
+sidebar-welcome-mention-hint = to select papers in subcategories
 sidebar-loading-conversation = Loading the current workspace conversation...
 sidebar-unavailable-message = Select a library or regular category, or open a PDF reader tab.
 sidebar-backend-starting = Working...
@@ -102,7 +107,7 @@ sidebar-workspace-my-library = My Library
 sidebar-workspace-toggle-collections = Expand or collapse categories
 sidebar-workspace-expand-all = Expand all levels
 sidebar-workspace-collapse-all = Collapse all levels
-sidebar-mention-limit = Up to 5 sources per message
+sidebar-mention-limit = Up to 10 sources per message
 sidebar-paper-key = Paper key
 sidebar-parent-key = Parent item
 sidebar-attachment-key = Attachment

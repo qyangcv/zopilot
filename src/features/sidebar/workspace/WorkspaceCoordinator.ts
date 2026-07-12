@@ -47,6 +47,7 @@ type SidebarDisplayState =
       hostContext?: SidebarHostContext;
       reader?: _ZoteroTypes.ReaderInstance<"pdf">;
       workspace: WorkspaceIdentity;
+      currentSource?: PaperIdentity;
       conversation: Conversation;
     }
   | {
@@ -175,6 +176,7 @@ class WorkspaceCoordinator {
       hostContext: input.hostContext,
       reader: input.reader,
       workspace: input.workspace,
+      currentSource: input.currentSource || input.workspace.defaultSource,
       conversation,
     });
     this.options.updateViewState({ sourceCandidates: [] });
@@ -193,6 +195,7 @@ class WorkspaceCoordinator {
         hostContext: input.hostContext,
         reader: input.reader,
         workspace: snapshot.workspace,
+        currentSource: input.currentSource || input.workspace.defaultSource,
         conversation,
       });
       this.options.updateViewState({
@@ -217,7 +220,7 @@ class WorkspaceCoordinator {
       return;
     }
     const token = this.options.nextSelectionToken();
-    const currentSource = ready.workspace.defaultSource;
+    const currentSource = ready.currentSource || ready.workspace.defaultSource;
     let workspace: WorkspaceIdentity | null = null;
     if (type === "library") {
       workspace = await this.options
@@ -249,7 +252,7 @@ class WorkspaceCoordinator {
         hostContext: ready.hostContext,
         reader: ready.reader,
         workspace,
-        currentSource: type === "item" ? currentSource : undefined,
+        currentSource,
       });
     }
   }
@@ -276,6 +279,7 @@ class WorkspaceCoordinator {
         hostContext: ready.hostContext,
         reader: ready.reader,
         workspace,
+        currentSource: ready.currentSource || ready.workspace.defaultSource,
       });
     }
   }

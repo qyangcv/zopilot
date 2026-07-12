@@ -26,7 +26,7 @@ function projectSidebarState(
     const runningTrace = runningTurn
       ? projectAgentTurnTrace(runningTurn.traceState)
       : undefined;
-    const source = state.workspace.defaultSource;
+    const source = state.currentSource || state.workspace.defaultSource;
     const messages = createConversationMessages(
       state.conversation,
       runningTurn && runningTrace

@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  MAX_SOURCE_MENTIONS,
   findMentionQuery,
   matchMentionCandidates,
   moveMentionCandidateIndex,
@@ -8,6 +9,10 @@ import {
 import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
 
 describe("sidebar source mentions", function () {
+  it("allows up to ten selected sources per message", function () {
+    assert.equal(MAX_SOURCE_MENTIONS, 10);
+  });
+
   it("keeps spaces inside the active @ query", function () {
     const text = "compare @deep seek math with baseline";
     const query = findMentionQuery(text, "@deep seek math".length + 8);
