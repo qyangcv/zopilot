@@ -8,14 +8,14 @@ import { WorkspaceMenu } from "./workspace/WorkspaceMenu";
 
 function WorkspaceSelector({
   actions,
+  headerBoundaryRef,
   horizontalBoundaryRef,
   state,
-  verticalBoundaryRef,
 }: {
   actions: SidebarActions;
+  headerBoundaryRef?: RefObject<HTMLElement | null>;
   horizontalBoundaryRef?: RefObject<HTMLElement | null>;
   state: SidebarState;
-  verticalBoundaryRef?: RefObject<HTMLElement | null>;
 }): ReactElement {
   const model = useWorkspaceMenuState(actions, state);
   return (
@@ -51,7 +51,10 @@ function WorkspaceSelector({
           {model.workspaceLabel}
         </span>
         {model.workspaceItemCount === undefined ? null : (
-          <span className="zp-workspace-trigger-count">
+          <span
+            className="zp-workspace-trigger-count"
+            data-compact={model.workspaceItemCount >= 10 ? true : undefined}
+          >
             {String(model.workspaceItemCount)}
           </span>
         )}
@@ -62,10 +65,10 @@ function WorkspaceSelector({
         />
       </button>
       <WorkspaceMenu
+        headerBoundaryRef={headerBoundaryRef}
         horizontalBoundaryRef={horizontalBoundaryRef}
         model={model}
         state={state}
-        verticalBoundaryRef={verticalBoundaryRef}
       />
     </div>
   );

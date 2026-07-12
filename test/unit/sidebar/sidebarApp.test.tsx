@@ -623,7 +623,10 @@ describe("SidebarApp", function () {
 
     assert.include(html, "Reasoning");
     assert.include(html, 'class="zp-workspace-menu-trailing"');
-    assert.include(html, 'class="zp-workspace-menu-count">128</span>');
+    assert.include(
+      html,
+      'class="zp-workspace-menu-count" data-compact="true">128</span>',
+    );
     assert.include(html, 'data-icon-name="check"');
     assert.include(html, 'class="zp-workspace-menu-expander"');
     assert.notInclude(html, "zp-workspace-menu-meta");
@@ -663,13 +666,38 @@ describe("SidebarApp", function () {
       />,
     );
 
-    assert.include(menuRowHtml, 'class="zp-workspace-menu-count">1316</span>');
-    assert.include(
-      triggerHtml,
-      'class="zp-workspace-trigger-count">1316</span>',
-    );
+    assert.include(menuRowHtml, 'data-compact="true">1316</span>');
+    assert.include(triggerHtml, 'data-compact="true">1316</span>');
     assert.notInclude(menuRowHtml, "1,316");
     assert.notInclude(triggerHtml, "1,316");
+  });
+
+  it("uses compact spacing for counts with at least two digits", function () {
+    const twoDigitHtml = renderToStaticMarkup(
+      <WorkspaceMenuRow
+        active={false}
+        iconName="workspaceCollection"
+        itemCount={27}
+        label="Collection"
+        onKeyDown={() => undefined}
+        onMouseDown={() => undefined}
+        title="Collection"
+      />,
+    );
+    const oneDigitHtml = renderToStaticMarkup(
+      <WorkspaceMenuRow
+        active={false}
+        iconName="workspaceCollection"
+        itemCount={9}
+        label="Collection"
+        onKeyDown={() => undefined}
+        onMouseDown={() => undefined}
+        title="Collection"
+      />,
+    );
+
+    assert.include(twoDigitHtml, 'data-compact="true">27</span>');
+    assert.notInclude(oneDigitHtml, "data-compact");
   });
 
   it("renders compact paper mention candidates with FileText icons", function () {

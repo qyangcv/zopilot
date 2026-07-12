@@ -60,7 +60,12 @@ function WorkspaceMenuRow({
         <span className="zp-workspace-menu-check">
           {active ? <Icon name="check" size={13} /> : null}
         </span>
-        <span className="zp-workspace-menu-count">
+        <span
+          className="zp-workspace-menu-count"
+          data-compact={
+            (itemCount !== undefined && itemCount >= 10) || undefined
+          }
+        >
           {itemCount === undefined ? null : String(itemCount)}
         </span>
         <WorkspaceDisclosure

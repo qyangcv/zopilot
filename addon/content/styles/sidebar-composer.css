@@ -75,6 +75,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.zp-workspace-trigger-count[data-compact],
+.zp-workspace-menu-count[data-compact] {
+  letter-spacing: -0.06em;
+}
+
 .zp-workspace-trigger-chevron {
   color: var(--zp-muted);
   width: 11px;

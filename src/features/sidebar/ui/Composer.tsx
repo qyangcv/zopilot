@@ -10,12 +10,12 @@ import { WorkspaceSelector } from "./WorkspaceSelector";
 function Composer({
   actions,
   bindings,
-  sidebarBoundaryRef,
+  headerBoundaryRef,
   state,
 }: {
   actions: SidebarActions;
   bindings: ComposerBindings;
-  sidebarBoundaryRef: RefObject<HTMLElement | null>;
+  headerBoundaryRef: RefObject<HTMLElement | null>;
   state: SidebarState;
 }): ReactElement {
   return (
@@ -35,8 +35,8 @@ function Composer({
       <div className="zp-workspace-status-row">
         <WorkspaceSelector
           actions={actions}
+          headerBoundaryRef={headerBoundaryRef}
           horizontalBoundaryRef={bindings.bottomDockRef}
-          verticalBoundaryRef={sidebarBoundaryRef}
           state={state}
         />
       </div>

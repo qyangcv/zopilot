@@ -120,21 +120,16 @@ describe("floating popover positioning", function () {
     assert.equal(position.left, 100);
   });
 
-  it("limits a popup to the sidebar's vertical boundary", function () {
+  it("limits a popup to the bottom edge of the sidebar header", function () {
     const position = calculateFloatingPosition({
       anchorRect: rect({ bottom: 780, left: 100, right: 240, top: 758 }),
       preferredSide: "above",
       rootRect: rect({ bottom: 800, left: 0, right: 800, top: 0 }),
-      verticalBoundaryRect: rect({
-        bottom: 800,
-        left: 80,
-        right: 400,
-        top: 86,
-      }),
+      topBoundary: 98,
     });
 
     assert.equal(position.side, "above");
-    assert.equal(position.maxHeight, 658);
+    assert.equal(position.maxHeight, 646);
   });
 });
 
