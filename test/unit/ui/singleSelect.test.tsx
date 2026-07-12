@@ -7,6 +7,7 @@ import {
   findFirstEnabledIndex,
   findLastEnabledIndex,
   findNextEnabledIndex,
+  findResolvedSubOptionIndex,
   keepOptionVisible,
   type SingleSelectOption,
 } from "../../../src/ui/primitives/SingleSelect.tsx";
@@ -129,6 +130,42 @@ describe("SingleSelect", function () {
         ],
       }),
       { label: "Medium", value: "medium" },
+    );
+  });
+
+  it("highlights the same default effort that a model click selects", function () {
+    const luna: SingleSelectOption = {
+      label: "GPT-5.6-Luna",
+      value: "gpt-5.6-luna",
+      subDefaultValue: "medium",
+      subOptions: [
+        { label: "Low", value: "low" },
+        { label: "Medium", value: "medium" },
+        { label: "High", value: "high" },
+      ],
+    };
+
+    assert.equal(findResolvedSubOptionIndex(luna), 1);
+    assert.equal(
+      luna.subOptions?.[findResolvedSubOptionIndex(luna)]?.value,
+      findDefaultSubOption(luna)?.value,
+    );
+  });
+
+  it("prefers a saved effort over the model default when highlighting", function () {
+    assert.equal(
+      findResolvedSubOptionIndex({
+        label: "GPT",
+        value: "gpt",
+        subValue: "high",
+        subDefaultValue: "medium",
+        subOptions: [
+          { label: "Low", value: "low" },
+          { label: "Medium", value: "medium" },
+          { label: "High", value: "high" },
+        ],
+      }),
+      2,
     );
   });
 });

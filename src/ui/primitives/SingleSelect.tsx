@@ -173,13 +173,7 @@ function SingleSelect({
       setSubmenuParentIndex(-1);
       return;
     }
-    const selectedSubIndex = option.subOptions.findIndex(
-      (subOption) => subOption.value === option.subValue && !subOption.disabled,
-    );
-    const nextSubIndex =
-      selectedSubIndex >= 0
-        ? selectedSubIndex
-        : findFirstEnabledIndex(option.subOptions);
+    const nextSubIndex = findResolvedSubOptionIndex(option);
     setSubmenuParentIndex(index);
     setSubActiveIndex(nextSubIndex);
     if (focus) {
@@ -478,6 +472,16 @@ function findDefaultSubOption(
   );
 }
 
+function findResolvedSubOptionIndex(option: SingleSelectOption): number {
+  if (!option.subOptions?.length) return -1;
+  const selectedIndex = option.subOptions.findIndex(
+    (subOption) => subOption.value === option.subValue && !subOption.disabled,
+  );
+  if (selectedIndex >= 0) return selectedIndex;
+  const defaultSubOption = findDefaultSubOption(option);
+  return defaultSubOption ? option.subOptions.indexOf(defaultSubOption) : -1;
+}
+
 function calculateSubmenuStyle(
   listboxRect: Pick<DOMRect, "bottom" | "left" | "right" | "top">,
   optionRect: Pick<DOMRect, "bottom" | "top">,
@@ -543,5 +547,6 @@ export {
   findFirstEnabledIndex,
   findLastEnabledIndex,
   findNextEnabledIndex,
+  findResolvedSubOptionIndex,
   keepOptionVisible,
 };
