@@ -194,6 +194,9 @@ function createAttachment(patch: Partial<MockItem> & { id: number }): MockItem {
   return createItem({
     isAttachment: () => true,
     isPDFAttachment: () => true,
+    getFilePathAsync: patch.filePath
+      ? async () => patch.filePath
+      : patch.getFilePathAsync,
     ...patch,
   });
 }

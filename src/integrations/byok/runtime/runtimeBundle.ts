@@ -1,4 +1,5 @@
 import { config } from "../../../../package.json";
+import { geckoIO, geckoPath } from "../../../platform/gecko";
 
 const RUNTIME_FILE_NAME = "byok-runtime.cjs";
 
@@ -8,23 +9,19 @@ type AddonInstanceWithRoot = {
 };
 
 async function ensureRuntimeFile(): Promise<string> {
-  const runtimeDir = PathUtils.join(
-    (Zotero as typeof Zotero & { Profile: { dir: string } }).Profile.dir,
-    "zopilot",
-    "runtime",
-  );
-  await IOUtils.makeDirectory(runtimeDir, {
+  const runtimeDir = geckoPath.join(geckoPath.profileDir, "zopilot", "runtime");
+  await geckoIO.makeDirectory(runtimeDir, {
     createAncestors: true,
     ignoreExisting: true,
   });
-  const runtimePath = PathUtils.join(runtimeDir, RUNTIME_FILE_NAME);
+  const runtimePath = geckoPath.join(runtimeDir, RUNTIME_FILE_NAME);
   const response = await fetch(
     getAddonRootURI() + `content/scripts/${RUNTIME_FILE_NAME}`,
   );
   if (!response.ok) {
     throw new Error(`Unable to load BYOK runtime bundle: ${response.status}`);
   }
-  await IOUtils.writeUTF8(runtimePath, await response.text(), { flush: true });
+  await geckoIO.writeUTF8(runtimePath, await response.text(), { flush: true });
   return runtimePath;
 }
 

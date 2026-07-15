@@ -6,6 +6,7 @@ import {
   makeParentDirectory,
   normalizeZipEntryPath,
 } from "./paths";
+import { geckoIO, getGeckoComponents } from "../../platform/gecko";
 
 export { extractAndInstallZip };
 
@@ -54,11 +55,11 @@ async function extractAndInstallZip(
   installDir: string,
   artifact: PdfHelperArtifact,
 ): Promise<void> {
-  await IOUtils.remove(tempDir, {
+  await geckoIO.remove(tempDir, {
     recursive: true,
     ignoreAbsent: true,
   });
-  await IOUtils.makeDirectory(tempDir, {
+  await geckoIO.makeDirectory(tempDir, {
     createAncestors: true,
     ignoreExisting: true,
   });
@@ -81,7 +82,7 @@ async function extractAndInstallZip(
     getTopLevelRelativePath(artifact.entrypoint),
   );
   const tempExecutable = joinRelativePath(tempDir, artifact.entrypoint);
-  if (!(await IOUtils.exists(tempExecutable).catch(() => false))) {
+  if (!(await geckoIO.exists(tempExecutable).catch(() => false))) {
     throw new Error("PDF helper extraction did not produce an executable.");
   }
   await replaceInstalledParserDir(extractedInstallDir, installDir);
@@ -103,7 +104,7 @@ async function extractZipArchive(
       const relativePath = normalizeZipEntryPath(entryName);
       const outputPath = joinRelativePath(outputDir, relativePath);
       if (isZipDirectory(reader, entryName, relativePath)) {
-        await IOUtils.makeDirectory(outputPath, {
+        await geckoIO.makeDirectory(outputPath, {
           createAncestors: true,
           ignoreExisting: true,
         });
@@ -127,23 +128,23 @@ async function replaceInstalledParserDir(
   extractedInstallDir: string,
   installDir: string,
 ): Promise<void> {
-  await IOUtils.remove(installDir, {
+  await geckoIO.remove(installDir, {
     recursive: true,
     ignoreAbsent: true,
   });
   try {
-    await IOUtils.move(extractedInstallDir, installDir);
+    await geckoIO.move(extractedInstallDir, installDir);
   } catch (firstMoveError) {
     logger.warn("pdf helper install move fallback", {
       error: String(firstMoveError),
       extractedInstallDir,
       installDir,
     });
-    await IOUtils.remove(installDir, {
+    await geckoIO.remove(installDir, {
       recursive: true,
       ignoreAbsent: true,
     });
-    await IOUtils.move(extractedInstallDir, installDir);
+    await geckoIO.move(extractedInstallDir, installDir);
   }
 }
 
@@ -176,11 +177,7 @@ function createLocalFile(path: string): NativeLocalFile {
 }
 
 function getNativeZipComponents(): NativeZipComponents {
-  const components = (
-    globalThis as typeof globalThis & {
-      Components?: NativeZipComponents;
-    }
-  ).Components;
+  const components = getGeckoComponents() as unknown as NativeZipComponents;
   if (!components?.classes || !components.interfaces) {
     throw new Error(
       "Native ZIP APIs are not available in this Zotero runtime.",

@@ -4,12 +4,11 @@ import { ContextPaneDeckAdapter } from "./ContextPaneAdapter";
 import { STYLE_URI } from "./constants";
 import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
 import { LibraryItemPaneAdapter } from "./LibraryItemPaneAdapter";
-import { LegacyReaderToolbarCleanup } from "./LegacyReaderToolbarCleanup";
+import type { HostMutationTargets } from "./HostMutationCoordinator";
 
 const logger = createLogger("sidebar.surface");
 
 type SidebarSurfaceOptions = {
-  pluginID: string;
   isDestroyed: () => boolean;
   isOpen: () => boolean;
   onActiveSurfaceChange: (kind: SidebarSurfaceKind, active: boolean) => void;
@@ -26,9 +25,8 @@ class SidebarSurface {
   private readonly libraryAdapter: LibraryItemPaneAdapter;
   private deckHost?: ZopilotDeckHost;
   private deckHostCreation?: Promise<void>;
-  private deckPanel?: HTMLElement;
+  private deckPanel?: Element;
   private activeKind?: SidebarSurfaceKind;
-  private readonly toolbarCleanup: LegacyReaderToolbarCleanup;
 
   constructor(
     private readonly win: Window,
@@ -43,13 +41,37 @@ class SidebarSurface {
       onActivate: () => this.requestActivation("library"),
       onDeactivate: () => this.requestDeactivation("library"),
     });
-    this.toolbarCleanup = new LegacyReaderToolbarCleanup({
-      pluginID: options.pluginID,
-    });
   }
 
-  get panel(): HTMLElement | undefined {
+  get panel(): Element | undefined {
     return this.deckPanel;
+  }
+
+  getHostMutationTargets(): HostMutationTargets {
+    const byID = (id: string) => this.doc.getElementById(id);
+    const childList = [
+      byID("zotero-pane"),
+      byID("zotero-context-pane"),
+      byID("zotero-context-pane-inner"),
+      byID("zotero-context-pane-deck"),
+      byID("zotero-context-pane-sidenav"),
+      byID("zotero-item-pane"),
+      byID("zotero-item-pane-content"),
+      byID("zotero-view-item-sidenav"),
+    ].filter((element): element is Element => Boolean(element));
+    const attributes: HostMutationTargets["attributes"] = [];
+    const contextPane = byID("zotero-context-pane");
+    if (contextPane) {
+      attributes.push({ element: contextPane, names: ["collapsed"] });
+    }
+    const itemPane = byID("zotero-item-pane");
+    if (itemPane) {
+      attributes.push({
+        element: itemPane,
+        names: ["collapsed", "view-type"],
+      });
+    }
+    return { attributes, childList };
   }
 
   isActive(kind: SidebarSurfaceKind): boolean {
@@ -67,19 +89,20 @@ class SidebarSurface {
 
   mount(): void {
     this.injectStylesheet();
-    this.toolbarCleanup.mount();
     this.deckAdapter.mount();
     this.libraryAdapter.mount();
     this.ensureMounted();
   }
 
-  destroy(): void {
+  destroy(options: { restoreHost?: boolean } = { restoreHost: true }): void {
     this.deckHost?.destroy();
     this.deckHost = undefined;
-    this.deckAdapter.destroy();
-    this.libraryAdapter.destroy();
+    this.deckPanel = undefined;
+    this.activeKind = undefined;
+    this.deckAdapter.destroy(Boolean(options.restoreHost));
+    this.libraryAdapter.destroy(Boolean(options.restoreHost));
     this.styleNode?.remove();
-    this.toolbarCleanup.destroy();
+    this.styleNode = undefined;
   }
 
   ensureMounted(): void {
@@ -96,12 +119,16 @@ class SidebarSurface {
         this.attachLibrary();
       }
     }
-    this.toolbarCleanup.refresh();
   }
 
-  attach(reader?: _ZoteroTypes.ReaderInstance): void {
+  attach(_reader?: _ZoteroTypes.ReaderInstance): void {
     this.libraryAdapter.deactivate();
-    this.ensureNativeContextPaneVisible(reader);
+    if (!this.deckAdapter.ensureVisible()) {
+      logger.warn("failed to open Zotero context pane compatibility host");
+      this.deckAdapter.restoreHostState();
+      this.options.onUnavailable();
+      return;
+    }
     this.deckAdapter.select("zopilot");
     const panel = this.deckAdapter.ensurePanel();
     if (!panel) {
@@ -142,16 +169,20 @@ class SidebarSurface {
 
   close(restoreItemPane = false): void {
     if (restoreItemPane) {
-      this.deckAdapter.select("item");
+      this.deckAdapter.restoreNativePanel();
       this.libraryAdapter.selectNative();
     }
     this.activeKind = undefined;
     this.deckPanel = undefined;
-    this.toolbarCleanup.refresh();
+    if (restoreItemPane) {
+      this.deckAdapter.restoreHostState();
+      this.libraryAdapter.restoreHostState();
+    }
   }
 
   refreshToolbar(): void {
-    this.toolbarCleanup.refresh();
+    // Kept as a stable controller hook; legacy Reader toolbar integration was
+    // removed because there is no remaining registration source.
   }
 
   render(state: SidebarState, actions: SidebarActions): void {
@@ -159,7 +190,12 @@ class SidebarSurface {
   }
 
   private injectStylesheet(): void {
-    if (hasStylesheet(this.doc, STYLE_URI)) return;
+    const existing = findStylesheets(this.doc, STYLE_URI);
+    existing.slice(1).forEach((node) => node.remove());
+    if (existing[0]) {
+      this.styleNode = existing[0];
+      return;
+    }
     this.styleNode = this.doc.createProcessingInstruction(
       "xml-stylesheet",
       `href="${STYLE_URI}" type="text/css"`,
@@ -167,16 +203,15 @@ class SidebarSurface {
     this.doc.insertBefore(this.styleNode, this.doc.documentElement);
   }
 
-  private activatePanel(kind: SidebarSurfaceKind, panel: HTMLElement): void {
+  private activatePanel(kind: SidebarSurfaceKind, panel: Element): void {
     this.activeKind = kind;
     this.deckPanel = panel;
     this.ensureDeckHost(panel);
   }
 
-  private ensureDeckHost(panel: HTMLElement): void {
+  private ensureDeckHost(panel: Element): void {
     if (this.deckHost) {
-      this.deckHost.attach(panel);
-      this.options.onReady();
+      if (this.deckHost.attach(panel)) this.options.onReady();
       return;
     }
     this.deckHostCreation ??= this.createDeckHost(panel).finally(() => {
@@ -184,7 +219,7 @@ class SidebarSurface {
     });
   }
 
-  private async createDeckHost(panel: HTMLElement): Promise<void> {
+  private async createDeckHost(panel: Element): Promise<void> {
     try {
       if (this.options.isDestroyed() || this.deckPanel !== panel) return;
       const deckHost = await createZopilotDeckHost(panel);
@@ -215,33 +250,13 @@ class SidebarSurface {
     this.deckPanel = undefined;
     this.options.onActiveSurfaceChange(kind, false);
   }
-
-  private ensureNativeContextPaneVisible(
-    reader?: _ZoteroTypes.ReaderInstance,
-  ): void {
-    if (isElementVisible(this.doc.getElementById("zotero-context-pane")))
-      return;
-    const readerWin = reader?._iframeWindow;
-    const toggle = readerWin?.document?.querySelector(
-      ".toolbar .end .context-pane-toggle",
-    );
-    if (readerWin && toggle instanceof readerWin.HTMLElement) {
-      (toggle as HTMLElement).click();
-    }
-  }
 }
 
-function hasStylesheet(doc: Document, uri: string): boolean {
-  return Array.from(doc.childNodes).some(
-    (node) => node?.nodeType === 7 && node.nodeValue?.includes(uri),
+function findStylesheets(doc: Document, uri: string): ProcessingInstruction[] {
+  return Array.from(doc.childNodes).filter(
+    (node): node is ProcessingInstruction =>
+      node?.nodeType === 7 && Boolean(node.nodeValue?.includes(uri)),
   );
-}
-
-function isElementVisible(element: Element | null): boolean {
-  if (!element || typeof element.getBoundingClientRect !== "function")
-    return false;
-  const rect = element.getBoundingClientRect();
-  return rect.width > 8 && rect.height > 8;
 }
 
 export { SidebarSurface };

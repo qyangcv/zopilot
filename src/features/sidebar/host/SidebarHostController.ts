@@ -1,4 +1,3 @@
-import { config } from "../../../../package.json";
 import type {
   Conversation,
   PaperIdentity,
@@ -51,12 +50,15 @@ function registerSidebar(win: _ZoteroTypes.MainWindow): void {
   controller.mount();
 }
 
-function unregisterSidebar(win: Window): void {
+function unregisterSidebar(
+  win: Window,
+  options: { restoreHost?: boolean } = { restoreHost: true },
+): void {
   const controller = controllers.get(win);
   if (!controller) {
     return;
   }
-  controller.destroy();
+  controller.destroy(options);
   controllers.delete(win);
 }
 
@@ -84,6 +86,8 @@ class SidebarHostController {
   private readonly hostBindings: SidebarHostBindings;
   private readonly contextActions: SidebarContextActions;
   private readonly listeners: Array<() => void> = [];
+  private readonly pendingFrames = new Set<number>();
+  private readonly pendingTimeouts = new Set<number>();
   private readonly pdfHelperGuard: PdfHelperPromptGuard;
 
   constructor(win: Window) {
@@ -93,7 +97,6 @@ class SidebarHostController {
       (win as Window & { Zotero?: typeof Zotero }).Zotero || Zotero,
     );
     this.surface = new SidebarSurface(win, {
-      pluginID: config.addonID,
       isDestroyed: () => this.destroyed,
       isOpen: () => this.open,
       onActiveSurfaceChange: (kind, active) =>
@@ -210,9 +213,8 @@ class SidebarHostController {
       },
       isOpen: () => this.open,
       isDestroyed: () => this.destroyed,
-      areSessionsOpen: () => this.viewState.sessionsOpen,
       getDeckPanel: () => this.surface.panel,
-      hideSessions: () => this.sessions.hidePopover(),
+      getHostMutationTargets: () => this.surface.getHostMutationTargets(),
       subscribePrompts: subscribePromptViews,
       updatePrompts: (prompts) => this.updateViewState({ prompts }),
       subscribeProviders: () => this.providerCatalog.subscribe(),
@@ -225,10 +227,14 @@ class SidebarHostController {
     this.refreshContext();
   }
 
-  destroy(): void {
+  destroy(options: { restoreHost?: boolean } = { restoreHost: true }): void {
     this.destroyed = true;
+    this.pendingFrames.forEach((frame) => this.win.cancelAnimationFrame(frame));
+    this.pendingFrames.clear();
+    this.pendingTimeouts.forEach((timeout) => this.win.clearTimeout(timeout));
+    this.pendingTimeouts.clear();
     this.listeners.splice(0).forEach((dispose) => dispose());
-    this.surface.destroy();
+    this.surface.destroy(options);
   }
 
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
@@ -248,11 +254,7 @@ class SidebarHostController {
   }
 
   private queueBackendStatusCheck(): void {
-    this.win.setTimeout(() => {
-      if (!this.destroyed) {
-        void this.providerCatalog.refresh();
-      }
-    }, 0);
+    this.scheduleTimeout(() => void this.providerCatalog.refresh());
   }
 
   private async loadWorkspaceConversation(input: {
@@ -366,7 +368,7 @@ class SidebarHostController {
     }
     this.surface.refreshToolbar();
     this.renderDisplayState();
-    this.win.requestAnimationFrame(() => {
+    this.scheduleFrame(() => {
       this.win.dispatchEvent(new this.win.Event("resize"));
     });
 
@@ -386,15 +388,37 @@ class SidebarHostController {
     this.updateViewState({ busy: false, composerEnabled: false });
     this.surface.close(Boolean(options.restoreItemPane));
     this.renderDisplayState();
-    this.win.requestAnimationFrame(() => {
+    this.scheduleFrame(() => {
       this.win.dispatchEvent(new this.win.Event("resize"));
     });
   }
 
   private focusComposer(): void {
-    this.win.requestAnimationFrame(() => {
+    this.scheduleFrame(() => {
       this.updateViewState({ focusToken: this.viewState.focusToken + 1 });
     });
+  }
+
+  private scheduleFrame(callback: () => void): void {
+    if (this.destroyed) return;
+    let completedSynchronously = false;
+    let frame = 0;
+    frame = this.win.requestAnimationFrame(() => {
+      completedSynchronously = true;
+      this.pendingFrames.delete(frame);
+      if (!this.destroyed) callback();
+    });
+    if (!completedSynchronously) this.pendingFrames.add(frame);
+  }
+
+  private scheduleTimeout(callback: () => void): void {
+    if (this.destroyed) return;
+    let timeout = 0;
+    timeout = this.win.setTimeout(() => {
+      this.pendingTimeouts.delete(timeout);
+      if (!this.destroyed) callback();
+    }, 0);
+    this.pendingTimeouts.add(timeout);
   }
 
   private handleActiveSurfaceChange(

@@ -28,8 +28,9 @@
     "build:pdf-helper:macos-x64": "python3 scripts/build-pdf-helper.py --platform macos-x64",
     "build:pdf-helper:windows-x64": "python scripts/build-pdf-helper.py --platform windows-x64",
     "build:pdf-helper:manifest": "python3 scripts/merge-pdf-helper-manifest.py",
+    "check:api": "node scripts/check-api-boundaries.mjs",
     "release:pdf-helper": "gh workflow run pdf-helper.yml --ref dist",
-    "lint:check": "prettier --check . && eslint .",
+    "lint:check": "prettier --check . && eslint . && npm run check:api",
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
@@ -53,8 +54,7 @@
     "react-dom": "^19.2.7",
     "sanitize-html": "^2.17.5",
     "shiki": "^4.2.0",
-    "zod": "^4.4.3",
-    "zotero-plugin-toolkit": "^5.1.0-beta.13"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
@@ -70,8 +70,8 @@
     "mocha": "^11.7.5",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
-    "zotero-plugin-scaffold": "^0.8.2",
-    "zotero-types": "^4.1.0-beta.4"
+    "zotero-plugin-scaffold": "0.8.7",
+    "zotero-types": "4.1.2"
   },
   "prettier": {
     "printWidth": 80,

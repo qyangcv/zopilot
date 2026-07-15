@@ -21,6 +21,8 @@ class ContextPaneDeckAdapter {
   private panel?: Element;
   private sidenav?: ContextPaneSidenavAdapter;
   private unavailable?: ContextPaneUnavailableResult;
+  private previousPanel?: Element;
+  private hostState?: ContextPaneHostState;
 
   constructor(
     private readonly win: Window,
@@ -52,24 +54,64 @@ class ContextPaneDeckAdapter {
     return this.unavailable;
   }
 
-  getPanel(): HTMLElement | undefined {
-    return this.panel instanceof this.win.HTMLElement
-      ? (this.panel as HTMLElement)
+  ensureVisible(): boolean {
+    const probe = this.mount();
+    if (!probe.available) return false;
+    if (isElementVisible(probe.contextPane)) return true;
+    const contextPane = (
+      this.win as Window & {
+        ZoteroContextPane?: { collapsed?: boolean };
+      }
+    ).ZoteroContextPane;
+    if (!contextPane || typeof contextPane.collapsed !== "boolean") {
+      return false;
+    }
+    if (!this.hostState) {
+      this.hostState = {
+        contextPane,
+        collapsed: contextPane.collapsed,
+      };
+    }
+    try {
+      contextPane.collapsed = false;
+      return contextPane.collapsed === false;
+    } catch {
+      this.restoreHostState();
+      return false;
+    }
+  }
+
+  restoreHostState(): void {
+    const state = this.hostState;
+    if (!state) return;
+    if (state.contextPane.collapsed === false) {
+      state.contextPane.collapsed = state.collapsed;
+    }
+    this.hostState = undefined;
+  }
+
+  getPanel(): Element | undefined {
+    return this.panel?.ownerDocument === this.win.document &&
+      this.panel.isConnected
+      ? this.panel
       : undefined;
   }
 
-  ensurePanel(): HTMLElement | undefined {
+  ensurePanel(): Element | undefined {
     const probe = this.mount();
     if (!probe.available) return undefined;
-    const existing = this.win.document.getElementById(CONTEXT_PANE_DECK_ID);
+    const matches = Array.prototype.slice.call(
+      this.win.document.querySelectorAll(`#${CONTEXT_PANE_DECK_ID}`),
+    ) as Element[];
+    const existing = matches.find(
+      (element) => element.parentElement === probe.deck,
+    );
+    matches.forEach((element) => {
+      if (element !== existing) element.remove();
+    });
     if (existing) {
-      if (existing.parentElement !== probe.deck) {
-        existing.remove();
-        this.panel = undefined;
-      } else {
-        this.panel = existing;
-        return existing as HTMLElement;
-      }
+      this.panel = existing;
+      return existing;
     }
     const panel = this.createPanel();
     probe.deck.append(panel);
@@ -87,6 +129,10 @@ class ContextPaneDeckAdapter {
           ? probe.notesDeck
           : probe.itemDeck;
     if (!panel) return false;
+    if (state === "zopilot") {
+      const selected = getSelectedPanel(probe);
+      if (selected && selected !== panel) this.previousPanel = selected;
+    }
     this.selectPanel(probe, panel);
     this.sidenav?.setActive(state === "zopilot");
     return true;
@@ -97,17 +143,23 @@ class ContextPaneDeckAdapter {
   }
 
   focusPanel(): void {
-    this.getPanel()?.focus();
+    (
+      this.getPanel() as (Element & { focus?: () => void }) | undefined
+    )?.focus?.();
   }
 
-  destroy(): void {
+  destroy(restoreHost = true): void {
+    if (restoreHost) {
+      this.restoreNativePanel();
+      this.restoreHostState();
+    }
     this.sidenav?.destroy();
     this.sidenav = undefined;
     this.panel?.remove();
     this.panel = undefined;
   }
 
-  private createPanel(): HTMLElement {
+  private createPanel(): Element {
     const doc = this.win.document;
     const createXULElement = (
       doc as Document & { createXULElement?: (tagName: string) => Element }
@@ -116,7 +168,7 @@ class ContextPaneDeckAdapter {
       createXULElement
         ? createXULElement.call(doc, "vbox")
         : doc.createElementNS("http://www.w3.org/1999/xhtml", "section")
-    ) as HTMLElement | XUL.Box;
+    ) as Element;
     panel.id = CONTEXT_PANE_DECK_ID;
     panel.className = "zp-context-pane-deck";
     panel.setAttribute("data-pane", ZOPILOT_CONTEXT_PANE);
@@ -124,11 +176,14 @@ class ContextPaneDeckAdapter {
     panel.setAttribute("tabindex", "-1");
     panel.setAttribute("flex", "1");
     panel.setAttribute("aria-label", getString("sidebar-title"));
-    (panel as HTMLElement).style.flex = "1 1 auto";
-    (panel as HTMLElement).style.minHeight = "0";
-    (panel as HTMLElement).style.height = "100%";
-    (panel as HTMLElement).style.overflow = "hidden";
-    return panel as HTMLElement;
+    const style = (panel as Element & { style?: CSSStyleDeclaration }).style;
+    if (style) {
+      style.flex = "1 1 auto";
+      style.minHeight = "0";
+      style.height = "100%";
+      style.overflow = "hidden";
+    }
+    return panel;
   }
 
   private selectPanel(probe: ContextPaneProbeSuccess, panel: Element): void {
@@ -139,6 +194,37 @@ class ContextPaneDeckAdapter {
     const index = Array.prototype.indexOf.call(probe.deck.children, panel);
     if (index >= 0) probe.deck.selectedIndex = index;
   }
+
+  restoreNativePanel(): void {
+    const probe = probeContextPane(this.win.document);
+    if (!probe.available || !this.panel) return;
+    if (getSelectedPanel(probe) !== this.panel) return;
+    const nativePanel =
+      this.previousPanel?.parentElement === probe.deck
+        ? this.previousPanel
+        : probe.itemDeck;
+    this.selectPanel(probe, nativePanel);
+    this.sidenav?.setActive(false);
+  }
+}
+
+type ContextPaneHostState = {
+  contextPane: { collapsed?: boolean };
+  collapsed: boolean;
+};
+
+function isElementVisible(element: Element): boolean {
+  if (typeof element.getBoundingClientRect !== "function") return false;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 8 && rect.height > 8;
+}
+
+function getSelectedPanel(probe: ContextPaneProbeSuccess): Element | null {
+  if (probe.selectionMode === "selectedPanel") {
+    return (probe.deck.selectedPanel as Element | null | undefined) || null;
+  }
+  const index = Number(probe.deck.selectedIndex || 0);
+  return probe.deck.children.item(index);
 }
 
 export { ContextPaneDeckAdapter, ContextPaneSidenavAdapter, probeContextPane };

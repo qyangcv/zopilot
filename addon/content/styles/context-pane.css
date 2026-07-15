@@ -1,7 +1,8 @@
 /* Context pane host */
 
 #zopilot-context-pane-deck,
-#zopilot-library-item-pane-deck {
+#zopilot-library-item-pane-deck,
+#zopilot-portal-root {
   --zp-composer-height: 112px;
   --zp-header-height: 39px;
   --zp-app-bg: color-mix(in srgb, Field 74%, Canvas 26%);
@@ -26,6 +27,10 @@
   --zp-accent: var(--accent-blue, AccentColor);
   --zp-danger: #c9342f;
   --zp-accent-text: AccentColorText;
+}
+
+#zopilot-context-pane-deck,
+#zopilot-library-item-pane-deck {
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

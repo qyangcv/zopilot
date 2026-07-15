@@ -10,7 +10,6 @@ type MockReader = {
   itemID?: number;
   tabID: string;
   type: "pdf" | "epub" | "snapshot";
-  _initPromise?: Promise<void>;
 };
 
 type MockWindow = Window & {
@@ -57,44 +56,41 @@ describe("Zotero reader helpers", function () {
     assert.isTrue(isPDFReader(PDF_READER as _ZoteroTypes.ReaderInstance));
   });
 
-  it("falls back to the reader list when getByTabID is unavailable", function () {
+  it("does not use the private reader list when getByTabID is unavailable", function () {
     installZoteroMock([PDF_READER], { getByTabID: false });
 
     const win = createWindow("reader", "pdf-tab");
 
-    assert.strictEqual(getSelectedPDFReader(win), PDF_READER);
+    assert.isUndefined(getSelectedPDFReader(win));
   });
 
   it("waits briefly for the selected PDF reader to appear", async function () {
     const readers: MockReader[] = [];
-    installZoteroMock(readers);
+    const runtime = installZoteroMock(readers);
     const win = createWindow("reader", "pdf-tab");
 
-    setTimeout(() => readers.push(PDF_READER), 10);
+    setTimeout(() => {
+      readers.push(PDF_READER);
+      runtime.notify("load");
+    }, 10);
 
     assert.strictEqual(
-      await getSelectedPDFReaderAsync(win, { timeoutMs: 100, intervalMs: 5 }),
+      await getSelectedPDFReaderAsync(win, { timeoutMs: 100 }),
       PDF_READER,
     );
   });
 
   it("does not return a reader when the selected tab changes while waiting", async function () {
-    let releaseInit: () => void = () => undefined;
-    const slowReader = {
-      ...createReader("pdf-tab", "pdf"),
-      _initPromise: new Promise<void>((resolve) => {
-        releaseInit = resolve;
-      }),
-    };
-    installZoteroMock([slowReader]);
+    const readers: MockReader[] = [];
+    const runtime = installZoteroMock(readers);
     const win = createWindow("reader", "pdf-tab");
     const promise = getSelectedPDFReaderAsync(win, {
       timeoutMs: 30,
-      intervalMs: 5,
     });
 
     win.Zotero_Tabs!.selectedID = "other-tab";
-    releaseInit();
+    readers.push(PDF_READER);
+    runtime.notify("select");
 
     assert.isUndefined(await promise);
   });
@@ -104,7 +100,7 @@ describe("Zotero reader helpers", function () {
     const win = createWindow("reader", "epub-tab");
 
     assert.isUndefined(
-      await getSelectedPDFReaderAsync(win, { timeoutMs: 100, intervalMs: 5 }),
+      await getSelectedPDFReaderAsync(win, { timeoutMs: 100 }),
     );
   });
 });
@@ -112,7 +108,7 @@ describe("Zotero reader helpers", function () {
 function installZoteroMock(
   readers: MockReader[],
   options: { getByTabID?: boolean } = {},
-): void {
+): { notify(event: string): void } {
   const readerByTabID = new Map(
     readers.map((reader) => [reader.tabID, reader]),
   );
@@ -128,8 +124,24 @@ function installZoteroMock(
       readers.find((reader) => reader.tabID === tabID);
   }
 
+  let observer: { notify: _ZoteroTypes.Notifier.Notify } | undefined;
+
   (globalThis as unknown as { Zotero: unknown }).Zotero = {
     Reader: readerAPI,
+    Notifier: {
+      registerObserver(next: { notify: _ZoteroTypes.Notifier.Notify }) {
+        observer = next;
+        return "reader-observer";
+      },
+      unregisterObserver() {
+        observer = undefined;
+      },
+    },
+  };
+  return {
+    notify(event) {
+      observer?.notify(event as never, "tab", ["pdf-tab"], {});
+    },
   };
 }
 
@@ -147,5 +159,7 @@ function createWindow(selectedType: string, selectedID: string): MockWindow {
       selectedID,
       selectedType,
     },
+    setTimeout,
+    clearTimeout,
   } as MockWindow;
 }

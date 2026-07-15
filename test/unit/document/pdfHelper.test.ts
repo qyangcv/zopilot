@@ -445,12 +445,8 @@ function installRuntimeMocks({
           XPCOMABI: string;
         };
       };
-      Zotero: {
-        Profile: {
-          dir: string;
-        };
-      };
       PathUtils: {
+        profileDir: string;
         join(...parts: string[]): string;
       };
       IOUtils: {
@@ -468,24 +464,13 @@ function installRuntimeMocks({
   };
   (
     globalThis as typeof globalThis & {
-      Zotero: {
-        Profile: {
-          dir: string;
-        };
-      };
-    }
-  ).Zotero = {
-    Profile: {
-      dir: "/profile",
-    },
-  };
-  (
-    globalThis as typeof globalThis & {
       PathUtils: {
+        profileDir: string;
         join(...parts: string[]): string;
       };
     }
   ).PathUtils = {
+    profileDir: "/profile",
     join(...parts) {
       if (
         joinRejectsSlashSegments &&

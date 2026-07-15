@@ -1,7 +1,4 @@
-import { delay } from "../../runtime/async/delay";
-
 export {
-  getOpenReaders,
   getSelectedPDFReader,
   getSelectedPDFReaderAsync,
   getSelectedReader,
@@ -10,10 +7,6 @@ export {
 
 type ReaderWindow = Window & {
   Zotero_Tabs?: _ZoteroTypes.Zotero_Tabs;
-};
-
-type ReaderRegistry = typeof Zotero.Reader & {
-  _readers?: _ZoteroTypes.ReaderInstance[];
 };
 
 function getSelectedPDFReader(
@@ -25,37 +18,59 @@ function getSelectedPDFReader(
 
 async function getSelectedPDFReaderAsync(
   win: Window,
-  options: { timeoutMs?: number; intervalMs?: number } = {},
+  options: { timeoutMs?: number } = {},
 ): Promise<_ZoteroTypes.ReaderInstance<"pdf"> | undefined> {
   const timeoutMs = options.timeoutMs ?? 500;
-  const intervalMs = options.intervalMs ?? 50;
-  const startedAt = Date.now();
+  const tabs = (win as ReaderWindow).Zotero_Tabs;
+  const tabID = tabs?.selectedID;
+  if (!tabID || tabs.selectedType !== "reader") return undefined;
+  const immediate = getReaderByTabID(tabID);
+  if (immediate) return isPDFReader(immediate) ? immediate : undefined;
 
-  while (Date.now() - startedAt <= timeoutMs) {
-    const tabs = (win as ReaderWindow).Zotero_Tabs;
-    const tabID = tabs?.selectedID;
-    if (!tabID || tabs?.selectedType !== "reader") {
-      return undefined;
-    }
-
-    const reader = getReaderByTabID(tabID);
-    if (isPDFReader(reader)) {
-      await reader._initPromise?.catch(() => undefined);
-      const currentTabs = (win as ReaderWindow).Zotero_Tabs;
-      if (
-        currentTabs?.selectedType === "reader" &&
-        currentTabs.selectedID === tabID
-      ) {
-        return reader;
+  return new Promise((resolve) => {
+    let settled = false;
+    const resources: { observerID?: string; timeout?: number } = {};
+    const finish = (reader?: _ZoteroTypes.ReaderInstance<"pdf">) => {
+      if (settled) return;
+      settled = true;
+      if (resources.timeout !== undefined) {
+        win.clearTimeout(resources.timeout);
       }
-    } else if (reader) {
-      return undefined;
-    }
-
-    await delay(intervalMs);
-  }
-
-  return getSelectedPDFReader(win);
+      if (resources.observerID !== undefined) {
+        Zotero.Notifier.unregisterObserver(resources.observerID);
+      }
+      resolve(reader);
+    };
+    resources.observerID = Zotero.Notifier.registerObserver(
+      {
+        notify(event, type) {
+          if (
+            type !== "tab" ||
+            (event !== "select" &&
+              (event as string) !== "load" &&
+              (event as string) !== "close")
+          ) {
+            return;
+          }
+          const currentTabs = (win as ReaderWindow).Zotero_Tabs;
+          if (
+            currentTabs?.selectedType !== "reader" ||
+            currentTabs.selectedID !== tabID ||
+            (event as string) === "close"
+          ) {
+            finish();
+            return;
+          }
+          const reader = getReaderByTabID(tabID);
+          if (reader) finish(isPDFReader(reader) ? reader : undefined);
+        },
+      },
+      ["tab"],
+      "zopilot-reader-ready",
+      100,
+    );
+    resources.timeout = win.setTimeout(() => finish(), timeoutMs);
+  });
 }
 
 function getSelectedReader(
@@ -70,10 +85,6 @@ function getSelectedReader(
   return getReaderByTabID(tabID);
 }
 
-function getOpenReaders(): _ZoteroTypes.ReaderInstance[] {
-  return (Zotero.Reader as ReaderRegistry)._readers || [];
-}
-
 function isPDFReader(
   reader?: _ZoteroTypes.ReaderInstance,
 ): reader is _ZoteroTypes.ReaderInstance<"pdf"> {
@@ -84,11 +95,5 @@ function getReaderByTabID(
   tabID: string,
 ): _ZoteroTypes.ReaderInstance | undefined {
   const reader = Zotero.Reader.getByTabID?.(tabID);
-  if (reader?.itemID) {
-    return reader;
-  }
-
-  return getOpenReaders().find((candidate) => {
-    return candidate.tabID === tabID && candidate.itemID;
-  });
+  return reader?.itemID ? reader : undefined;
 }

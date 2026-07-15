@@ -1,6 +1,7 @@
 import { createPaperReadTool } from "./tools/paperRead";
 import { createLogger } from "../../runtime/logging/logger";
 import { createMcpHttpHandler } from "./httpHandler";
+import { ZoteroServerEndpointRegistry } from "../zotero/compat/serverEndpointRegistry";
 export { createMcpHttpHandler } from "./httpHandler";
 
 export { MCP_ENDPOINT_PATH, shutdownMcpHttpServer, startMcpHttpServer };
@@ -10,23 +11,52 @@ const DEFAULT_ZOTERO_HTTP_PORT = 23119;
 const SERVER_NAME = "zopilot";
 
 type McpHttpServerInfo = {
+  status: "ready";
   name: string;
   url: string;
   token: string;
 };
 
+type McpHttpServerDisabled = {
+  status: "disabled";
+  diagnostic: {
+    code: string;
+    message: string;
+  };
+};
+
+type McpHttpServerResult = McpHttpServerInfo | McpHttpServerDisabled;
+
 let serverInfo: McpHttpServerInfo | undefined;
-let endpointRegistered = false;
+let disabledResult: McpHttpServerDisabled | undefined;
+const endpointRegistry = new ZoteroServerEndpointRegistry();
 const mcpLogger = createLogger("mcp.http");
 
-async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
-  if (serverInfo && endpointRegistered) {
+async function startMcpHttpServer(): Promise<McpHttpServerResult> {
+  if (serverInfo) {
     return serverInfo;
   }
+  if (disabledResult) return disabledResult;
 
-  const token = createSessionToken();
+  let token: string;
+  try {
+    token = createSessionToken();
+  } catch (error) {
+    return disableMcp("crypto_unavailable", error);
+  }
+  try {
+    return initializeMcpHttpServer(token);
+  } catch (error) {
+    endpointRegistry.unregister();
+    serverInfo = undefined;
+    return disableMcp("startup_failed", error);
+  }
+}
+
+function initializeMcpHttpServer(token: string): McpHttpServerResult {
   const port = getZoteroHttpPort();
   const info: McpHttpServerInfo = {
+    status: "ready",
     name: SERVER_NAME,
     url: `http://127.0.0.1:${port}${MCP_ENDPOINT_PATH}`,
     token,
@@ -60,25 +90,27 @@ async function startMcpHttpServer(): Promise<McpHttpServerInfo> {
     init = endpointHandler;
   }
 
-  Zotero.Server.Endpoints[MCP_ENDPOINT_PATH] = ZopilotMcpEndpoint;
+  const registration = endpointRegistry.register(
+    MCP_ENDPOINT_PATH,
+    ZopilotMcpEndpoint,
+  );
+  if (!registration.ok) {
+    return disableMcp(registration.code, registration.message);
+  }
   serverInfo = info;
-  endpointRegistered = true;
 
   mcpLogger.info("mcp.http.start", {
     url: info.url,
     path: MCP_ENDPOINT_PATH,
     port,
-    endpoint: "Zotero.Server.Endpoints",
+    endpoint: "zotero-compat-registry",
   });
 
   return info;
 }
 
 function shutdownMcpHttpServer(): void {
-  if (endpointRegistered) {
-    delete Zotero.Server.Endpoints[MCP_ENDPOINT_PATH];
-    endpointRegistered = false;
-  }
+  endpointRegistry.unregister();
   if (serverInfo) {
     mcpLogger.info("mcp.http.stop", {
       url: serverInfo.url,
@@ -86,6 +118,20 @@ function shutdownMcpHttpServer(): void {
     });
   }
   serverInfo = undefined;
+  disabledResult = undefined;
+}
+
+function disableMcp(code: string, error: unknown): McpHttpServerDisabled {
+  const result: McpHttpServerDisabled = {
+    status: "disabled",
+    diagnostic: {
+      code,
+      message: error instanceof Error ? error.message : String(error),
+    },
+  };
+  disabledResult = result;
+  mcpLogger.warn("mcp.http.disabled", result.diagnostic);
+  return result;
 }
 
 function getZoteroHttpPort(): number {

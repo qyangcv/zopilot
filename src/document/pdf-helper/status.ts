@@ -7,8 +7,8 @@ import {
 } from "./constants";
 import { compareVersions, parseHelperInstallDirVersion } from "./paths";
 import type { PdfHelperStatus } from "./types";
+import { geckoIO, geckoPath } from "../../platform/gecko";
 
-type ZoteroWithProfile = typeof Zotero & { Profile: { readonly dir: string } };
 type PdfHelperInstallCandidate = { path: string; version?: string };
 
 async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
@@ -74,7 +74,7 @@ async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
 function getInstalledPdfHelperExecutablePath(
   platform = detectPdfHelperPlatform(),
 ): string {
-  return PathUtils.join(
+  return geckoPath.join(
     getInstalledPdfHelperDir(platform),
     "bin",
     PDF_HELPER_PACKAGE_NAME,
@@ -85,15 +85,15 @@ function getInstalledPdfHelperExecutablePath(
 }
 
 function getInstalledPdfHelperDir(platform: PdfHelperPlatform): string {
-  return PathUtils.join(
+  return geckoPath.join(
     getPdfHelperRuntimeDir(),
     `${PDF_HELPER_PACKAGE_NAME}-${platform}-v${PDF_HELPER_VERSION}`,
   );
 }
 
 function getPdfHelperRuntimeDir(): string {
-  return PathUtils.join(
-    (Zotero as ZoteroWithProfile).Profile.dir,
+  return geckoPath.join(
+    geckoPath.profileDir,
     "zopilot",
     "runtime",
     "pdf-helper",
@@ -104,17 +104,17 @@ async function isInstalledPdfHelperReady(
   executable: string,
   platform: PdfHelperPlatform,
 ): Promise<boolean> {
-  if (!(await IOUtils.exists(executable).catch(() => false))) return false;
-  const versionPath = PathUtils.join(
+  if (!(await geckoIO.exists(executable).catch(() => false))) return false;
+  const versionPath = geckoPath.join(
     getInstalledPdfHelperDir(platform),
     "VERSION",
   );
-  const version = await IOUtils.readUTF8(versionPath).catch(() => "");
+  const version = await geckoIO.readUTF8(versionPath).catch(() => "");
   return version.trim() === PDF_HELPER_VERSION;
 }
 
 async function removePdfHelperRuntimeDir(): Promise<void> {
-  await IOUtils.remove(getPdfHelperRuntimeDir(), {
+  await geckoIO.remove(getPdfHelperRuntimeDir(), {
     recursive: true,
     ignoreAbsent: true,
   });
@@ -125,7 +125,7 @@ async function getPdfHelperInstallCandidates(): Promise<
 > {
   let children: string[];
   try {
-    children = await IOUtils.getChildren(getPdfHelperRuntimeDir());
+    children = await geckoIO.getChildren(getPdfHelperRuntimeDir());
   } catch {
     return [];
   }
@@ -144,8 +144,8 @@ async function summarizeInstallCandidates(
   const preferred =
     sorted.find((item) => item.version === PDF_HELPER_VERSION) || sorted[0];
   if (!preferred?.version) return { state: "unknown" };
-  const versionPath = PathUtils.join(preferred.path, "VERSION");
-  const version = (await IOUtils.readUTF8(versionPath).catch(() => ""))
+  const versionPath = geckoPath.join(preferred.path, "VERSION");
+  const version = (await geckoIO.readUTF8(versionPath).catch(() => ""))
     .trim()
     .replace(/^v/u, "");
   const resolvedVersion = version || preferred.version;

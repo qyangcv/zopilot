@@ -43,22 +43,34 @@ class ProviderProfileRepository {
     setPref(CODEX_STATUS_PREF, JSON.stringify(toStoredCodexStatus(profile)));
   }
 
-  observe(listener: () => void): void {
+  observe(listener: () => void): () => void {
     const prefs = Zotero.Prefs as typeof Zotero.Prefs & {
       registerObserver?: (
         key: string,
         callback: () => void,
-        weak?: boolean,
-      ) => unknown;
+        global?: boolean,
+      ) => symbol;
+      unregisterObserver?: (observer: symbol) => void;
     };
+    const observers: symbol[] = [];
     for (const key of [
       PROVIDERS_PREF,
       ACTIVE_PROVIDER_PREF,
       CODEX_STATUS_PREF,
       SECRETS_PREF,
     ]) {
-      prefs.registerObserver?.(`${config.prefsPrefix}.${key}`, listener);
+      const observer = prefs.registerObserver?.(
+        `${config.prefsPrefix}.${key}`,
+        listener,
+        true,
+      );
+      if (observer) observers.push(observer);
     }
+    return () => {
+      observers
+        .splice(0)
+        .forEach((observer) => prefs.unregisterObserver?.(observer));
+    };
   }
 }
 

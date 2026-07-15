@@ -116,9 +116,37 @@ describe("ProviderProfileStore", function () {
     );
     assert.equal(store.getProfile(profile.id)?.apiKey, "secret-a");
   });
+
+  it("uses global pref branches, coalesces writes, and unregisters the final subscription", async function () {
+    const prefs = installZoteroPrefsMock();
+    const store = new ProviderProfileStore();
+    let notifications = 0;
+    const unsubscribe = store.subscribe(() => notifications++);
+
+    store.updateCodexProvider({
+      status: "connected",
+      models: [{ id: "gpt-test", displayName: "GPT Test" }],
+    });
+    await Promise.resolve();
+
+    assert.equal(notifications, 2);
+    assert.lengthOf(prefs.registrations, 4);
+    assert.isTrue(prefs.registrations.every((item) => item.global === true));
+    assert.isTrue(
+      prefs.registrations.every((item) =>
+        item.key.startsWith("extensions.zotero.zopilot."),
+      ),
+    );
+
+    unsubscribe();
+    assert.lengthOf(prefs.unregistered, 4);
+  });
 });
 
-function installZoteroPrefsMock(): void {
+function installZoteroPrefsMock(): {
+  registrations: Array<{ key: string; global: boolean; token: symbol }>;
+  unregistered: symbol[];
+} {
   const values = new Map<string, unknown>([
     ["extensions.zotero.zopilot.codex.model", "gpt-5.5"],
     ["extensions.zotero.zopilot.agent.activeProviderId", "codex-cli.default"],
@@ -126,13 +154,25 @@ function installZoteroPrefsMock(): void {
     ["extensions.zotero.zopilot.agent.providerProfiles", "[]"],
     ["extensions.zotero.zopilot.agent.providerSecrets", "{}"],
   ]);
+  const registrations: Array<{
+    key: string;
+    global: boolean;
+    token: symbol;
+    callback: () => void;
+  }> = [];
+  const unregistered: symbol[] = [];
   (
     globalThis as typeof globalThis & {
       Zotero: {
         Prefs: {
           get: (key: string) => unknown;
           set: (key: string, value: unknown) => void;
-          registerObserver: (key: string, callback: () => void) => void;
+          registerObserver: (
+            key: string,
+            callback: () => void,
+            global?: boolean,
+          ) => symbol;
+          unregisterObserver: (token: symbol) => void;
         };
       };
     }
@@ -143,10 +183,19 @@ function installZoteroPrefsMock(): void {
       },
       set(key, value) {
         values.set(key, value);
+        registrations
+          .filter((registration) => registration.key === key)
+          .forEach((registration) => registration.callback());
       },
-      registerObserver() {
-        return undefined;
+      registerObserver(key, callback, global = false) {
+        const token = Symbol(key);
+        registrations.push({ key, callback, global, token });
+        return token;
+      },
+      unregisterObserver(token) {
+        unregistered.push(token);
       },
     },
   };
+  return { registrations, unregistered };
 }

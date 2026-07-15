@@ -1,5 +1,4 @@
 import type { Root } from "react-dom/client";
-import { installChromeWindowGlobals } from "../sidebar/host/chromeGlobals";
 import { l10nAttributes } from "./localization";
 import type { PreferencesAppProps } from "./ui/PreferencesApp";
 
@@ -15,15 +14,17 @@ type PreferencePaneDependencies = {
     callback: () => void,
     delayMs: number,
   ): ReturnType<typeof setTimeout>;
+  cancelSchedule?(handle: ReturnType<typeof setTimeout>): void;
   renderApp?: PreferencePaneRenderApp;
 };
 
-type PreferencePaneRenderApp = (
-  root: HTMLElement,
-  props: PreferencesAppProps,
-) => void;
+type PreferencePaneRenderApp = {
+  (root: HTMLElement, props: PreferencesAppProps): void;
+  destroy?: () => void;
+};
 
 type PreferencePaneDocument = {
+  defaultView?: Window | null;
   getElementById(id: string): HTMLElement | null;
   l10n?: {
     translateElements?(elements: Element[]): Promise<unknown>;
@@ -36,15 +37,36 @@ const ROOT_ID = "zopilot-preferences-root";
 function initPreferencesPane(dependencies = getGlobalDependencies()): void {
   let initAttempts = 0;
   let initialized = false;
+  let destroyed = false;
+  let pendingInit: ReturnType<typeof setTimeout> | undefined;
+  let activeRenderer: PreferencePaneRenderApp | undefined;
+
+  const onPageHide = () => {
+    destroyed = true;
+    if (pendingInit !== undefined) {
+      dependencies.cancelSchedule?.(pendingInit);
+      pendingInit = undefined;
+    }
+    activeRenderer?.destroy?.();
+    dependencies.document.defaultView?.removeEventListener(
+      "pagehide",
+      onPageHide,
+    );
+  };
+  dependencies.document.defaultView?.addEventListener("pagehide", onPageHide, {
+    once: true,
+  });
 
   scheduleInit();
 
   function scheduleInit(): void {
-    dependencies.schedule(initWhenReady, 0);
+    if (destroyed) return;
+    pendingInit = dependencies.schedule(initWhenReady, 0);
   }
 
   function initWhenReady(): void {
-    if (initialized) {
+    pendingInit = undefined;
+    if (initialized || destroyed) {
       return;
     }
 
@@ -61,6 +83,7 @@ function initPreferencesPane(dependencies = getGlobalDependencies()): void {
     const translate = () => translatePreferenceElements(root, dependencies);
     const render =
       dependencies.renderApp || mountReactPreferencesApp(dependencies);
+    activeRenderer = render;
     render(root, {
       translate,
     });
@@ -72,10 +95,10 @@ function mountReactPreferencesApp(
 ): PreferencePaneRenderApp {
   let reactRoot: Root | undefined;
   let portalRoot: HTMLElement | undefined;
-  return (root, props) => {
+  let destroyed = false;
+  const render: PreferencePaneRenderApp = (root, props) => {
     void (async () => {
       try {
-        installChromeWindowGlobals(root);
         const [
           { createElement },
           { createRoot },
@@ -87,7 +110,7 @@ function mountReactPreferencesApp(
           import("./ui/PreferencesApp"),
           import("../../ui/primitives/index"),
         ]);
-        installChromeWindowGlobals(root);
+        if (destroyed) return;
         if (!reactRoot) {
           const targets = createPreferenceMountTargets(root);
           const mountNode = targets.mountNode;
@@ -101,10 +124,19 @@ function mountReactPreferencesApp(
           }),
         );
       } catch (error) {
-        renderMountError(root, error, dependencies);
+        if (!destroyed) renderMountError(root, error, dependencies);
       }
     })();
   };
+  render.destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    reactRoot?.unmount();
+    reactRoot = undefined;
+    portalRoot?.remove();
+    portalRoot = undefined;
+  };
+  return render;
 }
 
 function createPreferenceMountTargets(root: HTMLElement): {
@@ -175,6 +207,9 @@ function getGlobalDependencies(): PreferencePaneDependencies {
     document,
     schedule(callback, delayMs) {
       return setTimeout(callback, delayMs);
+    },
+    cancelSchedule(handle) {
+      clearTimeout(handle);
     },
   };
 }

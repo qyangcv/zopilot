@@ -407,7 +407,7 @@ describe("ConversationStore", function () {
     );
   });
 
-  it("uses Zotero.Profile.dir for the default conversation root", async function () {
+  it("uses PathUtils.profileDir for the default conversation root", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const workspace = createItemWorkspaceIdentity(paper);
     const profileDir = join(rootDir, "profile");
@@ -530,10 +530,12 @@ function installZoteroProfileMock(
   profileDir: string,
   getProfileDirectory: () => never,
 ): void {
+  (
+    globalThis as typeof globalThis & {
+      PathUtils: typeof PathUtils & { profileDir: string };
+    }
+  ).PathUtils.profileDir = profileDir;
   (globalThis as unknown as { Zotero: unknown }).Zotero = {
-    Profile: {
-      dir: profileDir,
-    },
     getProfileDirectory,
   };
 }

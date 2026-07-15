@@ -16,12 +16,10 @@ type LibraryItemPaneAdapterOptions = {
 
 class LibraryItemPaneAdapter {
   private active = false;
-  private panel?: HTMLElement;
+  private panel?: Element;
   private button?: HTMLButtonElement;
   private previousPanel?: Element;
-  private observer?: MutationObserver;
-  private itemPaneObserver?: MutationObserver;
-  private observedItemPane?: Element;
+  private nativeState?: LibraryNativeState;
   private listeningDeck?: Element;
   private listeningSidenav?: Element;
   private unavailable?: LibraryItemPaneUnavailableResult;
@@ -61,11 +59,7 @@ class LibraryItemPaneAdapter {
     if (!probe.available || !this.panel) return;
     const selected = getSelectedPanel(probe);
     if (selected && selected !== this.panel) this.previousPanel = selected;
-    if (selected !== this.panel) {
-      this.win.setTimeout(() => {
-        if (this.active && this.panel) selectPanel(probe, this.panel);
-      }, 0);
-    }
+    if (selected !== this.panel) selectPanel(probe, this.panel);
   };
 
   constructor(
@@ -80,20 +74,6 @@ class LibraryItemPaneAdapter {
       return probe;
     }
     this.reconcile(probe);
-    if (!this.observer) {
-      const observer = new this.win.MutationObserver(() => {
-        const latest = probeLibraryItemPane(this.win.document);
-        if (latest.available) {
-          this.reconcile(latest);
-          this.ensureActiveSelection();
-        }
-      });
-      observer.observe(this.win.document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
-      this.observer = observer;
-    }
     this.unavailable = undefined;
     return probe;
   }
@@ -102,22 +82,28 @@ class LibraryItemPaneAdapter {
     return this.unavailable;
   }
 
-  getPanel(): HTMLElement | undefined {
-    return this.panel;
+  getPanel(): Element | undefined {
+    return this.panel?.ownerDocument === this.win.document &&
+      this.panel.isConnected
+      ? this.panel
+      : undefined;
   }
 
-  ensurePanel(): HTMLElement | undefined {
+  ensurePanel(): Element | undefined {
     const probe = this.mount();
     if (!probe.available) return undefined;
-    const existing = this.win.document.getElementById(LIBRARY_PANEL_ID);
+    const matches = Array.prototype.slice.call(
+      this.win.document.querySelectorAll(`#${LIBRARY_PANEL_ID}`),
+    ) as Element[];
+    const existing = matches.find(
+      (element) => element.parentElement === probe.deck,
+    );
+    matches.forEach((element) => {
+      if (element !== existing) element.remove();
+    });
     if (existing) {
-      if (existing.parentElement !== probe.deck) {
-        existing.remove();
-        this.panel = undefined;
-      } else {
-        this.panel = existing as HTMLElement;
-        return this.panel;
-      }
+      this.panel = existing;
+      return this.panel;
     }
     const panel = createPanel(this.win.document);
     probe.deck.append(panel);
@@ -132,6 +118,7 @@ class LibraryItemPaneAdapter {
     if (!panel) return false;
     const selected = getSelectedPanel(probe);
     if (selected && selected !== panel) this.previousPanel = selected;
+    this.captureNativeState(probe);
     probe.itemPane.collapsed = false;
     probe.itemPane.setAttribute("collapsed", "false");
     selectPanel(probe, panel);
@@ -143,7 +130,6 @@ class LibraryItemPaneAdapter {
     const probe = this.mount();
     if (!probe.available) return false;
     this.setActive(false);
-    probe.itemPane.render?.();
     const selected = getSelectedPanel(probe);
     if (selected && selected !== this.panel) this.previousPanel = selected;
     const panel =
@@ -151,6 +137,7 @@ class LibraryItemPaneAdapter {
         ? this.previousPanel
         : probe.deck.firstElementChild;
     if (panel) selectPanel(probe, panel);
+    this.restoreNativeState(probe);
     return Boolean(panel);
   }
 
@@ -167,12 +154,18 @@ class LibraryItemPaneAdapter {
     this.setActive(false);
   }
 
-  destroy(): void {
-    this.observer?.disconnect();
-    this.observer = undefined;
-    this.itemPaneObserver?.disconnect();
-    this.itemPaneObserver = undefined;
-    this.observedItemPane = undefined;
+  destroy(restoreHost = true): void {
+    const probe = probeLibraryItemPane(this.win.document);
+    if (restoreHost && probe.available) {
+      if (this.panel && getSelectedPanel(probe) === this.panel) {
+        const panel =
+          this.previousPanel?.parentElement === probe.deck
+            ? this.previousPanel
+            : probe.deck.firstElementChild;
+        if (panel) selectPanel(probe, panel);
+      }
+      this.restoreNativeState(probe);
+    }
     this.detachDeckListener();
     this.detachSidenavListener();
     this.button?.removeEventListener("click", this.onButtonClick);
@@ -183,10 +176,14 @@ class LibraryItemPaneAdapter {
     this.panel = undefined;
   }
 
+  restoreHostState(): void {
+    const probe = probeLibraryItemPane(this.win.document);
+    if (probe.available) this.restoreNativeState(probe);
+  }
+
   private reconcile(probe: LibraryItemPaneProbeSuccess): void {
     this.attachDeckListener(probe.deck);
     this.attachSidenavListener(probe.sidenav);
-    this.observeItemPane(probe.itemPane);
     const duplicates = probe.sidenav.querySelectorAll(
       `.zp-library-sidenav-button[data-pane="${LIBRARY_PANE_NAME}"]`,
     );
@@ -200,21 +197,6 @@ class LibraryItemPaneAdapter {
       probe.sidenav.append(this.button);
     }
     this.syncButton();
-  }
-
-  private observeItemPane(itemPane: Element): void {
-    if (this.observedItemPane === itemPane) return;
-    this.itemPaneObserver?.disconnect();
-    const observer = new this.win.MutationObserver(() => {
-      if (!this.active) return;
-      this.win.setTimeout(() => this.ensureActiveSelection(), 0);
-    });
-    observer.observe(itemPane, {
-      attributes: true,
-      attributeFilter: ["view-type"],
-    });
-    this.itemPaneObserver = observer;
-    this.observedItemPane = itemPane;
   }
 
   private attachDeckListener(deck: Element): void {
@@ -282,9 +264,40 @@ class LibraryItemPaneAdapter {
     this.button.setAttribute("aria-selected", String(this.active));
     this.button.setAttribute("aria-pressed", String(this.active));
   }
+
+  private captureNativeState(probe: LibraryItemPaneProbeSuccess): void {
+    if (this.nativeState?.itemPane === probe.itemPane) return;
+    this.nativeState = {
+      itemPane: probe.itemPane,
+      collapsedProperty: probe.itemPane.collapsed,
+      collapsedAttribute: probe.itemPane.getAttribute("collapsed"),
+    };
+  }
+
+  private restoreNativeState(probe: LibraryItemPaneProbeSuccess): void {
+    const state = this.nativeState;
+    if (!state || state.itemPane !== probe.itemPane) return;
+    if (probe.itemPane.collapsed === false) {
+      probe.itemPane.collapsed = state.collapsedProperty;
+    }
+    if (probe.itemPane.getAttribute("collapsed") === "false") {
+      if (state.collapsedAttribute === null) {
+        probe.itemPane.removeAttribute("collapsed");
+      } else {
+        probe.itemPane.setAttribute("collapsed", state.collapsedAttribute);
+      }
+    }
+    this.nativeState = undefined;
+  }
 }
 
-function createPanel(doc: Document): HTMLElement {
+type LibraryNativeState = {
+  itemPane: LibraryItemPaneProbeSuccess["itemPane"];
+  collapsedProperty: boolean | undefined;
+  collapsedAttribute: string | null;
+};
+
+function createPanel(doc: Document): Element {
   const createXULElement = (
     doc as Document & { createXULElement?: (tagName: string) => Element }
   ).createXULElement;
@@ -292,7 +305,7 @@ function createPanel(doc: Document): HTMLElement {
     createXULElement
       ? createXULElement.call(doc, "vbox")
       : doc.createElementNS("http://www.w3.org/1999/xhtml", "section")
-  ) as HTMLElement | XUL.Box;
+  ) as Element;
   panel.id = LIBRARY_PANEL_ID;
   panel.className = "zp-context-pane-deck";
   panel.setAttribute("data-pane", LIBRARY_PANE_NAME);
@@ -300,11 +313,14 @@ function createPanel(doc: Document): HTMLElement {
   panel.setAttribute("tabindex", "-1");
   panel.setAttribute("flex", "1");
   panel.setAttribute("aria-label", getString("sidebar-title"));
-  (panel as HTMLElement).style.flex = "1 1 auto";
-  (panel as HTMLElement).style.minHeight = "0";
-  (panel as HTMLElement).style.height = "100%";
-  (panel as HTMLElement).style.overflow = "hidden";
-  return panel as HTMLElement;
+  const style = (panel as Element & { style?: CSSStyleDeclaration }).style;
+  if (style) {
+    style.flex = "1 1 auto";
+    style.minHeight = "0";
+    style.height = "100%";
+    style.overflow = "hidden";
+  }
+  return panel;
 }
 
 function getSelectedPanel(probe: LibraryItemPaneProbeSuccess): Element | null {

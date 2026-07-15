@@ -1,5 +1,9 @@
 import { copyText } from "../ui/clipboard";
 import type { SidebarPromptView } from "../ui/types";
+import {
+  HostMutationCoordinator,
+  type HostMutationTargets,
+} from "./HostMutationCoordinator";
 
 type SidebarHostBindingsOptions = {
   doc: Document;
@@ -9,9 +13,8 @@ type SidebarHostBindingsOptions = {
   syncWithSelectedContext: () => void;
   isOpen: () => boolean;
   isDestroyed: () => boolean;
-  areSessionsOpen: () => boolean;
-  getDeckPanel: () => HTMLElement | undefined;
-  hideSessions: () => void;
+  getDeckPanel: () => Element | undefined;
+  getHostMutationTargets: () => HostMutationTargets;
   subscribePrompts: (
     listener: (prompts: SidebarPromptView[]) => void,
   ) => () => void;
@@ -20,9 +23,13 @@ type SidebarHostBindingsOptions = {
 };
 
 class SidebarHostBindings {
+  private treeDisposer?: () => void;
+  private copyDisposer?: () => void;
+
   constructor(private readonly options: SidebarHostBindingsOptions) {}
 
   bind(): Array<() => void> {
+    this.refreshDynamicBindings();
     return [
       ...this.bindContextRefresh(),
       ...this.bindLayoutRefresh(),
@@ -30,64 +37,67 @@ class SidebarHostBindings {
         if (!this.options.isDestroyed()) this.options.updatePrompts(prompts);
       }),
       this.options.subscribeProviders(),
-      this.bindSelectionCopy(),
-      this.bindSessionPopoverDismiss(),
+      () => this.disposeDynamicBindings(),
     ];
   }
 
   private bindContextRefresh(): Array<() => void> {
+    let frame: number | undefined;
     const refreshSoon = () => {
-      this.options.win.setTimeout(this.options.syncWithSelectedContext, 0);
+      if (frame !== undefined) return;
+      frame = this.options.win.requestAnimationFrame(() => {
+        frame = undefined;
+        if (!this.options.isDestroyed()) {
+          this.options.syncWithSelectedContext();
+        }
+      });
     };
-    const handleTreeInteraction = (event: Event) => {
-      const target = event.target as Element | null;
-      if (!target || typeof target.closest !== "function") return;
-      if (!target.closest("#zotero-collections-tree, #zotero-items-tree")) {
-        return;
-      }
-      refreshSoon();
-    };
-    this.options.doc.addEventListener("mousedown", handleTreeInteraction, true);
-    this.options.doc.addEventListener("keyup", handleTreeInteraction, true);
+    this.treeRefresh = refreshSoon;
+    this.refreshTreeBindings();
     return [
       () => {
-        this.options.doc.removeEventListener(
-          "mousedown",
-          handleTreeInteraction,
-          true,
-        );
-        this.options.doc.removeEventListener(
-          "keyup",
-          handleTreeInteraction,
-          true,
-        );
+        this.treeRefresh = undefined;
+        this.treeDisposer?.();
+        this.treeDisposer = undefined;
+        if (frame !== undefined) {
+          this.options.win.cancelAnimationFrame(frame);
+          frame = undefined;
+        }
       },
     ];
   }
 
   private bindLayoutRefresh(): Array<() => void> {
-    const refreshLayoutSoon = () => {
-      this.options.win.setTimeout(() => {
+    const coordinator = new HostMutationCoordinator(this.options.win, {
+      getTargets: this.options.getHostMutationTargets,
+      reconcile: () => {
         this.options.ensureMountedSurfaces();
+        this.refreshDynamicBindings();
         if (!this.options.isOpen()) this.options.refreshContext();
-      }, 0);
-    };
-    const reloadConversationSoon = () => {
-      this.options.win.setTimeout(this.options.syncWithSelectedContext, 0);
-    };
-    const observer = new this.options.win.MutationObserver(refreshLayoutSoon);
-    observer.observe(this.options.doc.documentElement, {
-      childList: true,
-      subtree: true,
+      },
     });
+    coordinator.mount();
+    let contextFrame: number | undefined;
+    const reloadConversationSoon = () => {
+      if (contextFrame !== undefined) return;
+      contextFrame = this.options.win.requestAnimationFrame(() => {
+        contextFrame = undefined;
+        if (!this.options.isDestroyed()) {
+          this.options.syncWithSelectedContext();
+        }
+      });
+    };
+    const scheduleLayout = () => coordinator.schedule();
     this.options.win.addEventListener("focus", reloadConversationSoon);
-    this.options.win.addEventListener("resize", refreshLayoutSoon);
+    this.options.win.addEventListener("resize", scheduleLayout);
     const tabObserverID = Zotero.Notifier.registerObserver(
       {
         notify: (event, type) => {
           if (
             type === "tab" &&
-            (event === "select" || (event as string) === "load")
+            (event === "select" ||
+              (event as string) === "load" ||
+              (event as string) === "close")
           ) {
             reloadConversationSoon();
           }
@@ -98,27 +108,59 @@ class SidebarHostBindings {
       100,
     );
     return [
-      () => observer.disconnect(),
+      () => coordinator.destroy(),
       () => {
         this.options.win.removeEventListener("focus", reloadConversationSoon);
-        this.options.win.removeEventListener("resize", refreshLayoutSoon);
+        this.options.win.removeEventListener("resize", scheduleLayout);
+        if (contextFrame !== undefined) {
+          this.options.win.cancelAnimationFrame(contextFrame);
+          contextFrame = undefined;
+        }
       },
       () => Zotero.Notifier.unregisterObserver(tabObserverID),
     ];
   }
 
-  private bindSessionPopoverDismiss(): () => void {
-    const dismiss = (event: Event) => {
-      if (!this.options.areSessionsOpen()) return;
-      const target = event.target as Node | null;
-      if (target && this.options.getDeckPanel()?.contains(target)) return;
-      this.options.hideSessions();
-    };
-    this.options.doc.addEventListener("click", dismiss);
-    return () => this.options.doc.removeEventListener("click", dismiss);
+  private treeRefresh?: () => void;
+
+  private refreshDynamicBindings(): void {
+    this.refreshTreeBindings();
+    this.refreshCopyBinding();
   }
 
-  private bindSelectionCopy(): () => void {
+  private disposeDynamicBindings(): void {
+    this.treeDisposer?.();
+    this.treeDisposer = undefined;
+    this.copyDisposer?.();
+    this.copyDisposer = undefined;
+  }
+
+  private refreshTreeBindings(): void {
+    const refresh = this.treeRefresh;
+    if (!refresh) return;
+    const trees = [
+      this.options.doc.getElementById("zotero-collections-tree"),
+      this.options.doc.getElementById("zotero-items-tree"),
+    ].filter((tree): tree is Element => Boolean(tree));
+    this.treeDisposer?.();
+    const handleTreeInteraction = () => refresh();
+    trees.forEach((tree) => {
+      tree.addEventListener("mousedown", handleTreeInteraction, true);
+      tree.addEventListener("keyup", handleTreeInteraction, true);
+    });
+    this.treeDisposer = () => {
+      trees.forEach((tree) => {
+        tree.removeEventListener("mousedown", handleTreeInteraction, true);
+        tree.removeEventListener("keyup", handleTreeInteraction, true);
+      });
+    };
+  }
+
+  private refreshCopyBinding(): void {
+    const panel = this.options.getDeckPanel();
+    this.copyDisposer?.();
+    this.copyDisposer = undefined;
+    if (!panel) return;
     const copySelection = (event: ClipboardEvent) => {
       const text = getSidebarSelectionText(
         this.options.win,
@@ -129,9 +171,9 @@ class SidebarHostBindings {
       event.preventDefault();
       void copyText(text, this.options.win);
     };
-    this.options.doc.addEventListener("copy", copySelection, true);
-    return () =>
-      this.options.doc.removeEventListener("copy", copySelection, true);
+    panel.addEventListener("copy", copySelection as EventListener, true);
+    this.copyDisposer = () =>
+      panel.removeEventListener("copy", copySelection as EventListener, true);
   }
 }
 

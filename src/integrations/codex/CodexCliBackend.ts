@@ -18,6 +18,7 @@ import {
   buildPromptWithLocalAttachments,
   buildPromptWithSourceRefs,
 } from "../../application/agent/prompt/contextAssembler";
+import { loadSubprocessModule } from "../../platform/gecko";
 
 export { CodexCliBackend };
 
@@ -130,10 +131,8 @@ class CodexCliBackend implements AgentBackend {
     if (this.diagnosticSubprocess) {
       return this.diagnosticSubprocess;
     }
-    const imported = ChromeUtils.importESModule(
-      "resource://gre/modules/Subprocess.sys.mjs",
-    ) as { Subprocess: CodexDiscoverySubprocessModule };
-    this.diagnosticSubprocess = imported.Subprocess;
+    this.diagnosticSubprocess =
+      loadSubprocessModule<CodexDiscoverySubprocessModule>();
     return this.diagnosticSubprocess;
   }
 }

@@ -10,6 +10,7 @@ import {
   getConversationWorkspaceDir,
 } from "./paths";
 import { isConversationMetadata, parseConversationMessage } from "./codec";
+import { geckoIO } from "../../../platform/gecko";
 
 const logger = createLogger("store.conversationRepository");
 
@@ -24,7 +25,7 @@ class ConversationRepository {
   ): Promise<ConversationMetadata[]> {
     const dir = getConversationWorkspaceDir(this.rootDir, workspaceKey);
     try {
-      if (!(await IOUtils.exists(dir))) {
+      if (!(await geckoIO.exists(dir))) {
         return [];
       }
     } catch (error) {
@@ -36,7 +37,7 @@ class ConversationRepository {
     }
     let children: string[];
     try {
-      children = await IOUtils.getChildren(dir);
+      children = await geckoIO.getChildren(dir);
     } catch (error) {
       logger.error("failed to list conversation directory", error, {
         workspaceKey,
@@ -58,7 +59,7 @@ class ConversationRepository {
     const path = getConversationMessagesPath(this.rootDir, metadata);
     let text: string;
     try {
-      text = await IOUtils.readUTF8(path);
+      text = await geckoIO.readUTF8(path);
     } catch (error) {
       logger.error("failed to read conversation messages", error, {
         conversationId: metadata.id,
@@ -102,7 +103,7 @@ class ConversationRepository {
   private async readMetadata(path: string): Promise<ConversationMetadata> {
     let raw: unknown;
     try {
-      raw = (await IOUtils.readJSON(path)) as unknown;
+      raw = (await geckoIO.readJSON(path)) as unknown;
     } catch (error) {
       logger.error("failed to read conversation metadata", error, { path });
       throw error;
@@ -118,7 +119,7 @@ class ConversationRepository {
   private async ensureWorkspaceDir(workspaceKey: string): Promise<void> {
     const dir = getConversationWorkspaceDir(this.rootDir, workspaceKey);
     try {
-      await IOUtils.makeDirectory(dir, {
+      await geckoIO.makeDirectory(dir, {
         createAncestors: true,
         ignoreExisting: true,
       });

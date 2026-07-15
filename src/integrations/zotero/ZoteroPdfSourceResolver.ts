@@ -3,6 +3,7 @@ import type { SourceIdentity } from "../../document/types";
 import type { PaperSourceRef } from "../../domain/conversation";
 import { createSourceId } from "../../domain/sourceIdentity";
 import { sha256Hex } from "../../runtime/crypto/sha256";
+import { geckoIO } from "../../platform/gecko";
 
 export { ZoteroPdfSourceResolver };
 export { createSourceId } from "../../domain/sourceIdentity";
@@ -111,8 +112,8 @@ async function readPdfFileMetadata(attachment: ZoteroPdfAttachment): Promise<{
   if (!filePath) {
     return null;
   }
-  const stat = await IOUtils.stat(filePath);
-  const bytes = await IOUtils.read(filePath);
+  const stat = await geckoIO.stat(filePath);
+  const bytes = await geckoIO.read(filePath);
   return {
     path: filePath,
     mtime: stat.lastModified || 0,
@@ -136,16 +137,8 @@ function resolveSourceTitle(
 async function resolveAttachmentFilePath(attachment: unknown): Promise<string> {
   const item = attachment as {
     getFilePathAsync?: () => Promise<string | false | null | undefined>;
-    getFilePath?: () => string | false | null | undefined;
-    filePath?: string;
   };
-  if (item.getFilePathAsync) {
-    const value = await item.getFilePathAsync();
-    return typeof value === "string" ? value : "";
-  }
-  if (item.getFilePath) {
-    const value = item.getFilePath();
-    return typeof value === "string" ? value : "";
-  }
-  return item.filePath || "";
+  if (!item.getFilePathAsync) return "";
+  const value = await item.getFilePathAsync();
+  return typeof value === "string" ? value : "";
 }

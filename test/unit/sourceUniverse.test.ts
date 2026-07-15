@@ -106,9 +106,18 @@ describe("ZoteroSourceUniverse", function () {
     );
   });
 
-  it("reads collection trees and collection items from Zotero DB", async function () {
+  it("reads nested collection trees from object APIs with recursive deduplication", async function () {
     const parentPaper = createRegularItem(1, "AAA", "Parent Paper", [11]);
     const childPaper = createRegularItem(2, "BBB", "Child Paper", [21]);
+    const parentCollection = createCollection(101, "COLL", "Collection", [
+      parentPaper,
+      childPaper,
+    ]);
+    const childCollection = createCollection(102, "CHILD", "Child", [
+      childPaper,
+    ]);
+    parentCollection.children.push(childCollection);
+    childCollection.parentID = parentCollection.id;
     installZoteroMock(
       [
         parentPaper,
@@ -116,29 +125,7 @@ describe("ZoteroSourceUniverse", function () {
         createAttachment(11, "PDF-A", true),
         createAttachment(21, "PDF-B", true),
       ],
-      [],
-      "Library 1",
-      {
-        collections: [
-          {
-            id: 101,
-            key: "COLL",
-            libraryID: 1,
-            name: "Collection",
-          },
-          {
-            id: 102,
-            key: "CHILD",
-            libraryID: 1,
-            name: "Child",
-            parentID: 101,
-          },
-        ],
-        collectionItems: new Map([
-          ["COLL", [1, 2]],
-          ["CHILD", [2]],
-        ]),
-      },
+      [parentCollection, childCollection],
     );
     const universe = new ZoteroSourceUniverse();
 
@@ -192,26 +179,12 @@ describe("ZoteroSourceUniverse", function () {
     );
   });
 
-  it("reads Zotero DB collection rows returned as tuples", async function () {
-    installZoteroMock([], [], "Library 1", {
-      collections: [
-        {
-          id: 101,
-          key: "COLL",
-          libraryID: 1,
-          name: "Collection",
-        },
-        {
-          id: 102,
-          key: "CHILD",
-          libraryID: 1,
-          name: "Child",
-          parentID: 101,
-        },
-      ],
-      collectionItems: new Map(),
-      tupleRows: true,
-    });
+  it("derives parent keys from object API collection relationships", async function () {
+    const parent = createCollection(101, "COLL", "Collection", []);
+    const child = createCollection(102, "CHILD", "Child", []);
+    parent.children.push(child);
+    child.parentID = parent.id;
+    installZoteroMock([], [parent, child]);
     const universe = new ZoteroSourceUniverse();
 
     const snapshot = await universe.getSnapshot({
@@ -325,17 +298,6 @@ function installZoteroMock(
   items: MockItem[],
   collections: MockCollection[],
   libraryName = "Library 1",
-  db?: {
-    collections: Array<{
-      id: number;
-      key: string;
-      libraryID: number;
-      name: string;
-      parentID?: number;
-    }>;
-    collectionItems: Map<string, number[]>;
-    tupleRows?: boolean;
-  },
 ): void {
   const itemById = new Map(items.map((item) => [item.id, item]));
   (globalThis as unknown as { Zotero: unknown }).Zotero = {
@@ -354,57 +316,5 @@ function installZoteroMock(
       get: (id: number) =>
         collections.find((collection) => collection.id === id),
     },
-    DB: db
-      ? {
-          queryAsync: async (
-            sql: string,
-            params: unknown[],
-            options?: { onRow?: (row: unknown) => void },
-          ) => {
-            if (sql.includes("collectionAncestry")) {
-              const rows = db.collections.map((collection) => ({
-                collectionID: collection.id,
-                itemCount: new Set(db.collectionItems.get(collection.key) || [])
-                  .size,
-              }));
-              if (options?.onRow) {
-                rows.forEach(options.onRow);
-                return undefined;
-              }
-              return rows;
-            }
-            if (sql.includes("WITH RECURSIVE")) {
-              const collectionKey = String(params[1]);
-              const rows = (db.collectionItems.get(collectionKey) || []).map(
-                (itemID) => ({ itemID }),
-              );
-              if (options?.onRow) {
-                rows.forEach(options.onRow);
-                return undefined;
-              }
-              return rows;
-            }
-            if (db.tupleRows) {
-              const rows = db.collections.map((collection) => [
-                collection.id,
-                collection.key,
-                collection.libraryID,
-                collection.name,
-                collection.parentID,
-              ]);
-              if (options?.onRow) {
-                rows.forEach(options.onRow);
-                return undefined;
-              }
-              return rows;
-            }
-            if (options?.onRow) {
-              db.collections.forEach(options.onRow);
-              return undefined;
-            }
-            return db.collections;
-          },
-        }
-      : undefined,
   };
 }

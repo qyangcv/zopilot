@@ -37,6 +37,7 @@ import {
   sanitizeProfileForRuntime,
   toError,
 } from "./messageParsing";
+import { loadSubprocessModule } from "../../platform/gecko";
 
 export { ByokRuntimeBridge, getByokRuntimeBridge, shutdownByokRuntimeBridge };
 
@@ -411,10 +412,7 @@ class ByokRuntimeBridge {
     if (this.subprocess) {
       return this.subprocess;
     }
-    const imported = ChromeUtils.importESModule(
-      "resource://gre/modules/Subprocess.sys.mjs",
-    ) as { Subprocess: ByokSubprocessModule };
-    this.subprocess = imported.Subprocess;
+    this.subprocess = loadSubprocessModule<ByokSubprocessModule>();
     return this.subprocess;
   }
 }

@@ -11,6 +11,7 @@ import type {
 import { ensurePdfHelperExecutable } from "../pdf-helper/index";
 import { createLogger } from "../../runtime/logging/logger";
 import { encodePathSegment } from "../../runtime/persistence/pathCodec";
+import { geckoIO, geckoPath, loadSubprocessModule } from "../../platform/gecko";
 
 export { MaterialRepository, MATERIAL_SCHEMA_VERSION, MATERIAL_PARSER_VERSION };
 
@@ -18,12 +19,6 @@ const MATERIAL_SCHEMA_VERSION = 1;
 const MATERIAL_PARSER_VERSION = "zopilot-pdf-helper-0.2.0";
 
 const logger = createLogger("document.materialCache");
-
-type ZoteroWithProfile = typeof Zotero & {
-  Profile: {
-    readonly dir: string;
-  };
-};
 
 type SubprocessModule = {
   call(options: {
@@ -59,8 +54,8 @@ class MaterialRepository {
   }
 
   private async build(source: SourceIdentity, dir: string): Promise<Material> {
-    await IOUtils.remove(dir, { recursive: true, ignoreAbsent: true });
-    await IOUtils.makeDirectory(PathUtils.join(dir, "assets"), {
+    await geckoIO.remove(dir, { recursive: true, ignoreAbsent: true });
+    await geckoIO.makeDirectory(geckoPath.join(dir, "assets"), {
       createAncestors: true,
       ignoreExisting: true,
     });
@@ -86,16 +81,16 @@ class MaterialRepository {
       throw error;
     }
 
-    const markdown = await IOUtils.readUTF8(PathUtils.join(dir, "paper.md"));
-    const text = await IOUtils.readUTF8(PathUtils.join(dir, "paper.txt"));
+    const markdown = await geckoIO.readUTF8(geckoPath.join(dir, "paper.md"));
+    const text = await geckoIO.readUTF8(geckoPath.join(dir, "paper.txt"));
     const pages = await this.readPages(dir);
     const { chunks, artifacts } = buildChunksAndArtifacts({
       sourceId: source.sourceId,
       markdown,
       pages,
     });
-    await this.writeJSONL(PathUtils.join(dir, "chunks.jsonl"), chunks);
-    await this.writeJSON(PathUtils.join(dir, "artifacts.json"), artifacts);
+    await this.writeJSONL(geckoPath.join(dir, "chunks.jsonl"), chunks);
+    await this.writeJSON(geckoPath.join(dir, "artifacts.json"), artifacts);
 
     const manifest: MaterialManifest = {
       schemaVersion: MATERIAL_SCHEMA_VERSION,
@@ -141,8 +136,8 @@ class MaterialRepository {
         `PDF material helper failed (${exitCode}): ${stderr || stdout}`,
       );
     }
-    const output = (await IOUtils.readJSON(
-      PathUtils.join(dir, "parser-output.json"),
+    const output = (await geckoIO.readJSON(
+      geckoPath.join(dir, "parser-output.json"),
     )) as { pageCount?: unknown; warnings?: unknown };
     return {
       pageCount: typeof output.pageCount === "number" ? output.pageCount : 0,
@@ -159,10 +154,10 @@ class MaterialRepository {
     source: SourceIdentity,
   ): Promise<MaterialManifest | null> {
     const path = this.getManifestPath(dir);
-    if (!(await IOUtils.exists(path))) {
+    if (!(await geckoIO.exists(path))) {
       return null;
     }
-    const manifest = (await IOUtils.readJSON(path)) as MaterialManifest;
+    const manifest = (await geckoIO.readJSON(path)) as MaterialManifest;
     if (
       manifest.schemaVersion !== MATERIAL_SCHEMA_VERSION ||
       manifest.parserVersion !== MATERIAL_PARSER_VERSION ||
@@ -180,11 +175,11 @@ class MaterialRepository {
     manifest: MaterialManifest,
   ): Promise<Material> {
     const [markdown, text, pages, chunks, artifacts] = await Promise.all([
-      IOUtils.readUTF8(PathUtils.join(dir, "paper.md")),
-      IOUtils.readUTF8(PathUtils.join(dir, "paper.txt")),
+      geckoIO.readUTF8(geckoPath.join(dir, "paper.md")),
+      geckoIO.readUTF8(geckoPath.join(dir, "paper.txt")),
       this.readPages(dir),
-      this.readJSONL<MaterialChunk>(PathUtils.join(dir, "chunks.jsonl")),
-      IOUtils.readJSON(PathUtils.join(dir, "artifacts.json")) as Promise<
+      this.readJSONL<MaterialChunk>(geckoPath.join(dir, "chunks.jsonl")),
+      geckoIO.readJSON(geckoPath.join(dir, "artifacts.json")) as Promise<
         MaterialArtifact[]
       >,
     ]);
@@ -200,11 +195,11 @@ class MaterialRepository {
   }
 
   private async readPages(dir: string): Promise<MaterialPage[]> {
-    return this.readJSONL<MaterialPage>(PathUtils.join(dir, "pages.jsonl"));
+    return this.readJSONL<MaterialPage>(geckoPath.join(dir, "pages.jsonl"));
   }
 
   private async readJSONL<T>(path: string): Promise<T[]> {
-    const text = await IOUtils.readUTF8(path);
+    const text = await geckoIO.readUTF8(path);
     return text
       .split("\n")
       .map((line) => line.trim())
@@ -213,13 +208,13 @@ class MaterialRepository {
   }
 
   private async writeJSON(path: string, value: unknown): Promise<void> {
-    await IOUtils.writeUTF8(path, JSON.stringify(value, null, 2), {
+    await geckoIO.writeUTF8(path, JSON.stringify(value, null, 2), {
       flush: true,
     });
   }
 
   private async writeJSONL(path: string, values: unknown[]): Promise<void> {
-    await IOUtils.writeUTF8(
+    await geckoIO.writeUTF8(
       path,
       `${values.map((value) => JSON.stringify(value)).join("\n")}\n`,
       { flush: true },
@@ -228,10 +223,7 @@ class MaterialRepository {
 
   private getSubprocess(): SubprocessModule {
     try {
-      const imported = ChromeUtils.importESModule(
-        "resource://gre/modules/Subprocess.sys.mjs",
-      ) as { Subprocess: SubprocessModule };
-      return imported.Subprocess;
+      return loadSubprocessModule<SubprocessModule>();
     } catch (error) {
       logger.error("failed to load Zotero Subprocess module", error);
       throw error;
@@ -239,17 +231,17 @@ class MaterialRepository {
   }
 
   private getSourceDir(sourceId: string): string {
-    return PathUtils.join(this.rootDir, encodePathSegment(sourceId));
+    return geckoPath.join(this.rootDir, encodePathSegment(sourceId));
   }
 
   private getManifestPath(dir: string): string {
-    return PathUtils.join(dir, "manifest.json");
+    return geckoPath.join(dir, "manifest.json");
   }
 }
 
 function getDefaultMaterialRootDir(): string {
-  return PathUtils.join(
-    (Zotero as ZoteroWithProfile).Profile.dir,
+  return geckoPath.join(
+    geckoPath.profileDir,
     "zopilot",
     "materials",
     "sources",

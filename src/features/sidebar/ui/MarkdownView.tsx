@@ -6,7 +6,7 @@ import {
 } from "react";
 import { copyText } from "./clipboard";
 import { isInternalUrl, renderMarkdownToHtml } from "./markdownRenderer";
-import { renderStaticIconHtml } from "./staticIcons";
+import { createStaticIconElement } from "./staticIcons";
 
 type MarkdownViewProps = {
   className?: string;
@@ -94,12 +94,21 @@ function showCopiedState(button: Element): void {
     return;
   }
 
-  button.innerHTML = renderStaticIconHtml("copied", {
-    className: "zp-icon zp-code-copy-icon",
-  });
-  globalThis.setTimeout(() => {
-    button.innerHTML = renderStaticIconHtml("copy", {
+  const doc = button.ownerDocument;
+  if (!doc) return;
+  button.replaceChildren(
+    createStaticIconElement(doc, "copied", {
       className: "zp-icon zp-code-copy-icon",
-    });
+      size: 14,
+    }),
+  );
+  doc.defaultView?.setTimeout(() => {
+    if (!button.isConnected) return;
+    button.replaceChildren(
+      createStaticIconElement(doc, "copy", {
+        className: "zp-icon zp-code-copy-icon",
+        size: 14,
+      }),
+    );
   }, 900);
 }

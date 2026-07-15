@@ -28,9 +28,6 @@ type ZoteroServerMock = {
 
 type TestGlobals = {
   Zotero?: ZoteroServerMock;
-  ztoolkit?: {
-    log: () => void;
-  };
 };
 
 describe("Codex MCP config", function () {
@@ -41,7 +38,6 @@ describe("Codex MCP config", function () {
   afterEach(function () {
     shutdownMcpHttpServer();
     delete getTestGlobals().Zotero;
-    delete getTestGlobals().ztoolkit;
   });
 
   it("builds a thread/start mcp_servers config for paper_read", async function () {
@@ -69,6 +65,34 @@ describe("Codex MCP config", function () {
       MCP_ENDPOINT_PATH,
     );
   });
+
+  it("disables only MCP when the Zotero endpoint path is already owned", async function () {
+    class ExistingEndpoint {}
+    getTestGlobals().Zotero!.Server.Endpoints[MCP_ENDPOINT_PATH] =
+      ExistingEndpoint;
+
+    const config = await buildCodexMcpServersConfig(createConversation());
+
+    assert.deepEqual(config, {});
+    assert.strictEqual(
+      getTestGlobals().Zotero!.Server.Endpoints[MCP_ENDPOINT_PATH],
+      ExistingEndpoint,
+    );
+  });
+
+  it("disables only MCP when endpoint initialization throws", async function () {
+    getTestGlobals().Zotero!.Prefs.get = () => {
+      throw new Error("HTTP server preferences unavailable");
+    };
+
+    const config = await buildCodexMcpServersConfig(createConversation());
+
+    assert.deepEqual(config, {});
+    assert.notProperty(
+      getTestGlobals().Zotero!.Server.Endpoints,
+      MCP_ENDPOINT_PATH,
+    );
+  });
 });
 
 function installRuntimeMocks(): void {
@@ -81,9 +105,6 @@ function installRuntimeMocks(): void {
       Endpoint: class {},
       Endpoints: {},
     },
-  };
-  testGlobals.ztoolkit = {
-    log: () => undefined,
   };
 }
 

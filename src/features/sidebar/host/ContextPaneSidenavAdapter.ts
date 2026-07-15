@@ -8,8 +8,8 @@ type ContextPaneNativeState = Exclude<ContextPaneActiveState, "zopilot">;
 class ContextPaneSidenavAdapter {
   private active = false;
   private button?: HTMLButtonElement;
-  private observer?: MutationObserver;
   private listeningSidenav?: Element;
+  private nativeState: AttributeWrite[] = [];
   private readonly onClick = (event: Event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -50,12 +50,6 @@ class ContextPaneSidenavAdapter {
 
   mount(): void {
     this.reconcile();
-    if (this.observer) return;
-    const root = this.win.document.documentElement;
-    if (!root) return;
-    const observer = new this.win.MutationObserver(() => this.reconcile());
-    observer.observe(root, { childList: true, subtree: true });
-    this.observer = observer;
   }
 
   setActive(active: boolean): void {
@@ -65,8 +59,7 @@ class ContextPaneSidenavAdapter {
   }
 
   destroy(): void {
-    this.observer?.disconnect();
-    this.observer = undefined;
+    this.restoreNativeSelectionState();
     this.detachSidenavListener();
     this.button?.removeEventListener("click", this.onClick);
     this.button?.removeEventListener("keydown", this.onKeyDown);
@@ -78,7 +71,10 @@ class ContextPaneSidenavAdapter {
     const latest = this.win.document.getElementById(
       "zotero-context-pane-sidenav",
     );
-    if (latest) this.sidenav = latest;
+    if (latest && latest !== this.sidenav) {
+      this.restoreNativeSelectionState();
+      this.sidenav = latest;
+    }
     if (!this.sidenav.isConnected) {
       this.detachSidenavListener();
       return;
@@ -112,27 +108,36 @@ class ContextPaneSidenavAdapter {
     restoreNativeSelection?: boolean;
   }): void {
     if (!this.active) {
-      if (options.restoreNativeSelection) {
-        (this.sidenav as Element & { render?: () => void }).render?.();
-      }
+      if (options.restoreNativeSelection) this.restoreNativeSelectionState();
       return;
     }
+    if (this.nativeState.length > 0) return;
     const groups = this.sidenav.querySelectorAll(
       ".highlight-notes-inactive, .highlight-notes-active",
     );
     (Array.from(groups) as Element[]).forEach((group) => {
-      group.classList.remove("highlight");
+      recordAttributeWrite(this.nativeState, group, "class", () => {
+        group.classList.remove("highlight");
+      });
       if (group.getAttribute("role") === "tab") {
-        group.setAttribute("aria-selected", "false");
+        recordAttributeWrite(this.nativeState, group, "aria-selected", () =>
+          group.setAttribute("aria-selected", "false"),
+        );
       }
     });
     (
       Array.from(this.sidenav.querySelectorAll(".btn[data-pane]")) as Element[]
     ).forEach((button) => {
       if (button.getAttribute("data-pane") !== ZOPILOT_CONTEXT_PANE) {
-        button.setAttribute("aria-selected", "false");
+        recordAttributeWrite(this.nativeState, button, "aria-selected", () =>
+          button.setAttribute("aria-selected", "false"),
+        );
       }
     });
+  }
+
+  private restoreNativeSelectionState(): void {
+    this.nativeState.splice(0).forEach(restoreAttributeWrite);
   }
 
   private attachSidenavListener(sidenav: Element): void {
@@ -173,6 +178,35 @@ class ContextPaneSidenavAdapter {
     button.addEventListener("keydown", this.onKeyDown);
     return button;
   }
+}
+
+type AttributeWrite = {
+  element: Element;
+  name: string;
+  before: string | null;
+  written: string | null;
+};
+
+function recordAttributeWrite(
+  writes: AttributeWrite[],
+  element: Element,
+  name: string,
+  write: () => void,
+): void {
+  const before = element.getAttribute(name);
+  write();
+  writes.push({
+    element,
+    name,
+    before,
+    written: element.getAttribute(name),
+  });
+}
+
+function restoreAttributeWrite(write: AttributeWrite): void {
+  if (write.element.getAttribute(write.name) !== write.written) return;
+  if (write.before === null) write.element.removeAttribute(write.name);
+  else write.element.setAttribute(write.name, write.before);
 }
 
 export { ContextPaneSidenavAdapter };

@@ -26,13 +26,7 @@ function getLibraryLabel(
 }
 
 function getZoteroGlobal(): typeof Zotero {
-  const scope = globalThis as unknown as {
-    Zotero?: typeof Zotero;
-    ztoolkit?: {
-      getGlobal?: (name: "Zotero") => typeof Zotero | undefined;
-    };
-  };
-  const zotero = scope.ztoolkit?.getGlobal?.("Zotero") || scope.Zotero;
+  const zotero = (globalThis as unknown as { Zotero?: typeof Zotero }).Zotero;
   if (!zotero) {
     throw new Error("Zotero global is unavailable.");
   }

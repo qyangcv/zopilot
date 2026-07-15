@@ -1,4 +1,5 @@
 import { detectHostRuntime, type HostOS } from "../platform/host";
+import { geckoIO, hasGeckoIO } from "../../platform/gecko";
 
 export { getSubprocessDiscoveryOS, pathExists };
 
@@ -20,11 +21,8 @@ async function pathExists(
   path: string,
   options: { whenUnavailable: boolean },
 ): Promise<boolean> {
-  const ioUtils = globalThis.IOUtils as
-    | { exists(path: string): Promise<boolean> }
-    | undefined;
-  if (!ioUtils?.exists) {
+  if (!hasGeckoIO()) {
     return options.whenUnavailable;
   }
-  return ioUtils.exists(path).catch(() => false);
+  return geckoIO.exists(path).catch(() => false);
 }

@@ -1,4 +1,5 @@
 import { PDF_HELPER_PACKAGE_NAME } from "./constants";
+import { geckoIO, geckoPath } from "../../platform/gecko";
 
 export {
   compareVersions,
@@ -51,7 +52,7 @@ function joinRelativePath(base: string, relativePath: string): string {
   ) {
     throw new Error(`Invalid PDF helper artifact entrypoint: ${relativePath}`);
   }
-  return PathUtils.join(base, ...parts);
+  return geckoPath.join(base, ...parts);
 }
 
 async function makeParentDirectory(
@@ -63,7 +64,7 @@ async function makeParentDirectory(
   if (!parentParts.length) {
     return;
   }
-  await IOUtils.makeDirectory(PathUtils.join(base, ...parentParts), {
+  await geckoIO.makeDirectory(geckoPath.join(base, ...parentParts), {
     createAncestors: true,
     ignoreExisting: true,
   });

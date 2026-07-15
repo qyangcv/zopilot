@@ -4,6 +4,7 @@ import {
   stringifyDetails,
   toErrorForZotero,
 } from "./logDetails";
+import { getZoteroGlobal } from "../../integrations/zotero/environment";
 
 type Logger = {
   debug(message: string, details?: unknown): void;
@@ -66,15 +67,6 @@ function emit(level: LogLevel, message: string, details: unknown): void {
     // Logging must not break plugin behavior.
   }
   try {
-    const toolkit = getZToolkit();
-    if (toolkit) {
-      toolkit.log(message, details);
-      return;
-    }
-  } catch {
-    // Fall through to Zotero.debug.
-  }
-  try {
     getZotero()?.debug?.(formatDebugMessage(message, details));
   } catch {
     // No available logging sink.
@@ -127,13 +119,11 @@ function getConsole(): Console | undefined {
 }
 
 function getZotero(): _ZoteroTypes.Zotero | undefined {
-  return typeof Zotero === "undefined" ? undefined : Zotero;
-}
-
-function getZToolkit():
-  | { log(message: string, details?: unknown): void }
-  | undefined {
-  return typeof ztoolkit === "undefined" ? undefined : ztoolkit;
+  try {
+    return getZoteroGlobal();
+  } catch {
+    return undefined;
+  }
 }
 
 export { createLogger };

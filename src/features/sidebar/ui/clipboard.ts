@@ -1,3 +1,5 @@
+import { copyWithGeckoClipboard } from "../../../platform/gecko";
+
 export { copyText };
 
 async function copyText(text: string, win = getGlobalWindow()): Promise<void> {
@@ -35,37 +37,3 @@ async function copyText(text: string, win = getGlobalWindow()): Promise<void> {
 function getGlobalWindow(): Window | undefined {
   return (globalThis as typeof globalThis & { window?: Window }).window;
 }
-
-function copyWithGeckoClipboard(text: string, win?: Window): boolean {
-  const components =
-    (win as ClipboardWindow | undefined)?.Components ??
-    (globalThis as ClipboardWindow).Components;
-  const helperClass =
-    components?.classes["@mozilla.org/widget/clipboardhelper;1"];
-  const helperInterface = components?.interfaces.nsIClipboardHelper;
-  if (!helperClass || !helperInterface) {
-    return false;
-  }
-
-  try {
-    helperClass.getService(helperInterface).copyString(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-type ClipboardWindow = {
-  Components?: {
-    classes: Record<
-      string,
-      | {
-          getService: (iface: unknown) => {
-            copyString: (value: string) => void;
-          };
-        }
-      | undefined
-    >;
-    interfaces: Record<string, unknown>;
-  };
-};

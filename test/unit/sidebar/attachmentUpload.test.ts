@@ -22,7 +22,7 @@ describe("sidebar attachment upload", function () {
   it("returns the chosen PDF as a local attachment path", async function () {
     const picker = createPicker({
       result: 0,
-      files: [{ path: "/tmp/paper.pdf" }],
+      files: ["/tmp/paper.pdf"],
     });
 
     const result = await pickLocalAttachment({
@@ -44,7 +44,7 @@ describe("sidebar attachment upload", function () {
   it("returns common images as local attachment paths", async function () {
     const picker = createPicker({
       result: 0,
-      files: [{ path: "/tmp/figure.jpeg" }],
+      files: ["/tmp/figure.jpeg"],
     });
 
     const result = await pickLocalAttachment({
@@ -66,7 +66,7 @@ describe("sidebar attachment upload", function () {
   it("returns every file selected in multi-select mode", async function () {
     const picker = createPicker({
       result: 0,
-      files: [{ path: "/tmp/paper.pdf" }, { path: "/tmp/figure.png" }],
+      files: ["/tmp/paper.pdf", "/tmp/figure.png"],
     });
 
     const result = await pickLocalAttachment({
@@ -77,7 +77,6 @@ describe("sidebar attachment upload", function () {
     });
 
     assert.equal(picker.initializedMode, picker.modeOpenMultiple);
-    assert.equal(picker.queryInterfaceCalls, 2);
     assert.deepEqual(
       result.status === "selected"
         ? result.attachments.map((attachment) => attachment.path)
@@ -105,67 +104,49 @@ describe("sidebar attachment upload", function () {
   });
 });
 
-type FakeFilePicker = nsIFilePicker & {
+type FakeFilePicker = {
+  modeOpenMultiple: number;
+  returnOK: number;
+  files: string[];
+  init(win: Window, title: string, mode: number): void;
+  appendFilter(title: string, pattern: string): void;
+  show(): Promise<number>;
   appendedFilters: Array<{ title: string; pattern: string }>;
-  initializedMode?: nsIFilePicker.Mode;
-  queryInterfaceCalls: number;
+  initializedMode?: number;
 };
 
 function createPicker({
   files = [],
   result,
 }: {
-  files?: Array<{ path: string }>;
+  files?: string[];
   result: number;
 }): FakeFilePicker {
   const appendedFilters: Array<{ title: string; pattern: string }> = [];
-  let fileIndex = 0;
-  let queryInterfaceCalls = 0;
   const picker = {
-    modeOpen: 0,
     modeOpenMultiple: 3,
     returnOK: 0,
-    filterPDF: 1024,
-    files: {
-      hasMoreElements: () => fileIndex < files.length,
-      getNext: () => ({
-        QueryInterface: () => {
-          queryInterfaceCalls += 1;
-          return files[fileIndex++];
-        },
-      }),
-    },
-    init: (
-      _browsingContext: BrowsingContext,
-      _title: string,
-      mode: nsIFilePicker.Mode,
-    ) => {
+    files,
+    init: (_win: Window, _title: string, mode: number) => {
       picker.initializedMode = mode;
     },
-    appendFilters: () => undefined,
     appendFilter(title: string, pattern: string) {
       appendedFilters.push({ title, pattern });
     },
     appendedFilters,
-    get queryInterfaceCalls() {
-      return queryInterfaceCalls;
+    async show() {
+      return result;
     },
-    open(callback: { done: (result: number) => void }) {
-      callback.done(result);
-    },
-  } as unknown as FakeFilePicker;
+  } as FakeFilePicker;
   return picker;
 }
 
 function createWindow(): Window {
-  return {
-    browsingContext: {},
-  } as unknown as Window;
+  return {} as Window;
 }
 
 function installLocaleMock(): void {
   const runtime = globalThis as typeof globalThis & {
-    Components: typeof Components;
     addon: {
       data: {
         locale: {
@@ -178,11 +159,6 @@ function installLocaleMock(): void {
       };
     };
   };
-  runtime.Components = {
-    interfaces: {
-      nsIFile: {},
-    },
-  } as unknown as typeof Components;
   runtime.addon = {
     data: {
       locale: {

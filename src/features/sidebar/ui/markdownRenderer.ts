@@ -20,12 +20,15 @@ type MarkdownRenderOptions = {
   unwrapSingleParagraph?: boolean;
 };
 
+declare const sanitizedHtmlBrand: unique symbol;
+type SanitizedHtml = string & { readonly [sanitizedHtmlBrand]: true };
+
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
 
 export function renderMarkdownToHtml(
   markdown: string,
   options: MarkdownRenderOptions = {},
-): string {
+): SanitizedHtml {
   const unsafeLinkStack: boolean[] = [];
   const env: MarkdownRenderEnv = { unsafeLinkStack };
   const tokens = markdownIt.parse(markdown, env);
@@ -246,7 +249,7 @@ function isSafeExternalUrl(url: string): boolean {
   }
 }
 
-function sanitizeMarkdownHtml(html: string): string {
+function sanitizeMarkdownHtml(html: string): SanitizedHtml {
   return sanitizeHtml(html, {
     allowProtocolRelative: false,
     allowedAttributes: {
@@ -320,7 +323,9 @@ function sanitizeMarkdownHtml(html: string): string {
       "semantics",
       "svg",
     ],
-  });
+  }) as SanitizedHtml;
 }
 
 const markdownIt = createMarkdownIt();
+
+export type { SanitizedHtml };

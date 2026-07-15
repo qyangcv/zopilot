@@ -10,9 +10,6 @@ type TestGlobals = typeof globalThis & {
     debug?: (message: string) => void;
     logError?: (error: Error) => void;
   };
-  ztoolkit?: {
-    log: (message: string, details?: unknown) => void;
-  };
 };
 
 type LogEntry = {
@@ -35,9 +32,6 @@ describe("logger", function () {
     errors = [];
     zoteroErrors = [];
     testGlobals.__env__ = "production";
-    testGlobals.ztoolkit = {
-      log: (message, details) => logs.push({ message, details }),
-    };
     testGlobals.Zotero = {
       Prefs: {
         get: () => false,
@@ -60,7 +54,6 @@ describe("logger", function () {
     globalThis.console = originalConsole;
     delete testGlobals.__env__;
     delete testGlobals.Zotero;
-    delete testGlobals.ztoolkit;
   });
 
   it("suppresses debug and info unless verbose logging is enabled", function () {
@@ -72,7 +65,7 @@ describe("logger", function () {
     logger.error("error message", new Error("boom"));
 
     assert.deepEqual(
-      logs.map((entry) => entry.message),
+      logs.map((entry) => stripLogDetails(entry.message)),
       [
         "[Zopilot][WARN][unit] warn message",
         "[Zopilot][ERROR][unit] error message",
@@ -97,7 +90,7 @@ describe("logger", function () {
     logger.error("error message", new Error("boom"));
 
     assert.deepEqual(
-      logs.map((entry) => entry.message),
+      logs.map((entry) => stripLogDetails(entry.message)),
       [
         "[Zopilot][DEBUG][unit] debug message",
         "[Zopilot][INFO][unit] info message",
@@ -115,7 +108,7 @@ describe("logger", function () {
     logger.error("failed operation", error, { conversationId: "conv-a" });
 
     assert.strictEqual(zoteroErrors[0], error);
-    const details = logs[0].details as {
+    const details = readLogDetails(logs[0].message) as {
       error: {
         name: string;
         message: string;
@@ -142,7 +135,7 @@ describe("logger", function () {
     assert.instanceOf(zoteroErrors[0], Error);
     assert.include(zoteroErrors[0].message, "non-error input");
     assert.notInclude(zoteroErrors[0].message, "secret");
-    assert.deepEqual(logs[0].details, {
+    assert.deepEqual(readLogDetails(logs[0].message), {
       error: { reason: "bad shape", token: "[REDACTED]" },
     });
   });
@@ -158,7 +151,7 @@ describe("logger", function () {
       },
     });
 
-    const details = logs[0].details as {
+    const details = readLogDetails(logs[0].message) as {
       authorization: string;
       nested: { apiKey: string; text: string };
     };
@@ -168,9 +161,8 @@ describe("logger", function () {
     assert.include(details.nested.text, "[truncated]");
   });
 
-  it("safely degrades when Zotero, ztoolkit, and console sinks are missing", function () {
+  it("safely degrades when Zotero and console sinks are missing", function () {
     delete testGlobals.Zotero;
-    delete testGlobals.ztoolkit;
     globalThis.console = undefined as unknown as Console;
     const logger = createLogger("unit");
 
@@ -180,3 +172,13 @@ describe("logger", function () {
     });
   });
 });
+
+function stripLogDetails(message: string): string {
+  const marker = message.indexOf(" {");
+  return marker >= 0 ? message.slice(0, marker) : message;
+}
+
+function readLogDetails(message: string): unknown {
+  const marker = message.indexOf(" {");
+  return marker >= 0 ? JSON.parse(message.slice(marker + 1)) : undefined;
+}

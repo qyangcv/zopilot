@@ -9,6 +9,7 @@ async function buildCodexMcpServersConfig(
   conversation: ConversationMetadata,
 ): Promise<Record<string, JsonValue>> {
   const server = await startMcpHttpServer();
+  if (server.status === "disabled") return {};
   return {
     [server.name]: {
       url: server.url,

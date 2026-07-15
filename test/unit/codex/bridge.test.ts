@@ -7,15 +7,11 @@ import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
 describe("CodexBridge", function () {
   beforeEach(function () {
     installMcpMocks();
-    (globalThis as unknown as { ztoolkit: { log: () => void } }).ztoolkit = {
-      log: () => undefined,
-    };
   });
 
   afterEach(function () {
     shutdownMcpHttpServer();
     delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
-    delete (globalThis as unknown as { ztoolkit?: unknown }).ztoolkit;
   });
 
   it("starts app-server over stdio without legacy Zotero overrides", function () {

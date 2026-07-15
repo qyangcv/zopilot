@@ -27,6 +27,7 @@ export {
   ProviderProfileStore,
   getProviderProfileStore,
   migrateLegacyProviderPrefs,
+  shutdownProviderProfileStore,
 };
 
 type ProviderProfileSnapshot = {
@@ -42,7 +43,8 @@ class ProviderProfileStore {
   private readonly listeners = new Set<ProviderProfileListener>();
   private readonly repository = new ProviderProfileRepository();
   private readonly secrets = new ProviderSecretStore();
-  private observing = false;
+  private prefObserverDisposer?: () => void;
+  private notificationQueued = false;
 
   getSnapshot(): ProviderProfileSnapshot {
     const profiles = this.readProfiles();
@@ -71,7 +73,7 @@ class ProviderProfileStore {
       return;
     }
     this.repository.writeActiveProviderId(profileId);
-    this.notify();
+    this.notifySoon();
   }
 
   createProvider(input: ProviderProfileInput): ProviderProfile {
@@ -95,7 +97,7 @@ class ProviderProfileStore {
     if (input.apiKey) {
       this.writeSecret(profile.id, input.apiKey);
     }
-    this.notify();
+    this.notifySoon();
     return this.withSecret(profile);
   }
 
@@ -141,7 +143,7 @@ class ProviderProfileStore {
     if (patch.apiKey !== undefined) {
       this.writeSecret(profileId, patch.apiKey);
     }
-    this.notify();
+    this.notifySoon();
     return this.withSecret(next);
   }
 
@@ -158,7 +160,7 @@ class ProviderProfileStore {
     profile.lastCheckedAt = input.lastCheckedAt;
     profile.lastDiagnostic = input.lastDiagnostic;
     this.repository.writeCodexStatus(profile);
-    this.notify();
+    this.notifySoon();
     return profile;
   }
 
@@ -174,7 +176,7 @@ class ProviderProfileStore {
     if (this.getSnapshot().activeProviderId === profileId) {
       this.repository.writeActiveProviderId(CODEX_PROVIDER_ID);
     }
-    this.notify();
+    this.notifySoon();
   }
 
   subscribe(listener: ProviderProfileListener): () => void {
@@ -183,7 +185,14 @@ class ProviderProfileStore {
     listener(this.getSnapshot());
     return () => {
       this.listeners.delete(listener);
+      if (this.listeners.size === 0) this.stopPrefObserver();
     };
+  }
+
+  dispose(): void {
+    this.listeners.clear();
+    this.stopPrefObserver();
+    this.notificationQueued = false;
   }
 
   private resolveActiveProviderId(profiles: ProviderProfile[]): string {
@@ -244,18 +253,36 @@ class ProviderProfileStore {
     }
   }
 
+  private notifySoon(): void {
+    if (this.notificationQueued) return;
+    this.notificationQueued = true;
+    queueMicrotask(() => {
+      this.notificationQueued = false;
+      if (this.listeners.size > 0) this.notify();
+    });
+  }
+
   private ensurePrefObserver(): void {
-    if (this.observing) {
-      return;
-    }
-    this.observing = true;
-    this.repository.observe(() => this.notify());
+    if (this.prefObserverDisposer) return;
+    this.prefObserverDisposer = this.repository.observe(() =>
+      this.notifySoon(),
+    );
+  }
+
+  private stopPrefObserver(): void {
+    this.prefObserverDisposer?.();
+    this.prefObserverDisposer = undefined;
   }
 }
 
 function getProviderProfileStore(): ProviderProfileStore {
   sharedStore ??= new ProviderProfileStore();
   return sharedStore;
+}
+
+function shutdownProviderProfileStore(): void {
+  sharedStore?.dispose();
+  sharedStore = undefined;
 }
 
 function migrateLegacyProviderPrefs(): void {

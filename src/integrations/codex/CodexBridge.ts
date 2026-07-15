@@ -22,6 +22,7 @@ import type {
 } from "../../runtime/process/types";
 import { CodexTurnRegistry, type ActiveCodexTurn } from "./CodexTurnRegistry";
 import { CodexThreadManager } from "./CodexThreadManager";
+import { loadSubprocessModule } from "../../platform/gecko";
 
 type CodexSubprocessProcess = StdioSubprocess;
 type CodexSubprocessModule = StdioSubprocessModule<CodexSubprocessProcess>;
@@ -287,10 +288,7 @@ class CodexBridge {
     if (this.subprocess) {
       return this.subprocess;
     }
-    const imported = ChromeUtils.importESModule(
-      "resource://gre/modules/Subprocess.sys.mjs",
-    ) as { Subprocess: CodexSubprocessModule };
-    this.subprocess = imported.Subprocess;
+    this.subprocess = loadSubprocessModule<CodexSubprocessModule>();
     return this.subprocess;
   }
 

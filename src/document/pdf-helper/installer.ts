@@ -6,6 +6,7 @@ import { joinRelativePath } from "./paths";
 import { getInstalledPdfHelperDir, getPdfHelperRuntimeDir } from "./status";
 import type { PdfHelperInstallProgress, PdfHelperManifest } from "./types";
 import { extractAndInstallZip } from "./zip";
+import { geckoIO, geckoPath } from "../../platform/gecko";
 
 const logger = createLogger("pdf-helper.install");
 
@@ -21,19 +22,19 @@ async function installPdfHelper(
   const artifact = selectPdfHelperArtifact(manifest, platform);
   const runtimeDir = getPdfHelperRuntimeDir();
   const installDir = getInstalledPdfHelperDir(platform);
-  const downloadDir = PathUtils.join(runtimeDir, "downloads");
-  const archivePath = PathUtils.join(downloadDir, artifact.fileName);
+  const downloadDir = geckoPath.join(runtimeDir, "downloads");
+  const archivePath = geckoPath.join(downloadDir, artifact.fileName);
   const finalExecutable = joinRelativePath(runtimeDir, artifact.entrypoint);
-  const tempDir = PathUtils.join(
+  const tempDir = geckoPath.join(
     runtimeDir,
     `.installing-${platform}-${Date.now()}`,
   );
 
-  await IOUtils.makeDirectory(downloadDir, {
+  await geckoIO.makeDirectory(downloadDir, {
     createAncestors: true,
     ignoreExisting: true,
   });
-  await IOUtils.makeDirectory(runtimeDir, {
+  await geckoIO.makeDirectory(runtimeDir, {
     createAncestors: true,
     ignoreExisting: true,
   });
@@ -55,7 +56,7 @@ async function installPdfHelper(
     throw new Error("PDF helper download checksum mismatch.");
   }
   onProgress?.({ phase: "write", percent: 95 });
-  await IOUtils.write(archivePath, archiveBytes, { flush: true });
+  await geckoIO.write(archivePath, archiveBytes, { flush: true });
   onProgress?.({ phase: "extract", percent: 97 });
 
   try {
@@ -66,7 +67,7 @@ async function installPdfHelper(
       size: actualSize,
     });
     await extractAndInstallZip(archivePath, tempDir, installDir, artifact);
-    if (!(await IOUtils.exists(finalExecutable).catch(() => false))) {
+    if (!(await geckoIO.exists(finalExecutable).catch(() => false))) {
       throw new Error("PDF helper install did not produce an executable.");
     }
     logger.info("pdf helper installed", {
@@ -85,15 +86,17 @@ async function installPdfHelper(
     });
     throw error;
   } finally {
-    await IOUtils.remove(tempDir, {
-      recursive: true,
-      ignoreAbsent: true,
-    }).catch(() => undefined);
+    await geckoIO
+      .remove(tempDir, {
+        recursive: true,
+        ignoreAbsent: true,
+      })
+      .catch(() => undefined);
   }
   if (platform !== "windows-x64") {
-    await IOUtils.setPermissions(finalExecutable, 0o755, false).catch(
-      () => undefined,
-    );
+    await geckoIO
+      .setPermissions(finalExecutable, 0o755, false)
+      .catch(() => undefined);
   }
   onProgress?.({ phase: "complete", percent: 100 });
   return finalExecutable;

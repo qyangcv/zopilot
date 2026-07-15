@@ -4,23 +4,22 @@ import { SidebarHostBindings } from "../../../src/features/sidebar/host/SidebarH
 describe("sidebar host bindings", function () {
   it("captures interactions from dynamically rendered Zotero trees", function () {
     const doc = new FakeDocument();
+    const collectionsTree = new FakeElement();
+    const itemsTree = new FakeElement();
+    doc.elements.set("zotero-collections-tree", collectionsTree);
+    doc.elements.set("zotero-items-tree", itemsTree);
+    const raf = createRafWindow();
     let syncCount = 0;
     const bindings = new SidebarHostBindings({
       doc: doc as unknown as Document,
-      win: {
-        setTimeout(callback: TimerHandler) {
-          if (typeof callback === "function") callback();
-          return 1;
-        },
-      } as unknown as Window,
+      win: raf.win,
       ensureMountedSurfaces: () => undefined,
       refreshContext: () => undefined,
       syncWithSelectedContext: () => syncCount++,
       isOpen: () => true,
       isDestroyed: () => false,
-      areSessionsOpen: () => false,
       getDeckPanel: () => undefined,
-      hideSessions: () => undefined,
+      getHostMutationTargets: () => ({ attributes: [], childList: [] }),
       subscribePrompts: () => () => undefined,
       updatePrompts: () => undefined,
       subscribeProviders: () => () => undefined,
@@ -31,18 +30,18 @@ describe("sidebar host bindings", function () {
       }
     ).bindContextRefresh();
 
-    doc.dispatch("mousedown", createTreeTarget(true));
-    doc.dispatch("keyup", createTreeTarget(true));
+    collectionsTree.dispatch("mousedown");
+    raf.flush();
+    itemsTree.dispatch("keyup");
+    raf.flush();
     // Zotero replaces a newly selected virtual-tree row between mousedown and
     // mouseup, so the first interaction may never produce a click event.
-    doc.dispatch("click", createTreeTarget(true));
-    doc.dispatch("click", createTreeTarget(false));
-
     assert.equal(syncCount, 2);
-    assert.isTrue(doc.allListenersUseCapture());
+    assert.isTrue(collectionsTree.allListenersUseCapture());
+    assert.isTrue(itemsTree.allListenersUseCapture());
 
     disposers.forEach((dispose) => dispose());
-    doc.dispatch("mousedown", createTreeTarget(true));
+    collectionsTree.dispatch("mousedown");
     assert.equal(syncCount, 2);
   });
 
@@ -52,6 +51,7 @@ describe("sidebar host bindings", function () {
     };
     doc.documentElement = {} as Element;
     let syncCount = 0;
+    const raf = createRafWindow();
     let tabObserver: { notify: _ZoteroTypes.Notifier.Notify } | undefined;
     let unregisteredID = "";
     (globalThis as unknown as { Zotero: Record<string, any> }).Zotero = {
@@ -68,25 +68,21 @@ describe("sidebar host bindings", function () {
     const bindings = new SidebarHostBindings({
       doc: doc as unknown as Document,
       win: {
+        ...raf.win,
         MutationObserver: class {
           observe() {}
           disconnect() {}
         },
         addEventListener() {},
         removeEventListener() {},
-        setTimeout(callback: TimerHandler) {
-          if (typeof callback === "function") callback();
-          return 1;
-        },
       } as unknown as Window,
       ensureMountedSurfaces: () => undefined,
       refreshContext: () => undefined,
       syncWithSelectedContext: () => syncCount++,
       isOpen: () => true,
       isDestroyed: () => false,
-      areSessionsOpen: () => false,
       getDeckPanel: () => undefined,
-      hideSessions: () => undefined,
+      getHostMutationTargets: () => ({ attributes: [], childList: [] }),
       subscribePrompts: () => () => undefined,
       updatePrompts: () => undefined,
       subscribeProviders: () => () => undefined,
@@ -98,7 +94,9 @@ describe("sidebar host bindings", function () {
     ).bindLayoutRefresh();
 
     tabObserver?.notify("select", "tab", ["reader-a"], {});
+    raf.flush();
     tabObserver?.notify("load" as never, "tab", ["reader-a"], {});
+    raf.flush();
     tabObserver?.notify("select", "item", [1], {});
 
     assert.equal(syncCount, 2);
@@ -114,7 +112,12 @@ type ListenerRecord = {
 };
 
 class FakeDocument {
+  readonly elements = new Map<string, FakeElement>();
   private readonly listeners = new Map<string, ListenerRecord[]>();
+
+  getElementById(id: string): FakeElement | null {
+    return this.elements.get(id) || null;
+  }
 
   addEventListener(
     type: string,
@@ -158,8 +161,70 @@ class FakeDocument {
   }
 }
 
-function createTreeTarget(insideTree: boolean): Element {
+function createRafWindow(): {
+  win: Window;
+  flush(): void;
+} {
+  let nextID = 0;
+  const callbacks = new Map<number, FrameRequestCallback>();
   return {
-    closest: () => (insideTree ? ({} as Element) : null),
-  } as unknown as Element;
+    win: {
+      requestAnimationFrame(callback) {
+        const id = ++nextID;
+        callbacks.set(id, callback);
+        return id;
+      },
+      cancelAnimationFrame(id) {
+        callbacks.delete(id);
+      },
+    } as Window,
+    flush() {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      pending.forEach((callback) => callback(0));
+    },
+  };
+}
+
+class FakeElement {
+  private readonly listeners = new Map<string, ListenerRecord[]>();
+
+  addEventListener(
+    type: string,
+    listener: EventListener,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    const records = this.listeners.get(type) || [];
+    records.push({
+      listener,
+      capture:
+        typeof options === "boolean" ? options : Boolean(options?.capture),
+    });
+    this.listeners.set(type, records);
+  }
+
+  removeEventListener(
+    type: string,
+    listener: EventListener,
+    options?: boolean | EventListenerOptions,
+  ): void {
+    const capture =
+      typeof options === "boolean" ? options : Boolean(options?.capture);
+    this.listeners.set(
+      type,
+      (this.listeners.get(type) || []).filter(
+        (record) => record.listener !== listener || record.capture !== capture,
+      ),
+    );
+  }
+
+  dispatch(type: string): void {
+    (this.listeners.get(type) || []).forEach((record) =>
+      record.listener({ target: this } as unknown as Event),
+    );
+  }
+
+  allListenersUseCapture(): boolean {
+    return [...this.listeners.values()].flat().every((item) => item.capture);
+  }
 }

@@ -37,6 +37,13 @@ export default defineConfig({
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
       },
       {
+        entryPoints: ["src/features/sidebar/windowRuntime.tsx"],
+        bundle: true,
+        format: "iife",
+        target: "firefox115",
+        outfile: ".scaffold/build/addon/content/scripts/sidebar-window.js",
+      },
+      {
         entryPoints: ["src/features/preferences/mountPreferencesApp.ts"],
         bundle: true,
         format: "iife",

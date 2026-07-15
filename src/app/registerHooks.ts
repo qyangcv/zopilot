@@ -6,14 +6,16 @@ import {
   unregisterSidebar,
 } from "../features/sidebar/host/SidebarHostController";
 import { shutdownCodexBridge } from "../integrations/codex/CodexBridge";
-import { migrateLegacyProviderPrefs } from "../application/providers/ProviderProfileService";
+import {
+  migrateLegacyProviderPrefs,
+  shutdownProviderProfileStore,
+} from "../application/providers/ProviderProfileService";
 import { shutdownAgentBackends } from "../application/agent/BackendManager";
 import { shutdownByokRuntimeBridge } from "../integrations/byok/ByokRuntimeBridge";
 import {
   shutdownMcpHttpServer,
   startMcpHttpServer,
 } from "../integrations/mcp/httpServer";
-import { createZToolkit } from "../integrations/zotero/ztoolkit";
 import { createLogger } from "../runtime/logging/logger";
 
 type ZoteroPluginRegistry = typeof Zotero & Record<string, unknown>;
@@ -42,8 +44,6 @@ async function onStartup(): Promise<void> {
 }
 
 function onMainWindowLoad(win: _ZoteroTypes.MainWindow): void {
-  addon.data.ztoolkit = createZToolkit();
-
   try {
     registerSidebar(win);
   } catch (error) {
@@ -52,17 +52,16 @@ function onMainWindowLoad(win: _ZoteroTypes.MainWindow): void {
 }
 
 function onMainWindowUnload(win: Window): void {
-  unregisterSidebar(win);
-  ztoolkit.unregisterAll();
+  unregisterSidebar(win, { restoreHost: false });
 }
 
 function onShutdown(): void {
   unregisterAllSidebars();
   shutdownMcpHttpServer();
   shutdownAgentBackends();
+  shutdownProviderProfileStore();
   void shutdownByokRuntimeBridge();
   void shutdownCodexBridge();
-  ztoolkit.unregisterAll();
   delete (Zotero as ZoteroPluginRegistry)[addon.data.config.addonInstance];
 }
 

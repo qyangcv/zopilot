@@ -70,6 +70,44 @@ describe("preferences pane script", function () {
     assert.include(translated, rootElement);
     assert.includeMembers(translated, rootElement.localizedChildren);
   });
+
+  it("cancels pending initialization and destroys the renderer on pagehide", function () {
+    const timers: Array<() => void> = [];
+    const pageListeners = new Map<string, EventListener>();
+    let destroyCount = 0;
+    let renderCount = 0;
+    const renderApp = Object.assign(
+      () => {
+        renderCount++;
+      },
+      { destroy: () => destroyCount++ },
+    );
+    const document = {
+      ...createDocument(() => createRootElement()),
+      defaultView: {
+        addEventListener(type: string, listener: EventListener) {
+          pageListeners.set(type, listener);
+        },
+        removeEventListener(type: string) {
+          pageListeners.delete(type);
+        },
+      },
+    };
+
+    initPreferencesPane({
+      document,
+      schedule: createQueuedScheduler(timers),
+      cancelSchedule: () => timers.splice(0),
+      renderApp,
+    });
+    timers.shift()?.();
+    assert.equal(renderCount, 1);
+
+    pageListeners.get("pagehide")?.({} as Event);
+
+    assert.equal(destroyCount, 1);
+    assert.lengthOf(timers, 0);
+  });
 });
 
 type RootElement = HTMLElement & {

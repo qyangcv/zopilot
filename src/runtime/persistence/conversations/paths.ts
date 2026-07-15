@@ -1,5 +1,6 @@
 import type { ConversationMetadata } from "../../../domain/conversation";
 import { encodePathSegment } from "../pathCodec";
+import { geckoPath } from "../../../platform/gecko";
 
 export {
   getConversationMessagesPath,
@@ -8,32 +9,22 @@ export {
   getDefaultConversationRootDir,
 };
 
-type ZoteroWithProfile = typeof Zotero & {
-  Profile: {
-    readonly dir: string;
-  };
-};
-
 function getDefaultConversationRootDir(): string {
-  return PathUtils.join(
-    (Zotero as ZoteroWithProfile).Profile.dir,
-    "zopilot",
-    "conversations",
-  );
+  return geckoPath.join(geckoPath.profileDir, "zopilot", "conversations");
 }
 
 function getConversationWorkspaceDir(
   rootDir: string,
   workspaceKey: string,
 ): string {
-  return PathUtils.join(rootDir, "workspaces", encodePathSegment(workspaceKey));
+  return geckoPath.join(rootDir, "workspaces", encodePathSegment(workspaceKey));
 }
 
 function getConversationMetadataPath(
   rootDir: string,
   metadata: ConversationMetadata,
 ): string {
-  return PathUtils.join(
+  return geckoPath.join(
     getConversationWorkspaceDir(rootDir, metadata.workspaceKey),
     `${metadata.id}.json`,
   );
@@ -43,7 +34,7 @@ function getConversationMessagesPath(
   rootDir: string,
   metadata: ConversationMetadata,
 ): string {
-  return PathUtils.join(
+  return geckoPath.join(
     getConversationWorkspaceDir(rootDir, metadata.workspaceKey),
     `${metadata.id}.jsonl`,
   );
