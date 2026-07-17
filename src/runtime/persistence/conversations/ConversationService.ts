@@ -152,6 +152,7 @@ class ConversationStore {
   async addMessage(
     metadata: ConversationMetadata,
     input: {
+      id?: string;
       role: ConversationMessage["role"];
       text: string;
       status?: ConversationMessage["status"];
@@ -175,7 +176,7 @@ class ConversationStore {
     const messages = await this.repository.readMessages(metadata);
     const createdAt = new Date().toISOString();
     const message: ConversationMessage = {
-      id: createId("msg"),
+      id: input.id || createId("msg"),
       conversationId: metadata.id,
       role: input.role,
       text: input.text,

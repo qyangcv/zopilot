@@ -87,6 +87,22 @@ describe("ConversationStore", function () {
     assert.notStrictEqual(reloadedA?.metadata.id, reloadedB?.metadata.id);
   });
 
+  it("uses a preallocated message id when persisting a completed turn", async function () {
+    const workspace = createItemWorkspaceIdentity(
+      createPaper("1:AAA", "AAA", "Paper A"),
+    );
+    const store = new ConversationStore(rootDir);
+    const conversation =
+      await store.getOrCreateLatestWorkspaceConversation(workspace);
+    const updated = await store.addMessage(conversation.metadata, {
+      id: "assistant-preallocated",
+      role: "assistant",
+      text: "Answer",
+    });
+
+    assert.equal(updated.messages[0]?.id, "assistant-preallocated");
+  });
+
   it("clears a transient reader source when reopening a collection workspace", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const store = new ConversationStore(rootDir);

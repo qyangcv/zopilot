@@ -15,6 +15,7 @@ tsconfig.tsbuildinfo
 build
 dist
 logs
+artifacts/
 
 notes/archive
 doc/

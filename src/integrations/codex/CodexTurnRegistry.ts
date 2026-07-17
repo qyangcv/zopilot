@@ -1,7 +1,8 @@
+import type { AgentContentPhase } from "../../domain/agent/trace";
 import type {
-  AgentContentPhase,
-  AgentTraceEvent,
-} from "../../domain/agent/trace";
+  AgentStreamEvent,
+  AgentStreamEventInput,
+} from "../../domain/agent/streaming";
 import type { JsonRpcMessage } from "../../runtime/json-rpc/protocol";
 import type { JsonValue } from "../../runtime/json/types";
 import { createLogger } from "../../runtime/logging/logger";
@@ -23,15 +24,17 @@ type CodexMessageItem = {
 };
 
 type ActiveCodexTurn = {
+  anonymousBlockIds: Map<string, string>;
+  backendId: string;
   eventSequence: number;
   messageItems: Map<string, CodexMessageItem>;
+  onEvent?: (event: AgentStreamEvent) => void;
+  providerProfileId: string;
   resolve: (result: CodexPromptResult) => void;
   reject: (error: Error) => void;
-  onDelta?: (delta: string) => void;
-  onTraceEvent?: (event: AgentTraceEvent) => void;
-  onNotice?: (notice: string) => void;
-  onToolActivity?: () => void;
-  onTurnStarted?: (threadId: string, turnId: string) => void;
+  started: boolean;
+  streamLengths: Map<string, number>;
+  syntheticIdSequence: number;
   timer: ReturnType<typeof setTimeout>;
   threadId: string;
   turnId?: string;
@@ -74,11 +77,24 @@ class CodexTurnRegistry {
   }
 
   assignTurnId(turn: ActiveCodexTurn, turnId: string): void {
-    if (turn.turnId === turnId) return;
-    this.remove(turn.threadId, turn.turnId);
-    turn.turnId = turnId;
-    this.turns.set(getTurnKey(turn), turn);
-    turn.onTurnStarted?.(turn.threadId, turnId);
+    if (turn.turnId !== turnId) {
+      this.remove(turn.threadId, turn.turnId);
+      turn.turnId = turnId;
+      this.turns.set(getTurnKey(turn), turn);
+    }
+    if (turn.started) return;
+    turn.started = true;
+    this.emit(turn, {
+      type: "turn.started",
+      backendId: turn.backendId,
+      providerProfileId: turn.providerProfileId,
+      runId: turn.threadId,
+      turnId,
+      legacy: {
+        codexThreadId: turn.threadId,
+        codexTurnId: turnId,
+      },
+    });
   }
 
   reject(threadId: string, turnId: string | undefined, error: unknown): void {
@@ -86,13 +102,17 @@ class CodexTurnRegistry {
     if (!turn) return;
     this.remove(turn.threadId, turn.turnId);
     clearTimeout(turn.timer);
-    turn.reject(toError(error));
+    const normalized = toError(error);
+    this.emit(turn, { type: "turn.failed", error: normalized.message });
+    turn.reject(normalized);
   }
 
   rejectAll(error: unknown): void {
     for (const turn of this.turns.values()) {
       clearTimeout(turn.timer);
-      turn.reject(toError(error));
+      const normalized = toError(error);
+      this.emit(turn, { type: "turn.failed", error: normalized.message });
+      turn.reject(normalized);
     }
     this.turns.clear();
   }
@@ -100,6 +120,10 @@ class CodexTurnRegistry {
   handleNotification(message: JsonRpcMessage): void {
     if (!("method" in message)) return;
     const turn = this.findForNotification(message.params);
+    const notificationTurnId = getNotificationTurnId(message.params);
+    if (turn && !turn.started && notificationTurnId) {
+      this.assignTurnId(turn, notificationTurnId);
+    }
     switch (message.method) {
       case "turn/started": {
         const turnId = getNestedString(message.params, ["turn", "id"]);
@@ -142,10 +166,9 @@ class CodexTurnRegistry {
         const warning =
           getNestedString(message.params, ["message"]) ||
           "Codex app-server warning.";
-        turn?.onNotice?.(warning);
         this.emit(turn, {
-          type: "notice",
-          itemId: nextSyntheticId(turn, "notice"),
+          type: "notice.upsert",
+          blockId: nextSyntheticId(turn, "notice"),
           text: warning,
         });
         logger.warn("codex app-server warning", {
@@ -162,6 +185,13 @@ class CodexTurnRegistry {
         );
         break;
       default:
+        if (getItem(message.params)) {
+          this.handleItem(
+            turn,
+            message.params,
+            message.method.toLowerCase().includes("completed"),
+          );
+        }
         break;
     }
   }
@@ -172,15 +202,26 @@ class CodexTurnRegistry {
   ): void {
     const delta = getNestedString(params, ["delta"]);
     if (!turn || !delta) return;
-    const itemId = getItemId(params) || "codex-agent-message";
+    const itemId = this.getStableBlockId(turn, params, "agent-message");
     const current = turn.messageItems.get(itemId);
     const phase = getContentPhase(params) || current?.phase || "candidate";
+    const expectedOffset = current?.text.length || 0;
     turn.messageItems.set(itemId, {
       phase,
       text: `${current?.text || ""}${delta}`,
     });
-    this.emit(turn, { type: "content.delta", itemId, phase, delta });
-    turn.onDelta?.(delta);
+    this.setStreamLength(
+      turn,
+      contentStreamKey(itemId),
+      expectedOffset + delta.length,
+    );
+    this.emit(turn, {
+      type: "content.append",
+      blockId: itemId,
+      phase,
+      expectedOffset,
+      delta,
+    });
   }
 
   private handleCommentaryDelta(
@@ -190,10 +231,19 @@ class CodexTurnRegistry {
   ): void {
     const delta = getNestedString(params, ["delta"]);
     if (!turn || !delta) return;
+    const blockId = this.getStableBlockId(
+      turn,
+      params,
+      `commentary:${fallbackId}`,
+    );
+    const streamKey = contentStreamKey(blockId);
+    const expectedOffset = this.getStreamLength(turn, streamKey);
+    this.setStreamLength(turn, streamKey, expectedOffset + delta.length);
     this.emit(turn, {
-      type: "content.delta",
-      itemId: getItemId(params) || fallbackId,
+      type: "content.append",
+      blockId,
       phase: "commentary",
+      expectedOffset,
       delta,
     });
   }
@@ -205,8 +255,21 @@ class CodexTurnRegistry {
   ): void {
     const delta = getNestedString(params, ["delta"]);
     if (!turn || !delta) return;
-    const itemId = `${getItemId(params) || "codex-reasoning"}:${kind}`;
-    this.emit(turn, { type: "reasoning.delta", itemId, kind, delta });
+    const blockId = `${this.getStableBlockId(
+      turn,
+      params,
+      `reasoning:${kind}`,
+    )}:${kind}`;
+    const streamKey = reasoningStreamKey(blockId);
+    const expectedOffset = this.getStreamLength(turn, streamKey);
+    this.setStreamLength(turn, streamKey, expectedOffset + delta.length);
+    this.emit(turn, {
+      type: "reasoning.append",
+      blockId,
+      kind,
+      expectedOffset,
+      delta,
+    });
   }
 
   private handleToolProgress(
@@ -214,16 +277,22 @@ class CodexTurnRegistry {
     params: JsonValue | undefined,
   ): void {
     if (!turn) return;
-    const itemId = getItemId(params);
-    if (!itemId) return;
+    const itemId = this.getStableBlockId(turn, params, "tool");
     const delta =
       getNestedString(params, ["delta"]) ||
       getNestedString(params, ["message"]) ||
       getNestedString(params, ["progress"]);
     if (delta) {
-      this.emit(turn, { type: "tool.progress", toolCallId: itemId, delta });
+      const streamKey = toolProgressStreamKey(itemId);
+      const expectedOffset = this.getStreamLength(turn, streamKey);
+      this.setStreamLength(turn, streamKey, expectedOffset + delta.length);
+      this.emit(turn, {
+        type: "tool.progress.append",
+        blockId: itemId,
+        expectedOffset,
+        delta,
+      });
     }
-    turn.onToolActivity?.();
   }
 
   private handleItem(
@@ -233,22 +302,25 @@ class CodexTurnRegistry {
   ): void {
     if (!turn) return;
     const item = getItem(params);
-    const itemId = getItemId(params);
     const itemType = stringProperty(item, "type");
-    if (!item || !itemId || !itemType) return;
+    if (!item || !itemType) return;
+    const channel = getItemChannel(itemType);
 
     if (itemType === "agentMessage") {
+      const itemId = this.getStableBlockId(turn, params, channel);
       const phase = getContentPhase(item) || "candidate";
       const text = stringProperty(item, "text") || "";
       turn.messageItems.set(itemId, { phase, text });
+      this.setStreamLength(turn, contentStreamKey(itemId), text.length);
       if (text || completed) {
         this.emit(turn, {
-          type: "content.completed",
-          itemId,
+          type: "content.replace",
+          blockId: itemId,
           phase,
           text,
         });
       }
+      if (completed) turn.anonymousBlockIds.delete(channel);
       return;
     }
 
@@ -256,41 +328,67 @@ class CodexTurnRegistry {
       const summary = extractText(item.summary);
       const content = extractText(item.content);
       if (summary || completed) {
+        const blockId = `${this.getStableBlockId(
+          turn,
+          params,
+          "reasoning:summary",
+        )}:summary`;
+        this.setStreamLength(turn, reasoningStreamKey(blockId), summary.length);
         this.emit(turn, {
-          type: "reasoning.completed",
-          itemId: `${itemId}:summary`,
+          type: "reasoning.replace",
+          blockId,
           kind: "summary",
           text: summary,
         });
       }
       if (content) {
+        const blockId = `${this.getStableBlockId(
+          turn,
+          params,
+          "reasoning:content",
+        )}:content`;
+        this.setStreamLength(turn, reasoningStreamKey(blockId), content.length);
         this.emit(turn, {
-          type: "reasoning.completed",
-          itemId: `${itemId}:content`,
+          type: "reasoning.replace",
+          blockId,
           kind: "content",
           text: content,
         });
+      }
+      if (completed) {
+        turn.anonymousBlockIds.delete("reasoning:summary");
+        turn.anonymousBlockIds.delete("reasoning:content");
       }
       return;
     }
 
     if (itemType === "plan") {
+      const itemId = this.getStableBlockId(turn, params, channel);
       const text = stringProperty(item, "text") || "";
       if (text) {
+        this.setStreamLength(turn, contentStreamKey(itemId), text.length);
         this.emit(turn, {
-          type: "content.completed",
-          itemId,
+          type: "content.replace",
+          blockId: itemId,
           phase: "commentary",
           text,
         });
       }
+      if (completed) turn.anonymousBlockIds.delete(channel);
       return;
     }
 
     if (!isOperationalItem(itemType)) return;
+    const itemId = this.getStableBlockId(turn, params, channel);
     this.demoteCandidateMessages(turn);
     const tool = parseToolItem(itemId, itemType, item);
-    turn.onToolActivity?.();
+    if (tool.arguments) {
+      this.setStreamLength(
+        turn,
+        toolArgumentsStreamKey(itemId),
+        tool.arguments.length,
+      );
+    }
     if (!completed) {
       this.emit(turn, { type: "tool.started", ...tool });
       return;
@@ -301,6 +399,7 @@ class CodexTurnRegistry {
       result: parseToolResult(itemType, item),
       error: parseToolError(item),
     });
+    turn.anonymousBlockIds.delete(channel);
     logger.debug(
       `codex ${itemType} ${completed ? "completed" : "started"}`,
       summarizeJsonForLog(params),
@@ -313,7 +412,7 @@ class CodexTurnRegistry {
       turn.messageItems.set(itemId, { ...message, phase: "commentary" });
       this.emit(turn, {
         type: "content.phase",
-        itemId,
+        blockId: itemId,
         phase: "commentary",
       });
     }
@@ -321,9 +420,43 @@ class CodexTurnRegistry {
 
   private emit(
     turn: ActiveCodexTurn | undefined,
-    event: AgentTraceEvent,
+    event: AgentStreamEventInput,
   ): void {
-    turn?.onTraceEvent?.(event);
+    if (!turn) return;
+    turn.eventSequence += 1;
+    turn.onEvent?.({
+      ...event,
+      sequence: turn.eventSequence,
+    } as AgentStreamEvent);
+  }
+
+  private getStreamLength(turn: ActiveCodexTurn, key: string): number {
+    return turn.streamLengths.get(key) || 0;
+  }
+
+  private setStreamLength(
+    turn: ActiveCodexTurn,
+    key: string,
+    length: number,
+  ): void {
+    turn.streamLengths.set(key, length);
+  }
+
+  private getStableBlockId(
+    turn: ActiveCodexTurn,
+    params: JsonValue | undefined,
+    channel: string,
+  ): string {
+    const explicit = getItemId(params);
+    if (explicit) {
+      turn.anonymousBlockIds.set(channel, explicit);
+      return explicit;
+    }
+    const current = turn.anonymousBlockIds.get(channel);
+    if (current) return current;
+    const generated = nextSyntheticId(turn, channel);
+    turn.anonymousBlockIds.set(channel, generated);
+    return generated;
   }
 
   private findForNotification(
@@ -342,7 +475,9 @@ class CodexTurnRegistry {
     this.remove(turn.threadId, turn.turnId);
     clearTimeout(turn.timer);
     if (status && status !== "completed" && status !== "interrupted") {
-      turn.reject(new Error(`Codex turn ${status}.`));
+      const error = new Error(`Codex turn ${status}.`);
+      this.emit(turn, { type: "turn.failed", error: error.message });
+      turn.reject(error);
       return;
     }
     const text = [...turn.messageItems.values()]
@@ -351,6 +486,10 @@ class CodexTurnRegistry {
       .filter(Boolean)
       .join("\n\n")
       .trim();
+    this.emit(turn, {
+      type: status === "interrupted" ? "turn.interrupted" : "turn.completed",
+      text,
+    });
     turn.resolve({
       threadId: turn.threadId,
       turnId:
@@ -364,10 +503,9 @@ class CodexTurnRegistry {
     const errorText = formatServerError(params);
     const turn = this.findForNotification(params);
     if (getNestedBoolean(params, ["willRetry"])) {
-      turn?.onNotice?.(errorText);
       this.emit(turn, {
-        type: "notice",
-        itemId: nextSyntheticId(turn, "retry"),
+        type: "notice.upsert",
+        blockId: nextSyntheticId(turn, "retry"),
         text: errorText,
       });
       logger.warn("codex app-server retrying", {
@@ -421,12 +559,19 @@ function isOperationalItem(type: string): boolean {
   ].includes(type);
 }
 
+function getItemChannel(itemType: string): string {
+  if (itemType === "agentMessage") return "agent-message";
+  if (itemType === "reasoning") return "reasoning:item";
+  if (itemType === "plan") return "commentary:plan";
+  return "tool";
+}
+
 function parseToolItem(
   itemId: string,
   itemType: string,
   item: JsonRecord,
 ): {
-  toolCallId: string;
+  blockId: string;
   name: string;
   server?: string;
   arguments?: string;
@@ -446,7 +591,7 @@ function parseToolItem(
     item.action ??
     item.path;
   return {
-    toolCallId: itemId,
+    blockId: itemId,
     name,
     server: stringProperty(item, "server"),
     arguments: formatJson(argumentValue),
@@ -509,8 +654,24 @@ function nextSyntheticId(
   prefix: string,
 ): string {
   if (!turn) return `${prefix}-unknown`;
-  turn.eventSequence += 1;
-  return `${prefix}-${turn.eventSequence}`;
+  turn.syntheticIdSequence += 1;
+  return `${prefix}-${turn.syntheticIdSequence}`;
+}
+
+function contentStreamKey(blockId: string): string {
+  return `content:${blockId}`;
+}
+
+function reasoningStreamKey(blockId: string): string {
+  return `reasoning:${blockId}`;
+}
+
+function toolArgumentsStreamKey(blockId: string): string {
+  return `tool-arguments:${blockId}`;
+}
+
+function toolProgressStreamKey(blockId: string): string {
+  return `tool-progress:${blockId}`;
 }
 
 export { CodexTurnRegistry };

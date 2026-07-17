@@ -1,4 +1,8 @@
-import type { SidebarActions, SidebarState } from "../ui/types";
+import type {
+  SidebarActions,
+  SidebarState,
+  SidebarStreamingSnapshot,
+} from "../ui/types";
 import { getString } from "../../../app/localization";
 import {
   SIDEBAR_WINDOW_RUNTIME_KEY,
@@ -14,6 +18,7 @@ type ZopilotDeckHost = {
   attach: (panel: Element) => boolean;
   isAttachedTo: (panel: Element) => boolean;
   render: (state: SidebarState, actions: SidebarActions) => void;
+  publishStreaming: (snapshot: SidebarStreamingSnapshot | undefined) => void;
   focus: () => void;
   destroy: () => void;
 };
@@ -45,6 +50,7 @@ async function createZopilotDeckHost(panel: Element): Promise<ZopilotDeckHost> {
       currentActions = actions;
       host.render(state);
     },
+    publishStreaming: (snapshot) => host.publishStreaming(snapshot),
     focus: () => host.focus(),
     destroy() {
       currentActions = undefined;

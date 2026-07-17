@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { memo, useEffect, useState, type ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import { Icon } from "./Icon";
@@ -8,7 +8,8 @@ type ToolTraceItem = Extract<AgentTraceItem, { type: "tool" }>;
 
 type TracePanelProps = {
   collapsed: boolean;
-  items: AgentTraceItem[];
+  items: readonly AgentTraceItem[];
+  now?: number;
   onOpenLink: (url: string) => void;
   running: boolean;
 };
@@ -16,6 +17,7 @@ type TracePanelProps = {
 export function TracePanel({
   collapsed,
   items,
+  now,
   onOpenLink,
   running,
 }: TracePanelProps): ReactElement {
@@ -51,7 +53,12 @@ export function TracePanel({
       {items.length ? (
         <div className="zp-trace-items">
           {items.map((item) => (
-            <TraceItem item={item} key={item.id} onOpenLink={onOpenLink} />
+            <MemoTraceItem
+              item={item}
+              key={item.id}
+              now={now}
+              onOpenLink={onOpenLink}
+            />
           ))}
         </div>
       ) : null}
@@ -61,13 +68,15 @@ export function TracePanel({
 
 function TraceItem({
   item,
+  now,
   onOpenLink,
 }: {
   item: AgentTraceItem;
+  now?: number;
   onOpenLink: (url: string) => void;
 }): ReactElement {
   if (item.type === "tool") {
-    return <ToolTrace item={item} />;
+    return <ToolTrace item={item} now={now} />;
   }
   const label =
     item.type === "reasoning" && item.kind === "summary"
@@ -87,14 +96,37 @@ function TraceItem({
   );
 }
 
-function ToolTrace({ item }: { item: ToolTraceItem }): ReactElement {
-  const durationMs = useToolDuration(item);
+const MemoTraceItem = memo(
+  TraceItem,
+  (previous, next) =>
+    previous.item === next.item &&
+    previous.onOpenLink === next.onOpenLink &&
+    (next.item.type !== "tool" ||
+      next.item.status !== "running" ||
+      previous.now === next.now),
+);
+
+function ToolTrace({
+  item,
+  now,
+}: {
+  item: ToolTraceItem;
+  now?: number;
+}): ReactElement {
+  const durationMs =
+    item.status === "running" &&
+    item.startedAt !== undefined &&
+    now !== undefined
+      ? Math.max(0, now - item.startedAt)
+      : item.durationMs;
   const status =
     item.status === "running"
       ? getString("sidebar-trace-tool-running")
       : item.status === "failed"
         ? getString("sidebar-trace-tool-failed")
-        : getString("sidebar-trace-tool-completed");
+        : item.status === "interrupted"
+          ? getString("sidebar-status-interrupted")
+          : getString("sidebar-trace-tool-completed");
   return (
     <details className="zp-trace-item zp-trace-tool" data-status={item.status}>
       <summary className="zp-trace-tool-header">
@@ -106,7 +138,11 @@ function ToolTrace({ item }: { item: ToolTraceItem }): ReactElement {
         {item.status !== "running" ? (
           <Icon
             className="zp-trace-tool-status-icon"
-            name={item.status === "failed" ? "close" : "check"}
+            name={
+              item.status === "failed" || item.status === "interrupted"
+                ? "close"
+                : "check"
+            }
             size={12}
           />
         ) : null}
@@ -174,21 +210,6 @@ function TracePayloadValue({
       <pre>{value}</pre>
     </section>
   );
-}
-
-function useToolDuration(item: ToolTraceItem): number | undefined {
-  const [now, setNow] = useState(Date.now);
-
-  useEffect(() => {
-    if (item.status !== "running" || item.startedAt === undefined) return;
-    const interval = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(interval);
-  }, [item.startedAt, item.status]);
-
-  if (item.status === "running" && item.startedAt !== undefined) {
-    return Math.max(0, now - item.startedAt);
-  }
-  return item.durationMs;
 }
 
 function formatDuration(durationMs: number): string {

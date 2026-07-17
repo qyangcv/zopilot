@@ -22,6 +22,7 @@ import type {
   SidebarState,
 } from "../../../src/features/sidebar/ui/types.ts";
 import type { Conversation } from "../../../src/domain/conversation.ts";
+import { SidebarStreamSnapshotStore } from "../../../src/features/sidebar/ui/SidebarStreamSnapshotStore.ts";
 
 describe("SidebarApp", function () {
   before(function () {
@@ -104,6 +105,66 @@ describe("SidebarApp", function () {
     assert.include(html, "paper_read");
     assert.include(html, "3.0s");
     assert.include(html, "Final answer");
+  });
+
+  it("renders active streaming blocks from the external snapshot store", function () {
+    const streamStore = new SidebarStreamSnapshotStore();
+    streamStore.publish({
+      conversationId: "conv-stream",
+      messageId: "assistant-stream",
+      lifecycle: "running",
+      stateVersion: 2,
+      sequence: 2,
+      publicationVersion: 1,
+      publishedAt: 4_000,
+      model: "gpt-5.3-codex",
+      providerProfileId: "codex-cli.default",
+      providerBrand: "codex",
+      finalStarted: true,
+      answerBlocks: [
+        {
+          id: "answer",
+          type: "content",
+          phase: "final_answer",
+          text: "Streaming answer",
+          revision: 1,
+        },
+      ],
+      traceBlocks: [
+        {
+          id: "call-a",
+          type: "tool",
+          name: "paper_read",
+          status: "running",
+          startedAt: 1_000,
+          revision: 1,
+        },
+      ],
+      hasRunningTools: true,
+    });
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          conversationId: "conv-stream",
+          busy: true,
+          models: [
+            {
+              slug: "gpt-5.3-codex",
+              displayName: "GPT-5.3-Codex",
+              providerProfileId: "codex-cli.default",
+              providerLabel: "Codex CLI",
+              supportedReasoningEfforts: [],
+            },
+          ],
+        })}
+        streamStore={streamStore}
+      />,
+    );
+
+    assert.include(html, "Streaming answer");
+    assert.include(html, "GPT-5.3-Codex");
+    assert.include(html, "3.0s");
   });
 
   it("renders every tool call separately with duration and expandable payloads", function () {

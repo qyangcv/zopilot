@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import { Icon, type IconName } from "./Icon";
 import { ContextChips } from "./ContextChips";
@@ -7,7 +7,7 @@ import type { SidebarMessageView } from "./types";
 import { TracePanel } from "./TracePanel";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 
-export function Message({
+function Message({
   busy,
   copiedId,
   message,
@@ -119,6 +119,8 @@ export function Message({
   );
 }
 
+const MemoMessage = memo(Message);
+
 function AssistantFooter({
   completedAt,
   copied,
@@ -197,3 +199,5 @@ function IconAction({
     </button>
   );
 }
+
+export { MemoMessage, Message };

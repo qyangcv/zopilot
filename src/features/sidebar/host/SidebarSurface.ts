@@ -1,5 +1,9 @@
 import { createLogger } from "../../../runtime/logging/logger";
-import type { SidebarActions, SidebarState } from "../ui/types";
+import type {
+  SidebarActions,
+  SidebarState,
+  SidebarStreamingSnapshot,
+} from "../ui/types";
 import { ContextPaneDeckAdapter } from "./ContextPaneAdapter";
 import { STYLE_URI } from "./constants";
 import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
@@ -27,6 +31,7 @@ class SidebarSurface {
   private deckHostCreation?: Promise<void>;
   private deckPanel?: Element;
   private activeKind?: SidebarSurfaceKind;
+  private streamingSnapshot?: SidebarStreamingSnapshot;
 
   constructor(
     private readonly win: Window,
@@ -99,6 +104,7 @@ class SidebarSurface {
     this.deckHost = undefined;
     this.deckPanel = undefined;
     this.activeKind = undefined;
+    this.streamingSnapshot = undefined;
     this.deckAdapter.destroy(Boolean(options.restoreHost));
     this.libraryAdapter.destroy(Boolean(options.restoreHost));
     this.styleNode?.remove();
@@ -189,6 +195,11 @@ class SidebarSurface {
     this.deckHost?.render(state, actions);
   }
 
+  publishStreaming(snapshot: SidebarStreamingSnapshot | undefined): void {
+    this.streamingSnapshot = snapshot;
+    this.deckHost?.publishStreaming(snapshot);
+  }
+
   private injectStylesheet(): void {
     const existing = findStylesheets(this.doc, STYLE_URI);
     existing.slice(1).forEach((node) => node.remove());
@@ -234,6 +245,7 @@ class SidebarSurface {
       }
       deckHost.attach(currentPanel);
       this.deckHost = deckHost;
+      deckHost.publishStreaming(this.streamingSnapshot);
       this.options.onReady();
     } catch (error) {
       logger.error("failed to mount Zopilot React deck", error);

@@ -48,10 +48,9 @@ describe("sidebar host integration", function () {
     if (!button) this.skip();
 
     button.click();
-    await waitForFrame(win);
-    await waitForFrame(win);
-
-    const portal = doc.getElementById("zopilot-portal-root");
+    const portal = await waitForElement(win, () =>
+      doc.getElementById("zopilot-portal-root"),
+    );
     assert.exists(portal);
     assert.equal(portal?.parentElement?.id, "zotero-pane-stack");
     assert.notEqual(portal?.parentElement?.id, "zotero-pane");
@@ -68,4 +67,17 @@ function assertAtMostOne(doc: Document, selector: string): void {
 
 function waitForFrame(win: Window): Promise<void> {
   return new Promise((resolve) => win.requestAnimationFrame(() => resolve()));
+}
+
+async function waitForElement<T extends Element>(
+  win: Window,
+  resolveElement: () => T | null,
+  frameLimit = 20,
+): Promise<T | null> {
+  for (let frame = 0; frame < frameLimit; frame += 1) {
+    const element = resolveElement();
+    if (element) return element;
+    await waitForFrame(win);
+  }
+  return resolveElement();
 }

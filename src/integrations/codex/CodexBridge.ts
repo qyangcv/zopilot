@@ -105,19 +105,24 @@ class CodexBridge {
 
     const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.activeTurns.remove(threadId);
-        reject(new Error("Codex request timed out."));
+        this.activeTurns.reject(
+          threadId,
+          undefined,
+          new Error("Codex request timed out."),
+        );
       }, this.getTimeoutMs());
       const activeTurn: ActiveCodexTurn = {
+        anonymousBlockIds: new Map(),
+        backendId: options.backendId,
         eventSequence: 0,
         messageItems: new Map(),
+        onEvent: options.onEvent,
+        providerProfileId: options.providerProfileId,
         resolve,
         reject,
-        onDelta: options.onDelta,
-        onTraceEvent: options.onTraceEvent,
-        onNotice: options.onNotice,
-        onToolActivity: options.onToolActivity,
-        onTurnStarted: options.onTurnStarted,
+        started: false,
+        streamLengths: new Map(),
+        syntheticIdSequence: 0,
         timer,
         threadId,
       };
@@ -161,7 +166,7 @@ class CodexBridge {
       return turnPromise;
     } catch (error) {
       this.activeTurns.reject(threadId, undefined, error);
-      throw error;
+      return turnPromise;
     }
   }
 

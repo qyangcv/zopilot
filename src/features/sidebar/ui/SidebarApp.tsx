@@ -8,22 +8,34 @@ import { useAutoScroll } from "./hooks/useAutoScroll";
 import { useComposerDraft } from "./hooks/useComposerDraft";
 import { useSidebarLayoutBounds } from "./hooks/useSidebarLayoutBounds";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
+import { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
+
+const emptyStreamStore = new SidebarStreamSnapshotStore();
 
 export { Message } from "./Message";
 
 export function SidebarApp({
   actions,
   state,
+  streamStore,
 }: {
   actions: SidebarActions;
   state: SidebarState;
+  streamStore?: SidebarStreamSnapshotStore;
 }): ReactElement {
+  streamStore ||= emptyStreamStore;
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const archiveButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const composer = useComposerDraft(actions, state);
-  const autoScroll = useAutoScroll(state.messages);
+  const lastUserMessageId = state.messages.findLast(
+    (message) => message.role === "user",
+  )?.id;
+  const autoScroll = useAutoScroll(
+    `${state.conversationId || ""}:${lastUserMessageId || ""}`,
+    state.messages,
+  );
   useSidebarLayoutBounds(headerRef, composer.bindings.bottomDockRef);
 
   const copyMessage = (message: SidebarMessageView) => {
@@ -56,6 +68,8 @@ export function SidebarApp({
         onScroll={(event) => autoScroll.onScroll(event.currentTarget)}
         onSubmit={composer.submit}
         state={state}
+        streamStore={streamStore}
+        syncStreamingScroll={autoScroll.sync}
       />
       <Composer
         actions={actions}

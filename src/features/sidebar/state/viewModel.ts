@@ -5,27 +5,13 @@ import type {
   SidebarModelView,
   SidebarState,
 } from "../ui/types";
-import type { AgentTraceItem } from "../../../domain/agent/trace";
-import {
-  resolveProviderBrand,
-  type ProviderBrand,
-} from "../../../domain/agent/providerBrand";
+import { resolveProviderBrand } from "../../../domain/agent/providerBrand";
 
 export {
   createConversationMessages,
   createInitialSidebarState,
   createSessionView,
-};
-
-type StreamingMessage = {
-  text: string;
-  trace: AgentTraceItem[];
-  finalStarted: boolean;
-  interrupted: boolean;
-  running: boolean;
-  model?: string;
-  providerProfileId?: string;
-  providerBrand?: ProviderBrand;
+  resolveModelDisplayName,
 };
 
 function createInitialSidebarState(label: string): SidebarState {
@@ -56,7 +42,6 @@ function createInitialSidebarState(label: string): SidebarState {
 
 function createConversationMessages(
   conversation: Conversation,
-  streaming?: StreamingMessage,
   models: SidebarModelView[] = [],
 ): SidebarMessageView[] {
   let lastUserCreatedAt: string | undefined;
@@ -67,32 +52,7 @@ function createConversationMessages(
     return toMessageView(message, lastUserCreatedAt, models);
   });
 
-  if (!streaming) {
-    return messages;
-  }
-
-  return [
-    ...messages.filter(
-      (message) =>
-        message.id !== getStreamingMessageId(conversation.metadata.id),
-    ),
-    {
-      id: getStreamingMessageId(conversation.metadata.id),
-      role: "assistant",
-      text: streaming.text,
-      trace: streaming.trace,
-      finalStarted: streaming.finalStarted,
-      status: streaming.interrupted ? "interrupted" : "complete",
-      transient: true,
-      running: streaming.running,
-      model: resolveModelDisplayName(
-        models,
-        streaming.model,
-        streaming.providerProfileId,
-      ),
-      providerBrand: streaming.providerBrand,
-    },
-  ];
+  return messages;
 }
 
 function createSessionView(
@@ -166,10 +126,6 @@ function formatResponseDuration(
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`;
-}
-
-function getStreamingMessageId(conversationId: string): string {
-  return `zp-streaming-assistant-${conversationId}`;
 }
 
 function getSessionTitle(conversation: Conversation): string {

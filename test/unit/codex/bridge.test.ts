@@ -123,8 +123,10 @@ describe("CodexBridge", function () {
     bridge.cacheThread("conv-trace");
     const events: Array<{ type: string }> = [];
     const promise = bridge.instance.sendPrompt("Question", {
+      backendId: "codex-cli.default",
       conversation: createConversation("conv-trace"),
-      onTraceEvent: (event) => events.push(event),
+      providerProfileId: "codex-cli.default",
+      onEvent: (event) => events.push(event),
     });
     await bridge.flush();
 
@@ -156,7 +158,6 @@ describe("CodexBridge", function () {
       threadId: "thread-conv-trace",
       turnId: "turn-trace",
       item: {
-        id: "call-a",
         type: "mcpToolCall",
         server: "zopilot",
         tool: "paper_read",
@@ -168,7 +169,6 @@ describe("CodexBridge", function () {
       threadId: "thread-conv-trace",
       turnId: "turn-trace",
       item: {
-        id: "call-a",
         type: "mcpToolCall",
         server: "zopilot",
         tool: "paper_read",
@@ -202,13 +202,20 @@ describe("CodexBridge", function () {
     assert.deepEqual(
       events.map((event) => event.type),
       [
-        "reasoning.delta",
-        "content.delta",
+        "turn.started",
+        "reasoning.append",
+        "content.append",
         "tool.started",
         "tool.completed",
-        "content.delta",
+        "content.append",
+        "turn.completed",
       ],
     );
+    const toolEvents = events.filter(
+      (event) =>
+        event.type === "tool.started" || event.type === "tool.completed",
+    ) as Array<{ blockId: string }>;
+    assert.equal(toolEvents[0]?.blockId, toolEvents[1]?.blockId);
   });
 
   it("opens new Codex threads with paper_read developer instructions", async function () {

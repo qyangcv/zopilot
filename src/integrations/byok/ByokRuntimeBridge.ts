@@ -20,8 +20,11 @@ import type {
 import type {
   AgentContentPhase,
   AgentReasoningKind,
-  AgentTraceEvent,
 } from "../../domain/agent/trace";
+import type {
+  AgentStreamEvent,
+  AgentStreamEventInput,
+} from "../../domain/agent/streaming";
 import { StdioJsonRpcPeer } from "../../runtime/json-rpc/StdioJsonRpcPeer";
 import type {
   StdioSubprocess,
@@ -49,9 +52,12 @@ type ByokSubprocessProcess = StdioSubprocess;
 type ByokSubprocessModule = StdioSubprocessModule<ByokSubprocessProcess>;
 
 type ActiveTurn = {
+  anonymousBlockIds: Map<string, string>;
   callbacks: AgentPromptCallbacks;
-  fullText: string;
+  eventSequence: number;
   runId: string;
+  streamLengths: Map<string, number>;
+  syntheticIdSequence: number;
 };
 
 const logger = createLogger("byok.runtime");
@@ -100,14 +106,19 @@ class ByokRuntimeBridge {
   ): Promise<AgentRunResult> {
     await this.start();
     const runId = createRunId();
-    callbacks.onRunStarted?.({
+    const activeTurn: ActiveTurn = {
+      anonymousBlockIds: new Map(),
+      callbacks,
+      eventSequence: 0,
+      runId,
+      streamLengths: new Map(),
+      syntheticIdSequence: 0,
+    };
+    this.activeTurns.set(runId, activeTurn);
+    this.emit(activeTurn, {
+      type: "turn.started",
       backendId: profile.id,
       providerProfileId: profile.id,
-      runId,
-    });
-    this.activeTurns.set(runId, {
-      callbacks,
-      fullText: "",
       runId,
     });
     try {
@@ -120,7 +131,21 @@ class ByokRuntimeBridge {
         },
         profile.timeoutMs + 1000,
       );
-      return parseRunResult(result, profile, runId);
+      const parsed = parseRunResult(result, profile, runId);
+      this.emit(activeTurn, {
+        type:
+          parsed.status === "interrupted"
+            ? "turn.interrupted"
+            : "turn.completed",
+        text: parsed.text,
+      });
+      return parsed;
+    } catch (error) {
+      this.emit(activeTurn, {
+        type: "turn.failed",
+        error: toError(error).message,
+      });
+      throw error;
     } finally {
       this.activeTurns.delete(runId);
     }
@@ -226,45 +251,78 @@ class ByokRuntimeBridge {
       case "item/agentMessage/delta": {
         const delta = getNestedString(message.params, ["delta"]);
         if (activeTurn && delta) {
-          activeTurn.fullText += delta;
-          this.emitTrace(activeTurn, {
-            type: "content.delta",
-            itemId:
-              getNestedString(message.params, ["itemId"]) ||
-              "byok-agent-message",
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            "agent-message",
+          );
+          const streamKey = contentStreamKey(blockId);
+          const expectedOffset = this.getStreamLength(activeTurn, streamKey);
+          this.setStreamLength(
+            activeTurn,
+            streamKey,
+            expectedOffset + delta.length,
+          );
+          this.emit(activeTurn, {
+            type: "content.append",
+            blockId,
             phase: parseContentPhase(
               getNestedString(message.params, ["phase"]),
             ),
+            expectedOffset,
             delta,
           });
-          activeTurn.callbacks.onTextDelta?.(delta);
         }
         break;
       }
       case "item/agentMessage/completed": {
         const text = getNestedString(message.params, ["text"]);
         if (activeTurn && text !== undefined) {
-          this.emitTrace(activeTurn, {
-            type: "content.completed",
-            itemId:
-              getNestedString(message.params, ["itemId"]) ||
-              "byok-agent-message",
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            "agent-message",
+          );
+          this.setStreamLength(
+            activeTurn,
+            contentStreamKey(blockId),
+            text.length,
+          );
+          this.emit(activeTurn, {
+            type: "content.replace",
+            blockId,
             phase: parseContentPhase(
               getNestedString(message.params, ["phase"]),
             ),
             text,
           });
+          activeTurn.anonymousBlockIds.delete("agent-message");
         }
         break;
       }
       case "item/reasoning/delta": {
         const delta = getNestedString(message.params, ["delta"]);
         if (activeTurn && delta) {
-          this.emitTrace(activeTurn, {
-            type: "reasoning.delta",
-            itemId:
-              getNestedString(message.params, ["itemId"]) || "byok-reasoning",
-            kind: parseReasoningKind(getNestedString(message.params, ["kind"])),
+          const kind = parseReasoningKind(
+            getNestedString(message.params, ["kind"]),
+          );
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            `reasoning:${kind}`,
+          );
+          const streamKey = reasoningStreamKey(blockId);
+          const expectedOffset = this.getStreamLength(activeTurn, streamKey);
+          this.setStreamLength(
+            activeTurn,
+            streamKey,
+            expectedOffset + delta.length,
+          );
+          this.emit(activeTurn, {
+            type: "reasoning.append",
+            blockId,
+            kind,
+            expectedOffset,
             delta,
           });
         }
@@ -273,36 +331,77 @@ class ByokRuntimeBridge {
       case "item/reasoning/completed": {
         const text = getNestedString(message.params, ["text"]);
         if (activeTurn && text !== undefined) {
-          this.emitTrace(activeTurn, {
-            type: "reasoning.completed",
-            itemId:
-              getNestedString(message.params, ["itemId"]) || "byok-reasoning",
-            kind: parseReasoningKind(getNestedString(message.params, ["kind"])),
+          const kind = parseReasoningKind(
+            getNestedString(message.params, ["kind"]),
+          );
+          const channel = `reasoning:${kind}`;
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            channel,
+          );
+          this.setStreamLength(
+            activeTurn,
+            reasoningStreamKey(blockId),
+            text.length,
+          );
+          this.emit(activeTurn, {
+            type: "reasoning.replace",
+            blockId,
+            kind,
             text,
           });
+          activeTurn.anonymousBlockIds.delete(channel);
         }
         break;
       }
       case "item/tool/started": {
         const name = getNestedString(message.params, ["name"]) || "tool";
         if (activeTurn) {
-          this.emitTrace(activeTurn, {
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            "tool",
+            true,
+          );
+          const argumentsText = getNestedString(message.params, ["arguments"]);
+          if (argumentsText) {
+            this.setStreamLength(
+              activeTurn,
+              toolArgumentsStreamKey(blockId),
+              argumentsText.length,
+            );
+          }
+          this.emit(activeTurn, {
             type: "tool.started",
-            toolCallId: getToolCallId(message.params),
+            blockId,
             name,
             server: getNestedString(message.params, ["server"]),
-            arguments: getNestedString(message.params, ["arguments"]),
+            arguments: argumentsText,
           });
-          activeTurn.callbacks.onToolStarted?.(name);
         }
         break;
       }
       case "item/tool/argumentsDelta": {
         const delta = getNestedString(message.params, ["delta"]);
         if (activeTurn && delta) {
-          this.emitTrace(activeTurn, {
-            type: "tool.arguments.delta",
-            toolCallId: getToolCallId(message.params),
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            "tool",
+            true,
+          );
+          const streamKey = toolArgumentsStreamKey(blockId);
+          const expectedOffset = this.getStreamLength(activeTurn, streamKey);
+          this.setStreamLength(
+            activeTurn,
+            streamKey,
+            expectedOffset + delta.length,
+          );
+          this.emit(activeTurn, {
+            type: "tool.arguments.append",
+            blockId,
+            expectedOffset,
             delta,
           });
         }
@@ -311,9 +410,23 @@ class ByokRuntimeBridge {
       case "item/tool/progress": {
         const delta = getNestedString(message.params, ["delta"]);
         if (activeTurn && delta) {
-          this.emitTrace(activeTurn, {
-            type: "tool.progress",
-            toolCallId: getToolCallId(message.params),
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            "tool",
+            true,
+          );
+          const streamKey = toolProgressStreamKey(blockId);
+          const expectedOffset = this.getStreamLength(activeTurn, streamKey);
+          this.setStreamLength(
+            activeTurn,
+            streamKey,
+            expectedOffset + delta.length,
+          );
+          this.emit(activeTurn, {
+            type: "tool.progress.append",
+            blockId,
+            expectedOffset,
             delta,
           });
         }
@@ -322,27 +435,32 @@ class ByokRuntimeBridge {
       case "item/tool/completed": {
         const name = getNestedString(message.params, ["name"]) || "tool";
         if (activeTurn) {
-          this.emitTrace(activeTurn, {
+          const blockId = this.getStableBlockId(
+            activeTurn,
+            message.params,
+            "tool",
+            true,
+          );
+          this.emit(activeTurn, {
             type: "tool.completed",
-            toolCallId: getToolCallId(message.params),
+            blockId,
             name,
             server: getNestedString(message.params, ["server"]),
             arguments: getNestedString(message.params, ["arguments"]),
             result: getNestedString(message.params, ["result"]),
             error: getNestedString(message.params, ["error"]),
           });
-          activeTurn.callbacks.onToolCompleted?.(name);
+          activeTurn.anonymousBlockIds.delete("tool");
         }
         break;
       }
       case "warning": {
         const warning = getNestedString(message.params, ["message"]);
         if (warning) {
-          activeTurn?.callbacks.onNotice?.(warning);
           if (activeTurn) {
-            this.emitTrace(activeTurn, {
-              type: "notice",
-              itemId: `warning-${Date.now()}`,
+            this.emit(activeTurn, {
+              type: "notice.upsert",
+              blockId: this.nextSyntheticId(activeTurn, "warning"),
               text: warning,
             });
           }
@@ -355,8 +473,49 @@ class ByokRuntimeBridge {
     }
   }
 
-  private emitTrace(activeTurn: ActiveTurn, event: AgentTraceEvent): void {
-    activeTurn.callbacks.onTraceEvent?.(event);
+  private emit(activeTurn: ActiveTurn, event: AgentStreamEventInput): void {
+    activeTurn.eventSequence += 1;
+    activeTurn.callbacks.onEvent?.({
+      ...event,
+      sequence: activeTurn.eventSequence,
+    } as AgentStreamEvent);
+  }
+
+  private getStreamLength(activeTurn: ActiveTurn, key: string): number {
+    return activeTurn.streamLengths.get(key) || 0;
+  }
+
+  private setStreamLength(
+    activeTurn: ActiveTurn,
+    key: string,
+    length: number,
+  ): void {
+    activeTurn.streamLengths.set(key, length);
+  }
+
+  private nextSyntheticId(activeTurn: ActiveTurn, prefix: string): string {
+    activeTurn.syntheticIdSequence += 1;
+    return `${prefix}-${activeTurn.syntheticIdSequence}`;
+  }
+
+  private getStableBlockId(
+    activeTurn: ActiveTurn,
+    params: JsonValue | undefined,
+    channel: string,
+    tool = false,
+  ): string {
+    const explicit =
+      (tool ? getNestedString(params, ["toolCallId"]) : undefined) ||
+      getNestedString(params, ["itemId"]);
+    if (explicit) {
+      activeTurn.anonymousBlockIds.set(channel, explicit);
+      return explicit;
+    }
+    const current = activeTurn.anonymousBlockIds.get(channel);
+    if (current) return current;
+    const generated = this.nextSyntheticId(activeTurn, channel);
+    activeTurn.anonymousBlockIds.set(channel, generated);
+    return generated;
   }
 
   private rejectAll(error: Error): void {
@@ -427,12 +586,20 @@ function parseReasoningKind(value: string | undefined): AgentReasoningKind {
   return value === "summary" ? "summary" : "content";
 }
 
-function getToolCallId(params: JsonValue | undefined): string {
-  return (
-    getNestedString(params, ["toolCallId"]) ||
-    getNestedString(params, ["itemId"]) ||
-    "byok-tool"
-  );
+function contentStreamKey(blockId: string): string {
+  return `content:${blockId}`;
+}
+
+function reasoningStreamKey(blockId: string): string {
+  return `reasoning:${blockId}`;
+}
+
+function toolArgumentsStreamKey(blockId: string): string {
+  return `tool-arguments:${blockId}`;
+}
+
+function toolProgressStreamKey(blockId: string): string {
+  return `tool-progress:${blockId}`;
 }
 
 let sharedBridge: ByokRuntimeBridge | undefined;

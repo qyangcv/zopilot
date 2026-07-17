@@ -73,25 +73,12 @@ class CodexCliBackend implements AgentBackend {
         input.localAttachments || [],
       ),
       {
+        backendId: this.id,
+        providerProfileId: this.profile.id,
         conversation: input.conversation.metadata,
         model: input.model,
         effort: input.reasoningEffort,
-        onTurnStarted: (threadId, turnId) => {
-          callbacks.onRunStarted?.({
-            backendId: this.id,
-            providerProfileId: this.profile.id,
-            runId: threadId,
-            turnId,
-            legacy: {
-              codexThreadId: threadId,
-              codexTurnId: turnId,
-            },
-          });
-        },
-        onDelta: callbacks.onTextDelta,
-        onTraceEvent: callbacks.onTraceEvent,
-        onNotice: callbacks.onNotice,
-        onToolActivity: () => callbacks.onToolStarted?.("paper_read"),
+        onEvent: callbacks.onEvent,
       },
     );
     return {

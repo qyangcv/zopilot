@@ -15,7 +15,9 @@ import { createInitialSidebarState } from "../state/viewModel";
 import { createPdfHelperNoticeText } from "../chat/pdfHelperGate";
 import { PdfHelperPromptGuard } from "../chat/PdfHelperPromptGuard";
 import { ProviderCatalogController } from "../providers/ProviderCatalogController";
-import { TurnCoordinator, type RunningTurn } from "../chat/TurnCoordinator";
+import { TurnCoordinator } from "../chat/TurnCoordinator";
+import { RunningTurnStore } from "../chat/RunningTurnStore";
+import { StreamRenderScheduler } from "../chat/StreamRenderScheduler";
 import {
   WorkspaceCoordinator,
   type SidebarHostContext,
@@ -81,7 +83,8 @@ class SidebarHostController {
   private readonly workspaceCoordinator: WorkspaceCoordinator;
   private readonly readerSelection: ReaderSelectionCoordinator;
   private readonly librarySelection: LibrarySelectionCoordinator;
-  private readonly runningTurns = new Map<string, RunningTurn>();
+  private readonly turnStore = new RunningTurnStore();
+  private readonly streamScheduler: StreamRenderScheduler;
   private readonly turnCoordinator: TurnCoordinator;
   private readonly hostBindings: SidebarHostBindings;
   private readonly contextActions: SidebarContextActions;
@@ -104,6 +107,15 @@ class SidebarHostController {
       onUnavailable: () => this.setOpen(false),
       onReady: () => this.renderApp(),
     });
+    this.streamScheduler = new StreamRenderScheduler({
+      win: this.win,
+      getActiveConversationId: () =>
+        this.getReadyDisplayState()?.conversation.metadata.id,
+      getSnapshot: (conversationId) =>
+        this.turnStore.getSnapshot(conversationId),
+      publish: (snapshot) => this.surface.publishStreaming(snapshot),
+    });
+    this.streamScheduler.setVisible(false);
     const label = getSelectedItemTitle(this.win);
     this.viewState = createInitialSidebarState(label);
     this.viewState.prompts = loadPromptViews();
@@ -166,7 +178,8 @@ class SidebarHostController {
       this.getReadyDisplayState(),
     );
     this.turnCoordinator = new TurnCoordinator({
-      runningTurns: this.runningTurns,
+      turnStore: this.turnStore,
+      streamScheduler: this.streamScheduler,
       getViewState: () => this.viewState,
       getReadyConversation: async () =>
         (await this.getReadyStateForActiveContext())?.conversation,
@@ -179,7 +192,6 @@ class SidebarHostController {
       setReadyConversation: (conversation) =>
         this.setReadyConversation(conversation),
       updateViewState: (patch) => this.updateViewState(patch),
-      renderDisplayState: () => this.renderDisplayState(),
       refreshBackendDiagnostic: (error) => this.showBackendDiagnostic(error),
       refreshSessions: () => {
         void this.sessions.showPopover();
@@ -194,12 +206,8 @@ class SidebarHostController {
       setReadyConversation: (conversation) =>
         this.setReadyConversation(conversation),
       focusComposer: () => this.focusComposer(),
-      interruptConversationTurn: (conversationId) => {
-        const runningTurn = this.runningTurns.get(conversationId);
-        if (runningTurn) {
-          this.interruptRunningTurn(runningTurn);
-        }
-      },
+      interruptConversationTurn: (conversationId) =>
+        this.turnCoordinator.interruptConversation(conversationId),
       isDestroyed: () => this.destroyed,
       isOpen: () => this.open,
     });
@@ -234,6 +242,7 @@ class SidebarHostController {
     this.pendingTimeouts.forEach((timeout) => this.win.clearTimeout(timeout));
     this.pendingTimeouts.clear();
     this.listeners.splice(0).forEach((dispose) => dispose());
+    this.streamScheduler.destroy();
     this.surface.destroy(options);
   }
 
@@ -273,16 +282,8 @@ class SidebarHostController {
     await this.turnCoordinator.submitPrompt(submission);
   }
 
-  private refreshRunningTurnView(runningTurn: RunningTurn): void {
-    this.turnCoordinator.refreshView(runningTurn);
-  }
-
   private interruptActiveTurn(): void {
     this.turnCoordinator.interruptActive();
-  }
-
-  private interruptRunningTurn(runningTurn: RunningTurn): void {
-    this.turnCoordinator.interrupt(runningTurn);
   }
 
   private async showBackendDiagnostic(error?: unknown): Promise<void> {
@@ -339,6 +340,7 @@ class SidebarHostController {
   private setDisplayState(displayState: DisplayState): void {
     this.displayState = displayState;
     this.renderDisplayState();
+    this.streamScheduler.publishActive();
     this.surface.refreshToolbar();
   }
 
@@ -347,7 +349,9 @@ class SidebarHostController {
       projectSidebarState({
         displayState: this.displayState,
         viewState: this.viewState,
-        runningTurns: this.runningTurns,
+        busy: this.turnStore.has(
+          this.getReadyDisplayState()?.conversation.metadata.id,
+        ),
         pdfHelperNotice: this.pdfHelperGuard.notice,
         getClosedLabel: () =>
           getSelectedItemTitle(this.win, getSelectedPDFReader(this.win)),
@@ -366,6 +370,7 @@ class SidebarHostController {
       this.closeZopilotPane({ restoreItemPane: true });
       return;
     }
+    this.streamScheduler.setVisible(true);
     this.surface.refreshToolbar();
     this.renderDisplayState();
     this.scheduleFrame(() => {
@@ -382,6 +387,7 @@ class SidebarHostController {
 
   private closeZopilotPane(options: { restoreItemPane?: boolean } = {}): void {
     this.open = false;
+    this.streamScheduler.setVisible(false);
     this.selectionToken++;
     this.displayState = { kind: "closed", token: this.selectionToken };
     this.sessions.hidePopover();

@@ -5,7 +5,12 @@ import type {
 } from "../../../domain/conversation";
 import { getString } from "../../../app/localization";
 import { Icon } from "./Icon";
-import { Message } from "./Message";
+import { MemoMessage } from "./Message";
+import {
+  ActiveStreamingMessage,
+  StreamingScrollSync,
+} from "./ActiveStreamingMessage";
+import type { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
 
 type ConversationLogProps = {
@@ -25,6 +30,8 @@ type ConversationLogProps = {
     attachments: LocalAttachmentRef[],
   ) => void;
   state: SidebarState;
+  streamStore: SidebarStreamSnapshotStore;
+  syncStreamingScroll: () => void;
 };
 
 function ConversationLog({
@@ -36,6 +43,8 @@ function ConversationLog({
   onScroll,
   onSubmit,
   state,
+  streamStore,
+  syncStreamingScroll,
 }: ConversationLogProps): ReactElement {
   const showWelcome = state.composerEnabled && state.messages.length === 0;
   return (
@@ -72,7 +81,7 @@ function ConversationLog({
         </div>
       ) : null}
       {state.messages.map((message) => (
-        <Message
+        <MemoMessage
           busy={state.busy}
           copiedId={copiedId}
           key={message.id}
@@ -95,6 +104,17 @@ function ConversationLog({
           }
         />
       ))}
+      <ActiveStreamingMessage
+        conversationId={state.conversationId}
+        models={state.models}
+        onOpenLink={actions.openExternalLink}
+        streamStore={streamStore}
+      />
+      <StreamingScrollSync
+        conversationId={state.conversationId}
+        streamStore={streamStore}
+        sync={syncStreamingScroll}
+      />
     </main>
   );
 }

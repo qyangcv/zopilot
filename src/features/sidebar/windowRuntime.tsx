@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { configureLocaleFormatter } from "../../app/localization";
 import { ZopilotUIProvider } from "../../ui/primitives/index";
 import { SidebarApp } from "./ui/SidebarApp";
+import { SidebarStreamSnapshotStore } from "./ui/SidebarStreamSnapshotStore";
 import type { SidebarActions } from "./ui/types";
 import { HTML_NS, PORTAL_ROOT_ID } from "./host/constants";
 import { resolveSidebarPortalHost } from "./host/portalHost";
@@ -32,6 +33,7 @@ const runtime: SidebarWindowRuntime = {
     );
     const actions = createCommandActions(dispatch);
     const root = createRoot(mountNode);
+    const streamStore = new SidebarStreamSnapshotStore();
     let currentPanel = panel;
     let destroyed = false;
 
@@ -54,9 +56,17 @@ const runtime: SidebarWindowRuntime = {
         if (destroyed) return;
         root.render(
           <ZopilotUIProvider portalRoot={portalRoot}>
-            <SidebarApp actions={actions} state={state} />
+            <SidebarApp
+              actions={actions}
+              state={state}
+              streamStore={streamStore}
+            />
           </ZopilotUIProvider>,
         );
+      },
+      publishStreaming(snapshot) {
+        if (destroyed) return;
+        streamStore.publish(snapshot);
       },
       isAttachedTo(nextPanel) {
         return (
@@ -76,6 +86,7 @@ const runtime: SidebarWindowRuntime = {
       destroy() {
         if (destroyed) return;
         destroyed = true;
+        streamStore.clear();
         root.unmount();
         mountNode.remove();
         portalRoot.remove();

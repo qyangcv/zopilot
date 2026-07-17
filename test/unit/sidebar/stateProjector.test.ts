@@ -2,10 +2,6 @@ import { assert } from "chai";
 import type { Conversation } from "../../../src/domain/conversation.ts";
 import { createInitialSidebarState } from "../../../src/features/sidebar/state/viewModel.ts";
 import { projectSidebarState } from "../../../src/features/sidebar/state/projectSidebarState.ts";
-import {
-  createAgentTurnTraceState,
-  reduceAgentTraceEvent,
-} from "../../../src/domain/agent/trace.ts";
 
 describe("sidebar state projector", function () {
   before(function () {
@@ -15,21 +11,9 @@ describe("sidebar state projector", function () {
     };
   });
 
-  it("projects a ready conversation and its running turn without host mutation", function () {
+  it("projects persisted ready state without embedding a transient turn", function () {
     const conversation = createConversation();
     const viewState = createInitialSidebarState("Paper");
-    const traceState = reduceAgentTraceEvent(createAgentTurnTraceState(), {
-      type: "content.delta",
-      itemId: "answer",
-      phase: "candidate",
-      delta: "Partial answer",
-    });
-    const runningTurn = {
-      conversation,
-      traceState,
-      interrupting: false,
-      interrupted: false,
-    };
     const patch = projectSidebarState({
       displayState: {
         kind: "ready",
@@ -40,7 +24,7 @@ describe("sidebar state projector", function () {
         conversation,
       },
       viewState,
-      runningTurns: new Map([[conversation.metadata.id, runningTurn]]),
+      busy: true,
       getClosedLabel: () => "Unused",
     });
 
@@ -48,7 +32,8 @@ describe("sidebar state projector", function () {
     assert.equal(patch.context?.workspaceKey, "item:1:ITEM");
     assert.equal(patch.context?.hostContextKind, "reader");
     assert.isTrue(patch.busy);
-    assert.equal(patch.messages?.at(-1)?.text, "Partial answer");
+    assert.equal(patch.conversationId, conversation.metadata.id);
+    assert.deepEqual(patch.messages, []);
   });
 
   it("does not project a transient message while loading a workspace", function () {
@@ -59,7 +44,7 @@ describe("sidebar state projector", function () {
         label: "Paper",
       },
       viewState: createInitialSidebarState("Paper"),
-      runningTurns: new Map(),
+      busy: false,
       getClosedLabel: () => "Unused",
     });
 

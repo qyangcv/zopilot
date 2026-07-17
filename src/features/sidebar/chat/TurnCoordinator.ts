@@ -1,42 +1,27 @@
 import { getAgentBackendManager } from "../../../application/agent/BackendManager";
 import { getProviderProfileStore } from "../../../application/providers/ProviderProfileService";
 import type { AgentRunResult } from "../../../domain/agent/types";
-import {
-  resolveProviderBrand,
-  type ProviderBrand,
-} from "../../../domain/agent/providerBrand";
-import {
-  createAgentTurnTraceState,
-  projectAgentTurnTrace,
-  reduceAgentTraceEvent,
-  type AgentTurnTraceState,
-} from "../../../domain/agent/trace";
+import { resolveProviderBrand } from "../../../domain/agent/providerBrand";
+import type { AgentStreamEvent } from "../../../domain/agent/streaming";
 import type { Conversation } from "../../../domain/conversation";
+import { createTimestampId } from "../../../runtime/ids/timestampId";
 import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
 import { getString } from "../../../app/localization";
 import { formatBackendError } from "./formatBackendError";
 import { createLogger } from "../../../runtime/logging/logger";
 import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
+import {
+  RunningTurnStore,
+  type RunningTurnApplyResult,
+  type RunningTurnRecord,
+} from "./RunningTurnStore";
+import { StreamRenderScheduler } from "./StreamRenderScheduler";
 
 const logger = createLogger("sidebar.turns");
 
-type RunningTurn = {
-  conversation: Conversation;
-  traceState: AgentTurnTraceState;
-  model?: string;
-  reasoningEffort?: string;
-  backendId?: string;
-  providerProfileId?: string;
-  providerBrand: ProviderBrand;
-  runId?: string;
-  turnId?: string;
-  legacy?: AgentRunResult["legacy"];
-  interrupting: boolean;
-  interrupted: boolean;
-};
-
 type TurnCoordinatorOptions = {
-  runningTurns: Map<string, RunningTurn>;
+  turnStore: RunningTurnStore;
+  streamScheduler: StreamRenderScheduler;
   getViewState: () => SidebarState;
   getReadyConversation: () => Promise<Conversation | undefined>;
   getActiveConversationId: () => string | undefined;
@@ -44,7 +29,6 @@ type TurnCoordinatorOptions = {
   clearPromptNotice: (conversationId: string) => void;
   setReadyConversation: (conversation: Conversation) => void;
   updateViewState: (patch: Partial<SidebarState>) => void;
-  renderDisplayState: () => void;
   refreshBackendDiagnostic: (error?: unknown) => Promise<void>;
   refreshSessions: () => void;
   areSessionsOpen: () => boolean;
@@ -55,20 +39,12 @@ class TurnCoordinator {
 
   async submitPrompt(submission: SidebarPromptSubmission): Promise<void> {
     const promptText = submission.text.trim();
-    if (!promptText) {
-      return;
-    }
+    if (!promptText) return;
 
     let conversation = await this.options.getReadyConversation();
-    if (!conversation) {
-      return;
-    }
-    if (this.options.runningTurns.has(conversation.metadata.id)) {
-      return;
-    }
-    if (!(await this.options.ensurePromptReady(conversation))) {
-      return;
-    }
+    if (!conversation) return;
+    if (this.options.turnStore.has(conversation.metadata.id)) return;
+    if (!(await this.options.ensurePromptReady(conversation))) return;
     this.options.clearPromptNotice(conversation.metadata.id);
 
     conversation = await getConversationStore().addMessage(
@@ -81,25 +57,23 @@ class TurnCoordinator {
       },
     );
     this.options.setReadyConversation(conversation);
-    if (this.options.areSessionsOpen()) {
-      this.options.refreshSessions();
-    }
+    if (this.options.areSessionsOpen()) this.options.refreshSessions();
+
     const viewState = this.options.getViewState();
     const selectedProfile =
       getProviderProfileStore().getProfile(viewState.selectedProviderId) ||
       getAgentBackendManager().getActiveProfile();
-    const runningTurn: RunningTurn = {
+    const conversationId = conversation.metadata.id;
+    const runningTurn = this.options.turnStore.create({
       conversation,
-      traceState: createAgentTurnTraceState(),
+      messageId: createTimestampId("msg"),
       model: viewState.selectedModel,
       reasoningEffort: viewState.selectedReasoningEffort,
       providerProfileId: viewState.selectedProviderId,
       providerBrand: resolveProviderBrand(selectedProfile),
-      interrupting: false,
-      interrupted: false,
-    };
-    this.options.runningTurns.set(conversation.metadata.id, runningTurn);
-    this.options.renderDisplayState();
+    });
+    this.updateRunningState();
+    this.options.streamScheduler.publishActive();
 
     try {
       const result = await getAgentBackendManager().sendPrompt(
@@ -113,192 +87,249 @@ class TurnCoordinator {
           localAttachments: submission.localAttachments,
         },
         {
-          onRunStarted: (event) => {
-            runningTurn.backendId = event.backendId;
-            runningTurn.providerProfileId = event.providerProfileId;
-            runningTurn.runId = event.runId;
-            runningTurn.turnId = event.turnId;
-            runningTurn.legacy = event.legacy;
-            if (runningTurn.interrupting) {
-              this.interrupt(runningTurn);
-            }
-          },
-          onTraceEvent: (event) => {
-            if (runningTurn.interrupted) {
-              return;
-            }
-            runningTurn.traceState = reduceAgentTraceEvent(
-              runningTurn.traceState,
-              event,
-            );
-            this.refreshView(runningTurn);
-          },
+          onEvent: (event) => this.handleEvent(conversationId, event),
         },
       );
-      runningTurn.backendId = result.backendId;
-      runningTurn.providerProfileId = result.providerProfileId;
-      runningTurn.runId = result.runId;
-      runningTurn.turnId = result.turnId;
-      runningTurn.legacy = result.legacy;
+      this.reconcileResult(conversationId, result);
       this.options.updateViewState({
         backendStatus: "connected",
         backendDiagnosticMessage: undefined,
       });
-      let traceView = projectAgentTurnTrace(runningTurn.traceState);
-      if (!traceView.finalText && result.text) {
-        runningTurn.traceState = reduceAgentTraceEvent(runningTurn.traceState, {
-          type: "content.completed",
-          itemId: "backend-final-response",
-          phase: "candidate",
-          text: result.text,
-        });
-        traceView = projectAgentTurnTrace(runningTurn.traceState);
-      }
-      const finalText =
-        traceView.finalText || getString("sidebar-backend-empty-response");
-      const metadata = await getConversationStore().updateBackendMetadata(
-        conversation.metadata,
-        {
-          backendId: result.backendId,
-          providerProfileId: result.providerProfileId,
-          codexThreadId: result.legacy?.codexThreadId,
-        },
+      conversation = await this.persistCompletedTurn(
+        conversation,
+        runningTurn,
+        result,
       );
-      const completedProfile =
-        getProviderProfileStore().getProfile(result.providerProfileId) ||
-        getAgentBackendManager().getActiveProfile();
-      conversation = await getConversationStore().addMessage(metadata, {
-        role: "assistant",
-        text: finalText,
-        status:
-          result.status === "interrupted" || runningTurn.interrupted
-            ? "interrupted"
-            : "complete",
-        completedAt: new Date().toISOString(),
-        codexThreadId: result.legacy?.codexThreadId,
-        codexTurnId: result.legacy?.codexTurnId,
-        backendId: result.backendId,
-        backendKind: completedProfile.kind,
-        providerProfileId: result.providerProfileId,
-        providerBrand: resolveProviderBrand(completedProfile),
-        backendRunId: result.runId,
-        backendTurnId: result.turnId,
-        capabilitySnapshot: completedProfile.capabilities,
-        model: runningTurn.model,
-        reasoningEffort: runningTurn.reasoningEffort,
-        trace: traceView.trace.length ? traceView.trace : undefined,
-      });
-      this.finish(runningTurn, conversation);
+      this.finish(conversationId, conversation);
     } catch (error) {
       logger.error("agent backend sendPrompt failed", error, {
-        conversationId: conversation.metadata.id,
+        conversationId,
         workspaceKey: conversation.metadata.workspaceKey,
-        runId: runningTurn.runId,
-        turnId: runningTurn.turnId,
+        ...this.options.turnStore.getRunIdentity(conversationId),
       });
       await this.options.refreshBackendDiagnostic(error);
-      const errorText = formatBackendError(error);
-      const traceView = projectAgentTurnTrace(runningTurn.traceState);
-      const text = runningTurn.interrupted
-        ? traceView.finalText || getString("sidebar-status-interrupted")
-        : errorText;
-      const failedProfile = runningTurn.providerProfileId
-        ? getProviderProfileStore().getProfile(runningTurn.providerProfileId)
-        : undefined;
-      conversation = await getConversationStore().addMessage(
-        conversation.metadata,
-        {
-          role: "assistant",
-          text,
-          status: runningTurn.interrupted ? "interrupted" : "error",
-          completedAt: new Date().toISOString(),
-          backendId: runningTurn.backendId,
-          backendKind:
-            failedProfile?.kind ||
-            getAgentBackendManager().getActiveProfile().kind,
-          providerProfileId: runningTurn.providerProfileId,
-          providerBrand: resolveProviderBrand(
-            failedProfile || getAgentBackendManager().getActiveProfile(),
-          ),
-          backendRunId: runningTurn.runId,
-          backendTurnId: runningTurn.turnId,
-          model: runningTurn.model,
-          reasoningEffort: runningTurn.reasoningEffort,
-          trace: traceView.trace.length ? traceView.trace : undefined,
-        },
+      this.reconcileFailure(conversationId, error);
+      conversation = await this.persistFailedTurn(
+        conversation,
+        runningTurn,
+        error,
       );
-      this.finish(runningTurn, conversation);
+      this.finish(conversationId, conversation);
     } finally {
       this.updateRunningState();
     }
   }
 
-  refreshView(runningTurn: RunningTurn): void {
-    if (
-      this.options.getActiveConversationId() !==
-      runningTurn.conversation.metadata.id
-    ) {
-      return;
-    }
-    this.options.renderDisplayState();
-  }
-
   interruptActive(): void {
     const conversationId = this.options.getActiveConversationId();
-    const runningTurn = conversationId
-      ? this.options.runningTurns.get(conversationId)
-      : undefined;
-    if (runningTurn) {
-      this.interrupt(runningTurn);
-    }
+    if (conversationId) this.interruptConversation(conversationId);
   }
 
-  interrupt(runningTurn: RunningTurn): void {
-    runningTurn.interrupting = true;
-    runningTurn.interrupted = true;
-    this.refreshView(runningTurn);
-    this.updateRunningState();
-    const { runId, turnId, legacy } = runningTurn;
-    if (!runId && !legacy?.codexThreadId) {
-      return;
-    }
-    void getAgentBackendManager()
-      .cancelTurn({
-        conversationId: runningTurn.conversation.metadata.id,
-        providerProfileId: runningTurn.providerProfileId,
-        runId,
-        turnId,
-        legacy,
-      })
-      .catch((error) => {
-        logger.error("agent backend cancel failed", error, {
-          runId,
-          turnId,
-          conversationId: runningTurn.conversation.metadata.id,
-        });
-      });
+  interruptConversation(conversationId: string): void {
+    const result = this.options.turnStore.requestInterrupt(conversationId);
+    if (!result.changed) return;
+    this.scheduleAppliedChange(conversationId, result);
+    this.requestBackendCancel(conversationId);
   }
 
   updateRunningState(): void {
     const conversationId = this.options.getActiveConversationId();
-    this.options.updateViewState({
-      busy: Boolean(
-        conversationId && this.options.runningTurns.get(conversationId),
-      ),
+    const busy = this.options.turnStore.has(conversationId);
+    if (this.options.getViewState().busy !== busy) {
+      this.options.updateViewState({ busy });
+    }
+  }
+
+  private requestBackendCancel(conversationId: string): void {
+    const identity = this.options.turnStore.getRunIdentity(conversationId);
+    if (!identity.runId && !identity.legacy?.codexThreadId) return;
+    void getAgentBackendManager()
+      .cancelTurn({
+        conversationId,
+        providerProfileId: identity.providerProfileId,
+        runId: identity.runId,
+        turnId: identity.turnId,
+        legacy: identity.legacy,
+      })
+      .catch((error) => {
+        logger.error("agent backend cancel failed", error, {
+          conversationId,
+          runId: identity.runId,
+          turnId: identity.turnId,
+        });
+      });
+  }
+
+  private handleEvent(conversationId: string, event: AgentStreamEvent): void {
+    const result = this.options.turnStore.apply(conversationId, event);
+    this.scheduleAppliedChange(conversationId, result);
+    if (
+      event.type === "turn.started" &&
+      this.options.turnStore.getLifecycle(conversationId) === "interrupting"
+    ) {
+      this.requestBackendCancel(conversationId);
+    }
+  }
+
+  private scheduleAppliedChange(
+    conversationId: string,
+    result: RunningTurnApplyResult,
+  ): void {
+    if (!result.changed) return;
+    this.options.streamScheduler.markDirty(conversationId, {
+      immediate: result.immediate || result.becameVisible,
     });
   }
 
-  private finish(runningTurn: RunningTurn, conversation: Conversation): void {
-    const conversationId = runningTurn.conversation.metadata.id;
-    this.options.runningTurns.delete(conversationId);
-    if (this.options.getActiveConversationId() === conversationId) {
+  private reconcileResult(
+    conversationId: string,
+    result: AgentRunResult,
+  ): void {
+    const identity = this.options.turnStore.getRunIdentity(conversationId);
+    if (!identity.runId) {
+      this.handleEvent(conversationId, {
+        type: "turn.started",
+        sequence: this.nextSequence(conversationId),
+        backendId: result.backendId,
+        providerProfileId: result.providerProfileId,
+        runId: result.runId,
+        turnId: result.turnId,
+        legacy: result.legacy,
+      });
+    }
+    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
+    if (lifecycle === "running" || lifecycle === "interrupting") {
+      this.handleEvent(conversationId, {
+        type:
+          result.status === "interrupted" || lifecycle === "interrupting"
+            ? "turn.interrupted"
+            : "turn.completed",
+        sequence: this.nextSequence(conversationId),
+        text: result.text,
+      });
+    }
+    this.scheduleAppliedChange(
+      conversationId,
+      this.options.turnStore.reconcileAgentResult(conversationId, result),
+    );
+  }
+
+  private reconcileFailure(conversationId: string, error: unknown): void {
+    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
+    if (lifecycle === "interrupting") {
+      this.handleEvent(conversationId, {
+        type: "turn.interrupted",
+        sequence: this.nextSequence(conversationId),
+        text: this.options.turnStore.getProjection(conversationId).finalText,
+      });
+      return;
+    }
+    if (lifecycle === "running") {
+      this.handleEvent(conversationId, {
+        type: "turn.failed",
+        sequence: this.nextSequence(conversationId),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async persistCompletedTurn(
+    conversation: Conversation,
+    runningTurn: RunningTurnRecord,
+    result: AgentRunResult,
+  ): Promise<Conversation> {
+    const conversationId = conversation.metadata.id;
+    const projection = this.options.turnStore.getProjection(conversationId);
+    const finalText = projection.finalText;
+    const identity = this.options.turnStore.getRunIdentity(conversationId);
+    const metadata = await getConversationStore().updateBackendMetadata(
+      conversation.metadata,
+      {
+        backendId: result.backendId,
+        providerProfileId: result.providerProfileId,
+        codexThreadId: result.legacy?.codexThreadId,
+      },
+    );
+    const profile =
+      getProviderProfileStore().getProfile(result.providerProfileId) ||
+      getAgentBackendManager().getActiveProfile();
+    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
+    return getConversationStore().addMessage(metadata, {
+      id: runningTurn.messageId,
+      role: "assistant",
+      text: finalText,
+      status:
+        lifecycle === "interrupted" || result.status === "interrupted"
+          ? "interrupted"
+          : "complete",
+      completedAt: new Date().toISOString(),
+      codexThreadId: result.legacy?.codexThreadId,
+      codexTurnId: result.legacy?.codexTurnId,
+      backendId: result.backendId,
+      backendKind: profile.kind,
+      providerProfileId: result.providerProfileId,
+      providerBrand: resolveProviderBrand(profile),
+      backendRunId: result.runId || identity.runId,
+      backendTurnId: result.turnId || identity.turnId,
+      capabilitySnapshot: profile.capabilities,
+      model: runningTurn.model,
+      reasoningEffort: runningTurn.reasoningEffort,
+      trace: projection.trace.length ? projection.trace : undefined,
+    });
+  }
+
+  private async persistFailedTurn(
+    conversation: Conversation,
+    runningTurn: RunningTurnRecord,
+    error: unknown,
+  ): Promise<Conversation> {
+    const conversationId = conversation.metadata.id;
+    const projection = this.options.turnStore.getProjection(conversationId);
+    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
+    const interrupted = lifecycle === "interrupted";
+    const identity = this.options.turnStore.getRunIdentity(conversationId);
+    const profile = identity.providerProfileId
+      ? getProviderProfileStore().getProfile(identity.providerProfileId)
+      : undefined;
+    return getConversationStore().addMessage(conversation.metadata, {
+      id: runningTurn.messageId,
+      role: "assistant",
+      text: interrupted
+        ? projection.finalText || getString("sidebar-status-interrupted")
+        : formatBackendError(error),
+      status: interrupted ? "interrupted" : "error",
+      completedAt: new Date().toISOString(),
+      backendId: identity.backendId,
+      backendKind:
+        profile?.kind || getAgentBackendManager().getActiveProfile().kind,
+      providerProfileId: identity.providerProfileId,
+      providerBrand: resolveProviderBrand(
+        profile || getAgentBackendManager().getActiveProfile(),
+      ),
+      backendRunId: identity.runId,
+      backendTurnId: identity.turnId,
+      model: runningTurn.model,
+      reasoningEffort: runningTurn.reasoningEffort,
+      trace: projection.trace.length ? projection.trace : undefined,
+    });
+  }
+
+  private finish(conversationId: string, conversation: Conversation): void {
+    const active = this.options.getActiveConversationId() === conversationId;
+    this.options.turnStore.remove(conversationId);
+    if (active) {
+      this.options.streamScheduler.clear();
       this.options.setReadyConversation(conversation);
     }
-    if (this.options.areSessionsOpen()) {
-      this.options.refreshSessions();
-    }
+    if (this.options.areSessionsOpen()) this.options.refreshSessions();
+  }
+
+  private nextSequence(conversationId: string): number {
+    return (
+      (this.options.turnStore.getSnapshot(conversationId)?.sequence || 0) + 1
+    );
   }
 }
 
 export { TurnCoordinator };
-export type { RunningTurn, TurnCoordinatorOptions };
+export type { TurnCoordinatorOptions };

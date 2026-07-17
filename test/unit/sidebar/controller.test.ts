@@ -1,10 +1,6 @@
 import { assert } from "chai";
 import { __sidebarControllerTestHooks } from "../../../src/features/sidebar/host/SidebarHostController.ts";
 import { createItemWorkspaceIdentity } from "../../../src/domain/conversation.ts";
-import {
-  createAgentTurnTraceState,
-  reduceAgentTraceEvent,
-} from "../../../src/domain/agent/trace.ts";
 
 describe("sidebar controller", function () {
   before(function () {
@@ -293,19 +289,20 @@ describe("sidebar controller", function () {
     const workspaceB = createItemWorkspaceIdentity(paperB);
     const conversationA = createConversation(paperA, "conv-a", "Question A");
     const conversationB = createConversation(paperB, "conv-b", "Question B");
-    const runningTurn = {
+    controller.turnStore.create({
       conversation: conversationA,
-      traceState: reduceAgentTraceEvent(createAgentTurnTraceState(), {
-        type: "content.delta",
-        itemId: "answer",
-        phase: "candidate",
-        delta: "partial A",
-      }),
-      interrupting: false,
-      interrupted: false,
-    };
+      messageId: "assistant-a",
+    });
+    controller.turnStore.apply("conv-a", {
+      type: "content.append",
+      sequence: 1,
+      blockId: "answer",
+      phase: "candidate",
+      expectedOffset: 0,
+      delta: "partial A",
+    });
     controller.open = true;
-    controller.runningTurns.set("conv-a", runningTurn);
+    controller.streamScheduler.setVisible(true);
     controller.setDisplayState({
       kind: "ready",
       token: 1,
@@ -320,13 +317,14 @@ describe("sidebar controller", function () {
       reader: createPDFReader(21, "tab-b"),
       label: "Paper B",
     });
-    runningTurn.traceState = reduceAgentTraceEvent(runningTurn.traceState, {
-      type: "content.completed",
-      itemId: "answer",
+    controller.turnStore.apply("conv-a", {
+      type: "content.replace",
+      sequence: 2,
+      blockId: "answer",
       phase: "candidate",
       text: "partial A + delta",
     });
-    controller.refreshRunningTurnView(runningTurn);
+    controller.streamScheduler.markDirty("conv-a");
 
     assert.equal(controller.viewState.title, "Paper B");
     assert.deepEqual(controller.viewState.messages, []);
@@ -338,13 +336,14 @@ describe("sidebar controller", function () {
       workspace: workspaceB,
       conversation: conversationB,
     });
-    runningTurn.traceState = reduceAgentTraceEvent(runningTurn.traceState, {
-      type: "content.completed",
-      itemId: "answer",
+    controller.turnStore.apply("conv-a", {
+      type: "content.replace",
+      sequence: 3,
+      blockId: "answer",
       phase: "candidate",
       text: "partial A + later delta",
     });
-    controller.refreshRunningTurnView(runningTurn);
+    controller.streamScheduler.markDirty("conv-a");
 
     assert.equal(controller.viewState.title, "Paper B / Question B");
     assert.deepEqual(
@@ -366,7 +365,11 @@ describe("sidebar controller", function () {
     );
     assert.deepEqual(
       controller.viewState.messages.map((item: any) => item.text),
-      ["Question A", "partial A + later delta"],
+      ["Question A"],
+    );
+    assert.equal(
+      controller.surface.streamingSnapshot.answerBlocks[0].text,
+      "partial A + later delta",
     );
   });
 
@@ -646,6 +649,15 @@ class FakeWindow {
     callback(0);
     return 1;
   }
+
+  cancelAnimationFrame(): void {}
+
+  setTimeout(callback: () => void): number {
+    callback();
+    return 1;
+  }
+
+  clearTimeout(): void {}
 }
 
 class FakeDocument {

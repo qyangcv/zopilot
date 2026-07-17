@@ -1,5 +1,5 @@
 import type { ConversationMetadata } from "../../domain/conversation";
-import type { AgentTraceEvent } from "../../domain/agent/trace";
+import type { AgentStreamEvent } from "../../domain/agent/streaming";
 
 type CodexPromptResult = {
   threadId: string;
@@ -9,14 +9,12 @@ type CodexPromptResult = {
 };
 
 type CodexPromptOptions = {
+  backendId: string;
+  providerProfileId: string;
   conversation: ConversationMetadata;
   model?: string;
   effort?: string | null;
-  onDelta?: (delta: string) => void;
-  onTraceEvent?: (event: AgentTraceEvent) => void;
-  onNotice?: (notice: string) => void;
-  onToolActivity?: () => void;
-  onTurnStarted?: (threadId: string, turnId: string) => void;
+  onEvent?: (event: AgentStreamEvent) => void;
 };
 
 type CodexModelInfo = {

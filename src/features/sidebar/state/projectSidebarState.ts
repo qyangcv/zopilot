@@ -1,15 +1,13 @@
 import { getString } from "../../../app/localization";
-import type { RunningTurn } from "../chat/TurnCoordinator";
 import type { SidebarMessageView, SidebarState } from "../ui/types";
 import { loadPromptViews } from "../prompts/promptStore";
 import { createConversationMessages, createSessionView } from "./viewModel";
 import type { SidebarDisplayState } from "../workspace/WorkspaceCoordinator";
-import { projectAgentTurnTrace } from "../../../domain/agent/trace";
 
 type SidebarStateProjectionInput = {
   displayState: SidebarDisplayState;
   viewState: SidebarState;
-  runningTurns: ReadonlyMap<string, RunningTurn>;
+  busy: boolean;
   pdfHelperNotice?: {
     conversationId: string;
     message: SidebarMessageView;
@@ -22,25 +20,9 @@ function projectSidebarState(
 ): Partial<SidebarState> {
   const state = input.displayState;
   if (state.kind === "ready") {
-    const runningTurn = input.runningTurns.get(state.conversation.metadata.id);
-    const runningTrace = runningTurn
-      ? projectAgentTurnTrace(runningTurn.traceState)
-      : undefined;
     const source = state.currentSource || state.workspace.defaultSource;
     const messages = createConversationMessages(
       state.conversation,
-      runningTurn && runningTrace
-        ? {
-            text: runningTrace.finalText,
-            trace: runningTrace.trace,
-            finalStarted: runningTrace.finalStarted,
-            interrupted: runningTurn.interrupted,
-            running: !runningTurn.interrupted,
-            model: runningTurn.model,
-            providerProfileId: runningTurn.providerProfileId,
-            providerBrand: runningTurn.providerBrand,
-          }
-        : undefined,
       input.viewState.models,
     );
     const pdfHelperNotice =
@@ -48,6 +30,7 @@ function projectSidebarState(
         ? input.pdfHelperNotice.message
         : undefined;
     return {
+      conversationId: state.conversation.metadata.id,
       title: `${state.conversation.metadata.workspaceTitle} / ${state.conversation.metadata.label}`,
       context: {
         label: state.workspace.workspaceLabel,
@@ -63,7 +46,7 @@ function projectSidebarState(
       },
       composerEnabled: true,
       messages: pdfHelperNotice ? [...messages, pdfHelperNotice] : messages,
-      busy: Boolean(runningTurn),
+      busy: input.busy,
       prompts: loadPromptViews(),
       sessions: input.viewState.sessions.map((session) =>
         createSessionView(session.conversation, state.conversation.metadata.id),
@@ -77,6 +60,7 @@ function projectSidebarState(
       ? state.message
       : getString("sidebar-unavailable-message");
   return {
+    conversationId: undefined,
     title: label,
     context: { label },
     composerEnabled: false,

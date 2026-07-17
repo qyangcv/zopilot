@@ -4,6 +4,7 @@ import type {
   AgentPromptInput,
   ProviderProfileWithSecret,
 } from "../../../src/domain/agent/types.ts";
+import type { AgentStreamEvent } from "../../../src/domain/agent/streaming.ts";
 
 describe("ByokRuntimeBridge", function () {
   it("lists models with the configured provider profile", async function () {
@@ -27,25 +28,21 @@ describe("ByokRuntimeBridge", function () {
   it("routes streaming and tool notifications to the active run", async function () {
     const harness = createBridgeHarness();
     const profile = createProfile();
-    const deltas: string[] = [];
-    const notices: string[] = [];
-    const startedTools: string[] = [];
-    const completedTools: string[] = [];
-    const startedRuns: string[] = [];
-    const traceEvents: Array<{ type: string }> = [];
+    const events: AgentStreamEvent[] = [];
     const pending = harness.instance.sendPrompt(profile, createPromptInput(), {
-      onRunStarted: (event) => startedRuns.push(event.runId),
-      onTextDelta: (delta) => deltas.push(delta),
-      onNotice: (notice) => notices.push(notice),
-      onToolStarted: (name) => startedTools.push(name),
-      onToolCompleted: (name) => completedTools.push(name),
-      onTraceEvent: (event) => traceEvents.push(event),
+      onEvent: (event) => events.push(event),
     });
     await flush();
 
     const request = harness.requests[0];
     const runId = String(request.params.runId);
-    assert.deepEqual(startedRuns, [runId]);
+    assert.deepInclude(events[0], {
+      type: "turn.started",
+      runId,
+      backendId: profile.id,
+      providerProfileId: profile.id,
+      sequence: 1,
+    });
     assert.equal(request.method, "turn/start");
     harness.notify("item/agentMessage/delta", { runId, delta: "A" });
     harness.notify("item/reasoning/delta", {
@@ -56,14 +53,12 @@ describe("ByokRuntimeBridge", function () {
     });
     harness.notify("item/tool/started", {
       runId,
-      toolCallId: "call-a",
       name: "paper_read",
       arguments: '{"question":"method"}',
     });
     harness.notify("warning", { runId, message: "retrying" });
     harness.notify("item/tool/completed", {
       runId,
-      toolCallId: "call-a",
       name: "paper_read",
       result: "Evidence",
     });
@@ -82,20 +77,28 @@ describe("ByokRuntimeBridge", function () {
       text: "Answer",
       status: "completed",
     });
-    assert.deepEqual(deltas, ["A"]);
-    assert.deepEqual(notices, ["retrying"]);
-    assert.deepEqual(startedTools, ["paper_read"]);
-    assert.deepEqual(completedTools, ["paper_read"]);
     assert.deepEqual(
-      traceEvents.map((event) => event.type),
+      events.map((event) => event.type),
       [
-        "content.delta",
-        "reasoning.delta",
+        "turn.started",
+        "content.append",
+        "reasoning.append",
         "tool.started",
-        "notice",
+        "notice.upsert",
         "tool.completed",
+        "turn.completed",
       ],
     );
+    assert.deepInclude(events[1], {
+      type: "content.append",
+      expectedOffset: 0,
+      delta: "A",
+    });
+    const toolEvents = events.filter(
+      (event) =>
+        event.type === "tool.started" || event.type === "tool.completed",
+    );
+    assert.equal(toolEvents[0]?.blockId, toolEvents[1]?.blockId);
   });
 
   it("interrupts the selected BYOK run", async function () {

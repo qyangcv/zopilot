@@ -1,25 +1,39 @@
-import { useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
-function useAutoScroll(dependency: unknown): {
+function useAutoScroll(
+  resetKey: unknown,
+  dependency: unknown,
+): {
   logRef: React.RefObject<HTMLElement | null>;
   onScroll: (element: HTMLElement) => void;
+  sync: () => void;
 } {
   const logRef = useRef<HTMLElement | null>(null);
-  const autoScrollRef = useRef(true);
+  const followingRef = useRef(true);
 
-  useLayoutEffect(() => {
+  const sync = useCallback(() => {
     const log = logRef.current;
-    if (log && autoScrollRef.current) {
+    if (log && followingRef.current) {
       log.scrollTop = log.scrollHeight;
     }
-  }, [dependency]);
+  }, []);
+
+  useLayoutEffect(() => {
+    followingRef.current = true;
+    sync();
+  }, [resetKey, sync]);
+
+  useLayoutEffect(() => {
+    sync();
+  }, [dependency, sync]);
 
   return {
     logRef,
+    sync,
     onScroll: (element) => {
       const distanceFromBottom =
         element.scrollHeight - element.scrollTop - element.clientHeight;
-      autoScrollRef.current = distanceFromBottom <= 32;
+      followingRef.current = distanceFromBottom <= 32;
     },
   };
 }

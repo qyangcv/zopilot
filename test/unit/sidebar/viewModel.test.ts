@@ -32,35 +32,18 @@ describe("sidebar view model", function () {
     assert.deepEqual(messages, []);
   });
 
-  it("formats saved messages and appends the active streaming message", function () {
-    const messages = createConversationMessages(createConversation(), {
-      text: "Partial",
-      trace: [],
-      finalStarted: true,
-      interrupted: false,
-      running: true,
-      model: "deepseek-v4-flash",
-      providerBrand: "deepseek",
-    });
+  it("formats saved messages without appending transient stream state", function () {
+    const messages = createConversationMessages(createConversation());
 
     assert.deepEqual(
       messages.map((message) => message.id),
-      ["msg-user", "msg-assistant", "zp-streaming-assistant-conv-a"],
+      ["msg-user", "msg-assistant"],
     );
     assert.equal(messages[1].completedAt, "2026-06-13 15:30");
     assert.equal(messages[1].responseDuration, "30min 0s");
-    assert.deepInclude(messages[2], {
-      role: "assistant",
-      text: "Partial",
-      status: "complete",
-      transient: true,
-      running: true,
-      model: "deepseek-v4-flash",
-      providerBrand: "deepseek",
-    });
   });
 
-  it("uses the model catalog display name for saved and streaming answers", function () {
+  it("uses the model catalog display name for saved answers", function () {
     const conversation = createConversation();
     conversation.messages[1].providerProfileId = "codex-cli.default";
     const models = [
@@ -73,23 +56,9 @@ describe("sidebar view model", function () {
       },
     ];
 
-    const messages = createConversationMessages(
-      conversation,
-      {
-        text: "Partial",
-        trace: [],
-        finalStarted: false,
-        interrupted: false,
-        running: true,
-        model: "gpt-5.3-codex",
-        providerProfileId: "codex-cli.default",
-        providerBrand: "codex",
-      },
-      models,
-    );
+    const messages = createConversationMessages(conversation, models);
 
     assert.equal(messages[1].model, "GPT-5.3-Codex");
-    assert.equal(messages[2].model, "GPT-5.3-Codex");
   });
 
   it("formats response durations in minutes and seconds", function () {
