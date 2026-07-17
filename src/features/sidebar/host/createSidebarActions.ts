@@ -18,6 +18,7 @@ type SidebarActionHandlers = {
   switchSession: SidebarActions["switchSession"];
   toggleArchivedSessions: () => void;
   toggleSessions: () => void;
+  updateActiveNoteContexts: SidebarActions["updateActiveNoteContexts"];
   uploadAttachment: SidebarActions["uploadAttachment"];
 };
 
@@ -34,6 +35,7 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     selectWorkspaceMode: handlers.selectWorkspaceMode,
     selectCollectionWorkspace: handlers.selectCollectionWorkspace,
     selectItemWorkspace: handlers.selectItemWorkspace,
+    updateActiveNoteContexts: handlers.updateActiveNoteContexts,
     submitPrompt: handlers.submitPrompt,
     uploadAttachment: handlers.uploadAttachment,
     switchSession: (conversation) => handlers.switchSession(conversation),

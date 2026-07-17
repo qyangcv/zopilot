@@ -10,6 +10,7 @@ import { getString } from "../../../app/localization";
 import { formatBackendError } from "./formatBackendError";
 import { createLogger } from "../../../runtime/logging/logger";
 import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
+import { ZoteroNoteContextResolver } from "../../../integrations/zotero/ZoteroNoteContextResolver";
 import {
   RunningTurnStore,
   type RunningTurnApplyResult,
@@ -35,11 +36,14 @@ type TurnCoordinatorOptions = {
 };
 
 class TurnCoordinator {
+  private noteContextResolver?: ZoteroNoteContextResolver;
+
   constructor(private readonly options: TurnCoordinatorOptions) {}
 
   async submitPrompt(submission: SidebarPromptSubmission): Promise<void> {
     const promptText = submission.text.trim();
     if (!promptText) return;
+    const noteContexts = submission.noteContexts || [];
 
     let conversation = await this.options.getReadyConversation();
     if (!conversation) return;
@@ -47,12 +51,20 @@ class TurnCoordinator {
     if (!(await this.options.ensurePromptReady(conversation))) return;
     this.options.clearPromptNotice(conversation.metadata.id);
 
+    if (submission.persistNoteContexts) {
+      const metadata = await getConversationStore().updateActiveNoteContexts(
+        conversation.metadata,
+        noteContexts,
+      );
+      conversation = { ...conversation, metadata };
+    }
     conversation = await getConversationStore().addMessage(
       conversation.metadata,
       {
         role: "user",
         text: promptText,
         mentions: submission.mentions,
+        noteContexts,
         localAttachments: submission.localAttachments,
       },
     );
@@ -76,6 +88,12 @@ class TurnCoordinator {
     this.options.streamScheduler.publishActive();
 
     try {
+      const resolvedNoteContexts = noteContexts.length
+        ? await this.getNoteContextResolver().resolveAll(
+            conversation.metadata,
+            noteContexts,
+          )
+        : [];
       const result = await getAgentBackendManager().sendPrompt(
         {
           providerProfileId: runningTurn.providerProfileId,
@@ -84,6 +102,7 @@ class TurnCoordinator {
           model: runningTurn.model,
           reasoningEffort: runningTurn.reasoningEffort,
           mentions: submission.mentions,
+          resolvedNoteContexts,
           localAttachments: submission.localAttachments,
         },
         {
@@ -326,6 +345,11 @@ class TurnCoordinator {
 
   private nextSequence(conversationId: string): number {
     return this.options.turnStore.getNextSequence(conversationId);
+  }
+
+  private getNoteContextResolver(): ZoteroNoteContextResolver {
+    this.noteContextResolver ??= new ZoteroNoteContextResolver();
+    return this.noteContextResolver;
   }
 }
 

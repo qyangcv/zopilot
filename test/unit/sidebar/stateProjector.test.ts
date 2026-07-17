@@ -34,6 +34,44 @@ describe("sidebar state projector", function () {
     assert.isTrue(patch.busy);
     assert.equal(patch.conversationId, conversation.metadata.id);
     assert.deepEqual(patch.messages, []);
+    assert.deepEqual(patch.activeNoteContexts, []);
+  });
+
+  it("projects persistent notes only in a Reader item workspace", function () {
+    const conversation = createConversation();
+    const note = {
+      id: "note:1:NOTE",
+      libraryID: 1,
+      parentItemID: 10,
+      parentItemKey: "ITEM",
+      noteItemID: 12,
+      noteItemKey: "NOTE",
+      title: "Reading notes",
+      dateModified: "2026-07-17 10:00:00",
+    };
+    conversation.metadata.activeNoteContexts = [note];
+    const createInput = (kind: "reader" | "library") => ({
+      displayState: {
+        kind: "ready" as const,
+        token: 1,
+        hostContext:
+          kind === "reader"
+            ? ({ kind, tabID: "tab-1", itemID: 11 } as const)
+            : ({ kind, rowID: "item-10" } as const),
+        workspace: conversation.metadata,
+        conversation,
+      },
+      viewState: createInitialSidebarState("Paper"),
+      busy: false,
+      getClosedLabel: () => "Unused",
+    });
+
+    const reader = projectSidebarState(createInput("reader"));
+    const library = projectSidebarState(createInput("library"));
+
+    assert.deepEqual(reader.activeNoteContexts, [note]);
+    assert.deepEqual(library.activeNoteContexts, []);
+    assert.deepEqual(conversation.metadata.activeNoteContexts, [note]);
   });
 
   it("does not project a transient message while loading a workspace", function () {

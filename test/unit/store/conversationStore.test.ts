@@ -321,6 +321,188 @@ describe("ConversationStore", function () {
     );
   });
 
+  it("persists Zotero note references without storing note bodies", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
+    const store = new ConversationStore(rootDir);
+    const conversation = await store.createWorkspaceConversation(workspace);
+
+    await store.addMessage(conversation.metadata, {
+      role: "user",
+      text: "Use my reading notes",
+      noteContexts: [
+        {
+          id: "note:1:NOTE-A",
+          libraryID: 1,
+          parentItemID: 10,
+          parentItemKey: "AAA",
+          noteItemID: 12,
+          noteItemKey: "NOTE-A",
+          title: "Reading notes",
+          dateModified: "2026-07-17 10:00:00",
+        },
+      ],
+    });
+
+    const reloaded = await new ConversationStore(
+      rootDir,
+    ).getLatestWorkspaceConversation(workspace.workspaceKey);
+
+    assert.deepEqual(reloaded?.messages[0]?.noteContexts, [
+      {
+        id: "note:1:NOTE-A",
+        libraryID: 1,
+        parentItemID: 10,
+        parentItemKey: "AAA",
+        noteItemID: 12,
+        noteItemKey: "NOTE-A",
+        title: "Reading notes",
+        dateModified: "2026-07-17 10:00:00",
+      },
+    ]);
+    assert.notInclude(JSON.stringify(reloaded), "note body");
+  });
+
+  it("persists active note references on one conversation only", async function () {
+    const paper = createPaper("1:AAA", "AAA", "Paper A");
+    const workspace = createItemWorkspaceIdentity(paper);
+    const store = new ConversationStore(rootDir);
+    const first = await store.createWorkspaceConversation(workspace);
+    const note = {
+      id: "note:1:NOTE-A",
+      libraryID: 1,
+      parentItemID: 10,
+      parentItemKey: "AAA",
+      noteItemID: 12,
+      noteItemKey: "NOTE-A",
+      title: "Reading notes",
+      dateModified: "2026-07-17 10:00:00",
+    };
+
+    const activeMetadata = await store.updateActiveNoteContexts(
+      first.metadata,
+      [note],
+    );
+    const firstWithMessage = await store.addMessage(activeMetadata, {
+      role: "user",
+      text: "Use the note",
+      noteContexts: [note],
+    });
+    let second = await store.createWorkspaceConversation(workspace);
+    second = await store.addMessage(second.metadata, {
+      role: "user",
+      text: "Start clean",
+    });
+    const reloaded = await new ConversationStore(
+      rootDir,
+    ).listWorkspaceConversations(workspace.workspaceKey);
+    const reloadedFirst = reloaded.find(
+      (conversation) =>
+        conversation.metadata.id === firstWithMessage.metadata.id,
+    );
+    const reloadedSecond = reloaded.find(
+      (conversation) => conversation.metadata.id === second.metadata.id,
+    );
+
+    assert.deepEqual(activeMetadata.activeNoteContexts, [note]);
+    assert.isUndefined(second.metadata.activeNoteContexts);
+    assert.deepEqual(reloadedFirst?.metadata.activeNoteContexts, [note]);
+    assert.isUndefined(reloadedSecond?.metadata.activeNoteContexts);
+    assert.notInclude(JSON.stringify(activeMetadata), "note body");
+  });
+
+  it("clears active note references without persisting an empty field", async function () {
+    const workspace = createItemWorkspaceIdentity(
+      createPaper("1:AAA", "AAA", "Paper A"),
+    );
+    const store = new ConversationStore(rootDir);
+    const conversation = await store.createWorkspaceConversation(workspace);
+    const withNote = await store.updateActiveNoteContexts(
+      conversation.metadata,
+      [
+        {
+          id: "note:1:NOTE-A",
+          libraryID: 1,
+          parentItemID: 10,
+          parentItemKey: "AAA",
+          noteItemID: 12,
+          noteItemKey: "NOTE-A",
+          title: "Reading notes",
+          dateModified: "2026-07-17 10:00:00",
+        },
+      ],
+    );
+
+    const cleared = await store.updateActiveNoteContexts(withNote, []);
+
+    assert.isUndefined(cleared.activeNoteContexts);
+  });
+
+  it("merges active notes into the latest persisted conversation metadata", async function () {
+    const workspace = createItemWorkspaceIdentity(
+      createPaper("1:AAA", "AAA", "Paper A"),
+    );
+    const store = new ConversationStore(rootDir);
+    const created = await store.createWorkspaceConversation(workspace);
+    const withMessage = await store.addMessage(created.metadata, {
+      role: "user",
+      text: "Keep this preview",
+    });
+
+    const updated = await store.updateActiveNoteContexts(created.metadata, [
+      {
+        id: "note:1:NOTE-A",
+        libraryID: 1,
+        parentItemID: 10,
+        parentItemKey: "AAA",
+        noteItemID: 12,
+        noteItemKey: "NOTE-A",
+        title: "Reading notes",
+        dateModified: "2026-07-17 10:00:00",
+      },
+    ]);
+
+    assert.equal(updated.latestPreview, withMessage.metadata.latestPreview);
+    assert.equal(updated.label, withMessage.metadata.label);
+  });
+
+  it("retains active note references when archiving and restoring", async function () {
+    const workspace = createItemWorkspaceIdentity(
+      createPaper("1:AAA", "AAA", "Paper A"),
+    );
+    const store = new ConversationStore(rootDir);
+    let conversation = await store.createWorkspaceConversation(workspace);
+    conversation = await store.addMessage(conversation.metadata, {
+      role: "user",
+      text: "Question",
+    });
+    const note = {
+      id: "note:1:NOTE-A",
+      libraryID: 1,
+      parentItemID: 10,
+      parentItemKey: "AAA",
+      noteItemID: 12,
+      noteItemKey: "NOTE-A",
+      title: "Reading notes",
+      dateModified: "2026-07-17 10:00:00",
+    };
+    const metadata = await store.updateActiveNoteContexts(
+      conversation.metadata,
+      [note],
+    );
+
+    await store.archiveWorkspaceConversation(metadata);
+    const archived = await store.listArchivedWorkspaceConversations(
+      workspace.workspaceKey,
+    );
+    const restored = await store.restoreWorkspaceConversation(
+      archived[0]!.metadata,
+    );
+
+    assert.deepEqual(archived[0]?.metadata.activeNoteContexts, [note]);
+    assert.deepEqual(restored.activeNoteContexts, [note]);
+  });
+
   it("persists local attachment paths on user messages", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const workspace = createItemWorkspaceIdentity(paper);
@@ -395,6 +577,28 @@ describe("ConversationStore", function () {
     );
 
     await writeFile(metadataPath, JSON.stringify({ id: "broken" }), "utf8");
+
+    await assertRejects(
+      () => store.getLatestWorkspaceConversation(workspace.workspaceKey),
+      "Invalid Zopilot conversation metadata",
+    );
+  });
+
+  it("fails loudly on malformed active note references", async function () {
+    const workspace = createItemWorkspaceIdentity(
+      createPaper("1:AAA", "AAA", "Paper A"),
+    );
+    const store = new ConversationStore(rootDir);
+    await store.createWorkspaceConversation(workspace);
+    const { metadataPath } = await getConversationFilePaths(
+      workspace.workspaceKey,
+    );
+    const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    metadata.activeNoteContexts = [{ id: "incomplete-note" }];
+    await writeFile(metadataPath, JSON.stringify(metadata), "utf8");
 
     await assertRejects(
       () => store.getLatestWorkspaceConversation(workspace.workspaceKey),

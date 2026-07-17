@@ -22,6 +22,7 @@ function ComposerFooter({
     promptButtonRef,
     setPromptPickerOpen,
   } = bindings;
+  const noteContexts = bindings.noteContexts || [];
   return (
     <div className="zp-composer-footer">
       <div className="zp-composer-meta">
@@ -73,6 +74,7 @@ function ComposerFooter({
           (!state.busy &&
             !draft.trim() &&
             !mentions.length &&
+            !noteContexts.length &&
             !localAttachments.length)
         }
         onClick={(event) => {

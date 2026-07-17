@@ -47,9 +47,6 @@ export function PromptPicker({
               <span className="zp-panel-row-title">{prompt.title}</span>
               <span className="zp-panel-row-description">{prompt.body}</span>
             </div>
-            <span className="zp-panel-row-meta">
-              {getString("sidebar-prompt-insert")}
-            </span>
           </div>
         ))}
         {prompts.length === 0 ? (

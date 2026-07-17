@@ -17,13 +17,17 @@ describe("sidebar Icon", function () {
       "copy",
       "disconnected",
       "edit",
+      "file",
       "history",
       "newChat",
+      "notebookText",
       "attachmentImage",
       "attachmentPdf",
       "paperMention",
       "resend",
       "send",
+      "square",
+      "squareCheck",
       "stop",
     ];
 
@@ -92,5 +96,14 @@ describe("sidebar Icon", function () {
     assert.notInclude(image, "data-icon-tone");
     assert.notInclude(library, "data-icon-tone");
     assert.notInclude(collection, "data-icon-tone");
+  });
+
+  it("uses Lucide file and notebook-text for item context nodes", function () {
+    const file = renderToStaticMarkup(<Icon name="file" />);
+    const notebook = renderToStaticMarkup(<Icon name="notebookText" />);
+
+    assert.include(file, "lucide-file");
+    assert.notInclude(file, "lucide-file-text");
+    assert.include(notebook, "lucide-notebook-text");
   });
 });

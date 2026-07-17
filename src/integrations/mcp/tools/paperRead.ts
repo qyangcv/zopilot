@@ -42,6 +42,9 @@ type PaperReadToolOptions = {
       workspace: WorkspaceIdentity,
       currentSource?: WorkspaceIdentity["defaultSource"],
     ): Promise<PaperSourceRef[]>;
+    resolveItemPdfSources?(
+      workspace: WorkspaceIdentity,
+    ): Promise<PaperSourceRef[]>;
   };
   logger?: (message: string, details?: JsonValue) => void;
 };
@@ -85,10 +88,9 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           },
           sourceIds: {
             type: "array",
-            maxItems: 10,
             items: { type: "string" },
             description:
-              "Optional Zopilot source IDs selected with @ mentions in the current workspace.",
+              "Optional Zopilot source IDs selected from the current workspace context.",
           },
         },
       },
@@ -191,12 +193,9 @@ function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
   if (
     sourceIds !== undefined &&
     (!Array.isArray(sourceIds) ||
-      sourceIds.length > 10 ||
       !sourceIds.every((item) => typeof item === "string"))
   ) {
-    throw new Error(
-      "paper_read.sourceIds must be an array of up to 10 strings.",
-    );
+    throw new Error("paper_read.sourceIds must be an array of strings.");
   }
   return {
     question,
@@ -220,10 +219,13 @@ async function resolveSourceSelection(
   if (!sourceIds?.length && scope.workspaceType !== "collection") {
     return { ok: true, scope };
   }
-  const universe = await getSourceUniverse().resolveSources(
-    workspace,
-    workspace.defaultSource,
-  );
+  const sourceUniverse = getSourceUniverse();
+  const universe =
+    scope.workspaceType === "item" &&
+    sourceIds?.length &&
+    sourceUniverse.resolveItemPdfSources
+      ? await sourceUniverse.resolveItemPdfSources(workspace)
+      : await sourceUniverse.resolveSources(workspace, workspace.defaultSource);
   if (sourceIds?.length) {
     const sourceById = new Map(
       universe.map((source) => [source.sourceId, source]),

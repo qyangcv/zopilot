@@ -34,6 +34,68 @@ type SourceMention = {
   title: string;
 };
 
+type NoteContextRef = {
+  id: string;
+  libraryID: number;
+  parentItemID?: number;
+  parentItemKey: string;
+  noteItemID: number;
+  noteItemKey: string;
+  title: string;
+  dateModified: string;
+};
+
+type ResolvedNoteContext = {
+  reference: NoteContextRef;
+  content: string;
+};
+
+type ItemContextDisabledReason = "unsupported-type" | "file-unavailable";
+
+type ItemContextPdfNode = {
+  id: string;
+  kind: "pdf";
+  title: string;
+  current: boolean;
+  selectable: boolean;
+  disabledReason?: ItemContextDisabledReason;
+  source: PaperSourceRef;
+};
+
+type ItemContextNoteNode = {
+  id: string;
+  kind: "note";
+  title: string;
+  selectable: true;
+  invalidReason?: "unavailable";
+  note: NoteContextRef;
+};
+
+type ItemContextUnsupportedAttachmentNode = {
+  id: string;
+  kind: "unsupported-attachment";
+  title: string;
+  selectable: false;
+  disabledReason: "unsupported-type";
+  attachmentItemID: number;
+  attachmentKey: string;
+  contentType?: string;
+};
+
+type ItemContextNode =
+  | ItemContextPdfNode
+  | ItemContextNoteNode
+  | ItemContextUnsupportedAttachmentNode;
+
+type ItemContextTree = {
+  root: {
+    itemID?: number;
+    itemKey: string;
+    title: string;
+  };
+  nodes: ItemContextNode[];
+};
+
 type LocalAttachmentRef = {
   id: string;
   path: string;
@@ -65,6 +127,7 @@ type ConversationMetadata = WorkspaceIdentity & {
   providerProfileId?: string;
   latestPreview?: string;
   archived?: boolean;
+  activeNoteContexts?: NoteContextRef[];
 };
 
 type ConversationMessage = {
@@ -88,6 +151,7 @@ type ConversationMessage = {
   reasoningEffort?: string;
   trace?: AgentTraceItem[];
   mentions?: SourceMention[];
+  noteContexts?: NoteContextRef[];
   localAttachments?: LocalAttachmentRef[];
 };
 
@@ -153,8 +217,16 @@ export type {
   ConversationMessageStatus,
   ConversationMetadata,
   LocalAttachmentRef,
+  ItemContextDisabledReason,
+  ItemContextNode,
+  ItemContextPdfNode,
+  ItemContextNoteNode,
+  ItemContextTree,
+  ItemContextUnsupportedAttachmentNode,
+  NoteContextRef,
   PaperIdentity,
   PaperSourceRef,
+  ResolvedNoteContext,
   SourceMention,
   WorkspaceIdentity,
   WorkspaceType,

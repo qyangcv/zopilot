@@ -5,9 +5,16 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
+import type {
+  LocalAttachmentRef,
+  ItemContextTree,
+  PaperSourceRef,
+} from "../../../src/domain/conversation.ts";
 import { ComposerEditor } from "../../../src/features/sidebar/ui/ComposerEditor.tsx";
 import type { ComposerBindings } from "../../../src/features/sidebar/ui/composerBindings.ts";
+import { ContextChips } from "../../../src/features/sidebar/ui/ContextChips.tsx";
+import { ItemContextMentionPopover } from "../../../src/features/sidebar/ui/ItemContextMentionPopover.tsx";
+import { FloatingPortal } from "../../../src/ui/primitives/FloatingPortal.tsx";
 import type { SidebarState } from "../../../src/features/sidebar/ui/types.ts";
 
 describe("sidebar composer mention keyboard navigation", function () {
@@ -74,6 +81,137 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.equal(selected[0]?.sourceId, "b");
     assert.equal(submitCount, 0);
   });
+
+  it("navigates and selects Reader item context tree nodes", function () {
+    const selected: string[] = [];
+    const moves: Array<-1 | 1> = [];
+    let closeCount = 0;
+    const tree = createItemContextTree();
+    const bindings = {
+      ...createBindings({
+        activeMentionIndex: 0,
+        candidates: [],
+        move: () => undefined,
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      activeItemContextIndex: 1,
+      itemContextExpanded: true,
+      itemContextNodes: tree.nodes,
+      itemContextPickerOpen: true,
+      itemContextTree: tree,
+      closeItemContextPicker: () => closeCount++,
+      moveItemContextSelection: (direction: -1 | 1) => moves.push(direction),
+      selectItemContext: (node: ItemContextTree["nodes"][number]) =>
+        selected.push(node.id),
+    };
+    const editor = ComposerEditor({
+      bindings,
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const onKeyDown = getTextareaKeyDown(editor);
+    const floating = findElement(
+      editor,
+      (element) => element.type === FloatingPortal,
+    );
+    assert.isDefined(floating);
+
+    assert.isTrue(pressKey(onKeyDown, "ArrowDown"));
+    assert.isTrue(pressKey(onKeyDown, "Enter"));
+    assert.isTrue(pressKey(onKeyDown, "Escape"));
+
+    assert.deepEqual(moves, [1]);
+    assert.deepEqual(selected, ["note:1:NOTE"]);
+    assert.equal(closeCount, 1);
+    assert.equal(getProps(floating).anchorRef, bindings.composerRef);
+  });
+
+  it("hides item tree selections from composer chips", function () {
+    const tree = createItemContextTree();
+    let openCount = 0;
+    const attachment: LocalAttachmentRef = {
+      id: "local",
+      path: "/tmp/local.pdf",
+      filename: "local.pdf",
+      kind: "pdf",
+    };
+    const editor = ComposerEditor({
+      bindings: {
+        ...createBindings({
+          activeMentionIndex: 0,
+          candidates: [],
+          move: () => undefined,
+          select: () => undefined,
+          submit: () => undefined,
+        }),
+        itemContextTree: tree,
+        localAttachments: [attachment],
+        mentions: [
+          {
+            id: "mention:other",
+            ...createSource("other"),
+          },
+        ],
+        noteContexts: [
+          tree.nodes[0]?.kind === "note"
+            ? tree.nodes[0].note
+            : assert.fail("Expected note node"),
+        ],
+        openItemContextPicker: () => openCount++,
+      },
+      state: { composerEnabled: true } as SidebarState,
+    });
+
+    const chips = findElement(
+      editor,
+      (element) => element.type === ContextChips,
+    );
+    assert.isDefined(chips);
+    assert.deepEqual(getProps(chips).attachments, [attachment]);
+    assert.deepEqual(getProps(chips).itemContext, {
+      expanded: false,
+      title: "Paper",
+    });
+    assert.deepEqual(getProps(chips).mentions, []);
+    assert.deepEqual(getProps(chips).notes, []);
+    (getProps(chips).onOpenItemContext as () => void)();
+    assert.equal(openCount, 1);
+  });
+
+  it("treats every item tree selection as one unlimited context group", function () {
+    const tree = createItemContextTree();
+    const editor = ComposerEditor({
+      bindings: {
+        ...createBindings({
+          activeMentionIndex: 0,
+          candidates: [],
+          move: () => undefined,
+          select: () => undefined,
+          submit: () => undefined,
+        }),
+        itemContextPickerOpen: true,
+        itemContextTree: tree,
+        itemContextNodes: tree.nodes,
+        mentions: Array.from({ length: 12 }, (_, index) => ({
+          id: `mention:${index}`,
+          ...createSource(`source-${index}`),
+        })),
+        noteContexts: [
+          tree.nodes[0]?.kind === "note"
+            ? tree.nodes[0].note
+            : assert.fail("Expected note node"),
+        ],
+      },
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const popover = findElement(
+      editor,
+      (element) => element.type === ItemContextMentionPopover,
+    );
+
+    assert.isDefined(popover);
+    assert.notProperty(getProps(popover), "limitReached");
+  });
 });
 
 type KeyDownHandler = (event: {
@@ -135,25 +273,62 @@ function createBindings({
 }): ComposerBindings {
   return {
     activeMentionIndex,
+    activeItemContextIndex: 0,
     addLocalAttachment: () => undefined,
     bottomDockRef: createRef<HTMLDivElement>(),
+    closeItemContextPicker: () => undefined,
     composerRef: createRef<HTMLFormElement>(),
     draft: "@",
     insertPrompt: () => undefined,
+    itemContextExpanded: true,
+    itemContextNodes: [],
+    itemContextPickerOpen: false,
+    itemContextTree: undefined,
     localAttachments: [],
     mentionCandidates: candidates,
     mentions: [],
+    noteContexts: [],
+    moveItemContextSelection: () => undefined,
     moveMentionSelection: move,
+    openItemContextPicker: () => undefined,
     promptButtonRef: createRef<HTMLButtonElement>(),
     promptPickerOpen: false,
     removeLocalAttachment: () => undefined,
     removeMention: () => undefined,
+    removeNoteContext: () => undefined,
+    selectItemContext: () => undefined,
     selectMention: select,
+    setActiveItemContextIndex: () => undefined,
+    setItemContextExpanded: () => undefined,
     setMentionQuery: () => undefined,
     setPromptPickerOpen: () => undefined,
     submit,
     textareaRef: createRef<HTMLTextAreaElement>(),
     updateDraft: () => undefined,
+  };
+}
+
+function createItemContextTree(): ItemContextTree {
+  return {
+    root: { itemID: 1, itemKey: "PAPER", title: "Paper" },
+    nodes: [
+      {
+        id: "note:1:NOTE",
+        kind: "note",
+        title: "Reading notes",
+        selectable: true,
+        note: {
+          id: "note:1:NOTE",
+          libraryID: 1,
+          parentItemID: 1,
+          parentItemKey: "PAPER",
+          noteItemID: 12,
+          noteItemKey: "NOTE",
+          title: "Reading notes",
+          dateModified: "2026-07-17 10:00:00",
+        },
+      },
+    ],
   };
 }
 

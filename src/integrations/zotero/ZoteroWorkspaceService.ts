@@ -5,14 +5,17 @@ import type {
 } from "../../domain/conversation";
 import { getZoteroGlobal } from "./environment";
 import { ZoteroSourceCatalog } from "./sources/ZoteroSourceCatalog";
+import { ZoteroItemContextCatalog } from "./sources/ZoteroItemContextCatalog";
 import { ZoteroWorkspaceFactory } from "./sources/ZoteroWorkspaceFactory";
 
 class ZoteroSourceUniverse {
   private readonly catalog: ZoteroSourceCatalog;
+  private readonly itemContextCatalog: ZoteroItemContextCatalog;
   private readonly workspaceFactory: ZoteroWorkspaceFactory;
 
   constructor(zotero: typeof Zotero = getZoteroGlobal()) {
     this.catalog = new ZoteroSourceCatalog(zotero);
+    this.itemContextCatalog = new ZoteroItemContextCatalog(zotero);
     this.workspaceFactory = new ZoteroWorkspaceFactory(zotero);
   }
 
@@ -28,6 +31,19 @@ class ZoteroSourceUniverse {
     currentSource?: PaperIdentity,
   ): Promise<PaperSourceRef[]> {
     return this.catalog.resolveSources(workspace, currentSource);
+  }
+
+  getItemContextTree(input: {
+    workspace: WorkspaceIdentity;
+    currentSource?: PaperIdentity;
+  }) {
+    return this.itemContextCatalog.getTree(input);
+  }
+
+  resolveItemPdfSources(
+    workspace: WorkspaceIdentity,
+  ): Promise<PaperSourceRef[]> {
+    return this.itemContextCatalog.resolvePdfSources(workspace);
   }
 
   createLibraryWorkspace(

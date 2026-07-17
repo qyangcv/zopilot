@@ -10,6 +10,7 @@ type ZoteroItemLike = Zotero.Item & {
   key: string;
   libraryID: number;
   parentItem?: Zotero.Item;
+  attachmentFilename?: string;
   getField?: (field: string) => string;
   getCreatorsJSON?: () => Array<{
     name?: string;
@@ -29,6 +30,7 @@ type ZoteroCollectionKeyLike = Zotero.Collection & {
 
 export {
   createPaperSourceRef,
+  createPaperSourceRefForAttachmentWithZotero,
   createPaperSourceRefWithZotero,
   dedupeSources,
   paperSourceRefToIdentity,
@@ -58,6 +60,29 @@ function createPaperSourceRefWithZotero(
   if (!attachment) {
     return null;
   }
+  const source = createPaperSourceRefForAttachmentWithZotero(
+    item,
+    attachment,
+    zotero,
+  );
+  return source ? { ...source, title: getItemTitle(item) } : null;
+}
+
+function createPaperSourceRefForAttachmentWithZotero(
+  rawItem: Zotero.Item,
+  rawAttachment: Zotero.Item,
+  zotero: typeof Zotero,
+): PaperSourceRef | null {
+  const item = rawItem as ZoteroItemLike;
+  const attachment = rawAttachment as ZoteroItemLike;
+  if (
+    !item.isRegularItem?.() ||
+    !attachment.isAttachment?.() ||
+    !attachment.isPDFAttachment?.() ||
+    attachment.libraryID !== item.libraryID
+  ) {
+    return null;
+  }
   const title = getItemTitle(item);
   const paperKey = `${item.libraryID}:${item.key}`;
   return {
@@ -68,7 +93,7 @@ function createPaperSourceRefWithZotero(
     parentItemKey: item.key,
     attachmentItemID: attachment.id,
     attachmentKey: attachment.key,
-    title,
+    title: getAttachmentTitle(attachment) || title,
     creators: getCreators(item),
     year: getYear(item),
     collectionKeys: getCollectionKeys(item, zotero),
@@ -121,6 +146,10 @@ function selectPdfAttachment(
 
 function getItemTitle(item: ZoteroItemLike): string {
   return item.getField?.("title") || item.key;
+}
+
+function getAttachmentTitle(item: ZoteroItemLike): string {
+  return item.getField?.("title") || item.attachmentFilename || item.key;
 }
 
 function getCreators(item: ZoteroItemLike): string[] {

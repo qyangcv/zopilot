@@ -264,7 +264,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 8px 0;
+  padding: 5px 8px 0;
   min-width: 0;
 }
 
@@ -276,37 +276,52 @@
   min-width: 0;
 }
 
-.zp-context-chip,
-.zp-local-attachment {
+.zp-context-chip {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
-  max-width: min(100%, 320px);
-  height: 24px;
+  max-width: min(100%, 240px);
+  height: 20px;
   border: 1px solid var(--zp-chip-border);
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--zp-chip-bg);
   color: var(--zp-chip-text);
   font-size: 11px;
   line-height: 14px;
-  padding: 0 7px 0 2px;
+  padding: 0 6px 0 4px;
 }
 
-.zp-context-chip:hover,
-.zp-local-attachment:hover {
+.zp-context-chip[data-removable] {
+  padding-inline-start: 1px;
+}
+
+.zp-context-chip:hover {
   border-color: var(--zp-chip-hover-border);
   background: var(--zp-chip-hover-bg);
 }
 
-.zp-context-chip-icon,
-.zp-local-attachment-icon {
+.zp-context-chip-trigger {
+  appearance: none;
+  -moz-appearance: none;
+  cursor: default;
+  font-family: inherit;
+  margin: 0;
+  text-align: start;
+}
+
+.zp-context-chip-trigger:focus-visible {
+  outline: 1px solid var(--zp-focus-ring);
+  outline-offset: 1px;
+}
+
+.zp-context-chip-icon {
   flex: 0 0 auto;
   color: currentColor;
 }
 
-.zp-context-chip-text,
-.zp-local-attachment-name {
+.zp-context-chip-text {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -314,27 +329,31 @@
   white-space: nowrap;
 }
 
-.zp-context-chip-remove,
-.zp-local-attachment-remove {
+.zp-context-chip-remove {
   appearance: none;
   -moz-appearance: none;
   display: inline-flex;
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   color: var(--zp-muted);
   margin: 0;
   padding: 0;
 }
 
-.zp-local-attachment-remove:hover {
+.zp-context-chip-remove:hover {
   background: var(--zp-panel-strong);
   color: CanvasText;
+}
+
+.zp-context-chip-remove:focus-visible {
+  outline: 1px solid var(--zp-focus-ring);
+  outline-offset: -1px;
 }
 
 .zp-composer-input {

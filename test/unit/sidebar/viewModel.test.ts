@@ -21,6 +21,7 @@ describe("sidebar view model", function () {
     assert.deepEqual(state.messages, []);
     assert.deepEqual(state.models, []);
     assert.equal(state.selectedModel, "");
+    assert.deepEqual(state.activeNoteContexts, []);
   });
 
   it("keeps empty conversations message-free for the UI empty state", function () {
@@ -118,6 +119,26 @@ describe("sidebar view model", function () {
         title: "CodeV: Code with Images",
       },
     ]);
+  });
+
+  it("keeps Zotero note references on user message views", function () {
+    const conversation = createConversation();
+    conversation.messages[0].noteContexts = [
+      {
+        id: "note:1:NOTE",
+        libraryID: 1,
+        parentItemID: 10,
+        parentItemKey: "AAA",
+        noteItemID: 12,
+        noteItemKey: "NOTE",
+        title: "Reading notes",
+        dateModified: "2026-07-17 10:00:00",
+      },
+    ];
+
+    const messages = createConversationMessages(conversation);
+
+    assert.equal(messages[0].noteContexts?.[0]?.title, "Reading notes");
   });
 
   it("creates compact session rows with active state", function () {

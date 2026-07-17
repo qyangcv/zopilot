@@ -1,6 +1,7 @@
 import type {
   Conversation,
   LocalAttachmentRef,
+  ResolvedNoteContext,
   SourceMention,
 } from "../conversation";
 import type { AgentStreamEvent } from "./streaming";
@@ -127,6 +128,7 @@ export type AgentPromptInput = {
   model?: string;
   reasoningEffort?: string | null;
   mentions?: SourceMention[];
+  resolvedNoteContexts?: ResolvedNoteContext[];
   localAttachments?: LocalAttachmentRef[];
 };
 

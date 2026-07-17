@@ -2,6 +2,7 @@ import type {
   Conversation,
   ConversationMessage,
   ConversationMetadata,
+  NoteContextRef,
   WorkspaceIdentity,
 } from "../../../domain/conversation";
 import { getDefaultConversationRootDir } from "./paths";
@@ -170,6 +171,7 @@ class ConversationStore {
       reasoningEffort?: string;
       trace?: ConversationMessage["trace"];
       mentions?: ConversationMessage["mentions"];
+      noteContexts?: ConversationMessage["noteContexts"];
       localAttachments?: ConversationMessage["localAttachments"];
     },
   ): Promise<Conversation> {
@@ -196,6 +198,7 @@ class ConversationStore {
       reasoningEffort: input.reasoningEffort,
       trace: input.trace,
       mentions: input.mentions,
+      noteContexts: input.noteContexts,
       localAttachments: input.localAttachments,
     };
     messages.push(message);
@@ -226,6 +229,33 @@ class ConversationStore {
       codexThreadId,
       updatedAt: new Date().toISOString(),
     };
+    await this.repository.writeMetadata(nextMetadata);
+    return nextMetadata;
+  }
+
+  async updateActiveNoteContexts(
+    metadata: ConversationMetadata,
+    noteContexts: NoteContextRef[],
+  ): Promise<ConversationMetadata> {
+    const persistedMetadata = (
+      await this.repository.listWorkspaceMetadata(metadata.workspaceKey)
+    ).find((item) => item.id === metadata.id);
+    const currentMetadata = persistedMetadata || metadata;
+    if (
+      JSON.stringify(currentMetadata.activeNoteContexts || []) ===
+      JSON.stringify(noteContexts)
+    ) {
+      return currentMetadata;
+    }
+    const nextMetadata: ConversationMetadata = {
+      ...currentMetadata,
+      updatedAt: new Date().toISOString(),
+    };
+    if (noteContexts.length) {
+      nextMetadata.activeNoteContexts = noteContexts;
+    } else {
+      delete nextMetadata.activeNoteContexts;
+    }
     await this.repository.writeMetadata(nextMetadata);
     return nextMetadata;
   }

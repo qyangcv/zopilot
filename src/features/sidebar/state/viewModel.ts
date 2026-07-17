@@ -34,6 +34,8 @@ function createInitialSidebarState(label: string): SidebarState {
     activeProviderLabel: "Codex CLI",
     focusToken: 0,
     sourceCandidates: [],
+    itemContextTree: undefined,
+    activeNoteContexts: [],
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: [],
@@ -78,6 +80,7 @@ function toMessageView(
     role: message.role,
     text: message.text,
     mentions: message.mentions,
+    noteContexts: message.noteContexts,
     localAttachments: message.localAttachments,
     status: message.status,
     model: resolveModelDisplayName(
@@ -157,6 +160,7 @@ function stripSessionContext(
   let text = message.text;
   const contextLabels = [
     ...(message.mentions || []).map((mention) => mention.title),
+    ...(message.noteContexts || []).map((note) => note.title),
     ...(message.localAttachments || []).map(
       (attachment) => attachment.filename,
     ),

@@ -323,6 +323,16 @@ describe("SidebarApp", function () {
       kind: "image" as const,
       mimeType: "image/png",
     };
+    const note = {
+      id: "note:1:NOTE",
+      libraryID: 1,
+      parentItemID: 10,
+      parentItemKey: "AAA",
+      noteItemID: 12,
+      noteItemKey: "NOTE",
+      title: "Reading notes",
+      dateModified: "2026-07-17 10:00:00",
+    };
     const inserted: SidebarMessageView[] = [];
     const submitted: SidebarMessageView[] = [];
     const element = Message({
@@ -333,6 +343,7 @@ describe("SidebarApp", function () {
         role: "user",
         text: rawText,
         mentions: [mention],
+        noteContexts: [note],
         localAttachments: [attachment],
       },
       onCopy: () => undefined,
@@ -354,6 +365,8 @@ describe("SidebarApp", function () {
     );
     assert.deepEqual(inserted[0]?.mentions, [mention]);
     assert.deepEqual(submitted[0]?.mentions, [mention]);
+    assert.deepEqual(inserted[0]?.noteContexts, [note]);
+    assert.deepEqual(submitted[0]?.noteContexts, [note]);
     assert.deepEqual(inserted[0]?.localAttachments, [attachment]);
     assert.deepEqual(submitted[0]?.localAttachments, [attachment]);
   });
@@ -441,6 +454,105 @@ describe("SidebarApp", function () {
     assert.include(html, 'data-icon-name="attachmentPdf"');
     assert.include(html, "zp-context-chip");
     assert.notInclude(html, "@CodeV: Code with Images");
+  });
+
+  it("renders selected Zotero notes as distinct context chips", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          messages: [
+            {
+              id: "user-with-note",
+              role: "user",
+              text: "Use my notes",
+              noteContexts: [
+                {
+                  id: "note:1:NOTE",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "AAA",
+                  noteItemID: 12,
+                  noteItemKey: "NOTE",
+                  title: "Reading notes",
+                  dateModified: "2026-07-17 10:00:00",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, "Reading notes");
+    assert.include(html, 'data-icon-name="noteContext"');
+  });
+
+  it("renders Reader item message context as the same aggregate item chip as the composer", function () {
+    const paperTitle = "Paper A";
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          context: {
+            label: paperTitle,
+            hostContextKind: "reader",
+            workspaceKey: "item:1:AAA",
+            workspaceType: "item",
+            paperTitle,
+            paperKey: "1:AAA",
+          },
+          itemContextTree: {
+            root: {
+              itemID: 10,
+              itemKey: "AAA",
+              title: paperTitle,
+            },
+            nodes: [],
+          },
+          messages: [
+            {
+              id: "user-with-item-context",
+              role: "user",
+              text: "Use the selected item context",
+              mentions: [
+                {
+                  id: "mention:1:PDF-B",
+                  sourceId: "1-PDF-B",
+                  paperKey: "1:AAA",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "AAA",
+                  attachmentItemID: 13,
+                  attachmentKey: "PDF-B",
+                  title: "Supplement.pdf",
+                },
+              ],
+              noteContexts: [
+                {
+                  id: "note:1:NOTE",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "AAA",
+                  noteItemID: 12,
+                  noteItemKey: "NOTE",
+                  title: "Reading notes",
+                  dateModified: "2026-07-17 10:00:00",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.equal(countOccurrences(html, 'data-icon-name="workspaceItem"'), 3);
+    assert.equal(countOccurrences(html, "zp-compact-context-chip"), 2);
+    assert.equal(countOccurrences(html, "zp-context-chip-trigger"), 1);
+    assert.equal(countOccurrences(html, 'aria-haspopup="tree"'), 1);
+    assert.notInclude(html, "Supplement.pdf");
+    assert.notInclude(html, "Reading notes");
+    assert.include(html, "Use the selected item context");
   });
 
   it("renders the new-chat welcome as a centered empty state", function () {
@@ -611,7 +723,7 @@ describe("SidebarApp", function () {
     assert.include(html, "custom-model");
   });
 
-  it("does not render the paper context chip above the composer", function () {
+  it("renders the current item chip above the Reader item composer", function () {
     const paperTitle =
       "DeepSeekMath: Pushing the Limits of Mathematical Reasoning";
     const sessionTitle = `${paperTitle} / 总结一下这篇论文`;
@@ -622,10 +734,19 @@ describe("SidebarApp", function () {
           title: sessionTitle,
           context: {
             label: paperTitle,
+            hostContextKind: "reader",
             workspaceKey: "item:1:AAA",
             workspaceType: "item",
             paperTitle,
             paperKey: "1:AAA",
+          },
+          itemContextTree: {
+            root: {
+              itemID: 10,
+              itemKey: "AAA",
+              title: paperTitle,
+            },
+            nodes: [],
           },
         })}
       />,
@@ -635,9 +756,12 @@ describe("SidebarApp", function () {
       html,
       'title="DeepSeekMath: Pushing the Limits of Mathematical Reasoning / 总结一下这篇论文"',
     );
-    assert.notInclude(html, "zp-context-row");
-    assert.notInclude(html, "zp-context-chip");
-    assert.notInclude(html, "zp-context-chip-text");
+    assert.include(html, "zp-context-row");
+    assert.include(html, "zp-context-chip-trigger");
+    assert.include(html, `title="${paperTitle}"`);
+    assert.include(html, 'aria-haspopup="tree"');
+    assert.include(html, 'aria-expanded="false"');
+    assert.include(html, 'data-icon-name="workspaceItem"');
     assert.notInclude(html, "zopilot-sidebar-context-details");
     assert.notInclude(html, "zopilot-sidebar-current-context");
   });
@@ -1100,6 +1224,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     backendStatus: "connected",
     focusToken: 0,
     sourceCandidates: [],
+    activeNoteContexts: [],
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: TEST_PROMPTS,
@@ -1137,6 +1262,7 @@ function createActions(): SidebarActions {
     selectWorkspaceMode: () => undefined,
     selectCollectionWorkspace: () => undefined,
     selectItemWorkspace: () => undefined,
+    updateActiveNoteContexts: () => undefined,
     submitPrompt: () => undefined,
     uploadAttachment: async () => [],
     restoreSession: () => undefined,

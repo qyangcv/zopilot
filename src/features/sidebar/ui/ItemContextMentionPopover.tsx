@@ -1,0 +1,152 @@
+import { useEffect, useRef, type ReactElement } from "react";
+import { getString } from "../../../app/localization";
+import type {
+  ItemContextNode,
+  ItemContextTree,
+} from "../../../domain/conversation";
+import { Icon } from "./Icon";
+
+function ItemContextMentionPopover({
+  activeIndex,
+  expanded,
+  nodes,
+  onActiveIndexChange,
+  onClose,
+  onSelect,
+  onToggle,
+  selectedNodeIds,
+  tree,
+}: {
+  activeIndex: number;
+  expanded: boolean;
+  nodes: ItemContextNode[];
+  onActiveIndexChange: (index: number) => void;
+  onClose: () => void;
+  onSelect: (node: ItemContextNode, options?: { keepOpen?: boolean }) => void;
+  onToggle: () => void;
+  selectedNodeIds: ReadonlySet<string>;
+  tree: ItemContextTree;
+}): ReactElement {
+  const activeOptionRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    activeOptionRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  return (
+    <div
+      className="zp-mention-popover zp-item-context-tree"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      role="tree"
+    >
+      <div
+        aria-expanded={expanded}
+        aria-selected={activeIndex === 0}
+        className="zp-mention-option zp-item-context-root"
+        data-active={activeIndex === 0 || undefined}
+        onMouseEnter={() => onActiveIndexChange(0)}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          onToggle();
+        }}
+        ref={activeIndex === 0 ? activeOptionRef : undefined}
+        role="treeitem"
+        tabIndex={-1}
+        title={tree.root.title}
+      >
+        <Icon
+          className="zp-item-context-chevron"
+          name={expanded ? "collapse" : "expand"}
+          size={13}
+        />
+        <Icon className="zp-mention-icon" name="workspaceItem" size={14} />
+        <span className="zp-mention-title">{tree.root.title}</span>
+      </div>
+      {expanded ? (
+        nodes.length ? (
+          <div role="group">
+            {nodes.map((node, index) => {
+              const rowIndex = index + 1;
+              const selected =
+                node.selectable &&
+                ((node.kind === "pdf" && node.current) ||
+                  selectedNodeIds.has(node.id));
+              const disabled = !node.selectable;
+              return (
+                <div
+                  aria-disabled={disabled || undefined}
+                  aria-selected={selected}
+                  className="zp-mention-option zp-item-context-child"
+                  data-active={rowIndex === activeIndex || undefined}
+                  data-invalid={
+                    node.kind === "note" && node.invalidReason
+                      ? true
+                      : undefined
+                  }
+                  data-selected={selected || undefined}
+                  key={node.id}
+                  onMouseEnter={() => onActiveIndexChange(rowIndex)}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    if (!disabled) onSelect(node, { keepOpen: true });
+                  }}
+                  ref={rowIndex === activeIndex ? activeOptionRef : undefined}
+                  role="treeitem"
+                  tabIndex={-1}
+                  title={node.title}
+                >
+                  <Icon
+                    className="zp-item-context-selection"
+                    name={selected ? "squareCheck" : "square"}
+                    size={14}
+                  />
+                  <Icon
+                    className="zp-mention-icon"
+                    name={iconForNode(node)}
+                    size={14}
+                  />
+                  <span className="zp-mention-title">{node.title}</span>
+                  {node.kind === "note" && node.invalidReason ? (
+                    <span className="zp-item-context-meta">
+                      {getString("sidebar-item-context-note-unavailable")}
+                    </span>
+                  ) : "disabledReason" in node && node.disabledReason ? (
+                    <span className="zp-item-context-meta">
+                      {getString(
+                        node.disabledReason === "file-unavailable"
+                          ? "sidebar-item-context-file-unavailable"
+                          : "sidebar-item-context-unsupported",
+                      )}
+                    </span>
+                  ) : node.kind === "pdf" && node.current ? (
+                    <span className="zp-item-context-meta">
+                      {getString("sidebar-item-context-default-source")}
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="zp-panel-empty">
+            {getString("sidebar-item-context-empty")}
+          </div>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function iconForNode(
+  node: ItemContextNode,
+): "file" | "notebookText" | "paperclip" {
+  if (node.kind === "pdf") return "file";
+  if (node.kind === "note") return "notebookText";
+  return "paperclip";
+}
+
+export { ItemContextMentionPopover };

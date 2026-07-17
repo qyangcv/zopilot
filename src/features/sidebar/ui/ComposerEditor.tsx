@@ -4,6 +4,7 @@ import type { ComposerBindings } from "./composerBindings";
 import { resizeTextarea } from "./composerLayout";
 import { ContextChips } from "./ContextChips";
 import { MentionPopover } from "./MentionPopover";
+import { ItemContextMentionPopover } from "./ItemContextMentionPopover";
 import { MAX_SOURCE_MENTIONS, findMentionQuery } from "./mentions";
 import type { SidebarState } from "./types";
 import { FloatingPortal } from "../../../ui/primitives/index";
@@ -24,29 +25,86 @@ function ComposerEditor({
     mentions,
     removeLocalAttachment,
     removeMention,
+    removeNoteContext,
     selectMention,
     setMentionQuery,
     submit,
     textareaRef,
     updateDraft,
   } = bindings;
+  const noteContexts = bindings.noteContexts || [];
   const activeMention =
     mentionCandidates[bindings.activeMentionIndex] || mentionCandidates[0];
+  const activeItemContextNode =
+    bindings.activeItemContextIndex > 0
+      ? bindings.itemContextNodes[bindings.activeItemContextIndex - 1]
+      : undefined;
+  const selectedContextCount = mentions.length + noteContexts.length;
+  const selectedItemContextIds = new Set([
+    ...mentions.map((mention) => mention.sourceId),
+    ...noteContexts.map((note) => note.id),
+  ]);
+  const readerItemContextMode =
+    Boolean(bindings.itemContextTree) ||
+    (state.context?.hostContextKind === "reader" &&
+      state.context?.workspaceType === "item");
+  const showItemContextChips = !readerItemContextMode;
+  const chipMentions = showItemContextChips ? mentions : [];
+  const chipNoteContexts = showItemContextChips ? noteContexts : [];
+  const currentItemContext = readerItemContextMode
+    ? {
+        expanded: bindings.itemContextPickerOpen,
+        title:
+          bindings.itemContextTree?.root.title || state.context?.label || "",
+      }
+    : undefined;
   return (
     <>
-      {mentions.length || localAttachments.length ? (
+      {currentItemContext ||
+      chipMentions.length ||
+      chipNoteContexts.length ||
+      localAttachments.length ? (
         <div className="zp-context-row">
           <div aria-label={getString("sidebar-attachment-context")}>
             <ContextChips
               attachments={localAttachments}
-              mentions={mentions}
+              itemContext={currentItemContext}
+              mentions={chipMentions}
+              notes={chipNoteContexts}
+              onOpenItemContext={bindings.openItemContextPicker}
               onRemoveAttachment={removeLocalAttachment}
               onRemoveMention={removeMention}
+              onRemoveNote={removeNoteContext}
             />
           </div>
         </div>
       ) : null}
-      {mentionCandidates.length ? (
+      {bindings.itemContextPickerOpen && bindings.itemContextTree ? (
+        <FloatingPortal
+          align="stretch"
+          anchorRef={bindings.composerRef}
+          maxHeight={320}
+          maxWidth={720}
+          minWidth={0}
+          onDismiss={bindings.closeItemContextPicker}
+          preferredSide="above"
+          zIndex={7}
+        >
+          <ItemContextMentionPopover
+            activeIndex={bindings.activeItemContextIndex}
+            expanded={bindings.itemContextExpanded}
+            nodes={bindings.itemContextNodes}
+            onActiveIndexChange={bindings.setActiveItemContextIndex}
+            onClose={bindings.closeItemContextPicker}
+            onSelect={bindings.selectItemContext}
+            onToggle={() =>
+              bindings.setItemContextExpanded(!bindings.itemContextExpanded)
+            }
+            selectedNodeIds={selectedItemContextIds}
+            tree={bindings.itemContextTree}
+          />
+        </FloatingPortal>
+      ) : mentionCandidates.length ? (
         <FloatingPortal
           align="stretch"
           anchorRef={textareaRef}
@@ -60,7 +118,7 @@ function ComposerEditor({
           <MentionPopover
             activeIndex={bindings.activeMentionIndex}
             candidates={mentionCandidates}
-            disabled={mentions.length >= MAX_SOURCE_MENTIONS}
+            disabled={selectedContextCount >= MAX_SOURCE_MENTIONS}
             onClose={() => setMentionQuery(null)}
             onSelect={selectMention}
           />
@@ -89,6 +147,45 @@ function ComposerEditor({
         }
         onInput={(event) => resizeTextarea(event.currentTarget)}
         onKeyDown={(event) => {
+          if (bindings.itemContextPickerOpen) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              bindings.moveItemContextSelection(
+                event.key === "ArrowDown" ? 1 : -1,
+              );
+              return;
+            }
+            if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              if (bindings.activeItemContextIndex === 0) {
+                bindings.setItemContextExpanded(false);
+              } else {
+                bindings.setActiveItemContextIndex(0);
+              }
+              return;
+            }
+            if (event.key === "ArrowRight") {
+              event.preventDefault();
+              if (bindings.activeItemContextIndex === 0) {
+                bindings.setItemContextExpanded(true);
+              }
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              bindings.closeItemContextPicker();
+              return;
+            }
+            if (event.key === "Tab" || event.key === "Enter") {
+              event.preventDefault();
+              if (bindings.activeItemContextIndex === 0) {
+                bindings.setItemContextExpanded(!bindings.itemContextExpanded);
+              } else if (activeItemContextNode?.selectable) {
+                bindings.selectItemContext(activeItemContextNode);
+              }
+              return;
+            }
+          }
           if (mentionCandidates.length) {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();

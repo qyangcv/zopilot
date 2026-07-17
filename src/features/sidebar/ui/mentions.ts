@@ -1,4 +1,5 @@
 import type {
+  ItemContextNode,
   PaperSourceRef,
   SourceMention,
 } from "../../../domain/conversation";
@@ -6,6 +7,7 @@ import type {
 export {
   MAX_SOURCE_MENTIONS,
   findMentionQuery,
+  matchItemContextNodes,
   matchMentionCandidates,
   moveMentionCandidateIndex,
   sourceToMention,
@@ -84,6 +86,27 @@ function matchMentionCandidates(
         left.source.title.localeCompare(right.source.title),
     )
     .map((item) => item.source);
+}
+
+function matchItemContextNodes(
+  query: string,
+  nodes: ItemContextNode[],
+): ItemContextNode[] {
+  const normalizedQuery = normalize(query);
+  const queryTokens = tokenize(normalizedQuery);
+  if (!normalizedQuery) return nodes;
+  return nodes.filter((node) => {
+    const searchable = normalize(
+      node.kind === "unsupported-attachment"
+        ? [node.title, node.contentType || ""].join(" ")
+        : node.title,
+    );
+    return (
+      searchable.includes(normalizedQuery) ||
+      (queryTokens.length > 1 &&
+        queryTokens.every((token) => searchable.includes(token)))
+    );
+  });
 }
 
 function moveMentionCandidateIndex(

@@ -1,6 +1,7 @@
 import type { ReactElement, RefObject, UIEventHandler } from "react";
 import type {
   LocalAttachmentRef,
+  NoteContextRef,
   SourceMention,
 } from "../../../domain/conversation";
 import { getString } from "../../../app/localization";
@@ -18,12 +19,14 @@ type ConversationLogProps = {
   onEdit: (
     text: string,
     mentions: SourceMention[],
+    noteContexts: NoteContextRef[],
     attachments: LocalAttachmentRef[],
   ) => void;
   onScroll: UIEventHandler<HTMLElement>;
   onSubmit: (
     text: string,
     mentions: SourceMention[],
+    noteContexts: NoteContextRef[],
     attachments: LocalAttachmentRef[],
   ) => void;
   state: SidebarState;
@@ -44,6 +47,11 @@ function ConversationLog({
   syncStreamingScroll,
 }: ConversationLogProps): ReactElement {
   const showWelcome = state.composerEnabled && state.messages.length === 0;
+  const itemContextTitle =
+    state.context.hostContextKind === "reader" &&
+    state.context.workspaceType === "item"
+      ? state.itemContextTree?.root.title || state.context.label
+      : undefined;
   return (
     <main
       aria-live="polite"
@@ -81,6 +89,7 @@ function ConversationLog({
         <MemoMessage
           busy={state.busy}
           copiedId={copiedId}
+          itemContextTitle={itemContextTitle}
           key={message.id}
           message={message}
           onCopy={onCopy}
@@ -88,6 +97,7 @@ function ConversationLog({
             onEdit(
               messageToEdit.text,
               messageToEdit.mentions || [],
+              messageToEdit.noteContexts || [],
               messageToEdit.localAttachments || [],
             );
           }}
@@ -96,6 +106,7 @@ function ConversationLog({
             onSubmit(
               messageToSubmit.text,
               messageToSubmit.mentions || [],
+              messageToSubmit.noteContexts || [],
               messageToSubmit.localAttachments || [],
             )
           }

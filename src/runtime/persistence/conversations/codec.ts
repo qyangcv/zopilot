@@ -29,6 +29,9 @@ function isConversationMetadata(value: unknown): value is ConversationMetadata {
       (Array.isArray(item.collectionPath) &&
         item.collectionPath.every((entry) => typeof entry === "string"))) &&
     (item.itemKey === undefined || typeof item.itemKey === "string") &&
+    (item.activeNoteContexts === undefined ||
+      (Array.isArray(item.activeNoteContexts) &&
+        item.activeNoteContexts.every((note) => isNoteContextRef(note)))) &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
   );
@@ -49,6 +52,9 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     (item.mentions === undefined ||
       (Array.isArray(item.mentions) &&
         item.mentions.every((mention) => isSourceMention(mention)))) &&
+    (item.noteContexts === undefined ||
+      (Array.isArray(item.noteContexts) &&
+        item.noteContexts.every((note) => isNoteContextRef(note)))) &&
     (item.localAttachments === undefined ||
       (Array.isArray(item.localAttachments) &&
         item.localAttachments.every((attachment) =>
@@ -98,6 +104,31 @@ function isSourceMention(value: unknown): boolean {
     typeof item.attachmentItemID === "number" &&
     typeof item.attachmentKey === "string" &&
     typeof item.title === "string"
+  );
+}
+
+function isNoteContextRef(value: unknown): boolean {
+  const item = value as {
+    id?: unknown;
+    libraryID?: unknown;
+    parentItemID?: unknown;
+    parentItemKey?: unknown;
+    noteItemID?: unknown;
+    noteItemKey?: unknown;
+    title?: unknown;
+    dateModified?: unknown;
+  };
+  return (
+    Boolean(item) &&
+    typeof item.id === "string" &&
+    typeof item.libraryID === "number" &&
+    (item.parentItemID === undefined ||
+      typeof item.parentItemID === "number") &&
+    typeof item.parentItemKey === "string" &&
+    typeof item.noteItemID === "number" &&
+    typeof item.noteItemKey === "string" &&
+    typeof item.title === "string" &&
+    typeof item.dateModified === "string"
   );
 }
 

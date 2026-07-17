@@ -10,6 +10,7 @@ import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 function Message({
   busy,
   copiedId,
+  itemContextTitle,
   message,
   onCopy,
   onEdit,
@@ -18,6 +19,7 @@ function Message({
 }: {
   busy: boolean;
   copiedId: string | null;
+  itemContextTitle?: string;
   message: SidebarMessageView;
   onCopy: (message: SidebarMessageView) => void;
   onEdit: (message: SidebarMessageView) => void;
@@ -71,12 +73,21 @@ function Message({
               ) : null}
             </div>
           </>
-        ) : message.localAttachments?.length || message.mentions?.length ? (
+        ) : itemContextTitle ||
+          message.localAttachments?.length ||
+          message.mentions?.length ||
+          message.noteContexts?.length ? (
           <div className="zp-message-bubble zp-composer-surface zp-message-user-content">
             <ContextChips
               attachments={message.localAttachments}
               className="zp-message-attachments"
-              mentions={message.mentions}
+              itemContext={
+                itemContextTitle
+                  ? { expanded: false, title: itemContextTitle }
+                  : undefined
+              }
+              mentions={itemContextTitle ? [] : message.mentions}
+              notes={itemContextTitle ? [] : message.noteContexts}
             />
             <MarkdownView
               className="zp-message-markdown"

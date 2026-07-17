@@ -1,6 +1,8 @@
 import type { Conversation } from "../../../domain/conversation";
 import type {
+  ItemContextTree,
   LocalAttachmentRef,
+  NoteContextRef,
   PaperSourceRef,
   SourceMention,
   WorkspaceType,
@@ -14,6 +16,7 @@ export type SidebarMessageView = {
   role: "user" | "assistant";
   text: string;
   mentions?: SourceMention[];
+  noteContexts?: NoteContextRef[];
   localAttachments?: LocalAttachmentRef[];
   status?: "complete" | "error" | "interrupted";
   completedAt?: string;
@@ -96,6 +99,8 @@ export type SidebarState = {
   activeProviderLabel?: string;
   focusToken: number;
   sourceCandidates: PaperSourceRef[];
+  itemContextTree?: ItemContextTree;
+  activeNoteContexts: NoteContextRef[];
   libraryItemCount: number;
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
@@ -106,6 +111,8 @@ export type SidebarStreamingSnapshot = RunningTurnSnapshot;
 export type SidebarPromptSubmission = {
   text: string;
   mentions: SourceMention[];
+  noteContexts?: NoteContextRef[];
+  persistNoteContexts?: boolean;
   localAttachments: LocalAttachmentRef[];
 };
 
@@ -120,6 +127,7 @@ export type SidebarActions = {
   selectWorkspaceMode: (type: WorkspaceType) => void;
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
+  updateActiveNoteContexts: (noteContexts: NoteContextRef[]) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   uploadAttachment: () => Promise<LocalAttachmentRef[]>;
   interruptActiveTurn: () => void;

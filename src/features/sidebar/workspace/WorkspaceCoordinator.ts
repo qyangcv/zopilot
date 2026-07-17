@@ -80,6 +80,13 @@ type WorkspaceCoordinatorOptions = {
   }) => Promise<void>;
 };
 
+function shouldLoadReaderItemContextTree(
+  hostContext: SidebarHostContext | undefined,
+  workspaceType: WorkspaceType,
+): boolean {
+  return hostContext?.kind === "reader" && workspaceType === "item";
+}
+
 class WorkspaceCoordinator {
   constructor(private readonly options: WorkspaceCoordinatorOptions) {}
 
@@ -179,13 +186,29 @@ class WorkspaceCoordinator {
       currentSource: input.currentSource || input.workspace.defaultSource,
       conversation,
     });
-    this.options.updateViewState({ sourceCandidates: [] });
+    this.options.updateViewState({
+      sourceCandidates: [],
+      itemContextTree: undefined,
+    });
 
     try {
-      const snapshot = await this.options.getSourceUniverse().getSnapshot({
-        workspace: input.workspace,
-        currentSource: input.currentSource || input.workspace.defaultSource,
-      });
+      const currentSource =
+        input.currentSource || input.workspace.defaultSource;
+      const [snapshot, itemContextTree] = await Promise.all([
+        this.options.getSourceUniverse().getSnapshot({
+          workspace: input.workspace,
+          currentSource,
+        }),
+        shouldLoadReaderItemContextTree(
+          input.hostContext,
+          input.workspace.workspaceType,
+        )
+          ? this.options.getSourceUniverse().getItemContextTree({
+              workspace: input.workspace,
+              currentSource,
+            })
+          : Promise.resolve(undefined),
+      ]);
       if (!this.options.canCommitSelection(input.token)) {
         return;
       }
@@ -200,6 +223,7 @@ class WorkspaceCoordinator {
       });
       this.options.updateViewState({
         sourceCandidates: snapshot.sources,
+        itemContextTree,
         libraryItemCount: snapshot.libraryItemCount,
         collectionOptions: snapshot.collections,
       });
@@ -209,7 +233,10 @@ class WorkspaceCoordinator {
         workspaceKey: input.workspace.workspaceKey,
       });
       if (this.options.canCommitSelection(input.token)) {
-        this.options.updateViewState({ sourceCandidates: [] });
+        this.options.updateViewState({
+          sourceCandidates: [],
+          itemContextTree: undefined,
+        });
       }
     }
   }
@@ -319,7 +346,7 @@ class WorkspaceCoordinator {
   }
 }
 
-export { WorkspaceCoordinator };
+export { shouldLoadReaderItemContextTree, WorkspaceCoordinator };
 export type {
   ReadyDisplayState,
   SidebarHostContext,

@@ -113,6 +113,7 @@ class ByokAgentRunner {
           conversation: params.input.conversation,
           prompt: params.input.prompt,
           mentions: params.input.mentions,
+          resolvedNoteContexts: params.input.resolvedNoteContexts,
           localAttachments: params.input.localAttachments,
         }),
         { stream: true, signal: controller.signal, maxTurns: null },
@@ -327,10 +328,9 @@ class ByokAgentRunner {
           ),
         sourceIds: z
           .array(z.string())
-          .max(5)
           .optional()
           .describe(
-            "Optional Zopilot source IDs selected with @ mentions in the current workspace.",
+            "Optional Zopilot source IDs selected from the current workspace context.",
           ),
       }),
       execute: async (input, _context, details) => {

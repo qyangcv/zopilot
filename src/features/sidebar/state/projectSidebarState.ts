@@ -48,6 +48,11 @@ function projectSidebarState(
       messages: pdfHelperNotice ? [...messages, pdfHelperNotice] : messages,
       busy: input.busy,
       prompts: loadPromptViews(),
+      activeNoteContexts:
+        state.hostContext?.kind === "reader" &&
+        state.workspace.workspaceType === "item"
+          ? state.conversation.metadata.activeNoteContexts || []
+          : [],
       sessions: input.viewState.sessions.map((session) =>
         createSessionView(session.conversation, state.conversation.metadata.id),
       ),
@@ -68,6 +73,8 @@ function projectSidebarState(
     sessionsOpen: false,
     sessions: [],
     sourceCandidates: [],
+    itemContextTree: undefined,
+    activeNoteContexts: [],
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: loadPromptViews(),

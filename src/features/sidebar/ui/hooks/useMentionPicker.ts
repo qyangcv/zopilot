@@ -21,6 +21,7 @@ type MentionPickerOptions = {
   draft: string;
   mentions: SourceMention[];
   onDraftChange: (text: string, cursor?: number) => void;
+  selectedContextCount?: number;
   setMentions: Dispatch<SetStateAction<SourceMention[]>>;
   sourceCandidates: PaperSourceRef[];
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -65,7 +66,11 @@ function useMentionPicker(options: MentionPickerOptions) {
   };
 
   const selectMention = (source: PaperSourceRef) => {
-    if (!mentionQuery || options.mentions.length >= MAX_SOURCE_MENTIONS) {
+    if (
+      !mentionQuery ||
+      (options.selectedContextCount ?? options.mentions.length) >=
+        MAX_SOURCE_MENTIONS
+    ) {
       return;
     }
     const nextDraft =
@@ -88,6 +93,7 @@ function useMentionPicker(options: MentionPickerOptions) {
 
   return {
     activeMentionIndex: resolvedActiveMentionIndex,
+    mentionQuery,
     mentionCandidates,
     moveMentionSelection,
     selectMention,

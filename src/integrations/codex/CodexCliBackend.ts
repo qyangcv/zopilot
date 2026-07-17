@@ -16,6 +16,7 @@ import { createCapabilities } from "../../domain/agent/capabilities";
 import { createDiagnostic } from "../../domain/agent/errors";
 import {
   buildPromptWithLocalAttachments,
+  buildPromptWithResolvedNoteContexts,
   buildPromptWithSourceRefs,
 } from "../../application/agent/prompt/contextAssembler";
 import { loadSubprocessModule } from "../../platform/gecko";
@@ -69,7 +70,13 @@ class CodexCliBackend implements AgentBackend {
   ): Promise<AgentRunResult> {
     const result = await getCodexBridge().sendPrompt(
       buildPromptWithLocalAttachments(
-        buildPromptWithSourceRefs(input.prompt, input.mentions || []),
+        buildPromptWithSourceRefs(
+          buildPromptWithResolvedNoteContexts(
+            input.prompt,
+            input.resolvedNoteContexts || [],
+          ),
+          input.mentions || [],
+        ),
         input.localAttachments || [],
       ),
       {
