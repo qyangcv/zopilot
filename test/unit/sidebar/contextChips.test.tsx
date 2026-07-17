@@ -44,6 +44,34 @@ describe("ContextChips", function () {
     assert.include(html, 'data-icon-name="workspaceItem"');
     assert.include(html, 'data-icon-name="attachmentPdf"');
   });
+
+  it("makes a removable item mention open its tree without nesting buttons", function () {
+    const html = renderToStaticMarkup(
+      <ContextChips
+        mentions={[
+          {
+            id: "mention-a",
+            sourceId: "1-PDF",
+            paperKey: "1:PAPER",
+            libraryID: 1,
+            parentItemID: 1,
+            parentItemKey: "PAPER",
+            attachmentItemID: 2,
+            attachmentKey: "PDF",
+            title: "Paper A",
+          },
+        ]}
+        onOpenMention={() => undefined}
+        onRemoveMention={() => undefined}
+      />,
+    );
+
+    assert.include(html, "zp-context-chip-trigger");
+    assert.include(html, "zp-context-chip-activate");
+    assert.include(html, 'aria-haspopup="tree"');
+    assert.equal(count(html, "<button"), 2);
+    assert.notMatch(html, /<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/);
+  });
 });
 
 function count(value: string, needle: string): number {

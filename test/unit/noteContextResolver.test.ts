@@ -52,6 +52,106 @@ describe("ZoteroNoteContextResolver", function () {
       assert.include(String(error), "no longer belongs");
     }
   });
+
+  it("resolves a selected item note in a library workspace", async function () {
+    const note = createNote(() => "<p>library note</p>");
+    const resolver = new ZoteroNoteContextResolver(createZoteroMock(note));
+
+    const result = await resolver.resolveAll(
+      {
+        workspaceKey: "library:1",
+        workspaceType: "library",
+        libraryID: 1,
+        workspaceLabel: "My Library",
+        workspaceTitle: "My Library",
+      },
+      [createRef()],
+      [createMention()],
+    );
+
+    assert.equal(result[0]?.content, "library note");
+  });
+
+  it("requires collection and library notes to belong to a selected item", async function () {
+    const note = createNote(() => "<p>unselected</p>");
+    const resolver = new ZoteroNoteContextResolver(createZoteroMock(note));
+
+    try {
+      await resolver.resolveAll(
+        {
+          workspaceKey: "library:1",
+          workspaceType: "library",
+          libraryID: 1,
+          workspaceLabel: "My Library",
+          workspaceTitle: "My Library",
+        },
+        [createRef()],
+      );
+      assert.fail("Expected an unselected item note to be rejected");
+    } catch (error) {
+      assert.include(String(error), "outside the current workspace");
+    }
+  });
+
+  it("resolves notes only when the selected item belongs to the collection", async function () {
+    const note = createNote(() => "<p>collection note</p>");
+    const resolver = new ZoteroNoteContextResolver(
+      createZoteroMock(note, true),
+    );
+    const workspace = {
+      workspaceKey: "collection:1:COLL",
+      workspaceType: "collection" as const,
+      libraryID: 1,
+      workspaceLabel: "Reading",
+      workspaceTitle: "Reading",
+      collectionKey: "COLL",
+    };
+
+    const result = await resolver.resolveAll(
+      workspace,
+      [createRef()],
+      [createMention()],
+    );
+    assert.equal(result[0]?.content, "collection note");
+
+    const outsideResolver = new ZoteroNoteContextResolver(
+      createZoteroMock(note, false),
+    );
+    try {
+      await outsideResolver.resolveAll(
+        workspace,
+        [createRef()],
+        [createMention()],
+      );
+      assert.fail("Expected an item outside the collection to be rejected");
+    } catch (error) {
+      assert.include(String(error), "outside the current workspace");
+    }
+  });
+
+  it("rejects a library note whose parent item was deleted", async function () {
+    const note = createNote(() => "<p>orphaned</p>");
+    const resolver = new ZoteroNoteContextResolver(
+      createZoteroMock(note, false, true),
+    );
+
+    try {
+      await resolver.resolveAll(
+        {
+          workspaceKey: "library:1",
+          workspaceType: "library",
+          libraryID: 1,
+          workspaceLabel: "My Library",
+          workspaceTitle: "My Library",
+        },
+        [createRef()],
+        [createMention()],
+      );
+      assert.fail("Expected a deleted parent item to be rejected");
+    } catch (error) {
+      assert.include(String(error), "parent is no longer available");
+    }
+  });
 });
 
 function createWorkspace() {
@@ -79,6 +179,20 @@ function createRef() {
   };
 }
 
+function createMention() {
+  return {
+    id: "mention:1:PDF",
+    sourceId: "1-PDF",
+    paperKey: "1:PAPER",
+    libraryID: 1,
+    parentItemID: 1,
+    parentItemKey: "PAPER",
+    attachmentItemID: 11,
+    attachmentKey: "PDF",
+    title: "Paper",
+  };
+}
+
 function createNote(getBody: () => string) {
   return {
     id: 21,
@@ -91,10 +205,42 @@ function createNote(getBody: () => string) {
   };
 }
 
-function createZoteroMock(note: ReturnType<typeof createNote>): typeof Zotero {
+function createZoteroMock(
+  note: ReturnType<typeof createNote>,
+  includeParentInCollection = false,
+  parentDeleted = false,
+): typeof Zotero {
+  const parent = {
+    id: 1,
+    key: "PAPER",
+    libraryID: 1,
+    deleted: parentDeleted,
+    isRegularItem: () => true,
+  };
   return {
     Items: {
-      getAsync: async (id: number) => (id === note.id ? note : undefined),
+      getAsync: async (id: number) =>
+        id === note.id ? note : id === parent.id ? parent : undefined,
+      getByLibraryAndKeyAsync: async (libraryID: number, key: string) =>
+        libraryID === parent.libraryID && key === parent.key ? parent : false,
+    },
+    Collections: {
+      getByLibrary() {
+        return [
+          {
+            id: 31,
+            key: "COLL",
+            libraryID: 1,
+            name: "Reading",
+            getChildItems() {
+              return includeParentInCollection ? [parent] : [];
+            },
+            getChildCollections() {
+              return [];
+            },
+          },
+        ];
+      },
     },
   } as unknown as typeof Zotero;
 }

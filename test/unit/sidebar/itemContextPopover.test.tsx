@@ -13,6 +13,7 @@ describe("ItemContextMentionPopover", function () {
       <ItemContextMentionPopover
         activeIndex={1}
         expanded
+        limitReached={false}
         nodes={createTree().nodes}
         onActiveIndexChange={() => undefined}
         onClose={() => undefined}
@@ -45,6 +46,7 @@ describe("ItemContextMentionPopover", function () {
       <ItemContextMentionPopover
         activeIndex={0}
         expanded
+        limitReached={false}
         nodes={[]}
         onActiveIndexChange={() => undefined}
         onClose={() => undefined}
@@ -59,7 +61,7 @@ describe("ItemContextMentionPopover", function () {
     assert.include(html, "sidebar-item-context-empty");
   });
 
-  it("keeps an unavailable persistent note selected and removable", function () {
+  it("keeps an unavailable selected note removable", function () {
     const tree = createTree();
     const unavailable = {
       ...tree.nodes[1],
@@ -69,6 +71,7 @@ describe("ItemContextMentionPopover", function () {
       <ItemContextMentionPopover
         activeIndex={1}
         expanded
+        limitReached={false}
         nodes={[unavailable]}
         onActiveIndexChange={() => undefined}
         onClose={() => undefined}
@@ -83,6 +86,27 @@ describe("ItemContextMentionPopover", function () {
     assert.include(html, 'aria-selected="true"');
     assert.notInclude(html, 'aria-disabled="true"');
     assert.include(html, "sidebar-item-context-note-unavailable");
+  });
+
+  it("disables only unselected nodes when the context limit is reached", function () {
+    const html = renderToStaticMarkup(
+      <ItemContextMentionPopover
+        activeIndex={1}
+        expanded
+        limitReached
+        nodes={createTree().nodes}
+        onActiveIndexChange={() => undefined}
+        onClose={() => undefined}
+        onSelect={() => undefined}
+        onToggle={() => undefined}
+        selectedNodeIds={new Set()}
+        tree={createTree()}
+      />,
+    );
+
+    assert.include(html, "sidebar-mention-limit");
+    assert.equal(count(html, 'aria-disabled="true"'), 2);
+    assert.include(html, 'aria-selected="true"');
   });
 });
 

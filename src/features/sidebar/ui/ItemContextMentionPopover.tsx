@@ -9,6 +9,7 @@ import { Icon } from "./Icon";
 function ItemContextMentionPopover({
   activeIndex,
   expanded,
+  limitReached,
   nodes,
   onActiveIndexChange,
   onClose,
@@ -19,6 +20,7 @@ function ItemContextMentionPopover({
 }: {
   activeIndex: number;
   expanded: boolean;
+  limitReached: boolean;
   nodes: ItemContextNode[];
   onActiveIndexChange: (index: number) => void;
   onClose: () => void;
@@ -43,6 +45,11 @@ function ItemContextMentionPopover({
       }}
       role="tree"
     >
+      {limitReached ? (
+        <div className="zp-mention-limit">
+          {getString("sidebar-mention-limit")}
+        </div>
+      ) : null}
       <div
         aria-expanded={expanded}
         aria-selected={activeIndex === 0}
@@ -75,7 +82,7 @@ function ItemContextMentionPopover({
                 node.selectable &&
                 ((node.kind === "pdf" && node.current) ||
                   selectedNodeIds.has(node.id));
-              const disabled = !node.selectable;
+              const disabled = !node.selectable || (limitReached && !selected);
               return (
                 <div
                   aria-disabled={disabled || undefined}

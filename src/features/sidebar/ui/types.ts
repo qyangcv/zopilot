@@ -120,6 +120,9 @@ export type SidebarActions = {
   archiveSession: (conversation: Conversation) => void;
   close: () => void;
   createNewSession: () => void;
+  getItemContextTree: (
+    source: SourceMention,
+  ) => Promise<ItemContextTree | undefined>;
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
   selectModel: (model: string) => void;

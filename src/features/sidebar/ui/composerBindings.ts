@@ -25,15 +25,17 @@ type ComposerBindings = {
   ) => void;
   localAttachments: LocalAttachmentRef[];
   itemContextExpanded: boolean;
+  itemContextLimitReached: boolean;
   itemContextNodes: ItemContextNode[];
   itemContextPickerOpen: boolean;
+  itemContextSourceId?: string;
   itemContextTree?: ItemContextTree;
   mentionCandidates: PaperSourceRef[];
   mentions: SourceMention[];
   noteContexts: NoteContextRef[];
   moveItemContextSelection: (direction: -1 | 1) => void;
   moveMentionSelection: (direction: -1 | 1) => void;
-  openItemContextPicker: () => void;
+  openItemContextPicker: (source?: SourceMention) => void;
   promptButtonRef: RefObject<HTMLButtonElement | null>;
   promptPickerOpen: boolean;
   removeLocalAttachment: (attachmentId: string) => void;

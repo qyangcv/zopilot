@@ -2,9 +2,11 @@ import sanitizeHtml from "sanitize-html";
 import type {
   NoteContextRef,
   ResolvedNoteContext,
+  SourceMention,
   WorkspaceIdentity,
 } from "../../domain/conversation";
 import { getZoteroGlobal } from "./environment";
+import { ZoteroCollectionRepository } from "./sources/ZoteroCollectionRepository";
 
 type ZoteroNoteItem = Zotero.Item & {
   id: number;
@@ -17,20 +19,34 @@ type ZoteroNoteItem = Zotero.Item & {
   isNote?: () => boolean;
 };
 
+type ZoteroNoteParentItem = Zotero.Item & {
+  id: number;
+  key: string;
+  libraryID: number;
+  deleted?: boolean;
+  isRegularItem?: () => boolean;
+};
+
 class ZoteroNoteContextResolver {
-  constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {}
+  private readonly collections: ZoteroCollectionRepository;
+
+  constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {
+    this.collections = new ZoteroCollectionRepository(zotero);
+  }
 
   async resolveAll(
     workspace: WorkspaceIdentity,
     references: NoteContextRef[],
+    mentions: SourceMention[] = [],
   ): Promise<ResolvedNoteContext[]> {
-    if (workspace.workspaceType !== "item" || !workspace.itemKey) {
-      throw new Error("Selected Zotero notes require an item workspace.");
-    }
+    const allowedParentKeys = await this.resolveAllowedParentKeys(
+      workspace,
+      mentions,
+    );
     return Promise.all(
       references.map(async (reference) => ({
         reference,
-        content: await this.resolveOne(workspace, reference),
+        content: await this.resolveOne(workspace, reference, allowedParentKeys),
       })),
     );
   }
@@ -38,13 +54,28 @@ class ZoteroNoteContextResolver {
   private async resolveOne(
     workspace: WorkspaceIdentity,
     reference: NoteContextRef,
+    allowedParentKeys: ReadonlySet<string>,
   ): Promise<string> {
     if (
       reference.libraryID !== workspace.libraryID ||
-      reference.parentItemKey !== workspace.itemKey
+      !allowedParentKeys.has(reference.parentItemKey)
     ) {
       throw new Error(
-        `Selected note is outside the current item workspace: ${reference.title}`,
+        `Selected note is outside the current workspace: ${reference.title}`,
+      );
+    }
+    const parent = await this.resolveParent(reference);
+    if (
+      !parent ||
+      parent.deleted ||
+      !parent.isRegularItem?.() ||
+      parent.libraryID !== reference.libraryID ||
+      parent.key !== reference.parentItemKey ||
+      (reference.parentItemID !== undefined &&
+        parent.id !== reference.parentItemID)
+    ) {
+      throw new Error(
+        `Selected note parent is no longer available: ${reference.title}`,
       );
     }
     let note: ZoteroNoteItem | undefined;
@@ -71,6 +102,56 @@ class ZoteroNoteContextResolver {
       );
     }
     return noteHtmlToText(note.getNote?.() || "");
+  }
+
+  private async resolveParent(
+    reference: NoteContextRef,
+  ): Promise<ZoteroNoteParentItem | undefined> {
+    let parent: ZoteroNoteParentItem | false | undefined;
+    try {
+      parent = reference.parentItemID
+        ? ((await this.zotero.Items.getAsync(
+            reference.parentItemID,
+          )) as ZoteroNoteParentItem)
+        : ((await this.zotero.Items.getByLibraryAndKeyAsync(
+            reference.libraryID,
+            reference.parentItemKey,
+          )) as ZoteroNoteParentItem | false);
+    } catch {
+      parent = undefined;
+    }
+    return parent || undefined;
+  }
+
+  private async resolveAllowedParentKeys(
+    workspace: WorkspaceIdentity,
+    mentions: SourceMention[],
+  ): Promise<Set<string>> {
+    if (workspace.workspaceType === "item") {
+      return workspace.itemKey ? new Set([workspace.itemKey]) : new Set();
+    }
+    const selectedParentKeys = new Set(
+      mentions
+        .filter((mention) => mention.libraryID === workspace.libraryID)
+        .map((mention) => mention.parentItemKey),
+    );
+    if (workspace.workspaceType === "library") {
+      return selectedParentKeys;
+    }
+    if (!workspace.collectionKey) {
+      return new Set();
+    }
+    const collectionParentKeys = new Set(
+      (
+        await this.collections.listItems(
+          workspace.libraryID,
+          workspace.collectionKey,
+        )
+      ).map((item) => (item as Zotero.Item & { key: string }).key),
+    );
+    return new Set(
+      [...selectedParentKeys].filter((key) => collectionParentKeys.has(key)),
+    );
   }
 }
 

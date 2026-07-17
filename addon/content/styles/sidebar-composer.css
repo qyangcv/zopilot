@@ -316,6 +316,28 @@
   outline-offset: 1px;
 }
 
+.zp-context-chip-activate {
+  appearance: none;
+  -moz-appearance: none;
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  margin: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.zp-context-chip-activate:focus-visible {
+  outline: 1px solid var(--zp-focus-ring);
+  outline-offset: 1px;
+}
+
 .zp-context-chip-icon {
   flex: 0 0 auto;
   color: currentColor;

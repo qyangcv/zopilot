@@ -2,6 +2,7 @@ import type {
   Conversation,
   NoteContextRef,
   PaperIdentity,
+  SourceMention,
   WorkspaceIdentity,
   WorkspaceType,
 } from "../../../domain/conversation";
@@ -318,6 +319,28 @@ class SidebarHostController {
     await this.workspaceCoordinator.selectItemWorkspace(sourceId);
   }
 
+  private async getItemContextTree(source: SourceMention) {
+    const ready = this.getReadyDisplayState();
+    const allowedSource = this.viewState.sourceCandidates.find(
+      (candidate) =>
+        candidate.sourceId === source.sourceId ||
+        (candidate.libraryID === source.libraryID &&
+          candidate.parentItemKey === source.parentItemKey),
+    );
+    if (
+      !ready ||
+      !allowedSource ||
+      source.libraryID !== ready.workspace.libraryID
+    ) {
+      return undefined;
+    }
+    const workspace = await this.sourceUniverse.createItemWorkspace(source);
+    return this.sourceUniverse.getItemContextTree({
+      workspace,
+      currentSource: source,
+    });
+  }
+
   private updateActiveNoteContexts(noteContexts: NoteContextRef[]): void {
     const ready = this.getReadyDisplayState();
     if (
@@ -523,6 +546,7 @@ class SidebarHostController {
           void this.sessions.archiveSession(conversation),
         close: () => this.setOpen(false),
         createNewSession: () => void this.sessions.createNewSession(),
+        getItemContextTree: (source) => this.getItemContextTree(source),
         hideSessions: () => this.sessions.hidePopover(),
         interruptActiveTurn: () => this.interruptActiveTurn(),
         openExternalLink: (url) => this.contextActions.openExternalLink(url),

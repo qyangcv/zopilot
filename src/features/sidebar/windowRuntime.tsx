@@ -106,6 +106,10 @@ function createCommandActions(
       void invoke("archiveSession", [conversation]),
     close: () => void invoke("close"),
     createNewSession: () => void invoke("createNewSession"),
+    getItemContextTree: (source) =>
+      invoke("getItemContextTree", [source]) as ReturnType<
+        SidebarActions["getItemContextTree"]
+      >,
     hideSessions: () => void invoke("hideSessions"),
     interruptActiveTurn: () => void invoke("interruptActiveTurn"),
     openExternalLink: (url) => void invoke("openExternalLink", [url]),

@@ -92,6 +92,7 @@ class TurnCoordinator {
         ? await this.getNoteContextResolver().resolveAll(
             conversation.metadata,
             noteContexts,
+            submission.mentions,
           )
         : [];
       const result = await getAgentBackendManager().sendPrompt(

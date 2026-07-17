@@ -12,8 +12,10 @@ import type {
 } from "../../../src/domain/conversation.ts";
 import { ComposerEditor } from "../../../src/features/sidebar/ui/ComposerEditor.tsx";
 import type { ComposerBindings } from "../../../src/features/sidebar/ui/composerBindings.ts";
+import { countItemContextSelections } from "../../../src/features/sidebar/ui/itemContextGroups.ts";
 import { ContextChips } from "../../../src/features/sidebar/ui/ContextChips.tsx";
 import { ItemContextMentionPopover } from "../../../src/features/sidebar/ui/ItemContextMentionPopover.tsx";
+import { MentionPopover } from "../../../src/features/sidebar/ui/MentionPopover.tsx";
 import { FloatingPortal } from "../../../src/ui/primitives/FloatingPortal.tsx";
 import type { SidebarState } from "../../../src/features/sidebar/ui/types.ts";
 
@@ -159,7 +161,13 @@ describe("sidebar composer mention keyboard navigation", function () {
         ],
         openItemContextPicker: () => openCount++,
       },
-      state: { composerEnabled: true } as SidebarState,
+      state: {
+        composerEnabled: true,
+        context: {
+          hostContextKind: "reader",
+          workspaceType: "item",
+        },
+      } as SidebarState,
     });
 
     const chips = findElement(
@@ -178,7 +186,7 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.equal(openCount, 1);
   });
 
-  it("treats every item tree selection as one unlimited context group", function () {
+  it("passes the total context limit state to the item tree", function () {
     const tree = createItemContextTree();
     const editor = ComposerEditor({
       bindings: {
@@ -190,6 +198,7 @@ describe("sidebar composer mention keyboard navigation", function () {
           submit: () => undefined,
         }),
         itemContextPickerOpen: true,
+        itemContextLimitReached: true,
         itemContextTree: tree,
         itemContextNodes: tree.nodes,
         mentions: Array.from({ length: 12 }, (_, index) => ({
@@ -210,7 +219,169 @@ describe("sidebar composer mention keyboard navigation", function () {
     );
 
     assert.isDefined(popover);
-    assert.notProperty(getProps(popover), "limitReached");
+    assert.isTrue(getProps(popover).limitReached);
+    assert.equal(
+      countItemContextSelections(
+        [
+          {
+            id: "mention:root",
+            ...createSource("root"),
+          },
+          {
+            id: "mention:sibling",
+            ...createSource("sibling"),
+            parentItemKey: "root",
+          },
+        ],
+        [],
+        true,
+      ),
+      3,
+    );
+  });
+
+  it("groups collection tree children under clickable item chips", function () {
+    const tree = createItemContextTree();
+    const root = {
+      id: "mention:paper",
+      ...createSource("paper"),
+    };
+    const supplement = {
+      id: "mention:supplement",
+      ...createSource("supplement"),
+      libraryID: root.libraryID,
+      parentItemID: root.parentItemID,
+      parentItemKey: root.parentItemKey,
+      paperKey: root.paperKey,
+    };
+    const other = {
+      id: "mention:other",
+      ...createSource("other"),
+    };
+    const opened: string[] = [];
+    const editor = ComposerEditor({
+      bindings: {
+        ...createBindings({
+          activeMentionIndex: 0,
+          candidates: [],
+          move: () => undefined,
+          select: () => undefined,
+          submit: () => undefined,
+        }),
+        itemContextPickerOpen: true,
+        itemContextSourceId: root.sourceId,
+        itemContextTree: tree,
+        itemContextNodes: tree.nodes,
+        mentions: [root, supplement, other],
+        noteContexts: [
+          {
+            id: "note:1:NOTE",
+            libraryID: root.libraryID,
+            parentItemID: root.parentItemID,
+            parentItemKey: root.parentItemKey,
+            noteItemID: 12,
+            noteItemKey: "NOTE",
+            title: "Reading notes",
+            dateModified: "2026-07-17 10:00:00",
+          },
+        ],
+        openItemContextPicker: (mention) => {
+          if (mention) opened.push(mention.sourceId);
+        },
+      },
+      state: {
+        composerEnabled: true,
+        context: {
+          hostContextKind: "library",
+          workspaceType: "collection",
+        },
+      } as SidebarState,
+    });
+
+    const chips = findElement(
+      editor,
+      (element) => element.type === ContextChips,
+    );
+    assert.isDefined(chips);
+    assert.deepEqual(
+      (getProps(chips).mentions as PaperSourceRef[]).map(
+        (mention) => mention.sourceId,
+      ),
+      [root.sourceId, other.sourceId],
+    );
+    assert.deepEqual(getProps(chips).notes, []);
+    assert.isUndefined(getProps(chips).itemContext);
+    (getProps(chips).onOpenMention as (mention: typeof root) => void)(root);
+    assert.deepEqual(opened, [root.sourceId]);
+  });
+
+  it("does not open a selector from @ in an item workspace", function () {
+    const tree = createItemContextTree();
+    const editor = ComposerEditor({
+      bindings: {
+        ...createBindings({
+          activeMentionIndex: 0,
+          candidates: [],
+          move: () => undefined,
+          select: () => undefined,
+          submit: () => undefined,
+        }),
+        itemContextTree: tree,
+      },
+      state: {
+        composerEnabled: true,
+        context: {
+          hostContextKind: "reader",
+          workspaceType: "item",
+        },
+      } as SidebarState,
+    });
+
+    assert.isUndefined(
+      findElement(
+        editor,
+        (element) => element.type === ItemContextMentionPopover,
+      ),
+    );
+    assert.isUndefined(
+      findElement(editor, (element) => element.type === MentionPopover),
+    );
+  });
+
+  it("uses item-tree chips for collection and library in both surfaces", function () {
+    const mention = {
+      id: "mention:paper",
+      ...createSource("paper"),
+    };
+    for (const hostContextKind of ["reader", "library"] as const) {
+      for (const workspaceType of ["collection", "library"] as const) {
+        const editor = ComposerEditor({
+          bindings: {
+            ...createBindings({
+              activeMentionIndex: 0,
+              candidates: [],
+              move: () => undefined,
+              select: () => undefined,
+              submit: () => undefined,
+            }),
+            mentions: [mention],
+          },
+          state: {
+            composerEnabled: true,
+            context: { hostContextKind, workspaceType },
+          } as SidebarState,
+        });
+        const chips = findElement(
+          editor,
+          (element) => element.type === ContextChips,
+        );
+
+        assert.isDefined(chips);
+        assert.isUndefined(getProps(chips).itemContext);
+        assert.deepEqual(getProps(chips).mentions, [mention]);
+        assert.isFunction(getProps(chips).onOpenMention);
+      }
+    }
   });
 });
 
@@ -281,8 +452,10 @@ function createBindings({
     draft: "@",
     insertPrompt: () => undefined,
     itemContextExpanded: true,
+    itemContextLimitReached: false,
     itemContextNodes: [],
     itemContextPickerOpen: false,
+    itemContextSourceId: undefined,
     itemContextTree: undefined,
     localAttachments: [],
     mentionCandidates: candidates,

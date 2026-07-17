@@ -6,6 +6,7 @@ import { MarkdownView } from "./MarkdownView";
 import type { SidebarMessageView } from "./types";
 import { TracePanel } from "./TracePanel";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
+import { rootItemMentions, ungroupedNoteContexts } from "./itemContextGroups";
 
 function Message({
   busy,
@@ -28,6 +29,12 @@ function Message({
 }): ReactElement {
   const isAssistant = message.role === "assistant";
   const completedAt = message.completedAt;
+  const messageMentions = itemContextTitle
+    ? []
+    : rootItemMentions(message.mentions || []);
+  const messageNoteContexts = itemContextTitle
+    ? []
+    : ungroupedNoteContexts(message.mentions || [], message.noteContexts || []);
 
   return (
     <article
@@ -86,8 +93,8 @@ function Message({
                   ? { expanded: false, title: itemContextTitle }
                   : undefined
               }
-              mentions={itemContextTitle ? [] : message.mentions}
-              notes={itemContextTitle ? [] : message.noteContexts}
+              mentions={messageMentions}
+              notes={messageNoteContexts}
             />
             <MarkdownView
               className="zp-message-markdown"

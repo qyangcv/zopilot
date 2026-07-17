@@ -184,6 +184,14 @@
   font-weight: 600;
 }
 
+.zp-item-context-tree .zp-mention-option:hover {
+  background: transparent;
+}
+
+.zp-item-context-tree .zp-mention-option[data-active] {
+  background: var(--zp-panel-strong);
+}
+
 .zp-item-context-child {
   padding-inline-start: 31px;
 }

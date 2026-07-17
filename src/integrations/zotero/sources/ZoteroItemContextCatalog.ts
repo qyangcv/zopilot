@@ -8,6 +8,7 @@ import type {
 } from "../../../domain/conversation";
 import { getString } from "../../../app/localization";
 import { getZoteroGlobal } from "../environment";
+import { ZoteroCollectionRepository } from "./ZoteroCollectionRepository";
 import { createPaperSourceRefForAttachmentWithZotero } from "./items";
 
 type ZoteroContextItem = Zotero.Item & {
@@ -32,7 +33,11 @@ type ZoteroContextItem = Zotero.Item & {
 };
 
 class ZoteroItemContextCatalog {
-  constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {}
+  private readonly collections: ZoteroCollectionRepository;
+
+  constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {
+    this.collections = new ZoteroCollectionRepository(zotero);
+  }
 
   async getTree(input: {
     workspace: WorkspaceIdentity;
@@ -93,6 +98,57 @@ class ZoteroItemContextCatalog {
       .filter((source): source is PaperSourceRef => Boolean(source));
   }
 
+  async resolveSelectedPdfSources(
+    workspace: WorkspaceIdentity,
+    sourceIds: string[],
+  ): Promise<PaperSourceRef[]> {
+    const allowedParentKeys = await this.resolveAllowedParentKeys(workspace);
+    const sources = await Promise.all(
+      sourceIds.map(async (sourceId) => {
+        const prefix = `${workspace.libraryID}-`;
+        if (!sourceId.startsWith(prefix)) return undefined;
+        const attachmentKey = sourceId.slice(prefix.length);
+        if (!attachmentKey) return undefined;
+        let attachment: ZoteroContextItem | false | undefined;
+        try {
+          attachment = (await this.zotero.Items.getByLibraryAndKeyAsync(
+            workspace.libraryID,
+            attachmentKey,
+          )) as ZoteroContextItem | false;
+        } catch {
+          attachment = undefined;
+        }
+        if (
+          !attachment ||
+          attachment.deleted ||
+          !attachment.isAttachment?.() ||
+          !attachment.isPDFAttachment?.()
+        ) {
+          return undefined;
+        }
+        const parent = await this.resolveAttachmentParent(attachment);
+        if (
+          !parent ||
+          !parent.isRegularItem?.() ||
+          parent.deleted ||
+          parent.libraryID !== workspace.libraryID ||
+          (allowedParentKeys && !allowedParentKeys.has(parent.key))
+        ) {
+          return undefined;
+        }
+        const source = createPaperSourceRefForAttachmentWithZotero(
+          parent,
+          attachment,
+          this.zotero,
+        );
+        return source?.sourceId === sourceId ? source : undefined;
+      }),
+    );
+    return sources.filter((source): source is PaperSourceRef =>
+      Boolean(source),
+    );
+  }
+
   private async resolveParent(
     workspace: WorkspaceIdentity,
   ): Promise<ZoteroContextItem | undefined> {
@@ -120,6 +176,55 @@ class ZoteroItemContextCatalog {
       parent.key === workspace.itemKey
       ? parent
       : undefined;
+  }
+
+  private async resolveAttachmentParent(
+    attachment: ZoteroContextItem,
+  ): Promise<ZoteroContextItem | undefined> {
+    let parent: ZoteroContextItem | false | undefined;
+    try {
+      parent = attachment.parentItemID
+        ? ((await this.zotero.Items.getAsync(
+            attachment.parentItemID,
+          )) as ZoteroContextItem)
+        : attachment.parentItemKey
+          ? ((await this.zotero.Items.getByLibraryAndKeyAsync(
+              attachment.libraryID,
+              attachment.parentItemKey,
+            )) as ZoteroContextItem | false)
+          : undefined;
+    } catch {
+      parent = undefined;
+    }
+    return parent || undefined;
+  }
+
+  private async resolveAllowedParentKeys(
+    workspace: WorkspaceIdentity,
+  ): Promise<Set<string> | undefined> {
+    if (workspace.workspaceType === "library") {
+      return undefined;
+    }
+    if (workspace.workspaceType === "item") {
+      return workspace.itemKey ? new Set([workspace.itemKey]) : new Set();
+    }
+    if (!workspace.collectionKey) {
+      return new Set();
+    }
+    const items = await this.collections.listItems(
+      workspace.libraryID,
+      workspace.collectionKey,
+    );
+    return new Set(
+      (items as ZoteroContextItem[])
+        .filter(
+          (item) =>
+            item.libraryID === workspace.libraryID &&
+            !item.deleted &&
+            item.isRegularItem?.(),
+        )
+        .map((item) => item.key),
+    );
   }
 
   private async listAttachments(

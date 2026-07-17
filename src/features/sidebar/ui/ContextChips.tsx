@@ -10,16 +10,19 @@ import { Icon, type IconName } from "./Icon";
 export function ContextChips({
   attachments = [],
   className,
+  expandedMentionSourceId,
   itemContext,
   mentions = [],
   notes = [],
   onOpenItemContext,
+  onOpenMention,
   onRemoveAttachment,
   onRemoveMention,
   onRemoveNote,
 }: {
   attachments?: LocalAttachmentRef[];
   className?: string;
+  expandedMentionSourceId?: string;
   itemContext?: {
     expanded: boolean;
     title: string;
@@ -27,6 +30,7 @@ export function ContextChips({
   mentions?: SourceMention[];
   notes?: NoteContextRef[];
   onOpenItemContext?: () => void;
+  onOpenMention?: (mention: SourceMention) => void;
   onRemoveAttachment?: (attachmentId: string) => void;
   onRemoveMention?: (mentionId: string) => void;
   onRemoveNote?: (noteId: string) => void;
@@ -52,6 +56,8 @@ export function ContextChips({
           icon="paperMention"
           key={mention.id}
           label={mention.title}
+          expanded={expandedMentionSourceId === mention.sourceId}
+          onActivate={onOpenMention ? () => onOpenMention(mention) : undefined}
           onRemove={
             onRemoveMention ? () => onRemoveMention(mention.id) : undefined
           }
@@ -103,25 +109,25 @@ function CompactContextChip({
 }): ReactElement {
   const content = (
     <>
-      {onRemove ? (
-        <button
-          aria-label={getString("sidebar-context-remove")}
-          className="zp-context-chip-remove"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onRemove();
-          }}
-          title={getString("sidebar-context-remove")}
-          type="button"
-        >
-          <Icon name="close" size={12} />
-        </button>
-      ) : null}
       <Icon className="zp-context-chip-icon" name={icon} size={12} />
       <span className="zp-context-chip-text">{label}</span>
     </>
   );
+  const removeButton = onRemove ? (
+    <button
+      aria-label={getString("sidebar-context-remove")}
+      className="zp-context-chip-remove"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onRemove();
+      }}
+      title={getString("sidebar-context-remove")}
+      type="button"
+    >
+      <Icon name="close" size={12} />
+    </button>
+  ) : null;
   const className = [
     "zp-context-chip",
     "zp-compact-context-chip",
@@ -130,6 +136,23 @@ function CompactContextChip({
     .filter(Boolean)
     .join(" ");
   if (onActivate) {
+    if (onRemove) {
+      return (
+        <div className={className} data-removable title={title}>
+          {removeButton}
+          <button
+            aria-expanded={expanded}
+            aria-haspopup="tree"
+            aria-label={ariaLabel}
+            className="zp-context-chip-activate"
+            onClick={onActivate}
+            type="button"
+          >
+            {content}
+          </button>
+        </div>
+      );
+    }
     return (
       <button
         aria-expanded={expanded}
@@ -150,6 +173,7 @@ function CompactContextChip({
       data-removable={onRemove ? true : undefined}
       title={title}
     >
+      {removeButton}
       {content}
     </div>
   );

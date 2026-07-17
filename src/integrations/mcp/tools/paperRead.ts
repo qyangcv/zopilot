@@ -45,6 +45,10 @@ type PaperReadToolOptions = {
     resolveItemPdfSources?(
       workspace: WorkspaceIdentity,
     ): Promise<PaperSourceRef[]>;
+    resolveSelectedPdfSources?(
+      workspace: WorkspaceIdentity,
+      sourceIds: string[],
+    ): Promise<PaperSourceRef[]>;
   };
   logger?: (message: string, details?: JsonValue) => void;
 };
@@ -221,11 +225,16 @@ async function resolveSourceSelection(
   }
   const sourceUniverse = getSourceUniverse();
   const universe =
-    scope.workspaceType === "item" &&
-    sourceIds?.length &&
-    sourceUniverse.resolveItemPdfSources
-      ? await sourceUniverse.resolveItemPdfSources(workspace)
-      : await sourceUniverse.resolveSources(workspace, workspace.defaultSource);
+    sourceIds?.length && sourceUniverse.resolveSelectedPdfSources
+      ? await sourceUniverse.resolveSelectedPdfSources(workspace, sourceIds)
+      : scope.workspaceType === "item" &&
+          sourceIds?.length &&
+          sourceUniverse.resolveItemPdfSources
+        ? await sourceUniverse.resolveItemPdfSources(workspace)
+        : await sourceUniverse.resolveSources(
+            workspace,
+            workspace.defaultSource,
+          );
   if (sourceIds?.length) {
     const sourceById = new Map(
       universe.map((source) => [source.sourceId, source]),

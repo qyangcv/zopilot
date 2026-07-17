@@ -8,6 +8,11 @@ import { ItemContextMentionPopover } from "./ItemContextMentionPopover";
 import { MAX_SOURCE_MENTIONS, findMentionQuery } from "./mentions";
 import type { SidebarState } from "./types";
 import { FloatingPortal } from "../../../ui/primitives/index";
+import {
+  countItemContextSelections,
+  rootItemMentions,
+  ungroupedNoteContexts,
+} from "./itemContextGroups";
 
 const ZOTERO_NO_NATIVE_INPUT_PROPS = { "no-native": "true" } as const;
 
@@ -39,21 +44,26 @@ function ComposerEditor({
     bindings.activeItemContextIndex > 0
       ? bindings.itemContextNodes[bindings.activeItemContextIndex - 1]
       : undefined;
-  const selectedContextCount = mentions.length + noteContexts.length;
+  const selectedContextCount = countItemContextSelections(
+    mentions,
+    noteContexts,
+  );
   const selectedItemContextIds = new Set([
     ...mentions.map((mention) => mention.sourceId),
     ...noteContexts.map((note) => note.id),
   ]);
   const readerItemContextMode =
-    Boolean(bindings.itemContextTree) ||
-    (state.context?.hostContextKind === "reader" &&
-      state.context?.workspaceType === "item");
+    state.context?.hostContextKind === "reader" &&
+    state.context?.workspaceType === "item";
   const showItemContextChips = !readerItemContextMode;
-  const chipMentions = showItemContextChips ? mentions : [];
-  const chipNoteContexts = showItemContextChips ? noteContexts : [];
+  const chipMentions = showItemContextChips ? rootItemMentions(mentions) : [];
+  const chipNoteContexts = showItemContextChips
+    ? ungroupedNoteContexts(mentions, noteContexts)
+    : [];
   const currentItemContext = readerItemContextMode
     ? {
-        expanded: bindings.itemContextPickerOpen,
+        expanded:
+          bindings.itemContextPickerOpen && !bindings.itemContextSourceId,
         title:
           bindings.itemContextTree?.root.title || state.context?.label || "",
       }
@@ -68,10 +78,16 @@ function ComposerEditor({
           <div aria-label={getString("sidebar-attachment-context")}>
             <ContextChips
               attachments={localAttachments}
+              expandedMentionSourceId={
+                bindings.itemContextPickerOpen
+                  ? bindings.itemContextSourceId
+                  : undefined
+              }
               itemContext={currentItemContext}
               mentions={chipMentions}
               notes={chipNoteContexts}
-              onOpenItemContext={bindings.openItemContextPicker}
+              onOpenItemContext={() => bindings.openItemContextPicker()}
+              onOpenMention={bindings.openItemContextPicker}
               onRemoveAttachment={removeLocalAttachment}
               onRemoveMention={removeMention}
               onRemoveNote={removeNoteContext}
@@ -93,6 +109,7 @@ function ComposerEditor({
           <ItemContextMentionPopover
             activeIndex={bindings.activeItemContextIndex}
             expanded={bindings.itemContextExpanded}
+            limitReached={bindings.itemContextLimitReached}
             nodes={bindings.itemContextNodes}
             onActiveIndexChange={bindings.setActiveItemContextIndex}
             onClose={bindings.closeItemContextPicker}

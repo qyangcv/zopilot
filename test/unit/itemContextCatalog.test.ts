@@ -102,6 +102,58 @@ describe("ZoteroItemContextCatalog", function () {
       ],
     );
   });
+
+  it("validates selected sibling PDFs in library and collection workspaces", async function () {
+    const parent = createParent();
+    const catalog = new ZoteroItemContextCatalog(
+      createZoteroMock([
+        parent,
+        createAttachment(12, "PDF-B", {
+          title: "Supplement.pdf",
+          pdf: true,
+          path: "/tmp/supplement.pdf",
+        }),
+      ]),
+    );
+    const libraryWorkspace = {
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      libraryID: 1,
+      workspaceLabel: "My Library",
+      workspaceTitle: "My Library",
+    };
+    const collectionWorkspace = {
+      workspaceKey: "collection:1:COLL",
+      workspaceType: "collection" as const,
+      libraryID: 1,
+      workspaceLabel: "Reading",
+      workspaceTitle: "Reading",
+      collectionKey: "COLL",
+    };
+
+    const librarySources = await catalog.resolveSelectedPdfSources(
+      libraryWorkspace,
+      ["1-PDF-B"],
+    );
+    const collectionSources = await catalog.resolveSelectedPdfSources(
+      collectionWorkspace,
+      ["1-PDF-B"],
+    );
+    const outsideSources = await catalog.resolveSelectedPdfSources(
+      { ...collectionWorkspace, collectionKey: "OTHER" },
+      ["1-PDF-B"],
+    );
+
+    assert.deepEqual(
+      librarySources.map((source) => source.sourceId),
+      ["1-PDF-B"],
+    );
+    assert.deepEqual(
+      collectionSources.map((source) => source.sourceId),
+      ["1-PDF-B"],
+    );
+    assert.deepEqual(outsideSources, []);
+  });
 });
 
 type MockItem = {
@@ -212,6 +264,22 @@ function createZoteroMock(items: MockItem[]): typeof Zotero {
     Collections: {
       get() {
         return undefined;
+      },
+      getByLibrary() {
+        return [
+          {
+            id: 31,
+            key: "COLL",
+            libraryID: 1,
+            name: "Reading",
+            getChildItems() {
+              return items.filter((item) => item.isRegularItem?.());
+            },
+            getChildCollections() {
+              return [];
+            },
+          },
+        ];
       },
     },
   } as unknown as typeof Zotero;

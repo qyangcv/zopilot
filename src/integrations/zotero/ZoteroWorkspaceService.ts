@@ -46,6 +46,16 @@ class ZoteroSourceUniverse {
     return this.itemContextCatalog.resolvePdfSources(workspace);
   }
 
+  resolveSelectedPdfSources(
+    workspace: WorkspaceIdentity,
+    sourceIds: string[],
+  ): Promise<PaperSourceRef[]> {
+    return this.itemContextCatalog.resolveSelectedPdfSources(
+      workspace,
+      sourceIds,
+    );
+  }
+
   createLibraryWorkspace(
     input: Parameters<ZoteroWorkspaceFactory["createLibraryWorkspace"]>[0],
   ) {

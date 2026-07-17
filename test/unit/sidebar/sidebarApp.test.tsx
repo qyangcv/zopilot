@@ -488,6 +488,69 @@ describe("SidebarApp", function () {
     assert.include(html, 'data-icon-name="noteContext"');
   });
 
+  it("keeps item-tree children grouped after a library message is sent", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          context: {
+            label: "My Library",
+            hostContextKind: "library",
+            workspaceType: "library",
+          },
+          messages: [
+            {
+              id: "user-with-library-item-tree",
+              role: "user",
+              text: "Use the selected item context",
+              mentions: [
+                {
+                  id: "mention:root",
+                  sourceId: "1-PDF-A",
+                  paperKey: "1:PAPER",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "PAPER",
+                  attachmentItemID: 11,
+                  attachmentKey: "PDF-A",
+                  title: "Paper A",
+                },
+                {
+                  id: "mention:supplement",
+                  sourceId: "1-PDF-B",
+                  paperKey: "1:PAPER",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "PAPER",
+                  attachmentItemID: 12,
+                  attachmentKey: "PDF-B",
+                  title: "Supplement.pdf",
+                },
+              ],
+              noteContexts: [
+                {
+                  id: "note:1:NOTE",
+                  libraryID: 1,
+                  parentItemID: 10,
+                  parentItemKey: "PAPER",
+                  noteItemID: 13,
+                  noteItemKey: "NOTE",
+                  title: "Reading notes",
+                  dateModified: "2026-07-17 10:00:00",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, "Paper A");
+    assert.notInclude(html, "Supplement.pdf");
+    assert.notInclude(html, "Reading notes");
+    assert.equal(countOccurrences(html, "zp-compact-context-chip"), 1);
+  });
+
   it("renders Reader item message context as the same aggregate item chip as the composer", function () {
     const paperTitle = "Paper A";
     const html = renderToStaticMarkup(
@@ -1254,6 +1317,7 @@ function createActions(): SidebarActions {
     archiveSession: () => undefined,
     close: () => undefined,
     createNewSession: () => undefined,
+    getItemContextTree: async () => undefined,
     hideSessions: () => undefined,
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,

@@ -158,6 +158,47 @@ describe("paper_read MCP tool", function () {
     assert.equal(observedSourceId, alternate.sourceId);
   });
 
+  it("validates sibling PDFs selected from a collection item tree", async function () {
+    const alternate = createSourceRef("1-PDF-B", "Supplement.pdf");
+    let observedWorkspaceType = "";
+    const tool = createPaperReadTool({
+      sourceUniverse: {
+        async resolveSources() {
+          return [createSourceRef("1-PDF-A", "Paper A")];
+        },
+        async resolveSelectedPdfSources(workspace, sourceIds) {
+          observedWorkspaceType = workspace.workspaceType;
+          assert.deepEqual(sourceIds, ["1-PDF-B"]);
+          return [alternate];
+        },
+      },
+      contextBuilder: {
+        async build(input) {
+          assert.equal(input.sources?.[0]?.sourceId, alternate.sourceId);
+          return createContext("ready");
+        },
+      },
+    });
+
+    const result = await tool.call(
+      {
+        question: "Read the supplement",
+        sourceIds: ["1-PDF-B"],
+      },
+      {
+        workspaceScope: {
+          ...createScope(),
+          workspaceKey: "collection:1:COLL",
+          workspaceType: "collection",
+          collectionKey: "COLL",
+        },
+      },
+    );
+
+    assert.isFalse(result.isError);
+    assert.equal(observedWorkspaceType, "collection");
+  });
+
   it("rejects selected sourceIds outside the bound workspace", async function () {
     const tool = createPaperReadTool({
       sourceUniverse: {

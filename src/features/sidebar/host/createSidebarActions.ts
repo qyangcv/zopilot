@@ -5,6 +5,7 @@ type SidebarActionHandlers = {
   archiveSession: SidebarActions["archiveSession"];
   close: () => void;
   createNewSession: () => void;
+  getItemContextTree: SidebarActions["getItemContextTree"];
   hideSessions: () => void;
   interruptActiveTurn: () => void;
   openExternalLink: (url: string) => void;
@@ -27,6 +28,7 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     archiveSession: (conversation) => handlers.archiveSession(conversation),
     close: handlers.close,
     createNewSession: handlers.createNewSession,
+    getItemContextTree: handlers.getItemContextTree,
     hideSessions: handlers.hideSessions,
     interruptActiveTurn: handlers.interruptActiveTurn,
     openExternalLink: handlers.openExternalLink,
