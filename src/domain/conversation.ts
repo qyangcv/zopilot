@@ -50,15 +50,13 @@ type ResolvedNoteContext = {
   content: string;
 };
 
-type ItemContextDisabledReason = "unsupported-type" | "file-unavailable";
-
 type ItemContextPdfNode = {
   id: string;
   kind: "pdf";
   title: string;
   current: boolean;
   selectable: boolean;
-  disabledReason?: ItemContextDisabledReason;
+  disabledReason?: "file-unavailable";
   source: PaperSourceRef;
 };
 
@@ -77,9 +75,6 @@ type ItemContextUnsupportedAttachmentNode = {
   title: string;
   selectable: false;
   disabledReason: "unsupported-type";
-  attachmentItemID: number;
-  attachmentKey: string;
-  contentType?: string;
 };
 
 type ItemContextNode =
@@ -127,7 +122,6 @@ type ConversationMetadata = WorkspaceIdentity & {
   providerProfileId?: string;
   latestPreview?: string;
   archived?: boolean;
-  activeNoteContexts?: NoteContextRef[];
 };
 
 type ConversationMessage = {
@@ -217,12 +211,8 @@ export type {
   ConversationMessageStatus,
   ConversationMetadata,
   LocalAttachmentRef,
-  ItemContextDisabledReason,
   ItemContextNode,
-  ItemContextPdfNode,
-  ItemContextNoteNode,
   ItemContextTree,
-  ItemContextUnsupportedAttachmentNode,
   NoteContextRef,
   PaperIdentity,
   PaperSourceRef,

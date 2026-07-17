@@ -100,7 +100,6 @@ export type SidebarState = {
   focusToken: number;
   sourceCandidates: PaperSourceRef[];
   itemContextTree?: ItemContextTree;
-  activeNoteContexts: NoteContextRef[];
   libraryItemCount: number;
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
@@ -112,7 +111,6 @@ export type SidebarPromptSubmission = {
   text: string;
   mentions: SourceMention[];
   noteContexts?: NoteContextRef[];
-  persistNoteContexts?: boolean;
   localAttachments: LocalAttachmentRef[];
 };
 
@@ -130,7 +128,6 @@ export type SidebarActions = {
   selectWorkspaceMode: (type: WorkspaceType) => void;
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
-  updateActiveNoteContexts: (noteContexts: NoteContextRef[]) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   uploadAttachment: () => Promise<LocalAttachmentRef[]>;
   interruptActiveTurn: () => void;

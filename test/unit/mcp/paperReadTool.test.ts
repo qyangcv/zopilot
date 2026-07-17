@@ -11,8 +11,9 @@ describe("paper_read MCP tool", function () {
     const tool = createTool(createContext("ready"));
 
     assert.equal(tool.definition.name, "paper_read");
-    assert.isUndefined(
+    assert.equal(
       tool.definition.inputSchema.properties?.sourceIds?.maxItems,
+      10,
     );
     assert.include(tool.definition.description, "material cache");
     assert.isTrue(tool.definition.annotations?.readOnlyHint);
@@ -102,6 +103,9 @@ describe("paper_read MCP tool", function () {
         async resolveSources() {
           return [source];
         },
+        async resolveSelectedPdfSources() {
+          return [source];
+        },
       },
       contextBuilder: {
         async build(input) {
@@ -125,16 +129,16 @@ describe("paper_read MCP tool", function () {
 
   it("validates selected item PDFs against every PDF attachment", async function () {
     const alternate = createSourceRef("1-PDF-B", "Supplement.pdf");
-    let usedItemPdfResolver = false;
+    let usedSelectedPdfResolver = false;
     let observedSourceId = "";
     const tool = createPaperReadTool({
       sourceUniverse: {
         async resolveSources() {
           return [createSourceRef("1-PDF-A", "Main.pdf")];
         },
-        async resolveItemPdfSources() {
-          usedItemPdfResolver = true;
-          return [createSourceRef("1-PDF-A", "Main.pdf"), alternate];
+        async resolveSelectedPdfSources() {
+          usedSelectedPdfResolver = true;
+          return [alternate];
         },
       },
       contextBuilder: {
@@ -154,7 +158,7 @@ describe("paper_read MCP tool", function () {
     );
 
     assert.isFalse(result.isError);
-    assert.isTrue(usedItemPdfResolver);
+    assert.isTrue(usedSelectedPdfResolver);
     assert.equal(observedSourceId, alternate.sourceId);
   });
 
@@ -205,6 +209,9 @@ describe("paper_read MCP tool", function () {
         async resolveSources() {
           return [createSourceRef("1-PDF-A", "Paper A")];
         },
+        async resolveSelectedPdfSources() {
+          return [];
+        },
       },
       contextBuilder: {
         async build() {
@@ -244,35 +251,38 @@ describe("paper_read MCP tool", function () {
     }
   });
 
-  it("accepts every PDF selected inside one item context", async function () {
-    const sources = Array.from({ length: 12 }, (_, index) =>
+  it("rejects more selected PDFs than the shared context limit", async function () {
+    const sources = Array.from({ length: 11 }, (_, index) =>
       createSourceRef(`source-${index}`, `Paper ${index}`),
     );
-    let observedSourceCount = 0;
     const tool = createPaperReadTool({
       sourceUniverse: {
         async resolveSources() {
           return [];
         },
-        async resolveItemPdfSources() {
+        async resolveSelectedPdfSources() {
           return sources;
         },
       },
       contextBuilder: {
-        async build(input) {
-          observedSourceCount = input.sources?.length || 0;
+        async build() {
           return createContext("ready");
         },
       },
     });
 
-    const result = await tool.call(
-      { sourceIds: sources.map((source) => source.sourceId) },
-      { workspaceScope: createScope() },
-    );
-
-    assert.isFalse(result.isError);
-    assert.equal(observedSourceCount, 12);
+    try {
+      await tool.call(
+        { sourceIds: sources.map((source) => source.sourceId) },
+        { workspaceScope: createScope() },
+      );
+      assert.fail("Expected the source limit to be enforced");
+    } catch (error) {
+      assert.include(
+        String(error),
+        "paper_read.sourceIds must be an array of up to 10 strings.",
+      );
+    }
   });
 });
 

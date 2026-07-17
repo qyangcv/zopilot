@@ -29,9 +29,6 @@ function isConversationMetadata(value: unknown): value is ConversationMetadata {
       (Array.isArray(item.collectionPath) &&
         item.collectionPath.every((entry) => typeof entry === "string"))) &&
     (item.itemKey === undefined || typeof item.itemKey === "string") &&
-    (item.activeNoteContexts === undefined ||
-      (Array.isArray(item.activeNoteContexts) &&
-        item.activeNoteContexts.every((note) => isNoteContextRef(note)))) &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
   );

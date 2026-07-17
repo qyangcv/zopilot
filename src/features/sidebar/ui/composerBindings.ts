@@ -46,6 +46,7 @@ type ComposerBindings = {
     options?: { keepOpen?: boolean },
   ) => void;
   selectMention: (source: PaperSourceRef) => void;
+  setActiveMentionIndex: (index: number) => void;
   setActiveItemContextIndex: (index: number) => void;
   setItemContextExpanded: (expanded: boolean) => void;
   setMentionQuery: (query: ReturnType<typeof findMentionQuery> | null) => void;

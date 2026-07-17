@@ -35,7 +35,6 @@ function createInitialSidebarState(label: string): SidebarState {
     focusToken: 0,
     sourceCandidates: [],
     itemContextTree: undefined,
-    activeNoteContexts: [],
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: [],

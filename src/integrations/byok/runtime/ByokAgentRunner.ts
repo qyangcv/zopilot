@@ -8,6 +8,7 @@ import type {
   AgentModelEntry,
   AgentRunResult,
 } from "../../../domain/agent/types";
+import { MAX_SELECTED_CONTEXTS } from "../../../domain/contextSelection";
 import type { JsonValue } from "../../../runtime/json/types";
 import {
   configuredModels,
@@ -328,6 +329,7 @@ class ByokAgentRunner {
           ),
         sourceIds: z
           .array(z.string())
+          .max(MAX_SELECTED_CONTEXTS)
           .optional()
           .describe(
             "Optional Zopilot source IDs selected from the current workspace context.",

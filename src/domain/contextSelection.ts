@@ -1,0 +1,3 @@
+const MAX_SELECTED_CONTEXTS = 10;
+
+export { MAX_SELECTED_CONTEXTS };

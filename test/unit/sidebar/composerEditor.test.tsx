@@ -84,6 +84,31 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.equal(submitCount, 0);
   });
 
+  it("moves the single active highlight to the hovered mention", function () {
+    const activeIndexes: number[] = [];
+    const editor = ComposerEditor({
+      bindings: {
+        ...createBindings({
+          activeMentionIndex: 0,
+          candidates: [createSource("a"), createSource("b")],
+          move: () => undefined,
+          select: () => undefined,
+          submit: () => undefined,
+        }),
+        setActiveMentionIndex: (index) => activeIndexes.push(index),
+      },
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const popover = findElement(
+      editor,
+      (element) => element.type === MentionPopover,
+    );
+
+    assert.isDefined(popover);
+    (getProps(popover).onActiveIndexChange as (index: number) => void)(1);
+    assert.deepEqual(activeIndexes, [1]);
+  });
+
   it("navigates and selects Reader item context tree nodes", function () {
     const selected: string[] = [];
     const moves: Array<-1 | 1> = [];
@@ -471,6 +496,7 @@ function createBindings({
     removeNoteContext: () => undefined,
     selectItemContext: () => undefined,
     selectMention: select,
+    setActiveMentionIndex: () => undefined,
     setActiveItemContextIndex: () => undefined,
     setItemContextExpanded: () => undefined,
     setMentionQuery: () => undefined,

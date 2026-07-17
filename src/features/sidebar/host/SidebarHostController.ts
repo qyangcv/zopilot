@@ -1,13 +1,10 @@
 import type {
   Conversation,
-  NoteContextRef,
   PaperIdentity,
   SourceMention,
   WorkspaceIdentity,
   WorkspaceType,
 } from "../../../domain/conversation";
-import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
-import { createLogger } from "../../../runtime/logging/logger";
 import { ZoteroSourceUniverse } from "../../../integrations/zotero/ZoteroWorkspaceService";
 import { getSelectedPDFReader } from "../../../integrations/zotero/reader";
 import { isLibraryTab } from "../../../integrations/zotero/selectedWorkspace";
@@ -41,7 +38,6 @@ import { LibrarySelectionCoordinator } from "./LibrarySelectionCoordinator";
 import type { SidebarSurfaceKind } from "./SidebarSurface";
 
 const controllers = new WeakMap<Window, SidebarHostController>();
-const logger = createLogger("sidebar.controller");
 export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
 
 type DisplayState = SidebarDisplayState;
@@ -97,8 +93,6 @@ class SidebarHostController {
   private readonly pendingFrames = new Set<number>();
   private readonly pendingTimeouts = new Set<number>();
   private readonly pdfHelperGuard: PdfHelperPromptGuard;
-  private noteContextUpdateToken = 0;
-  private noteContextUpdateQueue: Promise<void> = Promise.resolve();
 
   constructor(win: Window) {
     this.win = win;
@@ -321,71 +315,29 @@ class SidebarHostController {
 
   private async getItemContextTree(source: SourceMention) {
     const ready = this.getReadyDisplayState();
-    const allowedSource = this.viewState.sourceCandidates.find(
-      (candidate) =>
-        candidate.sourceId === source.sourceId ||
-        (candidate.libraryID === source.libraryID &&
-          candidate.parentItemKey === source.parentItemKey),
-    );
+    if (!ready) {
+      return undefined;
+    }
+    const canonicalSource =
+      this.viewState.sourceCandidates.find(
+        (candidate) => candidate.sourceId === source.sourceId,
+      ) ||
+      this.viewState.sourceCandidates.find(
+        (candidate) =>
+          candidate.libraryID === source.libraryID &&
+          candidate.parentItemKey === source.parentItemKey,
+      );
     if (
-      !ready ||
-      !allowedSource ||
-      source.libraryID !== ready.workspace.libraryID
+      !canonicalSource ||
+      canonicalSource.libraryID !== ready.workspace.libraryID
     ) {
       return undefined;
     }
-    const workspace = await this.sourceUniverse.createItemWorkspace(source);
+    const workspace =
+      await this.sourceUniverse.createItemWorkspace(canonicalSource);
     return this.sourceUniverse.getItemContextTree({
       workspace,
-      currentSource: source,
-    });
-  }
-
-  private updateActiveNoteContexts(noteContexts: NoteContextRef[]): void {
-    const ready = this.getReadyDisplayState();
-    if (
-      !ready ||
-      ready.hostContext?.kind !== "reader" ||
-      ready.workspace.workspaceType !== "item"
-    ) {
-      return;
-    }
-    const conversation = ready.conversation;
-    const conversationId = conversation.metadata.id;
-    const token = ++this.noteContextUpdateToken;
-    const nextNoteContexts = [...noteContexts];
-    this.noteContextUpdateQueue = this.noteContextUpdateQueue
-      .catch(() => undefined)
-      .then(async () => {
-        const metadata = await getConversationStore().updateActiveNoteContexts(
-          conversation.metadata,
-          nextNoteContexts,
-        );
-        const current = this.getReadyDisplayState();
-        if (
-          token !== this.noteContextUpdateToken ||
-          current?.conversation.metadata.id !== conversationId
-        ) {
-          return;
-        }
-        const nextConversation = {
-          ...current.conversation,
-          metadata,
-        };
-        this.viewState = {
-          ...this.viewState,
-          sessions: this.viewState.sessions.map((session) =>
-            session.id === conversationId
-              ? { ...session, conversation: nextConversation }
-              : session,
-          ),
-        };
-        this.setReadyConversation(nextConversation);
-      });
-    void this.noteContextUpdateQueue.catch((error) => {
-      logger.error("failed to update active note contexts", error, {
-        conversationId,
-      });
+      currentSource: canonicalSource,
     });
   }
 
@@ -558,8 +510,6 @@ class SidebarHostController {
           void this.selectCollectionWorkspace(collectionKey),
         selectItemWorkspace: (sourceId) =>
           void this.selectItemWorkspace(sourceId),
-        updateActiveNoteContexts: (noteContexts) =>
-          this.updateActiveNoteContexts(noteContexts),
         submitPrompt: (submission) => void this.submitPromptAsync(submission),
         uploadAttachment: () => this.contextActions.uploadAttachment(),
         switchSession: (conversation) =>

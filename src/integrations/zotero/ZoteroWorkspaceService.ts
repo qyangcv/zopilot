@@ -40,12 +40,6 @@ class ZoteroSourceUniverse {
     return this.itemContextCatalog.getTree(input);
   }
 
-  resolveItemPdfSources(
-    workspace: WorkspaceIdentity,
-  ): Promise<PaperSourceRef[]> {
-    return this.itemContextCatalog.resolvePdfSources(workspace);
-  }
-
   resolveSelectedPdfSources(
     workspace: WorkspaceIdentity,
     sourceIds: string[],

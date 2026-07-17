@@ -51,13 +51,6 @@ class TurnCoordinator {
     if (!(await this.options.ensurePromptReady(conversation))) return;
     this.options.clearPromptNotice(conversation.metadata.id);
 
-    if (submission.persistNoteContexts) {
-      const metadata = await getConversationStore().updateActiveNoteContexts(
-        conversation.metadata,
-        noteContexts,
-      );
-      conversation = { ...conversation, metadata };
-    }
     conversation = await getConversationStore().addMessage(
       conversation.metadata,
       {

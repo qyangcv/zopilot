@@ -6,6 +6,7 @@ import type {
   NoteContextRef,
   SourceMention,
 } from "../../../../domain/conversation";
+import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
 import type { ComposerBindings } from "../composerBindings";
 import { resizeTextarea } from "../composerLayout";
 import type { SidebarActions, SidebarState } from "../types";
@@ -15,9 +16,7 @@ import {
 } from "../itemContextGroups";
 import { useMentionPicker } from "./useMentionPicker";
 import {
-  MAX_SOURCE_MENTIONS,
   findMentionQuery,
-  matchItemContextNodes,
   moveMentionCandidateIndex,
   sourceToMention,
 } from "../mentions";
@@ -40,6 +39,11 @@ type ComposerDraftController = {
   ) => void;
 };
 
+type ItemContextPickerState =
+  | { kind: "closed" }
+  | { kind: "workspace" }
+  | { kind: "source"; sourceId: string; tree?: ItemContextTree };
+
 function useComposerDraft(
   actions: SidebarActions,
   state: SidebarState,
@@ -52,14 +56,8 @@ function useComposerDraft(
   >([]);
   const [promptPickerOpen, setPromptPickerOpen] = useState(false);
   const [itemContextExpanded, setItemContextExpanded] = useState(true);
-  const [itemContextPickerRequestedOpen, setItemContextPickerRequestedOpen] =
-    useState(false);
-  const [itemContextSourceId, setItemContextSourceId] = useState<
-    string | undefined
-  >(undefined);
-  const [selectedItemContextTree, setSelectedItemContextTree] = useState<
-    ItemContextTree | undefined
-  >(undefined);
+  const [itemContextPicker, setItemContextPicker] =
+    useState<ItemContextPickerState>({ kind: "closed" });
   const [activeItemContextIndex, setActiveItemContextIndex] = useState(1);
   const composerScopeRef = useRef("");
   const itemContextLoadTokenRef = useRef(0);
@@ -68,16 +66,23 @@ function useComposerDraft(
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const promptButtonRef = useRef<HTMLButtonElement | null>(null);
-  const sourceCandidates = state.sourceCandidates || [];
+  const sourceCandidates = state.sourceCandidates;
   const mentionSourceCandidates =
     state.context.workspaceType === "item" ? [] : sourceCandidates;
   const workspaceItemContextTree = state.itemContextTree;
   const readerItemContextMode =
     state.context.hostContextKind === "reader" &&
     state.context.workspaceType === "item";
-  const itemContextTree = itemContextSourceId
-    ? selectedItemContextTree
-    : workspaceItemContextTree;
+  const itemContextSourceId =
+    itemContextPicker.kind === "source"
+      ? itemContextPicker.sourceId
+      : undefined;
+  const itemContextTree =
+    itemContextPicker.kind === "workspace"
+      ? workspaceItemContextTree
+      : itemContextPicker.kind === "source"
+        ? itemContextPicker.tree
+        : undefined;
   noteContextsRef.current = noteContexts;
   const currentSourceId = sourceCandidates.find(
     (source) => source.paperKey === state.context.paperKey,
@@ -103,9 +108,7 @@ function useComposerDraft(
     setLocalAttachments([]);
     setPromptPickerOpen(false);
     setItemContextExpanded(true);
-    setItemContextPickerRequestedOpen(false);
-    setItemContextSourceId(undefined);
-    setSelectedItemContextTree(undefined);
+    setItemContextPicker({ kind: "closed" });
     itemContextLoadTokenRef.current += 1;
     setActiveItemContextIndex(1);
   }, [
@@ -136,9 +139,7 @@ function useComposerDraft(
     sourceCandidates: mentionSourceCandidates,
     textareaRef,
   });
-  const itemContextPickerOpen = Boolean(
-    itemContextPickerRequestedOpen && itemContextTree,
-  );
+  const itemContextPickerOpen = Boolean(itemContextTree);
   const catalogItemContextNodeIds = new Set(
     itemContextTree?.nodes.map((node) => node.id) || [],
   );
@@ -158,30 +159,20 @@ function useComposerDraft(
     }));
   const itemContextNodes =
     itemContextPickerOpen && itemContextTree
-      ? matchItemContextNodes("", [
-          ...itemContextTree.nodes,
-          ...unavailableSelectedNoteNodes,
-        ])
+      ? [...itemContextTree.nodes, ...unavailableSelectedNoteNodes]
       : [];
-  const resolvedItemContextExpanded = itemContextExpanded;
-  const itemContextRowCount = resolvedItemContextExpanded
+  const itemContextRowCount = itemContextExpanded
     ? itemContextNodes.length + 1
     : 1;
   const resolvedActiveItemContextIndex = Math.min(
     activeItemContextIndex,
     Math.max(itemContextRowCount - 1, 0),
   );
-  const setMentionQuery = (
-    query: ReturnType<typeof findMentionQuery> | null,
-  ) => {
-    mentionPicker.setMentionQuery(query);
-  };
+  const setMentionQuery = mentionPicker.setMentionQuery;
   const updateDraft = (text: string, cursor?: number) => {
     updateDraftWithoutMention(text);
     itemContextLoadTokenRef.current += 1;
-    setItemContextPickerRequestedOpen(false);
-    setItemContextSourceId(undefined);
-    setSelectedItemContextTree(undefined);
+    setItemContextPicker({ kind: "closed" });
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
   };
 
@@ -211,7 +202,6 @@ function useComposerDraft(
       text: trimmed || SELECTED_CONTEXT_PROMPT,
       mentions: nextMentions,
       noteContexts: effectiveNoteContexts,
-      persistNoteContexts: false,
       localAttachments: nextLocalAttachments,
     });
     setDraft("");
@@ -220,9 +210,7 @@ function useComposerDraft(
     setNoteContexts([]);
     setLocalAttachments([]);
     itemContextLoadTokenRef.current += 1;
-    setItemContextPickerRequestedOpen(false);
-    setItemContextSourceId(undefined);
-    setSelectedItemContextTree(undefined);
+    setItemContextPicker({ kind: "closed" });
     setMentionQuery(null);
   };
 
@@ -271,9 +259,7 @@ function useComposerDraft(
 
   const closeItemContextPicker = () => {
     itemContextLoadTokenRef.current += 1;
-    setItemContextPickerRequestedOpen(false);
-    setItemContextSourceId(undefined);
-    setSelectedItemContextTree(undefined);
+    setItemContextPicker({ kind: "closed" });
     globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
@@ -282,37 +268,34 @@ function useComposerDraft(
     setMentionQuery(null);
     setItemContextExpanded(true);
     setActiveItemContextIndex(1);
-    setItemContextPickerRequestedOpen(true);
     if (!source) {
       itemContextLoadTokenRef.current += 1;
-      setItemContextSourceId(undefined);
-      setSelectedItemContextTree(undefined);
-      if (!workspaceItemContextTree) {
-        setItemContextPickerRequestedOpen(false);
-      }
+      setItemContextPicker(
+        workspaceItemContextTree ? { kind: "workspace" } : { kind: "closed" },
+      );
       globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
       return;
     }
     const token = ++itemContextLoadTokenRef.current;
-    setItemContextSourceId(source.sourceId);
-    setSelectedItemContextTree(undefined);
+    setItemContextPicker({ kind: "source", sourceId: source.sourceId });
     void actions
       .getItemContextTree(source)
       .then((tree) => {
         if (token !== itemContextLoadTokenRef.current) return;
         if (!tree) {
-          setItemContextPickerRequestedOpen(false);
-          setItemContextSourceId(undefined);
+          setItemContextPicker({ kind: "closed" });
           return;
         }
-        setSelectedItemContextTree(tree);
+        setItemContextPicker({
+          kind: "source",
+          sourceId: source.sourceId,
+          tree,
+        });
         setActiveItemContextIndex(tree.nodes.length ? 1 : 0);
       })
       .catch(() => {
         if (token !== itemContextLoadTokenRef.current) return;
-        setItemContextPickerRequestedOpen(false);
-        setItemContextSourceId(undefined);
-        setSelectedItemContextTree(undefined);
+        setItemContextPicker({ kind: "closed" });
       });
     globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
   };
@@ -329,7 +312,7 @@ function useComposerDraft(
         const selected = mentions.some(
           (mention) => mention.sourceId === node.source.sourceId,
         );
-        if (!selected && selectedContextCount >= MAX_SOURCE_MENTIONS) {
+        if (!selected && selectedContextCount >= MAX_SELECTED_CONTEXTS) {
           return;
         }
         setMentions((items) =>
@@ -343,7 +326,7 @@ function useComposerDraft(
     } else if (node.kind === "note") {
       const items = noteContextsRef.current;
       const selected = items.some((note) => note.id === node.note.id);
-      if (!selected && selectedContextCount >= MAX_SOURCE_MENTIONS) {
+      if (!selected && selectedContextCount >= MAX_SELECTED_CONTEXTS) {
         return;
       }
       const nextNoteContexts = selected
@@ -367,8 +350,8 @@ function useComposerDraft(
       composerRef,
       draft,
       insertPrompt,
-      itemContextExpanded: resolvedItemContextExpanded,
-      itemContextLimitReached: selectedContextCount >= MAX_SOURCE_MENTIONS,
+      itemContextExpanded,
+      itemContextLimitReached: selectedContextCount >= MAX_SELECTED_CONTEXTS,
       itemContextNodes,
       itemContextPickerOpen,
       itemContextSourceId,
@@ -422,6 +405,7 @@ function useComposerDraft(
       },
       selectItemContext,
       selectMention: mentionPicker.selectMention,
+      setActiveMentionIndex: mentionPicker.setActiveMentionIndex,
       setActiveItemContextIndex,
       setItemContextExpanded,
       setMentionQuery,

@@ -41,7 +41,7 @@ describe("ItemContextMentionPopover", function () {
     assert.include(html, "sidebar-item-context-unsupported");
   });
 
-  it("keeps the root visible when no child matches", function () {
+  it("keeps the root visible when the item has no children", function () {
     const html = renderToStaticMarkup(
       <ItemContextMentionPopover
         activeIndex={0}

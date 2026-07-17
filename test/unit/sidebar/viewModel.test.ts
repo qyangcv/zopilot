@@ -21,7 +21,6 @@ describe("sidebar view model", function () {
     assert.deepEqual(state.messages, []);
     assert.deepEqual(state.models, []);
     assert.equal(state.selectedModel, "");
-    assert.deepEqual(state.activeNoteContexts, []);
   });
 
   it("keeps empty conversations message-free for the UI empty state", function () {

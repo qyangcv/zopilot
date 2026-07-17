@@ -6,17 +6,18 @@ import type {
   PaperSourceRef,
   WorkspaceIdentity,
 } from "../../../domain/conversation";
+import { parseSourceId } from "../../../domain/sourceIdentity";
 import { getString } from "../../../app/localization";
 import { getZoteroGlobal } from "../environment";
-import { ZoteroCollectionRepository } from "./ZoteroCollectionRepository";
 import { createPaperSourceRefForAttachmentWithZotero } from "./items";
+import { loadCachedZoteroItem, loadZoteroItem } from "./ZoteroItemLookup";
+import { ZoteroWorkspaceParentScope } from "./ZoteroWorkspaceParentScope";
 
 type ZoteroContextItem = Zotero.Item & {
   id: number;
   key: string;
   libraryID: number;
   dateModified: string;
-  attachmentContentType?: string;
   attachmentFilename?: string;
   deleted?: boolean;
   parentItemID?: number | false;
@@ -33,10 +34,10 @@ type ZoteroContextItem = Zotero.Item & {
 };
 
 class ZoteroItemContextCatalog {
-  private readonly collections: ZoteroCollectionRepository;
+  private readonly parentScope: ZoteroWorkspaceParentScope;
 
   constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {
-    this.collections = new ZoteroCollectionRepository(zotero);
+    this.parentScope = new ZoteroWorkspaceParentScope(zotero);
   }
 
   async getTree(input: {
@@ -80,44 +81,30 @@ class ZoteroItemContextCatalog {
     };
   }
 
-  async resolvePdfSources(
-    workspace: WorkspaceIdentity,
-  ): Promise<PaperSourceRef[]> {
-    const parent = await this.resolveParent(workspace);
-    if (!parent) {
-      return [];
-    }
-    return (await this.listAttachments(parent))
-      .map((attachment) =>
-        createPaperSourceRefForAttachmentWithZotero(
-          parent,
-          attachment,
-          this.zotero,
-        ),
-      )
-      .filter((source): source is PaperSourceRef => Boolean(source));
-  }
-
   async resolveSelectedPdfSources(
     workspace: WorkspaceIdentity,
     sourceIds: string[],
   ): Promise<PaperSourceRef[]> {
-    const allowedParentKeys = await this.resolveAllowedParentKeys(workspace);
+    if (!sourceIds.length) {
+      return [];
+    }
+    const allowedParentKeys =
+      await this.parentScope.resolveAllowedParentKeys(workspace);
+    const parentCache = new Map<
+      string,
+      Promise<ZoteroContextItem | undefined>
+    >();
     const sources = await Promise.all(
       sourceIds.map(async (sourceId) => {
-        const prefix = `${workspace.libraryID}-`;
-        if (!sourceId.startsWith(prefix)) return undefined;
-        const attachmentKey = sourceId.slice(prefix.length);
+        const attachmentKey = parseSourceId(sourceId, workspace.libraryID);
         if (!attachmentKey) return undefined;
-        let attachment: ZoteroContextItem | false | undefined;
-        try {
-          attachment = (await this.zotero.Items.getByLibraryAndKeyAsync(
-            workspace.libraryID,
-            attachmentKey,
-          )) as ZoteroContextItem | false;
-        } catch {
-          attachment = undefined;
-        }
+        const attachment = await loadZoteroItem<ZoteroContextItem>(
+          this.zotero,
+          {
+            libraryID: workspace.libraryID,
+            itemKey: attachmentKey,
+          },
+        );
         if (
           !attachment ||
           attachment.deleted ||
@@ -126,7 +113,15 @@ class ZoteroItemContextCatalog {
         ) {
           return undefined;
         }
-        const parent = await this.resolveAttachmentParent(attachment);
+        const parent = await loadCachedZoteroItem<ZoteroContextItem>(
+          parentCache,
+          this.zotero,
+          {
+            libraryID: attachment.libraryID,
+            itemID: attachment.parentItemID,
+            itemKey: attachment.parentItemKey,
+          },
+        );
         if (
           !parent ||
           !parent.isRegularItem?.() ||
@@ -155,19 +150,11 @@ class ZoteroItemContextCatalog {
     if (workspace.workspaceType !== "item" || !workspace.itemKey) {
       return undefined;
     }
-    let parent: ZoteroContextItem | false | undefined;
-    try {
-      parent = workspace.defaultSource?.parentItemID
-        ? ((await this.zotero.Items.getAsync(
-            workspace.defaultSource.parentItemID,
-          )) as ZoteroContextItem)
-        : ((await this.zotero.Items.getByLibraryAndKeyAsync(
-            workspace.libraryID,
-            workspace.itemKey,
-          )) as ZoteroContextItem | false);
-    } catch {
-      parent = undefined;
-    }
+    const parent = await loadZoteroItem<ZoteroContextItem>(this.zotero, {
+      libraryID: workspace.libraryID,
+      itemID: workspace.defaultSource?.parentItemID,
+      itemKey: workspace.itemKey,
+    });
     if (!parent) {
       return undefined;
     }
@@ -176,55 +163,6 @@ class ZoteroItemContextCatalog {
       parent.key === workspace.itemKey
       ? parent
       : undefined;
-  }
-
-  private async resolveAttachmentParent(
-    attachment: ZoteroContextItem,
-  ): Promise<ZoteroContextItem | undefined> {
-    let parent: ZoteroContextItem | false | undefined;
-    try {
-      parent = attachment.parentItemID
-        ? ((await this.zotero.Items.getAsync(
-            attachment.parentItemID,
-          )) as ZoteroContextItem)
-        : attachment.parentItemKey
-          ? ((await this.zotero.Items.getByLibraryAndKeyAsync(
-              attachment.libraryID,
-              attachment.parentItemKey,
-            )) as ZoteroContextItem | false)
-          : undefined;
-    } catch {
-      parent = undefined;
-    }
-    return parent || undefined;
-  }
-
-  private async resolveAllowedParentKeys(
-    workspace: WorkspaceIdentity,
-  ): Promise<Set<string> | undefined> {
-    if (workspace.workspaceType === "library") {
-      return undefined;
-    }
-    if (workspace.workspaceType === "item") {
-      return workspace.itemKey ? new Set([workspace.itemKey]) : new Set();
-    }
-    if (!workspace.collectionKey) {
-      return new Set();
-    }
-    const items = await this.collections.listItems(
-      workspace.libraryID,
-      workspace.collectionKey,
-    );
-    return new Set(
-      (items as ZoteroContextItem[])
-        .filter(
-          (item) =>
-            item.libraryID === workspace.libraryID &&
-            !item.deleted &&
-            item.isRegularItem?.(),
-        )
-        .map((item) => item.key),
-    );
   }
 
   private async listAttachments(
@@ -275,9 +213,6 @@ class ZoteroItemContextCatalog {
         title,
         selectable: false,
         disabledReason: "unsupported-type",
-        attachmentItemID: attachment.id,
-        attachmentKey: attachment.key,
-        contentType: attachment.attachmentContentType,
       };
     }
 

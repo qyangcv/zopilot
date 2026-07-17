@@ -977,6 +977,7 @@ describe("SidebarApp", function () {
           },
         ]}
         disabled={false}
+        onActiveIndexChange={() => undefined}
         onClose={() => undefined}
         onSelect={() => undefined}
       />,
@@ -1287,7 +1288,6 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     backendStatus: "connected",
     focusToken: 0,
     sourceCandidates: [],
-    activeNoteContexts: [],
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: TEST_PROMPTS,
@@ -1326,7 +1326,6 @@ function createActions(): SidebarActions {
     selectWorkspaceMode: () => undefined,
     selectCollectionWorkspace: () => undefined,
     selectItemWorkspace: () => undefined,
-    updateActiveNoteContexts: () => undefined,
     submitPrompt: () => undefined,
     uploadAttachment: async () => [],
     restoreSession: () => undefined,

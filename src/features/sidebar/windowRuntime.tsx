@@ -123,8 +123,6 @@ function createCommandActions(
     selectModelEffort: (model, effort) =>
       void invoke("selectModelEffort", [model, effort]),
     selectWorkspaceMode: (type) => void invoke("selectWorkspaceMode", [type]),
-    updateActiveNoteContexts: (noteContexts) =>
-      void invoke("updateActiveNoteContexts", [noteContexts]),
     submitPrompt: (submission) => void invoke("submitPrompt", [submission]),
     switchSession: (conversation) =>
       void invoke("switchSession", [conversation]),

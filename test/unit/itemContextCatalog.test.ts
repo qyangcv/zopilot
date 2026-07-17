@@ -70,39 +70,6 @@ describe("ZoteroItemContextCatalog", function () {
     assert.isTrue(noteNode?.selectable);
   });
 
-  it("enumerates every PDF for item-workspace paper_read validation", async function () {
-    const parent = createParent();
-    const catalog = new ZoteroItemContextCatalog(
-      createZoteroMock([
-        parent,
-        createAttachment(11, "PDF-A", {
-          title: "Main.pdf",
-          pdf: true,
-          path: false,
-        }),
-        createAttachment(12, "PDF-B", {
-          title: "Supplement.pdf",
-          pdf: true,
-          path: "/tmp/supplement.pdf",
-        }),
-        createAttachment(13, "IMAGE", {
-          title: "Figure.png",
-          contentType: "image/png",
-        }),
-      ]),
-    );
-
-    const sources = await catalog.resolvePdfSources(createWorkspace());
-
-    assert.deepEqual(
-      sources.map((source) => [source.attachmentKey, source.title]),
-      [
-        ["PDF-A", "Main.pdf"],
-        ["PDF-B", "Supplement.pdf"],
-      ],
-    );
-  });
-
   it("validates selected sibling PDFs in library and collection workspaces", async function () {
     const parent = createParent();
     const catalog = new ZoteroItemContextCatalog(

@@ -5,7 +5,8 @@ import { resizeTextarea } from "./composerLayout";
 import { ContextChips } from "./ContextChips";
 import { MentionPopover } from "./MentionPopover";
 import { ItemContextMentionPopover } from "./ItemContextMentionPopover";
-import { MAX_SOURCE_MENTIONS, findMentionQuery } from "./mentions";
+import { findMentionQuery } from "./mentions";
+import { MAX_SELECTED_CONTEXTS } from "../../../domain/contextSelection";
 import type { SidebarState } from "./types";
 import { FloatingPortal } from "../../../ui/primitives/index";
 import {
@@ -37,7 +38,7 @@ function ComposerEditor({
     textareaRef,
     updateDraft,
   } = bindings;
-  const noteContexts = bindings.noteContexts || [];
+  const noteContexts = bindings.noteContexts;
   const activeMention =
     mentionCandidates[bindings.activeMentionIndex] || mentionCandidates[0];
   const activeItemContextNode =
@@ -135,7 +136,8 @@ function ComposerEditor({
           <MentionPopover
             activeIndex={bindings.activeMentionIndex}
             candidates={mentionCandidates}
-            disabled={selectedContextCount >= MAX_SOURCE_MENTIONS}
+            disabled={selectedContextCount >= MAX_SELECTED_CONTEXTS}
+            onActiveIndexChange={bindings.setActiveMentionIndex}
             onClose={() => setMentionQuery(null)}
             onSelect={selectMention}
           />

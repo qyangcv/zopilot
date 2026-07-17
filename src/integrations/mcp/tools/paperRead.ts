@@ -12,6 +12,7 @@ import type {
   WorkspaceQueryScope,
 } from "../../../document/types";
 import { createSourceId } from "../../../domain/sourceIdentity";
+import { MAX_SELECTED_CONTEXTS } from "../../../domain/contextSelection";
 import { ZoteroSourceUniverse } from "../../zotero/ZoteroWorkspaceService";
 import type {
   McpTool,
@@ -28,6 +29,11 @@ type PaperReadInput = {
   sourceIds?: string[];
 };
 
+type PaperSourceUniverse = Pick<
+  ZoteroSourceUniverse,
+  "resolveSelectedPdfSources" | "resolveSources"
+>;
+
 type PaperReadToolOptions = {
   contextBuilder?: {
     build(input: {
@@ -37,19 +43,7 @@ type PaperReadToolOptions = {
       sources?: PaperSourceRef[];
     }): Promise<BuiltContext>;
   };
-  sourceUniverse?: {
-    resolveSources(
-      workspace: WorkspaceIdentity,
-      currentSource?: WorkspaceIdentity["defaultSource"],
-    ): Promise<PaperSourceRef[]>;
-    resolveItemPdfSources?(
-      workspace: WorkspaceIdentity,
-    ): Promise<PaperSourceRef[]>;
-    resolveSelectedPdfSources?(
-      workspace: WorkspaceIdentity,
-      sourceIds: string[],
-    ): Promise<PaperSourceRef[]>;
-  };
+  sourceUniverse?: PaperSourceUniverse;
   logger?: (message: string, details?: JsonValue) => void;
 };
 
@@ -65,9 +59,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
     defaultContextBuilder ??= new DocumentContextBuilder();
     return defaultContextBuilder;
   };
-  let defaultSourceUniverse:
-    | NonNullable<PaperReadToolOptions["sourceUniverse"]>
-    | undefined;
+  let defaultSourceUniverse: PaperSourceUniverse | undefined;
   const getSourceUniverse = () => {
     if (options.sourceUniverse) {
       return options.sourceUniverse;
@@ -92,6 +84,7 @@ function createPaperReadTool(options: PaperReadToolOptions = {}): McpTool {
           },
           sourceIds: {
             type: "array",
+            maxItems: MAX_SELECTED_CONTEXTS,
             items: { type: "string" },
             description:
               "Optional Zopilot source IDs selected from the current workspace context.",
@@ -197,9 +190,12 @@ function parsePaperReadInput(input: JsonValue | undefined): PaperReadInput {
   if (
     sourceIds !== undefined &&
     (!Array.isArray(sourceIds) ||
+      sourceIds.length > MAX_SELECTED_CONTEXTS ||
       !sourceIds.every((item) => typeof item === "string"))
   ) {
-    throw new Error("paper_read.sourceIds must be an array of strings.");
+    throw new Error(
+      `paper_read.sourceIds must be an array of up to ${MAX_SELECTED_CONTEXTS} strings.`,
+    );
   }
   return {
     question,
@@ -224,17 +220,9 @@ async function resolveSourceSelection(
     return { ok: true, scope };
   }
   const sourceUniverse = getSourceUniverse();
-  const universe =
-    sourceIds?.length && sourceUniverse.resolveSelectedPdfSources
-      ? await sourceUniverse.resolveSelectedPdfSources(workspace, sourceIds)
-      : scope.workspaceType === "item" &&
-          sourceIds?.length &&
-          sourceUniverse.resolveItemPdfSources
-        ? await sourceUniverse.resolveItemPdfSources(workspace)
-        : await sourceUniverse.resolveSources(
-            workspace,
-            workspace.defaultSource,
-          );
+  const universe = sourceIds?.length
+    ? await sourceUniverse.resolveSelectedPdfSources(workspace, sourceIds)
+    : await sourceUniverse.resolveSources(workspace, workspace.defaultSource);
   if (sourceIds?.length) {
     const sourceById = new Map(
       universe.map((source) => [source.sourceId, source]),

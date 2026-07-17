@@ -8,8 +8,8 @@ import type {
   PaperSourceRef,
   SourceMention,
 } from "../../../../domain/conversation";
+import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
 import {
-  MAX_SOURCE_MENTIONS,
   findMentionQuery,
   matchMentionCandidates,
   moveMentionCandidateIndex,
@@ -69,7 +69,7 @@ function useMentionPicker(options: MentionPickerOptions) {
     if (
       !mentionQuery ||
       (options.selectedContextCount ?? options.mentions.length) >=
-        MAX_SOURCE_MENTIONS
+        MAX_SELECTED_CONTEXTS
     ) {
       return;
     }
@@ -97,6 +97,7 @@ function useMentionPicker(options: MentionPickerOptions) {
     mentionCandidates,
     moveMentionSelection,
     selectMention,
+    setActiveMentionIndex,
     setMentionQuery,
     updateMentionQuery,
   };

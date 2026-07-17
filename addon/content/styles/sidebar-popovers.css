@@ -151,7 +151,10 @@
   padding: 7px 10px;
 }
 
-.zp-mention-option:hover,
+.zp-mention-option:hover {
+  background: transparent;
+}
+
 .zp-mention-option[data-active] {
   background: var(--zp-panel-strong);
 }
@@ -182,14 +185,6 @@
 
 .zp-item-context-root {
   font-weight: 600;
-}
-
-.zp-item-context-tree .zp-mention-option:hover {
-  background: transparent;
-}
-
-.zp-item-context-tree .zp-mention-option[data-active] {
-  background: var(--zp-panel-strong);
 }
 
 .zp-item-context-child {

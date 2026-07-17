@@ -7,12 +7,14 @@ export function MentionPopover({
   activeIndex,
   candidates,
   disabled,
+  onActiveIndexChange,
   onClose,
   onSelect,
 }: {
   activeIndex: number;
   candidates: PaperSourceRef[];
   disabled: boolean;
+  onActiveIndexChange: (index: number) => void;
   onClose: () => void;
   onSelect: (source: PaperSourceRef) => void;
 }): ReactElement {
@@ -44,6 +46,7 @@ export function MentionPopover({
           className="zp-mention-option"
           data-active={index === activeIndex || undefined}
           key={source.sourceId}
+          onMouseEnter={() => onActiveIndexChange(index)}
           onMouseDown={(event) => {
             event.preventDefault();
             if (disabled) {

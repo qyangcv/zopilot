@@ -1,17 +1,16 @@
 import { assert } from "chai";
 import {
-  MAX_SOURCE_MENTIONS,
   findMentionQuery,
-  matchItemContextNodes,
   matchMentionCandidates,
   moveMentionCandidateIndex,
   sourceToMention,
 } from "../../../src/features/sidebar/ui/mentions.ts";
 import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
+import { MAX_SELECTED_CONTEXTS } from "../../../src/domain/contextSelection.ts";
 
 describe("sidebar source mentions", function () {
   it("allows up to ten selected sources per message", function () {
-    assert.equal(MAX_SOURCE_MENTIONS, 10);
+    assert.equal(MAX_SELECTED_CONTEXTS, 10);
   });
 
   it("keeps spaces inside the active @ query", function () {
@@ -85,41 +84,6 @@ describe("sidebar source mentions", function () {
     assert.equal(moveMentionCandidateIndex(0, 3, -1), 2);
     assert.equal(moveMentionCandidateIndex(9, 3, -1), 1);
     assert.equal(moveMentionCandidateIndex(0, 0, 1), 0);
-  });
-
-  it("filters item context trees by attachment and note titles", function () {
-    const nodes = [
-      {
-        id: "1-PDF",
-        kind: "pdf" as const,
-        title: "Main Paper.pdf",
-        current: true,
-        selectable: true,
-        source: createSource("1-PDF", "Main Paper.pdf", "2026"),
-      },
-      {
-        id: "note:1:NOTE",
-        kind: "note" as const,
-        title: "Experiment ideas",
-        selectable: true as const,
-        note: {
-          id: "note:1:NOTE",
-          libraryID: 1,
-          parentItemID: 10,
-          parentItemKey: "PAPER",
-          noteItemID: 12,
-          noteItemKey: "NOTE",
-          title: "Experiment ideas",
-          dateModified: "2026-07-17 10:00:00",
-        },
-      },
-    ];
-
-    assert.deepEqual(
-      matchItemContextNodes("experiment", nodes).map((node) => node.id),
-      ["note:1:NOTE"],
-    );
-    assert.lengthOf(matchItemContextNodes("", nodes), 2);
   });
 
   it("converts selected sources to stable mention payloads", function () {
