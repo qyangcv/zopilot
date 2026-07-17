@@ -5,11 +5,11 @@ import type { SidebarStreamingSnapshot } from "../../../src/features/sidebar/ui/
 describe("sidebar stream snapshot store", function () {
   it("reuses unchanged block objects by id and revision", function () {
     const store = new SidebarStreamSnapshotStore();
-    const first = createSnapshot(1, 1, "A");
+    const first = createSnapshot(1, "A");
     store.publish(first);
     const firstPublished = store.getSnapshot()!;
 
-    store.publish(createSnapshot(2, 1, "A"));
+    store.publish(createSnapshot(1, "A"));
     const clockOnly = store.getSnapshot()!;
     assert.strictEqual(
       clockOnly.answerBlocks[0],
@@ -17,7 +17,7 @@ describe("sidebar stream snapshot store", function () {
     );
     assert.strictEqual(clockOnly.traceBlocks, firstPublished.traceBlocks);
 
-    store.publish(createSnapshot(3, 2, "AB"));
+    store.publish(createSnapshot(2, "AB"));
     const changed = store.getSnapshot()!;
     assert.notStrictEqual(changed.answerBlocks[0], clockOnly.answerBlocks[0]);
     assert.strictEqual(changed.traceBlocks, clockOnly.traceBlocks);
@@ -25,7 +25,6 @@ describe("sidebar stream snapshot store", function () {
 });
 
 function createSnapshot(
-  publicationVersion: number,
   revision: number,
   text: string,
 ): SidebarStreamingSnapshot {
@@ -34,9 +33,6 @@ function createSnapshot(
     messageId: "assistant-a",
     lifecycle: "running",
     stateVersion: revision,
-    sequence: revision,
-    publicationVersion,
-    publishedAt: publicationVersion * 50,
     finalStarted: true,
     answerBlocks: [
       {

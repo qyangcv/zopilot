@@ -382,7 +382,9 @@ function createBridgeHarness(): {
       threads: Map<string, string>;
     };
     process: unknown;
-    handleLine: (line: string) => void;
+    getTransport: () => {
+      handleLine: (line: string) => void;
+    };
   };
   const requests: JsonRpcTestRequest[] = [];
   bridge.start = async () => undefined;
@@ -402,10 +404,10 @@ function createBridgeHarness(): {
       await new Promise((resolve) => setTimeout(resolve, 0));
     },
     respond: (id, result) => {
-      bridge.handleLine(JSON.stringify({ id, result }));
+      bridge.getTransport().handleLine(JSON.stringify({ id, result }));
     },
     notify: (method, params) => {
-      bridge.handleLine(JSON.stringify({ method, params }));
+      bridge.getTransport().handleLine(JSON.stringify({ method, params }));
     },
     cacheThread: (conversationId) => {
       bridge.threads.threads.set(conversationId, `thread-${conversationId}`);

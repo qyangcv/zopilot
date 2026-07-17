@@ -117,4 +117,3 @@ function SidebarHeader({
 }
 
 export { SidebarHeader };
-export type { SidebarHeaderProps };

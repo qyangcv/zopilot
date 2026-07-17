@@ -195,4 +195,3 @@ function getSidebarSelectionText(win: Window, root?: Node): string {
 }
 
 export { SidebarHostBindings, getSidebarSelectionText };
-export type { SidebarHostBindingsOptions };

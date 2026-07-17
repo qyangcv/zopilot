@@ -114,7 +114,6 @@ class ReaderSelectionCoordinator {
           token,
           label: getSelectedItemTitle(this.options.win),
         });
-        this.options.surface.refreshToolbar();
       }
       return;
     }
@@ -123,7 +122,6 @@ class ReaderSelectionCoordinator {
         this.isCurrentReader(selectedReader) &&
         this.options.getDisplayState().kind === "ready"
       ) {
-        this.options.surface.refreshToolbar();
         return;
       }
       await this.loadReaderConversation(
@@ -135,7 +133,6 @@ class ReaderSelectionCoordinator {
       this.options.setClosedDisplayState(token);
       this.options.renderDisplayState();
     }
-    this.options.surface.refreshToolbar();
   }
 
   private isCurrentReader(reader: _ZoteroTypes.ReaderInstance): boolean {
@@ -158,4 +155,4 @@ class ReaderSelectionCoordinator {
 }
 
 export { ReaderSelectionCoordinator };
-export type { ReaderSelectionOptions, ReadyDisplayState };
+export type { ReadyDisplayState };

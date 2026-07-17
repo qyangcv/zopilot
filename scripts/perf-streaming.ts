@@ -1,7 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import type { AgentStreamEvent } from "../src/domain/agent/streaming.ts";
-import type { Conversation } from "../src/domain/conversation.ts";
 import { RunningTurnStore } from "../src/features/sidebar/chat/RunningTurnStore.ts";
 import { StreamRenderScheduler } from "../src/features/sidebar/chat/StreamRenderScheduler.ts";
 import {
@@ -312,7 +311,6 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
   let markdownParses = 0;
   let scrollSyncs = 0;
   let snapshotPublishes = 0;
-  let lastPublishedStateVersion = -1;
   let lastScrolledAnswerBlocks:
     | SidebarStreamingSnapshot["answerBlocks"]
     | undefined;
@@ -332,11 +330,9 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
     publish: (snapshot) => {
       if (!snapshot) return;
       snapshotPublishes += 1;
-      const clockOnly = snapshot.stateVersion === lastPublishedStateVersion;
-      if (pendingImmediate || clockOnly) immediatePublishes += 1;
-      else ordinaryPublishTimes.push(snapshot.publishedAt);
+      if (pendingImmediate) immediatePublishes += 1;
+      else ordinaryPublishTimes.push(clock.now);
       pendingImmediate = false;
-      lastPublishedStateVersion = snapshot.stateVersion;
       const traceCollapsed =
         snapshot.finalStarted ||
         (snapshot.lifecycle !== "running" &&
@@ -377,10 +373,10 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
     const result = recorder.measure(step.at, () =>
       store.apply("conv-stream", step.event, step.at),
     );
-    pendingImmediate ||= result.immediate || result.becameVisible;
+    pendingImmediate ||= result.immediate;
     if (result.changed) {
       scheduler.markDirty("conv-stream", {
-        immediate: result.immediate || result.becameVisible,
+        immediate: result.immediate,
       });
     }
   }
@@ -443,7 +439,7 @@ function applyStep(store: RunningTurnStore, step: ReplayStep): void {
 function createTurnStore(): RunningTurnStore {
   const store = new RunningTurnStore();
   store.create({
-    conversation: createConversation(),
+    conversationId: "conv-stream",
     messageId: "assistant-stream",
     model: "gpt-5.3-codex",
     providerProfileId: "codex-cli.default",
@@ -788,25 +784,6 @@ function createStartedEvent(
     providerProfileId: "codex-cli.default",
     runId: "thread-stream",
     turnId: "turn-stream",
-  };
-}
-
-function createConversation(): Conversation {
-  return {
-    metadata: {
-      id: "conv-stream",
-      scope: "workspace",
-      workspaceKey: "item:1:ITEM",
-      workspaceType: "item",
-      workspaceLabel: "Paper",
-      workspaceTitle: "Paper",
-      libraryID: 1,
-      itemKey: "ITEM",
-      label: "Streaming benchmark",
-      createdAt: "2026-07-17T00:00:00.000Z",
-      updatedAt: "2026-07-17T00:00:00.000Z",
-    },
-    messages: [],
   };
 }
 

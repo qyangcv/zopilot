@@ -188,9 +188,6 @@ describe("streaming performance attribution integration", function () {
       messageId: "scroll-message",
       lifecycle,
       stateVersion: revision,
-      sequence: revision,
-      publicationVersion: revision,
-      publishedAt: revision * 50,
       finalStarted: true,
       answerBlocks: [
         {

@@ -166,7 +166,6 @@ export type RunningTurnSnapshot = {
   messageId: string;
   lifecycle: RunningTurnLifecycle;
   stateVersion: number;
-  sequence: number;
   model?: string;
   providerProfileId?: string;
   providerBrand?: ProviderBrand;

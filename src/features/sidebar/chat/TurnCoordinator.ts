@@ -13,7 +13,7 @@ import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
 import {
   RunningTurnStore,
   type RunningTurnApplyResult,
-  type RunningTurnRecord,
+  type RunningTurnHandle,
 } from "./RunningTurnStore";
 import { StreamRenderScheduler } from "./StreamRenderScheduler";
 
@@ -65,7 +65,7 @@ class TurnCoordinator {
       getAgentBackendManager().getActiveProfile();
     const conversationId = conversation.metadata.id;
     const runningTurn = this.options.turnStore.create({
-      conversation,
+      conversationId,
       messageId: createTimestampId("msg"),
       model: viewState.selectedModel,
       reasoningEffort: viewState.selectedReasoningEffort,
@@ -177,7 +177,7 @@ class TurnCoordinator {
   ): void {
     if (!result.changed) return;
     this.options.streamScheduler.markDirty(conversationId, {
-      immediate: result.immediate || result.becameVisible,
+      immediate: result.immediate,
     });
   }
 
@@ -235,7 +235,7 @@ class TurnCoordinator {
 
   private async persistCompletedTurn(
     conversation: Conversation,
-    runningTurn: RunningTurnRecord,
+    runningTurn: RunningTurnHandle,
     result: AgentRunResult,
   ): Promise<Conversation> {
     const conversationId = conversation.metadata.id;
@@ -280,7 +280,7 @@ class TurnCoordinator {
 
   private async persistFailedTurn(
     conversation: Conversation,
-    runningTurn: RunningTurnRecord,
+    runningTurn: RunningTurnHandle,
     error: unknown,
   ): Promise<Conversation> {
     const conversationId = conversation.metadata.id;
@@ -325,11 +325,8 @@ class TurnCoordinator {
   }
 
   private nextSequence(conversationId: string): number {
-    return (
-      (this.options.turnStore.getSnapshot(conversationId)?.sequence || 0) + 1
-    );
+    return this.options.turnStore.getNextSequence(conversationId);
   }
 }
 
 export { TurnCoordinator };
-export type { TurnCoordinatorOptions };

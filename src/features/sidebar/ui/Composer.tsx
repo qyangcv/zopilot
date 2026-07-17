@@ -78,4 +78,3 @@ function ComposerPromptPicker({
 }
 
 export { Composer, ComposerPromptPicker };
-export type { ComposerBindings } from "./composerBindings";

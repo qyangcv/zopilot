@@ -113,4 +113,3 @@ function ConversationLog({
 }
 
 export { ConversationLog };
-export type { ConversationLogProps };

@@ -44,4 +44,3 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
 }
 
 export { createSidebarActions };
-export type { SidebarActionHandlers };

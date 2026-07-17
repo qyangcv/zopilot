@@ -85,7 +85,6 @@ class LibrarySelectionCoordinator {
       ready.hostContext.rowID === selected.rowID &&
       ready.workspace.workspaceKey === selected.workspace.workspaceKey
     ) {
-      this.options.surface.refreshToolbar();
       return;
     }
     await this.loadResolvedWorkspace(selected, token);
@@ -129,4 +128,3 @@ class LibrarySelectionCoordinator {
 }
 
 export { LibrarySelectionCoordinator };
-export type { LibrarySelectionOptions };

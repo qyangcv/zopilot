@@ -227,10 +227,4 @@ function getSelectedPanel(probe: ContextPaneProbeSuccess): Element | null {
   return probe.deck.children.item(index);
 }
 
-export { ContextPaneDeckAdapter, ContextPaneSidenavAdapter, probeContextPane };
-export type {
-  ContextPaneActiveState,
-  ContextPaneProbeResult,
-  ContextPaneProbeSuccess,
-  ContextPaneUnavailableResult,
-};
+export { ContextPaneDeckAdapter, ContextPaneSidenavAdapter };

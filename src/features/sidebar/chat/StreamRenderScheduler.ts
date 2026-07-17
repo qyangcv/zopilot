@@ -18,7 +18,6 @@ class StreamRenderScheduler {
   private forceImmediate = false;
   private frame?: number;
   private lastOrdinaryPublishedAt = Number.NEGATIVE_INFINITY;
-  private publicationVersion = 0;
   private visible = true;
 
   constructor(private readonly options: StreamRenderSchedulerOptions) {}
@@ -117,15 +116,7 @@ class StreamRenderScheduler {
     this.activeDirty = false;
     this.forceImmediate = false;
     if (!immediate) this.lastOrdinaryPublishedAt = now;
-    this.options.publish(
-      snapshot
-        ? {
-            ...snapshot,
-            publicationVersion: ++this.publicationVersion,
-            publishedAt: now,
-          }
-        : undefined,
-    );
+    this.options.publish(snapshot);
 
     if (this.activeDirty) this.schedule();
   }
@@ -166,4 +157,3 @@ class StreamRenderScheduler {
 }
 
 export { StreamRenderScheduler };
-export type { StreamRenderSchedulerOptions };

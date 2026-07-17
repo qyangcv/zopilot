@@ -15,7 +15,6 @@ import type {
   AgentTraceItem,
 } from "../../../domain/agent/trace";
 import type { ProviderBrand } from "../../../domain/agent/providerBrand";
-import type { Conversation } from "../../../domain/conversation";
 import type { AgentRunResult } from "../../../domain/agent/types";
 
 type RunningTurnOrderEntry =
@@ -30,7 +29,6 @@ type RunningTurnRecord = {
   commentaryViews: Map<string, RunningTurnTraceBlock>;
   contentBlocks: Map<string, RunningTurnContentBlock>;
   contentOrder: string[];
-  conversation: Conversation;
   desyncedAppendKeys: Set<string>;
   lastSequence: number;
   legacy?: AgentRunResult["legacy"];
@@ -46,13 +44,17 @@ type RunningTurnRecord = {
   traceBlockCache?: readonly RunningTurnTraceBlock[];
   traceBlockCacheVersion: number;
   traceBlocks: Map<string, RunningTurnTraceBlock>;
-  traceOrder: string[];
   turnId?: string;
   visible: boolean;
 };
 
+type RunningTurnHandle = Pick<
+  RunningTurnRecord,
+  "messageId" | "model" | "providerProfileId" | "reasoningEffort"
+>;
+
 type RunningTurnCreateInput = {
-  conversation: Conversation;
+  conversationId: string;
   messageId: string;
   model?: string;
   providerBrand?: ProviderBrand;
@@ -61,8 +63,6 @@ type RunningTurnCreateInput = {
 };
 
 type RunningTurnApplyResult = {
-  accepted: boolean;
-  becameVisible: boolean;
   changed: boolean;
   immediate: boolean;
 };
@@ -70,14 +70,13 @@ type RunningTurnApplyResult = {
 class RunningTurnStore {
   private readonly turns = new Map<string, RunningTurnRecord>();
 
-  create(input: RunningTurnCreateInput): RunningTurnRecord {
+  create(input: RunningTurnCreateInput): RunningTurnHandle {
     const record: RunningTurnRecord = {
       answerBlockCacheVersion: -1,
       candidateContentIds: new Set(),
       commentaryViews: new Map(),
       contentBlocks: new Map(),
       contentOrder: [],
-      conversation: input.conversation,
       desyncedAppendKeys: new Set(),
       lastSequence: 0,
       lifecycle: "running",
@@ -90,15 +89,10 @@ class RunningTurnStore {
       streamOrder: [],
       traceBlockCacheVersion: -1,
       traceBlocks: new Map(),
-      traceOrder: [],
       visible: false,
     };
-    this.turns.set(input.conversation.metadata.id, record);
+    this.turns.set(input.conversationId, record);
     return record;
-  }
-
-  get(conversationId: string): RunningTurnRecord | undefined {
-    return this.turns.get(conversationId);
   }
 
   has(conversationId: string | undefined): boolean {
@@ -141,7 +135,7 @@ class RunningTurnStore {
       (sequenceGap || turn.desyncedAppendKeys.has(getAppendKey(event)))
     ) {
       turn.desyncedAppendKeys.add(getAppendKey(event));
-      return { ...unchangedResult(), accepted: false };
+      return unchangedResult();
     }
 
     const wasVisible = turn.visible;
@@ -240,10 +234,8 @@ class RunningTurnStore {
       this.invalidateCaches(turn);
     }
     return {
-      accepted: true,
-      becameVisible: !wasVisible && turn.visible,
       changed,
-      immediate: isImmediateEvent(event),
+      immediate: isImmediateEvent(event) || (!wasVisible && turn.visible),
     };
   }
 
@@ -254,8 +246,6 @@ class RunningTurnStore {
     turn.stateVersion += 1;
     this.invalidateCaches(turn);
     return {
-      accepted: true,
-      becameVisible: false,
       changed: true,
       immediate: true,
     };
@@ -294,8 +284,6 @@ class RunningTurnStore {
       this.invalidateCaches(turn);
     }
     return {
-      accepted: true,
-      becameVisible: false,
       changed,
       immediate: true,
     };
@@ -311,7 +299,6 @@ class RunningTurnStore {
       messageId: turn.messageId,
       lifecycle: turn.lifecycle,
       stateVersion: turn.stateVersion,
-      sequence: turn.lastSequence,
       model: turn.model,
       providerProfileId: turn.providerProfileId,
       providerBrand: turn.providerBrand,
@@ -351,6 +338,10 @@ class RunningTurnStore {
 
   getLifecycle(conversationId: string): RunningTurnLifecycle | undefined {
     return this.turns.get(conversationId)?.lifecycle;
+  }
+
+  getNextSequence(conversationId: string): number {
+    return (this.turns.get(conversationId)?.lastSequence || 0) + 1;
   }
 
   private appendContent(
@@ -569,7 +560,7 @@ class RunningTurnStore {
     occurredAt: number,
     reconcileText = true,
   ): boolean {
-    let changed = this.freezeRunningTools(turn, occurredAt, lifecycle);
+    let changed = this.freezeRunningTools(turn, occurredAt);
     if (reconcileText) {
       const finalText = this.getAnswerBlocks(turn)
         .map((block) => block.text)
@@ -591,7 +582,7 @@ class RunningTurnStore {
     error: string,
     occurredAt: number,
   ): boolean {
-    let changed = this.freezeRunningTools(turn, occurredAt, "failed");
+    let changed = this.freezeRunningTools(turn, occurredAt);
     changed = this.upsertNotice(turn, "turn-error", error) || changed;
     turn.visible = true;
     return updateLifecycle(turn, "failed") || changed;
@@ -623,11 +614,9 @@ class RunningTurnStore {
   private freezeRunningTools(
     turn: RunningTurnRecord,
     occurredAt: number,
-    _lifecycle: "completed" | "interrupted" | "failed",
   ): boolean {
     let changed = false;
-    for (const blockId of turn.traceOrder) {
-      const block = turn.traceBlocks.get(blockId);
+    for (const [blockId, block] of turn.traceBlocks) {
       if (block?.type !== "tool" || block.status !== "running") continue;
       turn.traceBlocks.set(blockId, {
         ...block,
@@ -662,7 +651,6 @@ class RunningTurnStore {
     block: RunningTurnTraceBlock,
   ): void {
     if (!turn.traceBlocks.has(blockId)) {
-      turn.traceOrder.push(blockId);
       turn.streamOrder.push({ type: "trace", id: blockId });
     }
     turn.traceBlocks.set(blockId, block);
@@ -826,16 +814,10 @@ function isEmptyTraceBlock(block: RunningTurnTraceBlock): boolean {
 
 function unchangedResult(): RunningTurnApplyResult {
   return {
-    accepted: false,
-    becameVisible: false,
     changed: false,
     immediate: false,
   };
 }
 
 export { RunningTurnStore };
-export type {
-  RunningTurnApplyResult,
-  RunningTurnCreateInput,
-  RunningTurnRecord,
-};
+export type { RunningTurnApplyResult, RunningTurnHandle };

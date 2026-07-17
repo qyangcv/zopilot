@@ -12,8 +12,6 @@ import { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
 
 const emptyStreamStore = new SidebarStreamSnapshotStore();
 
-export { Message } from "./Message";
-
 export function SidebarApp({
   actions,
   state,

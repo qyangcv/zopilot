@@ -1,5 +1,4 @@
 import { assert } from "chai";
-import type { Conversation } from "../../../src/domain/conversation.ts";
 import { RunningTurnStore } from "../../../src/features/sidebar/chat/RunningTurnStore.ts";
 
 describe("running turn store", function () {
@@ -196,27 +195,8 @@ describe("running turn store", function () {
 function createStore(): RunningTurnStore {
   const store = new RunningTurnStore();
   store.create({
-    conversation: createConversation(),
+    conversationId: "conv-stream",
     messageId: "assistant-stream",
   });
   return store;
-}
-
-function createConversation(): Conversation {
-  return {
-    metadata: {
-      id: "conv-stream",
-      scope: "workspace",
-      workspaceKey: "item:1:ITEM",
-      workspaceType: "item",
-      workspaceLabel: "Paper",
-      workspaceTitle: "Paper",
-      libraryID: 1,
-      itemKey: "ITEM",
-      label: "Question",
-      createdAt: "2026-07-17T00:00:00.000Z",
-      updatedAt: "2026-07-17T00:00:00.000Z",
-    },
-    messages: [],
-  };
 }

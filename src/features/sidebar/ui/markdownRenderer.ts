@@ -475,5 +475,3 @@ function sanitizeMarkdownHtml(html: string): SanitizedHtml {
 }
 
 const markdownIt = createMarkdownIt();
-
-export type { SanitizedHtml };

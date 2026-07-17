@@ -54,12 +54,12 @@ function Message({
               </div>
             ) : null}
             <div className="zp-message-body">
-              {message.running || message.trace?.length ? (
+              {message.trace?.length ? (
                 <TracePanel
-                  collapsed={Boolean(message.finalStarted) || !message.running}
+                  collapsed
                   items={message.trace || []}
                   onOpenLink={onOpenLink}
-                  running={Boolean(message.running)}
+                  running={false}
                 />
               ) : null}
               {message.text ? (
@@ -134,7 +134,7 @@ function AssistantFooter({
   onCopy: () => void;
   responseDuration?: string;
 }): ReactElement | null {
-  if (message.running || message.transient) {
+  if (message.transient) {
     return null;
   }
   if (message.status !== "complete") {

@@ -290,7 +290,7 @@ describe("sidebar controller", function () {
     const conversationA = createConversation(paperA, "conv-a", "Question A");
     const conversationB = createConversation(paperB, "conv-b", "Question B");
     controller.turnStore.create({
-      conversation: conversationA,
+      conversationId: conversationA.metadata.id,
       messageId: "assistant-a",
     });
     controller.turnStore.apply("conv-a", {

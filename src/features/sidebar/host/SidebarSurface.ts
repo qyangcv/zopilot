@@ -34,7 +34,7 @@ class SidebarSurface {
   private streamingSnapshot?: SidebarStreamingSnapshot;
 
   constructor(
-    private readonly win: Window,
+    win: Window,
     private readonly options: SidebarSurfaceOptions,
   ) {
     this.doc = win.document;
@@ -186,11 +186,6 @@ class SidebarSurface {
     }
   }
 
-  refreshToolbar(): void {
-    // Kept as a stable controller hook; legacy Reader toolbar integration was
-    // removed because there is no remaining registration source.
-  }
-
   render(state: SidebarState, actions: SidebarActions): void {
     this.deckHost?.render(state, actions);
   }
@@ -272,4 +267,4 @@ function findStylesheets(doc: Document, uri: string): ProcessingInstruction[] {
 }
 
 export { SidebarSurface };
-export type { SidebarSurfaceKind, SidebarSurfaceOptions };
+export type { SidebarSurfaceKind };

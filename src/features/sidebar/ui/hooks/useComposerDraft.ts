@@ -177,4 +177,3 @@ function useComposerDraft(
 }
 
 export { useComposerDraft };
-export type { ComposerDraftController };

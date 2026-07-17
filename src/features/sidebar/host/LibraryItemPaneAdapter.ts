@@ -341,4 +341,3 @@ function selectPanel(probe: LibraryItemPaneProbeSuccess, panel: Element): void {
 }
 
 export { LIBRARY_PANEL_ID, LibraryItemPaneAdapter };
-export type { LibraryItemPaneAdapterOptions };

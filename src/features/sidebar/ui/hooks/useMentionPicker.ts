@@ -97,4 +97,3 @@ function useMentionPicker(options: MentionPickerOptions) {
 }
 
 export { useMentionPicker };
-export type { MentionPickerOptions };

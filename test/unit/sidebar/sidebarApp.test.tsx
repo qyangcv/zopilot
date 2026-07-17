@@ -1,10 +1,8 @@
 import { assert } from "chai";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import {
-  Message,
-  SidebarApp,
-} from "../../../src/features/sidebar/ui/SidebarApp.tsx";
+import { SidebarApp } from "../../../src/features/sidebar/ui/SidebarApp.tsx";
+import { Message } from "../../../src/features/sidebar/ui/Message.tsx";
 import {
   resolveSessionRelativeTime,
   SessionPopover,
@@ -20,6 +18,7 @@ import type {
   SidebarMessageView,
   SidebarPromptView,
   SidebarState,
+  SidebarStreamingSnapshot,
 } from "../../../src/features/sidebar/ui/types.ts";
 import type { Conversation } from "../../../src/domain/conversation.ts";
 import { SidebarStreamSnapshotStore } from "../../../src/features/sidebar/ui/SidebarStreamSnapshotStore.ts";
@@ -30,22 +29,25 @@ describe("SidebarApp", function () {
   });
 
   it("shows no assistant footer while a response is running", function () {
+    const streamStore = createStreamStore({
+      answerBlocks: [
+        {
+          id: "answer",
+          type: "content",
+          phase: "final_answer",
+          text: "Partial",
+          revision: 1,
+        },
+      ],
+    });
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
+          conversationId: "conv-stream",
           busy: true,
-          messages: [
-            {
-              id: "running",
-              role: "assistant",
-              text: "Partial",
-              status: "complete",
-              transient: true,
-              running: true,
-            },
-          ],
         })}
+        streamStore={streamStore}
       />,
     );
 
@@ -59,41 +61,46 @@ describe("SidebarApp", function () {
   });
 
   it("shows live trace and collapses it when the final answer starts", function () {
+    const streamStore = createStreamStore({
+      finalStarted: true,
+      answerBlocks: [
+        {
+          id: "answer",
+          type: "content",
+          phase: "final_answer",
+          text: "Final answer",
+          revision: 1,
+        },
+      ],
+      traceBlocks: [
+        {
+          id: "reasoning-a",
+          type: "reasoning",
+          kind: "content",
+          text: "Checking the evidence",
+          revision: 1,
+        },
+        {
+          id: "call-a",
+          type: "tool",
+          name: "paper_read",
+          server: "zopilot",
+          arguments: '{"question":"method"}',
+          result: "Evidence",
+          status: "completed",
+          durationMs: 3_000,
+          revision: 1,
+        },
+      ],
+    });
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
+          conversationId: "conv-stream",
           busy: true,
-          messages: [
-            {
-              id: "trace",
-              role: "assistant",
-              text: "Final answer",
-              status: "complete",
-              transient: true,
-              running: true,
-              finalStarted: true,
-              trace: [
-                {
-                  id: "reasoning-a",
-                  type: "reasoning",
-                  kind: "content",
-                  text: "Checking the evidence",
-                },
-                {
-                  id: "call-a",
-                  type: "tool",
-                  name: "paper_read",
-                  server: "zopilot",
-                  arguments: '{"question":"method"}',
-                  result: "Evidence",
-                  status: "completed",
-                  durationMs: 3_000,
-                },
-              ],
-            },
-          ],
         })}
+        streamStore={streamStore}
       />,
     );
 
@@ -113,9 +120,6 @@ describe("SidebarApp", function () {
       messageId: "assistant-stream",
       lifecycle: "running",
       stateVersion: 2,
-      sequence: 2,
-      publicationVersion: 1,
-      publishedAt: 4_000,
       model: "gpt-5.3-codex",
       providerProfileId: "codex-cli.default",
       providerBrand: "codex",
@@ -167,10 +171,7 @@ describe("SidebarApp", function () {
 
   it("renders every tool call separately with duration and expandable payloads", function () {
     const completedCalls = [0, 1_000, 10_000].map(
-      (
-        durationMs,
-        index,
-      ): NonNullable<SidebarMessageView["trace"]>[number] => ({
+      (durationMs, index): SidebarStreamingSnapshot["traceBlocks"][number] => ({
         id: `call-${index}`,
         type: "tool",
         name: "paper_read",
@@ -179,40 +180,39 @@ describe("SidebarApp", function () {
         result: `Evidence ${index}`,
         status: "completed",
         durationMs,
+        revision: 1,
       }),
     );
+    const streamStore = createStreamStore({
+      traceBlocks: [
+        ...completedCalls,
+        {
+          id: "call-running",
+          type: "tool",
+          name: "paper_read",
+          server: "zopilot",
+          status: "running",
+          revision: 1,
+        },
+        {
+          id: "call-failed",
+          type: "tool",
+          name: "paper_read",
+          server: "zopilot",
+          status: "failed",
+          error: "Failed to read",
+          revision: 1,
+        },
+      ],
+    });
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
         state={createState({
+          conversationId: "conv-stream",
           busy: true,
-          messages: [
-            {
-              id: "many-tools",
-              role: "assistant",
-              text: "",
-              running: true,
-              trace: [
-                ...completedCalls,
-                {
-                  id: "call-running",
-                  type: "tool",
-                  name: "paper_read",
-                  server: "zopilot",
-                  status: "running",
-                },
-                {
-                  id: "call-failed",
-                  type: "tool",
-                  name: "paper_read",
-                  server: "zopilot",
-                  status: "failed",
-                  error: "Failed to read",
-                },
-              ],
-            },
-          ],
         })}
+        streamStore={streamStore}
       />,
     );
 
@@ -1105,6 +1105,23 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     prompts: TEST_PROMPTS,
     ...patch,
   };
+}
+
+function createStreamStore(
+  patch: Partial<SidebarStreamingSnapshot> = {},
+): SidebarStreamSnapshotStore {
+  const store = new SidebarStreamSnapshotStore();
+  store.publish({
+    conversationId: "conv-stream",
+    messageId: "assistant-stream",
+    lifecycle: "running",
+    stateVersion: 1,
+    finalStarted: false,
+    answerBlocks: [],
+    traceBlocks: [],
+    ...patch,
+  });
+  return store;
 }
 
 function createActions(): SidebarActions {

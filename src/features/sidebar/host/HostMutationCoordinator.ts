@@ -83,4 +83,4 @@ function collectHostChainTargets(anchors: Element[]): Element[] {
 }
 
 export { HostMutationCoordinator, collectHostChainTargets };
-export type { HostMutationCoordinatorOptions, HostMutationTargets };
+export type { HostMutationTargets };

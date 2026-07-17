@@ -132,4 +132,3 @@ const StreamingMarkdownBlock = memo(
 );
 
 export { ActiveStreamingMessage };
-export type { ActiveStreamingMessageProps };

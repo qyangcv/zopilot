@@ -223,10 +223,6 @@ class CodexBridge {
     await this.getTransport().notify(method, params);
   }
 
-  private handleLine(line: string): void {
-    this.getTransport().handleLine(line);
-  }
-
   private rejectServerRequest(message: JsonRpcRequest): void {
     const method = message.method || "unknown";
     const response = {

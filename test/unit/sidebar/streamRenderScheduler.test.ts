@@ -16,7 +16,7 @@ describe("stream render scheduler", function () {
       publish: (snapshot) => {
         if (snapshot) {
           publications.push({
-            at: snapshot.publishedAt,
+            at: clock.now,
             stateVersion: snapshot.stateVersion,
           });
         }
@@ -64,7 +64,7 @@ describe("stream render scheduler", function () {
       getActiveConversationId: () => "conv-a",
       getSnapshot: () => createSnapshot(1),
       publish: (snapshot) => {
-        if (snapshot) publishedAt.push(snapshot.publishedAt);
+        if (snapshot) publishedAt.push(clock.now);
       },
     });
 
@@ -105,7 +105,6 @@ function createSnapshot(stateVersion: number): RunningTurnSnapshot {
     messageId: "assistant-a",
     lifecycle: "running",
     stateVersion,
-    sequence: stateVersion,
     finalStarted: false,
     answerBlocks: [],
     traceBlocks: [],

@@ -7,11 +7,7 @@ import type {
 } from "../../../domain/conversation";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import type { ProviderBrand } from "../../../domain/agent/providerBrand";
-import type {
-  RunningTurnContentBlock,
-  RunningTurnLifecycle,
-  RunningTurnTraceBlock,
-} from "../../../domain/agent/streaming";
+import type { RunningTurnSnapshot } from "../../../domain/agent/streaming";
 
 export type SidebarMessageView = {
   id: string;
@@ -25,9 +21,7 @@ export type SidebarMessageView = {
   model?: string;
   providerBrand?: ProviderBrand;
   transient?: boolean;
-  running?: boolean;
   trace?: AgentTraceItem[];
-  finalStarted?: boolean;
 };
 
 export type SidebarModelView = {
@@ -107,21 +101,7 @@ export type SidebarState = {
   prompts: SidebarPromptView[];
 };
 
-export type SidebarStreamingSnapshot = {
-  conversationId: string;
-  messageId: string;
-  lifecycle: RunningTurnLifecycle;
-  stateVersion: number;
-  sequence: number;
-  publicationVersion: number;
-  publishedAt: number;
-  model?: string;
-  providerProfileId?: string;
-  providerBrand?: ProviderBrand;
-  finalStarted: boolean;
-  answerBlocks: readonly RunningTurnContentBlock[];
-  traceBlocks: readonly RunningTurnTraceBlock[];
-};
+export type SidebarStreamingSnapshot = RunningTurnSnapshot;
 
 export type SidebarPromptSubmission = {
   text: string;

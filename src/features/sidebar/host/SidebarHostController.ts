@@ -341,7 +341,6 @@ class SidebarHostController {
     this.displayState = displayState;
     this.renderDisplayState();
     this.streamScheduler.publishActive();
-    this.surface.refreshToolbar();
   }
 
   private renderDisplayState(): void {
@@ -371,7 +370,6 @@ class SidebarHostController {
       return;
     }
     this.streamScheduler.setVisible(true);
-    this.surface.refreshToolbar();
     this.renderDisplayState();
     this.scheduleFrame(() => {
       this.win.dispatchEvent(new this.win.Event("resize"));

@@ -57,4 +57,3 @@ const MemoStreamingMarkdownSegment = memo(
 );
 
 export { StreamingMarkdownView };
-export type { StreamingMarkdownViewProps };

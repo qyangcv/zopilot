@@ -217,10 +217,6 @@ class ByokRuntimeBridge {
     return this.getTransport().request(method, params, timeoutMs);
   }
 
-  private handleLine(line: string): void {
-    this.getTransport().handleLine(line);
-  }
-
   private async handleRuntimeRequest(message: JsonRpcRequest): Promise<void> {
     try {
       if (message.method !== "tool/paper_read") {
