@@ -250,7 +250,8 @@
   color: var(--zp-muted-strong);
 }
 
-.zp-context-add {
+.zp-context-add,
+.zp-send-button {
   flex: 0 0 auto;
   width: 28px;
   height: 28px;

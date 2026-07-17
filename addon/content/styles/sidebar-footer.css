@@ -42,19 +42,17 @@
   color: var(--zp-danger);
 }
 
-.zp-send-button {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  background: var(--zp-accent);
-  color: var(--zp-accent-text);
-  font-size: 18px;
-  line-height: 1;
-  margin-block-end: 2px;
+.zp-send-button:hover {
+  background: var(--zp-composer-control-hover);
 }
 
-.zp-send-button:hover {
-  filter: brightness(1.05);
+.zp-send-button [data-icon-name="send"] {
+  transform: rotate(180deg);
+  transform-origin: center;
+}
+
+.zp-send-button [data-icon-name="stop"] rect {
+  fill: currentColor;
 }
 
 /* Motion and responsive adjustments */
