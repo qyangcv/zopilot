@@ -318,9 +318,6 @@ class RunningTurnStore {
       finalStarted: answerBlocks.some((block) => Boolean(block.text)),
       answerBlocks,
       traceBlocks,
-      hasRunningTools: traceBlocks.some(
-        (block) => block.type === "tool" && block.status === "running",
-      ),
     };
   }
 

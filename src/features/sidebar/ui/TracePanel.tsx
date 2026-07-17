@@ -3,29 +3,39 @@ import { getString } from "../../../app/localization";
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import { Icon } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
+import { StreamingMarkdownView } from "./StreamingMarkdownView";
 
 type ToolTraceItem = Extract<AgentTraceItem, { type: "tool" }>;
 
 type TracePanelProps = {
   collapsed: boolean;
   items: readonly AgentTraceItem[];
-  now?: number;
   onOpenLink: (url: string) => void;
   running: boolean;
 };
 
-export function TracePanel({
+const TracePanel = memo(function TracePanel({
   collapsed,
   items,
-  now,
   onOpenLink,
   running,
 }: TracePanelProps): ReactElement {
   const [expanded, setExpanded] = useState(!collapsed);
+  const [now, setNow] = useState(() => Date.now());
+  const hasRunningTool = items.some(
+    (item) => item.type === "tool" && item.status === "running",
+  );
 
   useEffect(() => {
     setExpanded(!collapsed);
   }, [collapsed]);
+
+  useEffect(() => {
+    if (!expanded || !hasRunningTool) return;
+    setNow(Date.now());
+    const timer = globalThis.setInterval(() => setNow(Date.now()), 250);
+    return () => globalThis.clearInterval(timer);
+  }, [expanded, hasRunningTool]);
 
   return (
     <details
@@ -50,7 +60,7 @@ export function TracePanel({
               )}
         </span>
       </summary>
-      {items.length ? (
+      {expanded && items.length ? (
         <div className="zp-trace-items">
           {items.map((item) => (
             <MemoTraceItem
@@ -58,22 +68,25 @@ export function TracePanel({
               key={item.id}
               now={now}
               onOpenLink={onOpenLink}
+              streaming={running}
             />
           ))}
         </div>
       ) : null}
     </details>
   );
-}
+});
 
 function TraceItem({
   item,
   now,
   onOpenLink,
+  streaming,
 }: {
   item: AgentTraceItem;
   now?: number;
   onOpenLink: (url: string) => void;
+  streaming: boolean;
 }): ReactElement {
   if (item.type === "tool") {
     return <ToolTrace item={item} now={now} />;
@@ -84,10 +97,11 @@ function TraceItem({
       : item.type === "notice"
         ? getString("sidebar-trace-notice")
         : undefined;
+  const MarkdownComponent = streaming ? StreamingMarkdownView : MarkdownView;
   return (
     <section className={`zp-trace-item zp-trace-item-${item.type}`}>
       {label ? <div className="zp-trace-item-label">{label}</div> : null}
-      <MarkdownView
+      <MarkdownComponent
         className="zp-trace-markdown"
         markdown={item.text}
         onOpenLink={onOpenLink}
@@ -101,6 +115,7 @@ const MemoTraceItem = memo(
   (previous, next) =>
     previous.item === next.item &&
     previous.onOpenLink === next.onOpenLink &&
+    previous.streaming === next.streaming &&
     (next.item.type !== "tool" ||
       next.item.status !== "running" ||
       previous.now === next.now),
@@ -216,3 +231,5 @@ function formatDuration(durationMs: number): string {
   const seconds = Math.max(0.1, durationMs / 1_000);
   return `${seconds.toFixed(1)}s`;
 }
+
+export { TracePanel };

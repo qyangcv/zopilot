@@ -14,6 +14,10 @@ import typescript from "shiki/langs/typescript.mjs";
 import xml from "shiki/langs/xml.mjs";
 import githubDark from "shiki/themes/github-dark.mjs";
 import githubLight from "shiki/themes/github-light.mjs";
+import {
+  beginSidebarPerformanceMeasure,
+  recordSidebarPerformanceMetric,
+} from "./performanceMetrics";
 
 const LANGUAGE_ALIASES = new Map([
   ["js", "javascript"],
@@ -40,8 +44,10 @@ const SUPPORTED_LANGUAGES = new Set([
   "typescript",
   "xml",
 ]);
+const MAX_HIGHLIGHT_CACHE_ENTRIES = 128;
 
 let highlighter: ReturnType<typeof createHighlighterCoreSync> | undefined;
+const highlightCache = new Map<string, string>();
 
 export function getCodeLanguage(className?: string): string | undefined {
   const match = /(?:^|\s)language-([\w-]+)/u.exec(className ?? "");
@@ -64,8 +70,20 @@ export function highlightCodeWithShiki(
     return undefined;
   }
 
+  const cacheKey = `${language}\0${text}`;
+  const cached = highlightCache.get(cacheKey);
+  if (cached !== undefined) {
+    recordSidebarPerformanceMetric("markdown.shiki.cacheHit", 0, {
+      textLength: text.length,
+    });
+    return cached;
+  }
+
+  const finish = beginSidebarPerformanceMeasure("markdown.shiki", {
+    textLength: text.length,
+  });
   try {
-    return compactShikiLineBreaks(
+    const highlighted = compactShikiLineBreaks(
       getHighlighter().codeToHtml(text, {
         lang: language,
         themes: {
@@ -75,8 +93,16 @@ export function highlightCodeWithShiki(
         defaultColor: "light",
       }),
     );
+    if (highlightCache.size >= MAX_HIGHLIGHT_CACHE_ENTRIES) {
+      const oldestKey = highlightCache.keys().next().value;
+      if (oldestKey !== undefined) highlightCache.delete(oldestKey);
+    }
+    highlightCache.set(cacheKey, highlighted);
+    return highlighted;
   } catch {
     return undefined;
+  } finally {
+    finish?.();
   }
 }
 

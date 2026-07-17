@@ -5,7 +5,15 @@ import {
   highlightCodeWithShiki,
 } from "../../../src/features/sidebar/ui/codeHighlighting.ts";
 import { MarkdownView } from "../../../src/features/sidebar/ui/MarkdownView.tsx";
-import { renderMarkdownToHtml } from "../../../src/features/sidebar/ui/markdownRenderer.ts";
+import { StreamingMarkdownView } from "../../../src/features/sidebar/ui/StreamingMarkdownView.tsx";
+import {
+  renderMarkdownToHtml,
+  splitStreamingMarkdown,
+} from "../../../src/features/sidebar/ui/markdownRenderer.ts";
+import {
+  getSidebarPerformanceReport,
+  setSidebarPerformanceMetricsEnabled,
+} from "../../../src/features/sidebar/ui/performanceMetrics.ts";
 
 function renderMarkdown(markdown: string): string {
   return renderToStaticMarkup(
@@ -14,6 +22,69 @@ function renderMarkdown(markdown: string): string {
 }
 
 describe("MarkdownView", function () {
+  it("splits streaming Markdown at stable top-level block boundaries", function () {
+    const segments = splitStreamingMarkdown(
+      [
+        "First paragraph.",
+        "",
+        "- first item",
+        "",
+        "- second item",
+        "",
+        "Active tail.",
+      ].join("\n"),
+    );
+
+    assert.deepEqual(
+      segments.map((segment) => segment.text),
+      [
+        "First paragraph.\n\n",
+        "- first item\n\n- second item\n\n",
+        "Active tail.",
+      ],
+    );
+  });
+
+  it("keeps fenced code intact and falls back for cross-block references", function () {
+    const codeSegments = splitStreamingMarkdown(
+      [
+        "Before.",
+        "",
+        "```typescript",
+        "const value = 1;",
+        "```",
+        "",
+        "After.",
+      ].join("\n"),
+    );
+    assert.lengthOf(codeSegments, 3);
+    assert.include(codeSegments[1]?.text ?? "", "const value = 1;");
+
+    const referenceMarkdown = [
+      "See [the source][source].",
+      "",
+      "[source]: https://example.com",
+    ].join("\n");
+    assert.deepEqual(splitStreamingMarkdown(referenceMarkdown), [
+      { id: "all", text: referenceMarkdown },
+    ]);
+  });
+
+  it("renders streaming segments under one Markdown container", function () {
+    const html = renderToStaticMarkup(
+      <StreamingMarkdownView
+        className="zp-message-markdown"
+        markdown={"Stable.\n\nActive."}
+        onOpenLink={() => undefined}
+      />,
+    );
+
+    assert.include(html, 'data-zp-streaming-markdown=""');
+    assert.equal((html.match(/data-zp-markdown-segment=/gu) ?? []).length, 2);
+    assert.include(html, "Stable.");
+    assert.include(html, "Active.");
+  });
+
   it("renders CommonMark and GFM block elements compactly", function () {
     const html = renderMarkdown(
       [
@@ -79,6 +150,16 @@ describe("MarkdownView", function () {
     assert.include(html, ">const</span>");
     assert.include(html, " answer</span>");
     assert.include(html, " 42</span>");
+  });
+
+  it("defers Shiki highlighting until a streaming code fence closes", function () {
+    const html = renderMarkdown(
+      ["```typescript", "const answer: number = 42;"].join("\n"),
+    );
+
+    assert.include(html, 'class="zp-code-plain"');
+    assert.notInclude(html, 'class="zp-code-content"');
+    assert.notInclude(html, "shiki-themes");
   });
 
   it("normalizes code fence language aliases", function () {
@@ -165,6 +246,37 @@ describe("MarkdownView", function () {
     assert.include(html, "katex");
     assert.include(html, "katex-display");
     assert.include(html, "y");
+  });
+
+  it("reuses KaTeX results across repeated renders", function () {
+    setSidebarPerformanceMetricsEnabled(true);
+    try {
+      const markdown = "Inline $cache_probe_{72831}$.";
+      renderMarkdownToHtml(markdown);
+      renderMarkdownToHtml(markdown);
+
+      const report = getSidebarPerformanceReport();
+      assert.equal(report["markdown.katex"]?.count, 1);
+      assert.equal(report["markdown.katex.cacheHit"]?.count, 1);
+    } finally {
+      setSidebarPerformanceMetricsEnabled(false);
+    }
+  });
+
+  it("bounds the KaTeX cache and evicts its oldest result", function () {
+    setSidebarPerformanceMetricsEnabled(true);
+    try {
+      for (let index = 0; index < 129; index += 1) {
+        renderMarkdownToHtml(`Inline $bounded_probe_${index}_{72831}$.`);
+      }
+      renderMarkdownToHtml("Inline $bounded_probe_0_{72831}$.");
+
+      const report = getSidebarPerformanceReport();
+      assert.equal(report["markdown.katex"]?.count, 130);
+      assert.isUndefined(report["markdown.katex.cacheHit"]);
+    } finally {
+      setSidebarPerformanceMetricsEnabled(false);
+    }
   });
 
   it("does not render math delimiters inside code", function () {

@@ -2,7 +2,6 @@ import type { RunningTurnSnapshot } from "../../../domain/agent/streaming";
 import type { SidebarStreamingSnapshot } from "../ui/types";
 
 const MIN_PUBLISH_INTERVAL_MS = 50;
-const TOOL_CLOCK_INTERVAL_MS = 250;
 
 type StreamRenderSchedulerOptions = {
   getActiveConversationId: () => string | undefined;
@@ -20,7 +19,6 @@ class StreamRenderScheduler {
   private frame?: number;
   private lastOrdinaryPublishedAt = Number.NEGATIVE_INFINITY;
   private publicationVersion = 0;
-  private toolClockTimer?: number;
   private visible = true;
 
   constructor(private readonly options: StreamRenderSchedulerOptions) {}
@@ -57,7 +55,6 @@ class StreamRenderScheduler {
     this.forceImmediate = false;
     this.cancelFrame();
     this.cancelDelayTimer();
-    this.cancelToolClock();
     this.options.publish(undefined);
   }
 
@@ -103,7 +100,6 @@ class StreamRenderScheduler {
     if (!this.options.getActiveConversationId()) {
       this.activeDirty = false;
       this.forceImmediate = false;
-      this.cancelToolClock();
       this.options.publish(undefined);
       return;
     }
@@ -131,8 +127,6 @@ class StreamRenderScheduler {
         : undefined,
     );
 
-    if (snapshot?.hasRunningTools) this.ensureToolClock();
-    else this.cancelToolClock();
     if (this.activeDirty) this.schedule();
   }
 
@@ -147,27 +141,11 @@ class StreamRenderScheduler {
     );
   }
 
-  private ensureToolClock(): void {
-    if (this.toolClockTimer !== undefined || this.destroyed || !this.visible) {
-      return;
-    }
-    this.toolClockTimer = this.options.win.setTimeout(() => {
-      this.toolClockTimer = undefined;
-      const conversationId = this.options.getActiveConversationId();
-      if (!conversationId) return;
-      const snapshot = this.options.getSnapshot(conversationId);
-      if (!snapshot?.hasRunningTools) return;
-      this.markDirty(conversationId, { immediate: true });
-      this.ensureToolClock();
-    }, TOOL_CLOCK_INTERVAL_MS);
-  }
-
   private clearScheduledWork(): void {
     this.activeDirty = false;
     this.forceImmediate = false;
     this.cancelFrame();
     this.cancelDelayTimer();
-    this.cancelToolClock();
   }
 
   private cancelFrame(): void {
@@ -180,12 +158,6 @@ class StreamRenderScheduler {
     if (this.delayTimer === undefined) return;
     this.options.win.clearTimeout(this.delayTimer);
     this.delayTimer = undefined;
-  }
-
-  private cancelToolClock(): void {
-    if (this.toolClockTimer === undefined) return;
-    this.options.win.clearTimeout(this.toolClockTimer);
-    this.toolClockTimer = undefined;
   }
 
   private now(): number {

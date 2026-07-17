@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
+import { beginSidebarPerformanceMeasure } from "../performanceMetrics";
 
 function useAutoScroll(
   resetKey: unknown,
@@ -14,7 +15,12 @@ function useAutoScroll(
   const sync = useCallback(() => {
     const log = logRef.current;
     if (log && followingRef.current) {
-      log.scrollTop = log.scrollHeight;
+      const finish = beginSidebarPerformanceMeasure("scroll.sync");
+      try {
+        log.scrollTop = log.scrollHeight;
+      } finally {
+        finish?.();
+      }
     }
   }, []);
 

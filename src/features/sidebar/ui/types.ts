@@ -121,7 +121,6 @@ export type SidebarStreamingSnapshot = {
   finalStarted: boolean;
   answerBlocks: readonly RunningTurnContentBlock[];
   traceBlocks: readonly RunningTurnTraceBlock[];
-  hasRunningTools: boolean;
 };
 
 export type SidebarPromptSubmission = {

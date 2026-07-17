@@ -8,7 +8,7 @@ import type { RunningTurnContentBlock } from "../../../domain/agent/streaming";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 import { resolveModelDisplayName } from "../state/viewModel";
 import { Icon } from "./Icon";
-import { MarkdownView } from "./MarkdownView";
+import { StreamingMarkdownView } from "./StreamingMarkdownView";
 import type { SidebarModelView } from "./types";
 import type { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
 import { TracePanel } from "./TracePanel";
@@ -18,6 +18,7 @@ type ActiveStreamingMessageProps = {
   models: SidebarModelView[];
   onOpenLink: (url: string) => void;
   streamStore: SidebarStreamSnapshotStore;
+  syncScroll: () => void;
 };
 
 const ActiveStreamingMessage = memo(function ActiveStreamingMessage({
@@ -25,36 +26,57 @@ const ActiveStreamingMessage = memo(function ActiveStreamingMessage({
   models,
   onOpenLink,
   streamStore,
+  syncScroll,
 }: ActiveStreamingMessageProps): ReactElement | null {
   const snapshot = useSyncExternalStore(
     streamStore.subscribe,
     streamStore.getSnapshot,
     streamStore.getSnapshot,
   );
-  if (!snapshot || snapshot.conversationId !== conversationId) return null;
+  const activeSnapshot =
+    snapshot?.conversationId === conversationId ? snapshot : undefined;
+  const activeConversationId = activeSnapshot?.conversationId;
+  const traceCollapsed = activeSnapshot
+    ? activeSnapshot.finalStarted ||
+      (activeSnapshot.lifecycle !== "running" &&
+        activeSnapshot.lifecycle !== "interrupting")
+    : undefined;
+
+  useLayoutEffect(() => {
+    if (activeConversationId) syncScroll();
+  }, [
+    activeSnapshot?.answerBlocks,
+    activeSnapshot?.traceBlocks,
+    activeConversationId,
+    syncScroll,
+    traceCollapsed,
+  ]);
+
+  if (!activeSnapshot) return null;
 
   const model = resolveModelDisplayName(
     models,
-    snapshot.model,
-    snapshot.providerProfileId,
+    activeSnapshot.model,
+    activeSnapshot.providerProfileId,
   );
   const running =
-    snapshot.lifecycle === "running" || snapshot.lifecycle === "interrupting";
+    activeSnapshot.lifecycle === "running" ||
+    activeSnapshot.lifecycle === "interrupting";
 
   return (
     <article
       className="zp-message zp-message-assistant"
       data-status={
-        snapshot.lifecycle === "interrupted"
+        activeSnapshot.lifecycle === "interrupted"
           ? "interrupted"
-          : snapshot.lifecycle === "failed"
+          : activeSnapshot.lifecycle === "failed"
             ? "error"
             : "complete"
       }
     >
       {model ? (
         <ProviderBrandIcon
-          brand={snapshot.providerBrand || "generic"}
+          brand={activeSnapshot.providerBrand || "generic"}
           className="zp-message-avatar"
           size={20}
         />
@@ -68,16 +90,15 @@ const ActiveStreamingMessage = memo(function ActiveStreamingMessage({
           </div>
         ) : null}
         <div className="zp-message-body">
-          {running || snapshot.traceBlocks.length ? (
+          {running || activeSnapshot.traceBlocks.length ? (
             <TracePanel
-              collapsed={snapshot.finalStarted || !running}
-              items={snapshot.traceBlocks}
-              now={snapshot.publishedAt}
+              collapsed={Boolean(traceCollapsed)}
+              items={activeSnapshot.traceBlocks}
               onOpenLink={onOpenLink}
               running={running}
             />
           ) : null}
-          {snapshot.answerBlocks.map((block) => (
+          {activeSnapshot.answerBlocks.map((block) => (
             <StreamingMarkdownBlock
               block={block}
               key={block.id}
@@ -99,7 +120,7 @@ const StreamingMarkdownBlock = memo(
     onOpenLink: (url: string) => void;
   }): ReactElement {
     return (
-      <MarkdownView
+      <StreamingMarkdownView
         className="zp-message-markdown"
         markdown={block.text}
         onOpenLink={onOpenLink}
@@ -110,27 +131,5 @@ const StreamingMarkdownBlock = memo(
     previous.block === next.block && previous.onOpenLink === next.onOpenLink,
 );
 
-function StreamingScrollSync({
-  conversationId,
-  streamStore,
-  sync,
-}: {
-  conversationId?: string;
-  streamStore: SidebarStreamSnapshotStore;
-  sync: () => void;
-}): null {
-  const snapshot = useSyncExternalStore(
-    streamStore.subscribe,
-    streamStore.getSnapshot,
-    streamStore.getSnapshot,
-  );
-
-  useLayoutEffect(() => {
-    if (snapshot?.conversationId === conversationId) sync();
-  }, [conversationId, snapshot?.publicationVersion, sync]);
-
-  return null;
-}
-
-export { ActiveStreamingMessage, StreamingScrollSync };
+export { ActiveStreamingMessage };
 export type { ActiveStreamingMessageProps };

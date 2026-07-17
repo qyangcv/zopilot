@@ -4,6 +4,14 @@ import type { AgentStreamEvent } from "../src/domain/agent/streaming.ts";
 import type { Conversation } from "../src/domain/conversation.ts";
 import { RunningTurnStore } from "../src/features/sidebar/chat/RunningTurnStore.ts";
 import { StreamRenderScheduler } from "../src/features/sidebar/chat/StreamRenderScheduler.ts";
+import {
+  renderMarkdownToHtml,
+  splitStreamingMarkdown,
+} from "../src/features/sidebar/ui/markdownRenderer.ts";
+import {
+  getSidebarPerformanceReport,
+  setSidebarPerformanceMetricsEnabled,
+} from "../src/features/sidebar/ui/performanceMetrics.ts";
 import type { SidebarStreamingSnapshot } from "../src/features/sidebar/ui/types.ts";
 
 const WARMUP_ROUNDS = 2;
@@ -156,6 +164,14 @@ async function main(): Promise<void> {
     peakCpu: weightedPeakCpuRatio <= 0.85,
     scenarios: scenarioReports.every((report) => report.passed),
   };
+  const markdownPerformance = {
+    baseline: profileMarkdownPerformance(() => {
+      for (const scenario of scenarios) runBaseline(scenario);
+    }),
+    production: profileMarkdownPerformance(() => {
+      for (const scenario of scenarios) runProduction(scenario);
+    }),
+  };
   const report = {
     generatedAt: new Date().toISOString(),
     configuration: {
@@ -164,7 +180,11 @@ async function main(): Promise<void> {
       maxOrdinaryFps: 20,
       ordinaryPublishIntervalMs: 50,
       idleVerificationMs: 5_000,
+      markdownRenderer: "renderMarkdownToHtml",
+      markdownPerformanceScope:
+        "separate diagnostic replay excluded from CPU ratio gates",
     },
+    markdownPerformance,
     scenarios: scenarioReports,
     overall: {
       ratios: {
@@ -204,6 +224,16 @@ async function main(): Promise<void> {
   if (!report.overall.passed) process.exitCode = 1;
 }
 
+function profileMarkdownPerformance(operation: () => void) {
+  setSidebarPerformanceMetricsEnabled(true);
+  try {
+    operation();
+    return getSidebarPerformanceReport();
+  } finally {
+    setSidebarPerformanceMetricsEnabled(false);
+  }
+}
+
 function runBaseline(scenario: ReplayScenario): ReplayMetrics {
   const store = createTurnStore();
   const recorder = new CpuRecorder(scenario.durationMs);
@@ -238,7 +268,7 @@ function runBaseline(scenario: ReplayScenario): ReplayMetrics {
           : []),
       ];
       for (const message of projectedMessages) {
-        benchmarkSink ^= simulateMarkdownParse(message.text);
+        benchmarkSink ^= renderMarkdownToHtml(message.text).length;
         markdownParses += 1;
       }
       JSON.stringify({
@@ -275,9 +305,7 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
   const store = createTurnStore();
   const recorder = new CpuRecorder(scenario.durationMs);
   let pendingImmediate = true;
-  const clock = new VirtualWindow(recorder, (delayMs) => {
-    if (delayMs === 250) pendingImmediate = true;
-  });
+  const clock = new VirtualWindow(recorder);
   let activeConversationId: string | undefined = "conv-stream";
   let changedBlockRenders = 0;
   let immediatePublishes = 0;
@@ -285,8 +313,16 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
   let scrollSyncs = 0;
   let snapshotPublishes = 0;
   let lastPublishedStateVersion = -1;
+  let lastScrolledAnswerBlocks:
+    | SidebarStreamingSnapshot["answerBlocks"]
+    | undefined;
+  let lastScrolledTraceCollapsed: boolean | undefined;
+  let lastScrolledTraceBlocks:
+    | SidebarStreamingSnapshot["traceBlocks"]
+    | undefined;
   const ordinaryPublishTimes: number[] = [];
   const parsedRevisions = new Map<string, number>();
+  const renderedSegments = new Map<string, string>();
 
   const scheduler = new StreamRenderScheduler({
     win: clock as unknown as Window,
@@ -301,7 +337,20 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
       else ordinaryPublishTimes.push(snapshot.publishedAt);
       pendingImmediate = false;
       lastPublishedStateVersion = snapshot.stateVersion;
-      scrollSyncs += 1;
+      const traceCollapsed =
+        snapshot.finalStarted ||
+        (snapshot.lifecycle !== "running" &&
+          snapshot.lifecycle !== "interrupting");
+      if (
+        snapshot.answerBlocks !== lastScrolledAnswerBlocks ||
+        traceCollapsed !== lastScrolledTraceCollapsed ||
+        snapshot.traceBlocks !== lastScrolledTraceBlocks
+      ) {
+        scrollSyncs += 1;
+        lastScrolledAnswerBlocks = snapshot.answerBlocks;
+        lastScrolledTraceCollapsed = traceCollapsed;
+        lastScrolledTraceBlocks = snapshot.traceBlocks;
+      }
       renderChangedBlocks(snapshot);
     },
   });
@@ -370,9 +419,15 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
           : "text" in block
             ? block.text
             : "";
-      benchmarkSink ^= simulateMarkdownParse(text);
       markdownParses += 1;
-      changedBlockRenders += 1;
+      for (const segment of splitStreamingMarkdown(text)) {
+        const segmentKey = `${key}:${segment.id}`;
+        if (renderedSegments.get(segmentKey) === segment.text) continue;
+        renderedSegments.set(segmentKey, segment.text);
+        benchmarkSink ^= renderMarkdownToHtml(segment.text).length;
+        markdownParses += 1;
+        changedBlockRenders += 1;
+      }
     }
   }
 }
@@ -787,27 +842,6 @@ function serializeTool(block: {
     .join("\n");
 }
 
-function simulateMarkdownParse(markdown: string): number {
-  let hash = 2166136261;
-  for (let repeat = 0; repeat < 2; repeat += 1) {
-    for (let index = 0; index < markdown.length; index += 1) {
-      const code = markdown.charCodeAt(index);
-      hash ^= code + (index % 17);
-      hash = Math.imul(hash, 16777619);
-      if (
-        code === 35 ||
-        code === 42 ||
-        code === 96 ||
-        code === 124 ||
-        code === 36
-      ) {
-        hash ^= markdown.charCodeAt(index + 1) || 0;
-      }
-    }
-  }
-  return hash;
-}
-
 class CpuRecorder {
   private cpuMs = 0;
   private readonly buckets: CpuBucket = new Map();
@@ -848,10 +882,7 @@ class VirtualWindow {
     { at: number; callback: () => void; type: "frame" | "timer" }
   >();
 
-  constructor(
-    private readonly recorder: CpuRecorder,
-    private readonly onTimerFired: (delayMs: number) => void,
-  ) {}
+  constructor(private readonly recorder: CpuRecorder) {}
 
   get pendingTasks(): number {
     return this.tasks.size;
@@ -878,7 +909,6 @@ class VirtualWindow {
     this.tasks.set(id, {
       at: this.now + delayMs,
       callback: () => {
-        this.onTimerFired(delayMs);
         if (typeof callback === "function") callback();
       },
       type: "timer",

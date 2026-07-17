@@ -101,9 +101,8 @@ describe("SidebarApp", function () {
     assert.notInclude(html, 'class="zp-trace" open=""');
     assert.include(html, "sidebar-trace-collapsed");
     assert.notInclude(html, "sidebar-trace-commentary");
-    assert.include(html, "Checking the evidence");
-    assert.include(html, "paper_read");
-    assert.include(html, "3.0s");
+    assert.notInclude(html, "Checking the evidence");
+    assert.notInclude(html, "paper_read");
     assert.include(html, "Final answer");
   });
 
@@ -140,7 +139,6 @@ describe("SidebarApp", function () {
           revision: 1,
         },
       ],
-      hasRunningTools: true,
     });
     const html = renderToStaticMarkup(
       <SidebarApp
@@ -164,7 +162,7 @@ describe("SidebarApp", function () {
 
     assert.include(html, "Streaming answer");
     assert.include(html, "GPT-5.3-Codex");
-    assert.include(html, "3.0s");
+    assert.notInclude(html, "paper_read");
   });
 
   it("renders every tool call separately with duration and expandable payloads", function () {

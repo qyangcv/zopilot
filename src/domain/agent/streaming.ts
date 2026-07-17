@@ -173,7 +173,6 @@ export type RunningTurnSnapshot = {
   finalStarted: boolean;
   answerBlocks: readonly RunningTurnContentBlock[];
   traceBlocks: readonly RunningTurnTraceBlock[];
-  hasRunningTools: boolean;
 };
 
 export type RunningTurnProjection = {

@@ -77,23 +77,21 @@ describe("stream render scheduler", function () {
     assert.deepEqual(publishedAt, [0, 10]);
   });
 
-  it("uses one tool clock and leaves no work after destroy", function () {
+  it("leaves no scheduled work after destroy", function () {
     const clock = new SchedulerClock();
     const scheduler = new StreamRenderScheduler({
       win: clock as unknown as Window,
       now: () => clock.now,
       getActiveConversationId: () => "conv-a",
-      getSnapshot: () => createSnapshot(1, true),
+      getSnapshot: () => createSnapshot(1),
       publish: () => undefined,
     });
 
-    scheduler.publishActive();
+    scheduler.markDirty("conv-a");
     clock.flushFrames();
+    clock.advance(10);
+    scheduler.markDirty("conv-a");
     assert.equal(clock.pendingTimers, 1);
-    clock.advance(250);
-    assert.equal(clock.pendingFrames, 1);
-    assert.equal(clock.pendingTimers, 1);
-    clock.flushFrames();
 
     scheduler.destroy();
     assert.equal(clock.pendingFrames, 0);
@@ -101,10 +99,7 @@ describe("stream render scheduler", function () {
   });
 });
 
-function createSnapshot(
-  stateVersion: number,
-  hasRunningTools = false,
-): RunningTurnSnapshot {
+function createSnapshot(stateVersion: number): RunningTurnSnapshot {
   return {
     conversationId: "conv-a",
     messageId: "assistant-a",
@@ -113,18 +108,7 @@ function createSnapshot(
     sequence: stateVersion,
     finalStarted: false,
     answerBlocks: [],
-    traceBlocks: hasRunningTools
-      ? [
-          {
-            id: "tool-a",
-            type: "tool",
-            name: "paper_read",
-            status: "running",
-            revision: 1,
-          },
-        ]
-      : [],
-    hasRunningTools,
+    traceBlocks: [],
   };
 }
 

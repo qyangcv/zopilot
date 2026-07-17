@@ -10,9 +10,14 @@ import {
   getCodeLanguage,
   highlightCodeWithShiki,
 } from "./codeHighlighting";
+import {
+  beginSidebarPerformanceMeasure,
+  recordSidebarPerformanceMetric,
+} from "./performanceMetrics";
 import { renderStaticIconHtml } from "./staticIcons";
 
 type MarkdownRenderEnv = {
+  sourceLines?: string[];
   unsafeLinkStack?: boolean[];
 };
 
@@ -20,31 +25,136 @@ type MarkdownRenderOptions = {
   unwrapSingleParagraph?: boolean;
 };
 
+export type StreamingMarkdownSegment = {
+  id: string;
+  text: string;
+};
+
 declare const sanitizedHtmlBrand: unique symbol;
 type SanitizedHtml = string & { readonly [sanitizedHtmlBrand]: true };
 
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
+const CROSS_BLOCK_MARKDOWN_PATTERN =
+  /(?:\[[^\]]+\]\s*\[[^\]]*\]|\[\^[^\]]+\]|^\s{0,3}\[[^\]]+\]:)/mu;
+const MAX_KATEX_CACHE_ENTRIES = 128;
+const katexCache = new Map<string, string>();
+
+export function splitStreamingMarkdown(
+  markdown: string,
+): readonly StreamingMarkdownSegment[] {
+  if (!markdown) return [];
+  if (CROSS_BLOCK_MARKDOWN_PATTERN.test(markdown)) {
+    return [{ id: "all", text: markdown }];
+  }
+
+  const details = { textLength: markdown.length };
+  const finish = beginSidebarPerformanceMeasure("markdown.segment", details);
+  try {
+    const env: MarkdownRenderEnv = {
+      sourceLines: markdown.split(/\r?\n/u),
+      unsafeLinkStack: [],
+    };
+    const starts = [
+      ...new Set(
+        markdownIt
+          .parse(markdown, env)
+          .filter(
+            (token) =>
+              token.level === 0 &&
+              token.block &&
+              token.map &&
+              token.nesting !== -1,
+          )
+          .map((token) => token.map![0]),
+      ),
+    ].sort((left, right) => left - right);
+    if (starts.length < 2) {
+      return [{ id: "line-0", text: markdown }];
+    }
+
+    const lineOffsets = getLineOffsets(markdown);
+    return starts.map((line, index) => {
+      const start = index === 0 ? 0 : (lineOffsets[line] ?? markdown.length);
+      const nextLine = starts[index + 1];
+      const end =
+        nextLine === undefined
+          ? markdown.length
+          : (lineOffsets[nextLine] ?? markdown.length);
+      return {
+        id: `offset-${start}`,
+        text: markdown.slice(start, end),
+      };
+    });
+  } finally {
+    finish?.();
+  }
+}
 
 export function renderMarkdownToHtml(
   markdown: string,
   options: MarkdownRenderOptions = {},
 ): SanitizedHtml {
-  const unsafeLinkStack: boolean[] = [];
-  const env: MarkdownRenderEnv = { unsafeLinkStack };
-  const tokens = markdownIt.parse(markdown, env);
-  const html =
-    options.unwrapSingleParagraph && isSingleParagraph(tokens)
-      ? markdownIt.renderer.renderInline(
-          tokens[1].children ?? [],
-          markdownIt.options,
-          env,
-        )
-      : markdownIt.renderer.render(tokens, markdownIt.options, env);
-  return sanitizeMarkdownHtml(html);
+  const details = { textLength: markdown.length };
+  const finishTotal = beginSidebarPerformanceMeasure("markdown.total", details);
+  try {
+    const unsafeLinkStack: boolean[] = [];
+    const env: MarkdownRenderEnv = {
+      sourceLines: markdown.split(/\r?\n/u),
+      unsafeLinkStack,
+    };
+    const finishParse = beginSidebarPerformanceMeasure(
+      "markdown.parse",
+      details,
+    );
+    let tokens: ReturnType<MarkdownIt["parse"]>;
+    try {
+      tokens = markdownIt.parse(markdown, env);
+    } finally {
+      finishParse?.();
+    }
+
+    const finishRender = beginSidebarPerformanceMeasure(
+      "markdown.render",
+      details,
+    );
+    let html: string;
+    try {
+      html =
+        options.unwrapSingleParagraph && isSingleParagraph(tokens)
+          ? markdownIt.renderer.renderInline(
+              tokens[1].children ?? [],
+              markdownIt.options,
+              env,
+            )
+          : markdownIt.renderer.render(tokens, markdownIt.options, env);
+    } finally {
+      finishRender?.();
+    }
+
+    const finishSanitize = beginSidebarPerformanceMeasure(
+      "markdown.sanitize",
+      details,
+    );
+    try {
+      return sanitizeMarkdownHtml(html);
+    } finally {
+      finishSanitize?.();
+    }
+  } finally {
+    finishTotal?.();
+  }
 }
 
 export function isInternalUrl(url: string): boolean {
   return url.startsWith("#");
+}
+
+function getLineOffsets(markdown: string): number[] {
+  const offsets = [0];
+  for (let index = 0; index < markdown.length; index += 1) {
+    if (markdown.charCodeAt(index) === 10) offsets.push(index + 1);
+  }
+  return offsets;
 }
 
 function createMarkdownIt(): MarkdownIt {
@@ -83,10 +193,10 @@ function isSingleParagraph(tokens: ReturnType<MarkdownIt["parse"]>): boolean {
 }
 
 function installRendererRules(md: MarkdownIt): void {
-  md.renderer.rules.fence = (tokens, idx, _options, _env, _self) => {
+  md.renderer.rules.fence = (tokens, idx, _options, env, _self) => {
     const token = tokens[idx];
     const language = getCodeLanguage(`language-${token.info.trim()}`);
-    if (!language) {
+    if (!language || !isClosedFence(token, env as MarkdownRenderEnv)) {
       return renderPlainCodeBlock(token.content, "");
     }
 
@@ -116,6 +226,22 @@ function installRendererRules(md: MarkdownIt): void {
   md.renderer.rules.s_close = () => "</del>";
   md.renderer.rules.table_open = () => '<div class="zp-table-scroll"><table>';
   md.renderer.rules.table_close = () => "</table></div>";
+}
+
+function isClosedFence(
+  token: { map?: [number, number] | null; markup: string },
+  env: MarkdownRenderEnv,
+): boolean {
+  const endLine = token.map?.[1];
+  const closingLine =
+    endLine === undefined ? undefined : env.sourceLines?.[endLine - 1];
+  const marker = token.markup;
+  if (!closingLine || !marker) return false;
+  const trimmed = closingLine.trim();
+  return (
+    trimmed.length >= marker.length &&
+    [...trimmed].every((character) => character === marker[0])
+  );
 }
 
 const renderHeadingOpen: RenderRule = function renderHeadingOpen(tokens, idx) {
@@ -189,10 +315,32 @@ const renderLinkClose: RenderRule = function renderLinkClose(
 };
 
 function renderMathWithKatex(content: string, displayMode: boolean): string {
-  return katex.renderToString(content, {
-    displayMode,
-    throwOnError: false,
+  const cacheKey = `${displayMode ? "display" : "inline"}\0${content}`;
+  const cached = katexCache.get(cacheKey);
+  if (cached !== undefined) {
+    recordSidebarPerformanceMetric("markdown.katex.cacheHit", 0, {
+      textLength: content.length,
+    });
+    return cached;
+  }
+
+  const finish = beginSidebarPerformanceMeasure("markdown.katex", {
+    textLength: content.length,
   });
+  try {
+    const rendered = katex.renderToString(content, {
+      displayMode,
+      throwOnError: false,
+    });
+    if (katexCache.size >= MAX_KATEX_CACHE_ENTRIES) {
+      const oldestKey = katexCache.keys().next().value;
+      if (oldestKey !== undefined) katexCache.delete(oldestKey);
+    }
+    katexCache.set(cacheKey, rendered);
+    return rendered;
+  } finally {
+    finish?.();
+  }
 }
 
 function renderCodeBlock({

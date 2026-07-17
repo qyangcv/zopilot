@@ -48,6 +48,5 @@ function createSnapshot(
       },
     ],
     traceBlocks: [],
-    hasRunningTools: false,
   };
 }

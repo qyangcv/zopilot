@@ -229,6 +229,14 @@
   margin-bottom: 0;
 }
 
+.zp-markdown-segment {
+  display: contents;
+}
+
+.zp-trace-markdown > .zp-markdown-segment:last-child > :last-child {
+  margin-bottom: 0;
+}
+
 .zp-trace-tool {
   border: 0;
   background: transparent;
@@ -337,6 +345,10 @@
   max-width: 100%;
 }
 
+.zp-message-markdown > .zp-markdown-segment > * {
+  max-width: 100%;
+}
+
 .zp-message-markdown .zp-markdown-heading {
   margin: 0 0 6px;
   font-weight: 650;
@@ -382,6 +394,31 @@
 .zp-message-markdown .zp-table-scroll:last-child,
 .zp-message-markdown .katex-display:last-child {
   margin-bottom: 0;
+}
+
+.zp-message-markdown > .zp-markdown-segment:not(:last-child) > p:last-child,
+.zp-message-markdown > .zp-markdown-segment:not(:last-child) > ul:last-child,
+.zp-message-markdown > .zp-markdown-segment:not(:last-child) > ol:last-child,
+.zp-message-markdown
+  > .zp-markdown-segment:not(:last-child)
+  > blockquote:last-child,
+.zp-message-markdown > .zp-markdown-segment:not(:last-child) > hr:last-child,
+.zp-message-markdown
+  > .zp-markdown-segment:not(:last-child)
+  > .zp-code-block:last-child,
+.zp-message-markdown
+  > .zp-markdown-segment:not(:last-child)
+  > .zp-table-scroll:last-child,
+.zp-message-markdown
+  > .zp-markdown-segment:not(:last-child)
+  > .katex-display:last-child {
+  margin-bottom: 8px;
+}
+
+.zp-message-markdown
+  > .zp-markdown-segment:not(:first-child)
+  > .zp-markdown-heading:first-child {
+  margin-top: 10px;
 }
 
 .zp-message-markdown ul,

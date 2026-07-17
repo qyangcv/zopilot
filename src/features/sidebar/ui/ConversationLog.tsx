@@ -6,10 +6,7 @@ import type {
 import { getString } from "../../../app/localization";
 import { Icon } from "./Icon";
 import { MemoMessage } from "./Message";
-import {
-  ActiveStreamingMessage,
-  StreamingScrollSync,
-} from "./ActiveStreamingMessage";
+import { ActiveStreamingMessage } from "./ActiveStreamingMessage";
 import type { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
 import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
 
@@ -109,11 +106,7 @@ function ConversationLog({
         models={state.models}
         onOpenLink={actions.openExternalLink}
         streamStore={streamStore}
-      />
-      <StreamingScrollSync
-        conversationId={state.conversationId}
-        streamStore={streamStore}
-        sync={syncStreamingScroll}
+        syncScroll={syncStreamingScroll}
       />
     </main>
   );

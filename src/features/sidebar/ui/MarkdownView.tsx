@@ -6,10 +6,12 @@ import {
 } from "react";
 import { copyText } from "./clipboard";
 import { isInternalUrl, renderMarkdownToHtml } from "./markdownRenderer";
+import { beginSidebarPerformanceMeasure } from "./performanceMetrics";
 import { createStaticIconElement } from "./staticIcons";
 
 type MarkdownViewProps = {
   className?: string;
+  segmentId?: string;
   markdown: string;
   onOpenLink: (url: string) => void;
   unwrapSingleParagraph?: boolean;
@@ -17,10 +19,14 @@ type MarkdownViewProps = {
 
 export function MarkdownView({
   className,
+  segmentId,
   markdown,
   onOpenLink,
   unwrapSingleParagraph = false,
 }: MarkdownViewProps): ReactElement {
+  const finishCommit = beginSidebarPerformanceMeasure("markdown.reactCommit", {
+    textLength: markdown.length,
+  });
   const html = useMemo(
     () => renderMarkdownToHtml(markdown, { unwrapSingleParagraph }),
     [markdown, unwrapSingleParagraph],
@@ -62,8 +68,16 @@ export function MarkdownView({
   return (
     <div
       className={["zp-markdown-rendered", className].filter(Boolean).join(" ")}
+      data-zp-markdown-segment={segmentId}
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={handleClick}
+      ref={
+        finishCommit
+          ? (element) => {
+              if (element) finishCommit();
+            }
+          : undefined
+      }
     />
   );
 }
