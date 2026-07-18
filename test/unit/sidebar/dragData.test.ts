@@ -57,6 +57,82 @@ describe("sidebar drag data compatibility", function () {
     });
   });
 
+  it("queries macOS Finder entries as nsIFile before reading their paths", function () {
+    const globals = globalThis as typeof globalThis & {
+      Components?: unknown;
+    };
+    const previousComponents = globals.Components;
+    const nsIFile = {};
+    globals.Components = { interfaces: { nsIFile } };
+
+    try {
+      const payload = readSidebarDropPayload(
+        createDataTransfer({
+          types: ["Files", "application/x-moz-file"],
+          files: [
+            {
+              QueryInterface(interfaceType: unknown) {
+                assert.equal(interfaceType, nsIFile);
+                return createNativeFile("/Users/me/Desktop/paper.pdf");
+              },
+            },
+          ],
+        }),
+      );
+
+      assert.deepEqual(payload, {
+        kind: "local-files",
+        paths: ["/Users/me/Desktop/paper.pdf"],
+      });
+    } finally {
+      if (previousComponents === undefined) {
+        delete globals.Components;
+      } else {
+        globals.Components = previousComponents;
+      }
+    }
+  });
+
+  it("recovers escaped macOS Finder paths using Zotero's file API", function () {
+    const globals = globalThis as typeof globalThis & {
+      Zotero?: unknown;
+    };
+    const previousZotero = globals.Zotero;
+    globals.Zotero = {
+      isMac: true,
+      File: {
+        pathToFile(path: string) {
+          assert.equal(path, "/Users/me/Desktop/Figure[1].png");
+          return createNativeFile(path);
+        },
+      },
+    };
+
+    try {
+      const payload = readSidebarDropPayload(
+        createDataTransfer({
+          types: ["application/x-moz-file"],
+          files: [
+            createNativeFile("/Users/me/Desktop/Figure%5B1%5D.png", {
+              exists: false,
+            }),
+          ],
+        }),
+      );
+
+      assert.deepEqual(payload, {
+        kind: "local-files",
+        paths: ["/Users/me/Desktop/Figure[1].png"],
+      });
+    } finally {
+      if (previousZotero === undefined) {
+        delete globals.Zotero;
+      } else {
+        globals.Zotero = previousZotero;
+      }
+    }
+  });
+
   it("ignores plain text and reports only supported drag flavors", function () {
     const textDrop = createDataTransfer({ types: ["text/plain"] });
 

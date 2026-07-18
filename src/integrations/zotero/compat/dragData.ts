@@ -1,3 +1,5 @@
+import { getGeckoComponents } from "../../../platform/gecko";
+
 const ZOTERO_ITEM_FLAVOR = "zotero/item";
 const MOZ_FILE_FLAVOR = "application/x-moz-file";
 
@@ -6,10 +8,20 @@ type SidebarDropPayload =
   | { kind: "local-files"; paths: string[] };
 
 type GeckoFileLike = {
+  QueryInterface?: (interfaceType: unknown) => unknown;
   path?: unknown;
   exists?: () => boolean;
   isDirectory?: () => boolean;
   isFile?: () => boolean;
+};
+
+type GeckoDragGlobals = typeof globalThis & {
+  Zotero?: {
+    File?: {
+      pathToFile?: (path: string) => unknown;
+    };
+    isMac?: boolean;
+  };
 };
 
 type GeckoDataTransfer = DataTransfer & {
@@ -97,24 +109,63 @@ function readLocalFilePaths(dataTransfer: GeckoDataTransfer): string[] {
 }
 
 function getUsableFilePath(candidate: unknown): string | undefined {
-  const file = candidate as GeckoFileLike & {
-    mozFullPath?: unknown;
-  };
+  let file = queryGeckoFile(candidate);
+  let path = getFilePath(file);
+  if (!path) return undefined;
+
   try {
-    if (file.exists?.() === false) return undefined;
+    if (file.exists?.() === false) {
+      const decodedFile = recoverEscapedMacFile(path);
+      if (!decodedFile) return undefined;
+      file = decodedFile;
+      path = getFilePath(file);
+      if (!path || file.exists?.() === false) return undefined;
+    }
     if (file.isDirectory?.() === true || file.isFile?.() === false) {
       return undefined;
     }
   } catch {
     return undefined;
   }
-  const path =
-    typeof file.path === "string"
-      ? file.path
-      : typeof file.mozFullPath === "string"
-        ? file.mozFullPath
-        : "";
   return path || undefined;
+}
+
+function queryGeckoFile(candidate: unknown): GeckoFileLike {
+  const file = candidate as GeckoFileLike;
+  if (typeof file?.QueryInterface !== "function") {
+    return file;
+  }
+  try {
+    const interfaceType = getGeckoComponents().interfaces.nsIFile;
+    return (file.QueryInterface(interfaceType) || file) as GeckoFileLike;
+  } catch {
+    return file;
+  }
+}
+
+function getFilePath(
+  file: GeckoFileLike & { mozFullPath?: unknown },
+): string | undefined {
+  if (typeof file?.path === "string" && file.path) return file.path;
+  return typeof file?.mozFullPath === "string" && file.mozFullPath
+    ? file.mozFullPath
+    : undefined;
+}
+
+function recoverEscapedMacFile(path: string): GeckoFileLike | undefined {
+  const zotero = (globalThis as GeckoDragGlobals).Zotero;
+  if (
+    !zotero?.isMac ||
+    !/%[0-9A-F]{2}/u.test(path) ||
+    typeof zotero.File?.pathToFile !== "function"
+  ) {
+    return undefined;
+  }
+  try {
+    return queryGeckoFile(zotero.File.pathToFile(decodeURIComponent(path)));
+  } catch {
+    return undefined;
+  }
 }
 
 function hasType(types: DOMStringList | readonly string[], value: string) {
