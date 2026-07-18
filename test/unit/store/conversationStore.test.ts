@@ -363,6 +363,46 @@ describe("ConversationStore", function () {
     assert.notInclude(JSON.stringify(reloaded), "note body");
   });
 
+  it("persists top-level Zotero note references without parent metadata", async function () {
+    const workspace = createCollectionWorkspaceIdentity({
+      libraryID: 1,
+      collectionKey: "READING",
+      label: "Reading",
+    });
+    const store = new ConversationStore(rootDir);
+    const conversation = await store.createWorkspaceConversation(workspace);
+
+    await store.addMessage(conversation.metadata, {
+      role: "user",
+      text: "Use this standalone note",
+      noteContexts: [
+        {
+          id: "note:1:TOP",
+          libraryID: 1,
+          noteItemID: 31,
+          noteItemKey: "TOP",
+          title: "Standalone note",
+          dateModified: "2026-07-18 10:00:00",
+        },
+      ],
+    });
+
+    const reloaded = await new ConversationStore(
+      rootDir,
+    ).getLatestWorkspaceConversation(workspace.workspaceKey);
+
+    assert.deepEqual(reloaded?.messages[0]?.noteContexts, [
+      {
+        id: "note:1:TOP",
+        libraryID: 1,
+        noteItemID: 31,
+        noteItemKey: "TOP",
+        title: "Standalone note",
+        dateModified: "2026-07-18 10:00:00",
+      },
+    ]);
+  });
+
   it("persists local attachment paths on user messages", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const workspace = createItemWorkspaceIdentity(paper);

@@ -142,6 +142,62 @@ describe("sidebar controller", function () {
     assert.equal(controller.viewState.context.paperKey, "1:AAA");
   });
 
+  it("resolves dropped context only for the matching library surface workspace", async function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const workspace = {
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      libraryID: 1,
+      workspaceLabel: "My Library",
+      workspaceTitle: "My Library",
+    };
+    let resolveCount = 0;
+    controller.droppedContextResolver = {
+      resolve: async () => {
+        resolveCount += 1;
+        return [];
+      },
+    };
+    controller.displayState = {
+      kind: "ready",
+      token: 1,
+      hostContext: { kind: "library", rowID: "L1" },
+      workspace,
+      conversation: {
+        metadata: {
+          ...workspace,
+          id: "conv-library",
+          scope: "workspace",
+          label: "New session",
+          createdAt: "2026-07-18T00:00:00.000Z",
+          updatedAt: "2026-07-18T00:00:00.000Z",
+        },
+        messages: [],
+      },
+    };
+
+    await controller.resolveDroppedContext({
+      payload: { kind: "local-files", paths: ["/tmp/paper.pdf"] },
+      workspaceKey: workspace.workspaceKey,
+    });
+    await controller.resolveDroppedContext({
+      payload: { kind: "local-files", paths: ["/tmp/paper.pdf"] },
+      workspaceKey: "library:2",
+    });
+    controller.displayState.hostContext = { kind: "reader", itemID: 11 };
+    await controller.resolveDroppedContext({
+      payload: { kind: "local-files", paths: ["/tmp/paper.pdf"] },
+      workspaceKey: workspace.workspaceKey,
+    });
+
+    assert.equal(resolveCount, 1);
+  });
+
   it("switches from an item workspace to its containing collection", async function () {
     const win = new FakeWindow(1200);
     const controller = new (

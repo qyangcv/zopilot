@@ -38,7 +38,7 @@ type NoteContextRef = {
   id: string;
   libraryID: number;
   parentItemID?: number;
-  parentItemKey: string;
+  parentItemKey?: string;
   noteItemID: number;
   noteItemKey: string;
   title: string;

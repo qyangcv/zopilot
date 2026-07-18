@@ -72,25 +72,22 @@ describe("ZoteroNoteContextResolver", function () {
     assert.equal(result[0]?.content, "library note");
   });
 
-  it("requires collection and library notes to belong to a selected item", async function () {
-    const note = createNote(() => "<p>unselected</p>");
+  it("resolves an explicitly selected child note without a paper mention", async function () {
+    const note = createNote(() => "<p>explicit child note</p>");
     const resolver = new ZoteroNoteContextResolver(createZoteroMock(note));
 
-    try {
-      await resolver.resolveAll(
-        {
-          workspaceKey: "library:1",
-          workspaceType: "library",
-          libraryID: 1,
-          workspaceLabel: "My Library",
-          workspaceTitle: "My Library",
-        },
-        [createRef()],
-      );
-      assert.fail("Expected an unselected item note to be rejected");
-    } catch (error) {
-      assert.include(String(error), "outside the current workspace");
-    }
+    const result = await resolver.resolveAll(
+      {
+        workspaceKey: "library:1",
+        workspaceType: "library",
+        libraryID: 1,
+        workspaceLabel: "My Library",
+        workspaceTitle: "My Library",
+      },
+      [createRef()],
+    );
+
+    assert.equal(result[0]?.content, "explicit child note");
   });
 
   it("resolves notes only when the selected item belongs to the collection", async function () {
@@ -107,11 +104,7 @@ describe("ZoteroNoteContextResolver", function () {
       collectionKey: "COLL",
     };
 
-    const result = await resolver.resolveAll(
-      workspace,
-      [createRef()],
-      [createMention()],
-    );
+    const result = await resolver.resolveAll(workspace, [createRef()]);
     assert.equal(result[0]?.content, "collection note");
 
     const outsideResolver = new ZoteroNoteContextResolver(
@@ -150,6 +143,72 @@ describe("ZoteroNoteContextResolver", function () {
       assert.fail("Expected a deleted parent item to be rejected");
     } catch (error) {
       assert.include(String(error), "parent is no longer available");
+    }
+  });
+
+  it("resolves top-level notes in library and collection workspaces", async function () {
+    const note = createTopLevelNote(() => "<p>top-level note</p>");
+    const resolver = new ZoteroNoteContextResolver(
+      createTopLevelZoteroMock(note, true),
+    );
+    const reference = createTopLevelRef();
+
+    const libraryResult = await resolver.resolveAll(
+      {
+        workspaceKey: "library:1",
+        workspaceType: "library",
+        libraryID: 1,
+        workspaceLabel: "My Library",
+        workspaceTitle: "My Library",
+      },
+      [reference],
+    );
+    const collectionResult = await resolver.resolveAll(
+      {
+        workspaceKey: "collection:1:COLL",
+        workspaceType: "collection",
+        libraryID: 1,
+        workspaceLabel: "Reading",
+        workspaceTitle: "Reading",
+        collectionKey: "COLL",
+      },
+      [reference],
+    );
+
+    assert.equal(libraryResult[0]?.content, "top-level note");
+    assert.equal(collectionResult[0]?.content, "top-level note");
+  });
+
+  it("rejects top-level notes outside the current collection or in an item workspace", async function () {
+    const note = createTopLevelNote(() => "<p>top-level note</p>");
+    const reference = createTopLevelRef();
+    const outsideResolver = new ZoteroNoteContextResolver(
+      createTopLevelZoteroMock(note, false),
+    );
+    const itemResolver = new ZoteroNoteContextResolver(
+      createTopLevelZoteroMock(note, true),
+    );
+
+    for (const [resolver, workspace] of [
+      [
+        outsideResolver,
+        {
+          workspaceKey: "collection:1:COLL",
+          workspaceType: "collection" as const,
+          libraryID: 1,
+          workspaceLabel: "Reading",
+          workspaceTitle: "Reading",
+          collectionKey: "COLL",
+        },
+      ],
+      [itemResolver, createWorkspace()],
+    ] as const) {
+      try {
+        await resolver.resolveAll(workspace, [reference]);
+        assert.fail("Expected the top-level note to be rejected");
+      } catch (error) {
+        assert.include(String(error), "outside the current workspace");
+      }
     }
   });
 });
@@ -193,6 +252,17 @@ function createMention() {
   };
 }
 
+function createTopLevelRef() {
+  return {
+    id: "note:1:TOP",
+    libraryID: 1,
+    noteItemID: 31,
+    noteItemKey: "TOP",
+    title: "Top-level note",
+    dateModified: "2026-07-18 10:00:00",
+  };
+}
+
 function createNote(getBody: () => string) {
   return {
     id: 21,
@@ -200,6 +270,18 @@ function createNote(getBody: () => string) {
     libraryID: 1,
     parentItemID: 1,
     parentItemKey: "PAPER",
+    getNote: getBody,
+    isNote: () => true,
+  };
+}
+
+function createTopLevelNote(getBody: () => string) {
+  return {
+    id: 31,
+    key: "TOP",
+    libraryID: 1,
+    parentItemID: false,
+    parentItemKey: false,
     getNote: getBody,
     isNote: () => true,
   };
@@ -234,6 +316,36 @@ function createZoteroMock(
             name: "Reading",
             getChildItems() {
               return includeParentInCollection ? [parent] : [];
+            },
+            getChildCollections() {
+              return [];
+            },
+          },
+        ];
+      },
+    },
+  } as unknown as typeof Zotero;
+}
+
+function createTopLevelZoteroMock(
+  note: ReturnType<typeof createTopLevelNote>,
+  includeInCollection: boolean,
+): typeof Zotero {
+  return {
+    Items: {
+      getAsync: async (id: number) => (id === note.id ? note : undefined),
+      getByLibraryAndKeyAsync: async () => false,
+    },
+    Collections: {
+      getByLibrary() {
+        return [
+          {
+            id: 31,
+            key: "COLL",
+            libraryID: 1,
+            name: "Reading",
+            getChildItems() {
+              return includeInCollection ? [note] : [];
             },
             getChildCollections() {
               return [];

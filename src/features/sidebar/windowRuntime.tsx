@@ -110,6 +110,10 @@ function createCommandActions(
       invoke("getItemContextTree", [source]) as ReturnType<
         SidebarActions["getItemContextTree"]
       >,
+    resolveDroppedContext: (input) =>
+      invoke("resolveDroppedContext", [input]) as ReturnType<
+        SidebarActions["resolveDroppedContext"]
+      >,
     hideSessions: () => void invoke("hideSessions"),
     interruptActiveTurn: () => void invoke("interruptActiveTurn"),
     openExternalLink: (url) => void invoke("openExternalLink", [url]),

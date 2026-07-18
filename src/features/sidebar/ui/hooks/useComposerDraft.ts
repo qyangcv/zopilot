@@ -10,16 +10,18 @@ import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
 import type { ComposerBindings } from "../composerBindings";
 import { resizeTextarea } from "../composerLayout";
 import type { SidebarActions, SidebarState } from "../types";
-import {
-  countItemContextSelections,
-  sameItemContext,
-} from "../itemContextGroups";
+import { countItemContextSelections } from "../itemContextGroups";
 import { useMentionPicker } from "./useMentionPicker";
 import {
   findMentionQuery,
   moveMentionCandidateIndex,
   sourceToMention,
 } from "../mentions";
+import type { SidebarDropPayload } from "../../../../integrations/zotero/compat/dragData";
+import {
+  mergeDroppedContext,
+  removeMentionFromComposerContext,
+} from "../droppedContext";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
 
@@ -60,8 +62,11 @@ function useComposerDraft(
     useState<ItemContextPickerState>({ kind: "closed" });
   const [activeItemContextIndex, setActiveItemContextIndex] = useState(1);
   const composerScopeRef = useRef("");
+  const activeComposerScopeRef = useRef("");
   const itemContextLoadTokenRef = useRef(0);
+  const mentionsRef = useRef(mentions);
   const noteContextsRef = useRef(noteContexts);
+  const localAttachmentsRef = useRef(localAttachments);
   const bottomDockRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -84,6 +89,14 @@ function useComposerDraft(
         ? itemContextPicker.tree
         : undefined;
   noteContextsRef.current = noteContexts;
+  mentionsRef.current = mentions;
+  localAttachmentsRef.current = localAttachments;
+  const composerScope = [
+    state.context.hostContextKind || "",
+    state.context.workspaceKey || "",
+    state.conversationId || "",
+  ].join(":");
+  activeComposerScopeRef.current = composerScope;
   const currentSourceId = sourceCandidates.find(
     (source) => source.paperKey === state.context.paperKey,
   )?.sourceId;
@@ -93,29 +106,22 @@ function useComposerDraft(
   }, [state.focusToken]);
 
   useEffect(() => {
-    const composerScope = [
-      state.context.hostContextKind || "",
-      state.context.workspaceKey || "",
-      state.conversationId || "",
-    ].join(":");
     if (composerScopeRef.current === composerScope) return;
     composerScopeRef.current = composerScope;
     setDraft("");
+    mentionsRef.current = [];
     setMentions([]);
     const nextNoteContexts: NoteContextRef[] = [];
     noteContextsRef.current = nextNoteContexts;
     setNoteContexts(nextNoteContexts);
+    localAttachmentsRef.current = [];
     setLocalAttachments([]);
     setPromptPickerOpen(false);
     setItemContextExpanded(true);
     setItemContextPicker({ kind: "closed" });
     itemContextLoadTokenRef.current += 1;
     setActiveItemContextIndex(1);
-  }, [
-    state.context.hostContextKind,
-    state.context.workspaceKey,
-    state.conversationId,
-  ]);
+  }, [composerScope]);
 
   useEffect(() => {
     resizeTextarea(textareaRef.current);
@@ -146,6 +152,7 @@ function useComposerDraft(
   const unavailableSelectedNoteNodes: ItemContextNode[] = noteContexts
     .filter(
       (note) =>
+        Boolean(note.parentItemKey) &&
         note.parentItemKey === itemContextTree?.root.itemKey &&
         !catalogItemContextNodeIds.has(note.id),
     )
@@ -205,9 +212,11 @@ function useComposerDraft(
       localAttachments: nextLocalAttachments,
     });
     setDraft("");
+    mentionsRef.current = [];
     setMentions([]);
     noteContextsRef.current = [];
     setNoteContexts([]);
+    localAttachmentsRef.current = [];
     setLocalAttachments([]);
     itemContextLoadTokenRef.current += 1;
     setItemContextPicker({ kind: "closed" });
@@ -220,12 +229,14 @@ function useComposerDraft(
     nextNoteContexts?: NoteContextRef[],
     nextLocalAttachments: LocalAttachmentRef[] = [],
   ) => {
+    mentionsRef.current = [...nextMentions];
     setMentions([...nextMentions]);
     if (nextNoteContexts !== undefined) {
       const effectiveNoteContexts = [...nextNoteContexts];
       noteContextsRef.current = effectiveNoteContexts;
       setNoteContexts(effectiveNoteContexts);
     }
+    localAttachmentsRef.current = [...nextLocalAttachments];
     setLocalAttachments([...nextLocalAttachments]);
     updateDraft(text);
     globalThis.setTimeout(() => {
@@ -241,17 +252,61 @@ function useComposerDraft(
         if (!attachments.length) {
           return;
         }
-        setLocalAttachments((items) => {
-          const existingPaths = new Set(items.map((item) => item.path));
-          return [
-            ...items,
-            ...attachments.filter((attachment) => {
-              if (existingPaths.has(attachment.path)) return false;
-              existingPaths.add(attachment.path);
-              return true;
-            }),
-          ];
-        });
+        const next = mergeDroppedContext(
+          {
+            mentions: mentionsRef.current,
+            noteContexts: noteContextsRef.current,
+            localAttachments: localAttachmentsRef.current,
+          },
+          attachments.map((attachment) => ({
+            kind: "local-attachment" as const,
+            attachment,
+          })),
+        );
+        localAttachmentsRef.current = next.localAttachments;
+        setLocalAttachments(next.localAttachments);
+        globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+      })
+      .catch(() => undefined);
+  };
+
+  const addDroppedContext = (payload: SidebarDropPayload) => {
+    const workspaceKey = state.context.workspaceKey;
+    if (
+      !workspaceKey ||
+      state.context.hostContextKind !== "library" ||
+      !state.composerEnabled
+    ) {
+      return;
+    }
+    const scope = activeComposerScopeRef.current;
+    void actions
+      .resolveDroppedContext({ payload, workspaceKey })
+      .then((candidates) => {
+        if (
+          scope !== activeComposerScopeRef.current ||
+          workspaceKey !== state.context.workspaceKey
+        ) {
+          return;
+        }
+        const next = mergeDroppedContext(
+          {
+            mentions: mentionsRef.current,
+            noteContexts: noteContextsRef.current,
+            localAttachments: localAttachmentsRef.current,
+          },
+          candidates,
+        );
+        mentionsRef.current = next.mentions;
+        noteContextsRef.current = next.noteContexts;
+        localAttachmentsRef.current = next.localAttachments;
+        setMentions(next.mentions);
+        setNoteContexts(next.noteContexts);
+        setLocalAttachments(next.localAttachments);
+        itemContextLoadTokenRef.current += 1;
+        setItemContextPicker({ kind: "closed" });
+        setMentionQuery(null);
+        setPromptPickerOpen(false);
         globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
       })
       .catch(() => undefined);
@@ -344,6 +399,7 @@ function useComposerDraft(
     bindings: {
       activeMentionIndex: mentionPicker.activeMentionIndex,
       activeItemContextIndex: resolvedActiveItemContextIndex,
+      addDroppedContext,
       addLocalAttachment,
       bottomDockRef,
       closeItemContextPicker,
@@ -374,25 +430,28 @@ function useComposerDraft(
       promptButtonRef,
       promptPickerOpen,
       removeLocalAttachment: (attachmentId) => {
-        setLocalAttachments((items) =>
-          items.filter((attachment) => attachment.id !== attachmentId),
+        const next = localAttachmentsRef.current.filter(
+          (attachment) => attachment.id !== attachmentId,
         );
+        localAttachmentsRef.current = next;
+        setLocalAttachments(next);
       },
       removeMention: (mentionId) => {
-        const target = mentions.find((mention) => mention.id === mentionId);
+        const target = mentionsRef.current.find(
+          (mention) => mention.id === mentionId,
+        );
         if (!target) return;
-        const openTreeSource = mentions.find(
-          (mention) => mention.sourceId === itemContextSourceId,
+        const next = removeMentionFromComposerContext(
+          {
+            mentions: mentionsRef.current,
+            noteContexts: noteContextsRef.current,
+            localAttachments: localAttachmentsRef.current,
+          },
+          mentionId,
         );
-        setMentions((items) =>
-          items.filter((mention) => !sameItemContext(mention, target)),
-        );
-        const nextNoteContexts = noteContextsRef.current.filter(
-          (note) => !sameItemContext(note, target),
-        );
-        noteContextsRef.current = nextNoteContexts;
-        setNoteContexts(nextNoteContexts);
-        if (openTreeSource && sameItemContext(openTreeSource, target)) {
+        mentionsRef.current = next.mentions;
+        setMentions(next.mentions);
+        if (itemContextSourceId === target.sourceId) {
           closeItemContextPicker();
         }
       },

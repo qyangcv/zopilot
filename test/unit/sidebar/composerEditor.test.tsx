@@ -265,7 +265,7 @@ describe("sidebar composer mention keyboard navigation", function () {
     );
   });
 
-  it("groups collection tree children under clickable item chips", function () {
+  it("renders each collection tree selection as its own chip", function () {
     const tree = createItemContextTree();
     const root = {
       id: "mention:paper",
@@ -332,12 +332,17 @@ describe("sidebar composer mention keyboard navigation", function () {
       (getProps(chips).mentions as PaperSourceRef[]).map(
         (mention) => mention.sourceId,
       ),
-      [root.sourceId, other.sourceId],
+      [root.sourceId, supplement.sourceId, other.sourceId],
     );
-    assert.deepEqual(getProps(chips).notes, []);
+    assert.deepEqual(
+      (getProps(chips).notes as Array<{ id: string }>).map((note) => note.id),
+      ["note:1:NOTE"],
+    );
     assert.isUndefined(getProps(chips).itemContext);
-    (getProps(chips).onOpenMention as (mention: typeof root) => void)(root);
-    assert.deepEqual(opened, [root.sourceId]);
+    (getProps(chips).onOpenMention as (mention: typeof root) => void)(
+      supplement,
+    );
+    assert.deepEqual(opened, [supplement.sourceId]);
   });
 
   it("does not open a selector from @ in an item workspace", function () {
@@ -470,6 +475,7 @@ function createBindings({
   return {
     activeMentionIndex,
     activeItemContextIndex: 0,
+    addDroppedContext: () => undefined,
     addLocalAttachment: () => undefined,
     bottomDockRef: createRef<HTMLDivElement>(),
     closeItemContextPicker: () => undefined,

@@ -29,6 +29,11 @@ const scopedRules = [
     label: "Zotero.Server.Endpoints",
   },
   {
+    pattern: /["']zotero\/item["']/u,
+    allow: ["src/integrations/zotero/compat/dragData.ts"],
+    label: "Zotero item drag flavor",
+  },
+  {
     pattern: /\bcreateXULElement\b/u,
     allow: [
       "src/features/sidebar/host/ContextPaneAdapter.ts",

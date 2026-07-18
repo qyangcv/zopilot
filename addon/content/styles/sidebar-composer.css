@@ -22,6 +22,12 @@
   color: CanvasText;
 }
 
+.zp-composer.zp-composer-drop-active {
+  border-color: var(--zp-accent);
+  background: color-mix(in srgb, var(--zp-accent) 10%, var(--zp-composer-bg));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--zp-accent) 45%, transparent);
+}
+
 .zp-workspace-status-row {
   display: flex;
   align-items: center;

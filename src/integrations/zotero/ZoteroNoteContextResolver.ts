@@ -41,15 +41,15 @@ class ZoteroNoteContextResolver {
   async resolveAll(
     workspace: WorkspaceIdentity,
     references: NoteContextRef[],
-    mentions: SourceMention[] = [],
+    _mentions: SourceMention[] = [],
   ): Promise<ResolvedNoteContext[]> {
     if (!references.length) {
       return [];
     }
-    const allowedParentKeys = await this.parentScope.resolveSelectedParentKeys(
-      workspace,
-      mentions,
-    );
+    const [allowedParentKeys, allowedItemKeys] = await Promise.all([
+      this.parentScope.resolveAllowedParentKeys(workspace),
+      this.parentScope.resolveAllowedItemKeys(workspace),
+    ]);
     const parentCache = new Map<
       string,
       Promise<ZoteroNoteParentItem | undefined>
@@ -62,6 +62,7 @@ class ZoteroNoteContextResolver {
             workspace,
             reference,
             allowedParentKeys,
+            allowedItemKeys,
             parentCache,
           ),
         };
@@ -72,13 +73,19 @@ class ZoteroNoteContextResolver {
   private async resolveOne(
     workspace: WorkspaceIdentity,
     reference: NoteContextRef,
-    allowedParentKeys: ReadonlySet<string>,
+    allowedParentKeys: ReadonlySet<string> | undefined,
+    allowedItemKeys: ReadonlySet<string> | undefined,
     parentCache: Map<string, Promise<ZoteroNoteParentItem | undefined>>,
   ): Promise<string> {
-    if (
-      reference.libraryID !== workspace.libraryID ||
-      !allowedParentKeys.has(reference.parentItemKey)
-    ) {
+    if (reference.libraryID !== workspace.libraryID) {
+      throw new Error(
+        `Selected note is outside the current workspace: ${reference.title}`,
+      );
+    }
+    if (!reference.parentItemKey) {
+      return this.resolveTopLevelNote(workspace, reference, allowedItemKeys);
+    }
+    if (allowedParentKeys && !allowedParentKeys.has(reference.parentItemKey)) {
       throw new Error(
         `Selected note is outside the current workspace: ${reference.title}`,
       );
@@ -122,6 +129,40 @@ class ZoteroNoteContextResolver {
     ) {
       throw new Error(
         `Selected note no longer belongs to the current item: ${reference.title}`,
+      );
+    }
+    return noteHtmlToText(note.getNote?.() || "");
+  }
+
+  private async resolveTopLevelNote(
+    workspace: WorkspaceIdentity,
+    reference: NoteContextRef,
+    allowedItemKeys: ReadonlySet<string> | undefined,
+  ): Promise<string> {
+    if (
+      workspace.workspaceType === "item" ||
+      (allowedItemKeys && !allowedItemKeys.has(reference.noteItemKey))
+    ) {
+      throw new Error(
+        `Selected note is outside the current workspace: ${reference.title}`,
+      );
+    }
+    const note = await loadZoteroItem<ZoteroNoteItem>(this.zotero, {
+      libraryID: reference.libraryID,
+      itemID: reference.noteItemID,
+    });
+    if (
+      !note ||
+      note.deleted ||
+      !note.isNote?.() ||
+      note.id !== reference.noteItemID ||
+      note.key !== reference.noteItemKey ||
+      note.libraryID !== reference.libraryID ||
+      note.parentItemID ||
+      note.parentItemKey
+    ) {
+      throw new Error(
+        `Selected top-level note is no longer available: ${reference.title}`,
       );
     }
     return noteHtmlToText(note.getNote?.() || "");

@@ -36,6 +36,8 @@ import { createSidebarActions } from "./createSidebarActions";
 import { ReaderSelectionCoordinator } from "./ReaderSelectionCoordinator";
 import { LibrarySelectionCoordinator } from "./LibrarySelectionCoordinator";
 import type { SidebarSurfaceKind } from "./SidebarSurface";
+import { ZoteroDroppedContextResolver } from "../context/ZoteroDroppedContextResolver";
+import type { SidebarDropPayload } from "../../../integrations/zotero/compat/dragData";
 
 const controllers = new WeakMap<Window, SidebarHostController>();
 export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
@@ -80,6 +82,7 @@ class SidebarHostController {
   private viewState: SidebarState;
   private readonly sessions: SidebarSessionCoordinator;
   private readonly sourceUniverse: ZoteroSourceUniverse;
+  private readonly droppedContextResolver: ZoteroDroppedContextResolver;
   private readonly providerCatalog: ProviderCatalogController;
   private readonly workspaceCoordinator: WorkspaceCoordinator;
   private readonly readerSelection: ReaderSelectionCoordinator;
@@ -98,6 +101,9 @@ class SidebarHostController {
     this.win = win;
     this.doc = win.document;
     this.sourceUniverse = new ZoteroSourceUniverse(
+      (win as Window & { Zotero?: typeof Zotero }).Zotero || Zotero,
+    );
+    this.droppedContextResolver = new ZoteroDroppedContextResolver(
       (win as Window & { Zotero?: typeof Zotero }).Zotero || Zotero,
     );
     this.surface = new SidebarSurface(win, {
@@ -341,6 +347,25 @@ class SidebarHostController {
     });
   }
 
+  private async resolveDroppedContext(input: {
+    payload: SidebarDropPayload;
+    workspaceKey: string;
+  }) {
+    const ready = this.getReadyDisplayState();
+    if (
+      !ready ||
+      ready.hostContext?.kind !== "library" ||
+      ready.workspace.workspaceKey !== input.workspaceKey
+    ) {
+      return [];
+    }
+    return this.droppedContextResolver.resolve({
+      payload: input.payload,
+      workspace: ready.workspace,
+      currentSource: ready.currentSource,
+    });
+  }
+
   private getReadyDisplayState():
     | Extract<DisplayState, { kind: "ready" }>
     | undefined {
@@ -499,6 +524,7 @@ class SidebarHostController {
         close: () => this.setOpen(false),
         createNewSession: () => void this.sessions.createNewSession(),
         getItemContextTree: (source) => this.getItemContextTree(source),
+        resolveDroppedContext: (input) => this.resolveDroppedContext(input),
         hideSessions: () => this.sessions.hidePopover(),
         interruptActiveTurn: () => this.interruptActiveTurn(),
         openExternalLink: (url) => this.contextActions.openExternalLink(url),

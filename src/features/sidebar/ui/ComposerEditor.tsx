@@ -9,11 +9,7 @@ import { findMentionQuery } from "./mentions";
 import { MAX_SELECTED_CONTEXTS } from "../../../domain/contextSelection";
 import type { SidebarState } from "./types";
 import { FloatingPortal } from "../../../ui/primitives/index";
-import {
-  countItemContextSelections,
-  rootItemMentions,
-  ungroupedNoteContexts,
-} from "./itemContextGroups";
+import { countItemContextSelections } from "./itemContextGroups";
 
 const ZOTERO_NO_NATIVE_INPUT_PROPS = { "no-native": "true" } as const;
 
@@ -57,10 +53,8 @@ function ComposerEditor({
     state.context?.hostContextKind === "reader" &&
     state.context?.workspaceType === "item";
   const showItemContextChips = !readerItemContextMode;
-  const chipMentions = showItemContextChips ? rootItemMentions(mentions) : [];
-  const chipNoteContexts = showItemContextChips
-    ? ungroupedNoteContexts(mentions, noteContexts)
-    : [];
+  const chipMentions = showItemContextChips ? mentions : [];
+  const chipNoteContexts = showItemContextChips ? noteContexts : [];
   const currentItemContext = readerItemContextMode
     ? {
         expanded:

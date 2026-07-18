@@ -488,7 +488,7 @@ describe("SidebarApp", function () {
     assert.include(html, 'data-icon-name="noteContext"');
   });
 
-  it("keeps item-tree children grouped after a library message is sent", function () {
+  it("keeps each item-tree selection visible after a library message is sent", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -546,9 +546,9 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "Paper A");
-    assert.notInclude(html, "Supplement.pdf");
-    assert.notInclude(html, "Reading notes");
-    assert.equal(countOccurrences(html, "zp-compact-context-chip"), 1);
+    assert.include(html, "Supplement.pdf");
+    assert.include(html, "Reading notes");
+    assert.equal(countOccurrences(html, "zp-compact-context-chip"), 3);
   });
 
   it("renders Reader item message context as the same aggregate item chip as the composer", function () {
@@ -1318,6 +1318,7 @@ function createActions(): SidebarActions {
     close: () => undefined,
     createNewSession: () => undefined,
     getItemContextTree: async () => undefined,
+    resolveDroppedContext: async () => [],
     hideSessions: () => undefined,
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,

@@ -8,10 +8,12 @@ import type {
   SourceMention,
 } from "../../../domain/conversation";
 import { findMentionQuery } from "./mentions";
+import type { SidebarDropPayload } from "../../../integrations/zotero/compat/dragData";
 
 type ComposerBindings = {
   activeMentionIndex: number;
   activeItemContextIndex: number;
+  addDroppedContext: (payload: SidebarDropPayload) => void;
   addLocalAttachment: () => void;
   bottomDockRef: RefObject<HTMLDivElement | null>;
   closeItemContextPicker: () => void;

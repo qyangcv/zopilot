@@ -5,7 +5,7 @@ import {
   type ZoteroFilePicker,
 } from "../../../platform/gecko";
 
-export { pickLocalAttachment };
+export { createLocalAttachmentRef, pickLocalAttachment };
 export type { AttachmentUploadResult, FilePickerDependencies };
 
 type AttachmentUploadResult =

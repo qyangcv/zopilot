@@ -6,6 +6,7 @@ type SidebarActionHandlers = {
   close: () => void;
   createNewSession: () => void;
   getItemContextTree: SidebarActions["getItemContextTree"];
+  resolveDroppedContext: SidebarActions["resolveDroppedContext"];
   hideSessions: () => void;
   interruptActiveTurn: () => void;
   openExternalLink: (url: string) => void;
@@ -28,6 +29,7 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     close: handlers.close,
     createNewSession: handlers.createNewSession,
     getItemContextTree: handlers.getItemContextTree,
+    resolveDroppedContext: handlers.resolveDroppedContext,
     hideSessions: handlers.hideSessions,
     interruptActiveTurn: handlers.interruptActiveTurn,
     openExternalLink: handlers.openExternalLink,

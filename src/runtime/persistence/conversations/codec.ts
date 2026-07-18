@@ -119,9 +119,10 @@ function isNoteContextRef(value: unknown): boolean {
     Boolean(item) &&
     typeof item.id === "string" &&
     typeof item.libraryID === "number" &&
-    (item.parentItemID === undefined ||
-      typeof item.parentItemID === "number") &&
-    typeof item.parentItemKey === "string" &&
+    ((item.parentItemKey === undefined && item.parentItemID === undefined) ||
+      (typeof item.parentItemKey === "string" &&
+        (item.parentItemID === undefined ||
+          typeof item.parentItemID === "number"))) &&
     typeof item.noteItemID === "number" &&
     typeof item.noteItemKey === "string" &&
     typeof item.title === "string" &&

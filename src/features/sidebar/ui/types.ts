@@ -10,6 +10,8 @@ import type {
 import type { AgentTraceItem } from "../../../domain/agent/trace";
 import type { ProviderBrand } from "../../../domain/agent/providerBrand";
 import type { RunningTurnSnapshot } from "../../../domain/agent/streaming";
+import type { SidebarDropPayload } from "../../../integrations/zotero/compat/dragData";
+import type { DroppedContextCandidate } from "../context/ZoteroDroppedContextResolver";
 
 export type SidebarMessageView = {
   id: string;
@@ -121,6 +123,10 @@ export type SidebarActions = {
   getItemContextTree: (
     source: SourceMention,
   ) => Promise<ItemContextTree | undefined>;
+  resolveDroppedContext: (input: {
+    payload: SidebarDropPayload;
+    workspaceKey: string;
+  }) => Promise<DroppedContextCandidate[]>;
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
   selectModel: (model: string) => void;
