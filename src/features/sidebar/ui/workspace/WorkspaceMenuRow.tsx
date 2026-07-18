@@ -13,6 +13,7 @@ function WorkspaceMenuRow({
   iconName,
   itemCount,
   label,
+  mergeLeadingColumns = false,
   onMouseEnter,
   onSelect,
   onToggleDisclosure,
@@ -29,6 +30,7 @@ function WorkspaceMenuRow({
   iconName: IconName;
   itemCount?: number;
   label: string;
+  mergeLeadingColumns?: boolean;
   onMouseEnter: () => void;
   onSelect: () => void;
   onToggleDisclosure?: () => void;
@@ -37,19 +39,20 @@ function WorkspaceMenuRow({
   selected: boolean;
   title: string;
 }): ReactElement {
+  const disclosure = (
+    <WorkspaceDisclosure
+      expanded={expanded}
+      onToggle={onToggleDisclosure}
+      visible={hasChildren}
+    />
+  );
   return (
     <PopupRow
       active={active}
       aria-expanded={hasChildren ? expanded : undefined}
       aria-selected={selected}
       className={["zp-workspace-menu-row", className].filter(Boolean).join(" ")}
-      disclosure={
-        <WorkspaceDisclosure
-          expanded={expanded}
-          onToggle={onToggleDisclosure}
-          visible={hasChildren}
-        />
-      }
+      disclosure={mergeLeadingColumns ? undefined : disclosure}
       icon={
         <Icon className="zp-workspace-menu-icon" name={iconName} size={14} />
       }
@@ -74,10 +77,21 @@ function WorkspaceMenuRow({
       ref={rowRef}
       role="treeitem"
       selected={selected}
-      selection={selected ? <Icon name="check" size={13} /> : null}
+      selection={
+        mergeLeadingColumns ? (
+          hasChildren ? (
+            disclosure
+          ) : selected ? (
+            <Icon name="check" size={13} />
+          ) : null
+        ) : selected ? (
+          <Icon name="check" size={13} />
+        ) : null
+      }
       style={
         {
           "--zp-workspace-depth": depth,
+          "--zp-workspace-indent": `${Math.max(depth - 1, 0) * 16}px`,
         } as CSSProperties
       }
       tabIndex={-1}

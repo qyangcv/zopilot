@@ -9,7 +9,7 @@
 }
 
 .zp-prompt-insert-row .zp-popup-row-label {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   font-weight: 600;
 }
 
@@ -30,6 +30,7 @@
 }
 
 .zp-item-context-child .zp-popup-row-selection {
+  margin-inline-start: 16px;
   color: var(--zp-muted);
 }
 

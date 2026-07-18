@@ -207,6 +207,7 @@ function WorkspaceMenu({
               itemCount={entry.itemCount}
               key={entry.key}
               label={entry.label}
+              mergeLeadingColumns={entry.kind !== "collection"}
               onMouseEnter={() => setActiveIndex(index)}
               onSelect={() => selectEntry(index)}
               onToggleDisclosure={() => toggleEntry(entry)}

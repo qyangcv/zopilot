@@ -890,6 +890,7 @@ describe("SidebarApp", function () {
 
     assert.include(html, "Reasoning");
     assert.include(html, "--zp-workspace-depth:2");
+    assert.include(html, "--zp-workspace-indent:16px");
     assert.include(html, 'class="zp-popup-row-selection"');
     assert.include(html, 'class="zp-popup-row-disclosure"');
     assert.include(html, 'class="zp-popup-row-icon"');
@@ -946,6 +947,44 @@ describe("SidebarApp", function () {
     assert.include(triggerHtml, 'data-compact="true">1316</span>');
     assert.notInclude(menuRowHtml, "1,316");
     assert.notInclude(triggerHtml, "1,316");
+  });
+
+  it("merges the leading columns for top-level workspace rows", function () {
+    const libraryHtml = renderToStaticMarkup(
+      <WorkspaceMenuRow
+        active={false}
+        expanded
+        hasChildren
+        iconName="workspaceLibrary"
+        itemCount={15}
+        label="My Library"
+        mergeLeadingColumns
+        onMouseEnter={() => undefined}
+        onSelect={() => undefined}
+        optionId="workspace-library"
+        selected={false}
+        title="My Library"
+      />,
+    );
+    const itemHtml = renderToStaticMarkup(
+      <WorkspaceMenuRow
+        active={false}
+        iconName="workspaceItem"
+        label="Paper"
+        mergeLeadingColumns
+        onMouseEnter={() => undefined}
+        onSelect={() => undefined}
+        optionId="workspace-item"
+        selected={false}
+        title="Paper"
+      />,
+    );
+
+    assert.include(libraryHtml, 'class="zp-popup-row-selection"');
+    assert.include(libraryHtml, 'class="zp-workspace-menu-expander"');
+    assert.notInclude(libraryHtml, 'class="zp-popup-row-disclosure"');
+    assert.include(itemHtml, 'class="zp-popup-row-selection"');
+    assert.notInclude(itemHtml, 'class="zp-popup-row-disclosure"');
   });
 
   it("uses compact spacing for counts with at least two digits", function () {

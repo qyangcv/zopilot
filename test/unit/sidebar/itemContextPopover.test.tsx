@@ -39,6 +39,11 @@ describe("ItemContextMentionPopover", function () {
     assert.include(html, "sidebar-item-context-default-source");
     assert.include(html, 'aria-disabled="true"');
     assert.include(html, "sidebar-item-context-unsupported");
+    const rootEnd = html.indexOf("</div>");
+    const rootHtml = html.slice(0, rootEnd);
+    assert.include(rootHtml, 'class="zp-popup-row-selection"');
+    assert.notInclude(rootHtml, 'class="zp-popup-row-disclosure"');
+    assert.notInclude(html, 'class="zp-popup-row-disclosure"');
   });
 
   it("keeps the root visible when the item has no children", function () {

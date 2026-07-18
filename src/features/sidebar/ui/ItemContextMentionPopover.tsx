@@ -64,7 +64,7 @@ function ItemContextMentionPopover({
           aria-expanded={expanded}
           aria-selected={activeIndex === 0}
           className="zp-mention-option zp-item-context-root"
-          disclosure={
+          selection={
             <Icon
               className="zp-item-context-chevron"
               name={expanded ? "collapse" : "expand"}
@@ -83,7 +83,6 @@ function ItemContextMentionPopover({
           }}
           ref={activeIndex === 0 ? activeOptionRef : undefined}
           role="treeitem"
-          selection={null}
           tabIndex={-1}
           title={tree.root.title}
         />
@@ -121,7 +120,6 @@ function ItemContextMentionPopover({
                         : undefined
                     }
                     disabled={disabled}
-                    disclosure={null}
                     icon={
                       <Icon
                         className="zp-mention-icon"

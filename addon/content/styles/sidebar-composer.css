@@ -111,7 +111,7 @@
 }
 
 .zp-workspace-menu .zp-popup-row-disclosure {
-  margin-inline-start: calc(var(--zp-workspace-depth, 0) * 12px);
+  margin-inline-start: var(--zp-workspace-indent, 0);
 }
 
 .zp-workspace-menu .zp-popup-row-label {
