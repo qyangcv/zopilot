@@ -8,7 +8,10 @@ import { ItemContextMentionPopover } from "./ItemContextMentionPopover";
 import { findMentionQuery } from "./mentions";
 import { MAX_SELECTED_CONTEXTS } from "../../../domain/contextSelection";
 import type { SidebarState } from "./types";
-import { FloatingPortal } from "../../../ui/primitives/index";
+import {
+  findPopupEdgeIndex,
+  FloatingPortal,
+} from "../../../ui/primitives/index";
 import { countItemContextSelections } from "./itemContextGroups";
 
 const ZOTERO_NO_NATIVE_INPUT_PROPS = { "no-native": "true" } as const;
@@ -63,6 +66,15 @@ function ComposerEditor({
           bindings.itemContextTree?.root.title || state.context?.label || "",
       }
     : undefined;
+  const isItemContextDisabled = (index: number) => {
+    if (index === 0) return false;
+    const node = bindings.itemContextNodes[index - 1];
+    if (!node?.selectable) return true;
+    const selected =
+      (node.kind === "pdf" && node.current) ||
+      selectedItemContextIds.has(node.id);
+    return bindings.itemContextLimitReached && !selected;
+  };
   return (
     <>
       {currentItemContext ||
@@ -119,7 +131,9 @@ function ComposerEditor({
       ) : mentionCandidates.length ? (
         <FloatingPortal
           align="stretch"
-          anchorRef={textareaRef}
+          anchorRef={bindings.composerRef}
+          horizontalBoundaryRef={bindings.bottomDockRef}
+          horizontalMargin={0}
           maxHeight={320}
           maxWidth={720}
           minWidth={0}
@@ -138,6 +152,30 @@ function ComposerEditor({
         </FloatingPortal>
       ) : null}
       <textarea
+        aria-activedescendant={
+          bindings.itemContextPickerOpen
+            ? `zp-item-context-option-${bindings.activeItemContextIndex}`
+            : mentionCandidates.length
+              ? `zp-mention-option-${bindings.activeMentionIndex}`
+              : undefined
+        }
+        aria-controls={
+          bindings.itemContextPickerOpen
+            ? "zp-item-context-tree"
+            : mentionCandidates.length
+              ? "zp-mention-listbox"
+              : undefined
+        }
+        aria-expanded={
+          bindings.itemContextPickerOpen || Boolean(mentionCandidates.length)
+        }
+        aria-haspopup={
+          bindings.itemContextPickerOpen
+            ? "tree"
+            : mentionCandidates.length
+              ? "listbox"
+              : undefined
+        }
         autoCapitalize="off"
         autoComplete="off"
         autoCorrect="off"
@@ -161,11 +199,28 @@ function ComposerEditor({
         onInput={(event) => resizeTextarea(event.currentTarget)}
         onKeyDown={(event) => {
           if (bindings.itemContextPickerOpen) {
+            const itemCount =
+              1 +
+              (bindings.itemContextExpanded
+                ? bindings.itemContextNodes.length
+                : 0);
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
               bindings.moveItemContextSelection(
                 event.key === "ArrowDown" ? 1 : -1,
               );
+              return;
+            }
+            if (event.key === "Home" || event.key === "End") {
+              event.preventDefault();
+              const nextIndex = findPopupEdgeIndex(
+                itemCount,
+                isItemContextDisabled,
+                event.key === "Home" ? "first" : "last",
+              );
+              if (nextIndex >= 0) {
+                bindings.setActiveItemContextIndex(nextIndex);
+              }
               return;
             }
             if (event.key === "ArrowLeft") {
@@ -189,11 +244,26 @@ function ComposerEditor({
               bindings.closeItemContextPicker();
               return;
             }
-            if (event.key === "Tab" || event.key === "Enter") {
+            if (event.key === "Enter") {
               event.preventDefault();
               if (bindings.activeItemContextIndex === 0) {
                 bindings.setItemContextExpanded(!bindings.itemContextExpanded);
-              } else if (activeItemContextNode?.selectable) {
+              } else if (
+                activeItemContextNode?.selectable &&
+                !isItemContextDisabled(bindings.activeItemContextIndex)
+              ) {
+                bindings.selectItemContext(activeItemContextNode);
+              }
+              return;
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              if (bindings.activeItemContextIndex === 0) {
+                bindings.setItemContextExpanded(!bindings.itemContextExpanded);
+              } else if (
+                activeItemContextNode?.selectable &&
+                !isItemContextDisabled(bindings.activeItemContextIndex)
+              ) {
                 bindings.selectItemContext(activeItemContextNode);
               }
               return;
@@ -205,14 +275,39 @@ function ComposerEditor({
               bindings.moveMentionSelection(event.key === "ArrowDown" ? 1 : -1);
               return;
             }
+            if (event.key === "Home" || event.key === "End") {
+              event.preventDefault();
+              const nextIndex = findPopupEdgeIndex(
+                mentionCandidates.length,
+                () => selectedContextCount >= MAX_SELECTED_CONTEXTS,
+                event.key === "Home" ? "first" : "last",
+              );
+              if (nextIndex >= 0) bindings.setActiveMentionIndex(nextIndex);
+              return;
+            }
             if (event.key === "Escape") {
               event.preventDefault();
               setMentionQuery(null);
               return;
             }
-            if (event.key === "Tab" || event.key === "Enter") {
+            if (event.key === "Enter") {
               event.preventDefault();
-              if (activeMention) selectMention(activeMention);
+              if (
+                activeMention &&
+                selectedContextCount < MAX_SELECTED_CONTEXTS
+              ) {
+                selectMention(activeMention);
+              }
+              return;
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              if (
+                activeMention &&
+                selectedContextCount < MAX_SELECTED_CONTEXTS
+              ) {
+                selectMention(activeMention);
+              }
               return;
             }
           }

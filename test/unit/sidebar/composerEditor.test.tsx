@@ -53,19 +53,26 @@ describe("sidebar composer mention keyboard navigation", function () {
     const selected: PaperSourceRef[] = [];
     let submitCount = 0;
 
+    const firstBindings = createBindings({
+      activeMentionIndex: 0,
+      candidates,
+      move: (direction) => moves.push(direction),
+      select: (source) => selected.push(source),
+      submit: () => submitCount++,
+    });
     const firstEditor = ComposerEditor({
-      bindings: createBindings({
-        activeMentionIndex: 0,
-        candidates,
-        move: (direction) => moves.push(direction),
-        select: (source) => selected.push(source),
-        submit: () => submitCount++,
-      }),
+      bindings: firstBindings,
       state: { composerEnabled: true } as SidebarState,
     });
     const firstKeyDown = getTextareaKeyDown(firstEditor);
+    const floating = findElement(
+      firstEditor,
+      (element) => element.type === FloatingPortal,
+    );
+    assert.isDefined(floating);
     assert.isTrue(pressKey(firstKeyDown, "ArrowDown"));
     assert.isTrue(pressKey(firstKeyDown, "ArrowUp"));
+    assert.equal(getProps(floating).anchorRef, firstBindings.composerRef);
 
     const secondEditor = ComposerEditor({
       bindings: createBindings({
@@ -107,6 +114,28 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.isDefined(popover);
     (getProps(popover).onActiveIndexChange as (index: number) => void)(1);
     assert.deepEqual(activeIndexes, [1]);
+  });
+
+  it("uses Home and End for the first and last mention candidates", function () {
+    const activeIndexes: number[] = [];
+    const editor = ComposerEditor({
+      bindings: {
+        ...createBindings({
+          activeMentionIndex: 1,
+          candidates: [createSource("a"), createSource("b"), createSource("c")],
+          move: () => undefined,
+          select: () => undefined,
+          submit: () => undefined,
+        }),
+        setActiveMentionIndex: (index) => activeIndexes.push(index),
+      },
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const onKeyDown = getTextareaKeyDown(editor);
+
+    assert.isTrue(pressKey(onKeyDown, "Home"));
+    assert.isTrue(pressKey(onKeyDown, "End"));
+    assert.deepEqual(activeIndexes, [0, 2]);
   });
 
   it("navigates and selects Reader item context tree nodes", function () {

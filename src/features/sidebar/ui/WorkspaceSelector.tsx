@@ -24,9 +24,10 @@ function WorkspaceSelector({
       onClick={(event) => event.stopPropagation()}
     >
       <button
+        aria-controls={model.open ? "zp-workspace-tree" : undefined}
         aria-label={getString("sidebar-workspace-current")}
         aria-expanded={model.open}
-        aria-haspopup="menu"
+        aria-haspopup="tree"
         className="zp-workspace-trigger"
         data-popup-open={model.open || undefined}
         data-workspace-type={model.workspaceType}
@@ -43,6 +44,11 @@ function WorkspaceSelector({
         type="button"
       >
         <Icon
+          className="zp-workspace-trigger-chevron"
+          name={model.open ? "collapse" : "expand"}
+          size={12}
+        />
+        <Icon
           className="zp-workspace-trigger-icon"
           name={getWorkspaceIconName(model.workspaceType)}
           size={15}
@@ -58,11 +64,6 @@ function WorkspaceSelector({
             {String(model.workspaceItemCount)}
           </span>
         )}
-        <Icon
-          className="zp-workspace-trigger-chevron"
-          name={model.open ? "collapse" : "expand"}
-          size={12}
-        />
       </button>
       <WorkspaceMenu
         headerBoundaryRef={headerBoundaryRef}

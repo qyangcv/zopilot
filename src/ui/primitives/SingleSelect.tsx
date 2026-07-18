@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -9,8 +9,10 @@ import {
   type KeyboardEvent,
   type ReactElement,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { FloatingPortal } from "./FloatingPortal";
+import { PopupRow } from "./PopupList";
 
 export { SingleSelect };
 export type { SingleSelectOption, SingleSelectSubOption };
@@ -45,8 +47,12 @@ function SingleSelect({
   onChange,
   onSubChange,
   options,
+  horizontalBoundaryRef,
+  horizontalMargin,
+  popupMaxWidth,
   popupMinWidth,
   popupWidth,
+  popupWidthMode,
   preferredSide,
   showIndicator = true,
   subPopupLabel,
@@ -62,8 +68,12 @@ function SingleSelect({
   onChange: (value: string) => void;
   onSubChange?: (value: string, subValue: string) => void;
   options: SingleSelectOption[];
+  horizontalBoundaryRef?: RefObject<HTMLElement | null>;
+  horizontalMargin?: number;
+  popupMaxWidth?: number;
   popupMinWidth?: number;
   popupWidth?: number;
+  popupWidthMode?: "anchor" | "content";
   preferredSide?: "above" | "below";
   showIndicator?: boolean;
   subPopupLabel?: string;
@@ -79,9 +89,9 @@ function SingleSelect({
   const [submenuStyle, setSubmenuStyle] = useState<CSSProperties>();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const listboxRef = useRef<HTMLDivElement | null>(null);
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const optionRefs = useRef<Array<HTMLElement | null>>([]);
   const subListboxRef = useRef<HTMLDivElement | null>(null);
-  const subOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const subOptionRefs = useRef<Array<HTMLElement | null>>([]);
   const focusSubmenuRef = useRef(false);
   const listboxId = `zp-single-select-${useId().replaceAll(":", "")}`;
   const selectedIndex = options.findIndex((option) => option.value === value);
@@ -221,6 +231,9 @@ function SingleSelect({
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
       openSubmenu(activeIndex, true);
+    } else if (event.key === "ArrowLeft" && submenuOpen) {
+      event.preventDefault();
+      setSubmenuParentIndex(-1);
     } else if (event.key === "Escape") {
       event.preventDefault();
       closeSelect();
@@ -248,10 +261,13 @@ function SingleSelect({
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       selectSubIndex(subActiveIndex);
-    } else if (event.key === "ArrowLeft" || event.key === "Escape") {
+    } else if (event.key === "ArrowLeft") {
       event.preventDefault();
       setSubmenuParentIndex(-1);
       listboxRef.current?.focus({ preventScroll: true });
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeSelect();
     } else if (event.key === "Tab") {
       closeSelect(false);
     }
@@ -319,7 +335,9 @@ function SingleSelect({
       {open ? (
         <FloatingPortal
           anchorRef={triggerRef}
-          maxWidth={variant === "compact" ? 280 : 520}
+          horizontalBoundaryRef={horizontalBoundaryRef}
+          horizontalMargin={horizontalMargin}
+          maxWidth={popupMaxWidth ?? (variant === "compact" ? 280 : 520)}
           minWidth={resolvedPopupMinWidth}
           onDismiss={() => closeSelect(false)}
           preferredSide={resolvedPreferredSide}
@@ -327,6 +345,7 @@ function SingleSelect({
             popupWidth ??
             (variant === "form" ? triggerRef.current?.offsetWidth : undefined)
           }
+          widthMode={popupWidthMode}
           zIndex={variant === "compact" ? 7 : 1000}
         >
           <div
@@ -342,7 +361,14 @@ function SingleSelect({
               }
               aria-label={ariaLabel}
               aria-labelledby={ariaLabelledBy}
-              className="zp-single-select-popup"
+              className={[
+                "zp-single-select-popup",
+                variant === "compact"
+                  ? "zp-popup-surface zp-popup-list"
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join(" ")}
               data-variant={variant}
               id={listboxId}
               onKeyDown={handleListboxKeyDown}
@@ -354,7 +380,7 @@ function SingleSelect({
               tabIndex={0}
             >
               {options.map((option, index) => (
-                <span
+                <div
                   className="zp-single-select-option-wrap"
                   key={option.value}
                 >
@@ -367,44 +393,92 @@ function SingleSelect({
                       <span>{option.groupLabel}</span>
                     </span>
                   ) : null}
-                  <button
-                    aria-disabled={option.disabled || undefined}
-                    aria-expanded={
-                      option.subOptions?.length
-                        ? submenuParentIndex === index
-                        : undefined
-                    }
-                    aria-haspopup={
-                      option.subOptions?.length ? "listbox" : undefined
-                    }
-                    aria-selected={option.value === value}
-                    className="zp-single-select-option"
-                    data-active={index === activeIndex || undefined}
-                    data-group-child={option.groupLabel ? true : undefined}
-                    data-selected={option.value === value || undefined}
-                    disabled={option.disabled}
-                    id={`${listboxId}-option-${index}`}
-                    onClick={() => selectIndex(index)}
-                    onMouseEnter={() => {
-                      if (!option.disabled) {
-                        setActiveIndex(index);
-                        openSubmenu(index);
+                  {variant === "compact" ? (
+                    <PopupRow
+                      action={
+                        option.subOptions?.length ? (
+                          <ChevronRight aria-hidden="true" size={13} />
+                        ) : null
                       }
-                    }}
-                    ref={(element) => {
-                      optionRefs.current[index] = element;
-                    }}
-                    role="option"
-                    tabIndex={-1}
-                    title={option.subOptions?.length ? undefined : option.label}
-                    type="button"
-                  >
-                    {option.icon}
-                    <span className="zp-single-select-option-label">
-                      {option.label}
-                    </span>
-                  </button>
-                </span>
+                      active={index === activeIndex}
+                      aria-expanded={
+                        option.subOptions?.length
+                          ? submenuParentIndex === index
+                          : undefined
+                      }
+                      aria-haspopup={
+                        option.subOptions?.length ? "listbox" : undefined
+                      }
+                      aria-selected={option.value === value}
+                      className="zp-single-select-option"
+                      disabled={option.disabled}
+                      icon={option.icon}
+                      id={`${listboxId}-option-${index}`}
+                      label={option.label}
+                      onClick={() => selectIndex(index)}
+                      onMouseEnter={() => {
+                        if (!option.disabled) {
+                          setActiveIndex(index);
+                          openSubmenu(index);
+                        }
+                      }}
+                      ref={(element) => {
+                        optionRefs.current[index] = element;
+                      }}
+                      role="option"
+                      selected={option.value === value}
+                      selection={
+                        option.value === value ? (
+                          <Check aria-hidden="true" size={13} />
+                        ) : null
+                      }
+                      tabIndex={-1}
+                      title={
+                        option.subOptions?.length ? undefined : option.label
+                      }
+                    />
+                  ) : (
+                    <button
+                      aria-disabled={option.disabled || undefined}
+                      aria-expanded={
+                        option.subOptions?.length
+                          ? submenuParentIndex === index
+                          : undefined
+                      }
+                      aria-haspopup={
+                        option.subOptions?.length ? "listbox" : undefined
+                      }
+                      aria-selected={option.value === value}
+                      className="zp-single-select-option"
+                      data-active={index === activeIndex || undefined}
+                      data-group-child={option.groupLabel ? true : undefined}
+                      data-selected={option.value === value || undefined}
+                      disabled={option.disabled}
+                      id={`${listboxId}-option-${index}`}
+                      onClick={() => selectIndex(index)}
+                      onMouseEnter={() => {
+                        if (!option.disabled) {
+                          setActiveIndex(index);
+                          openSubmenu(index);
+                        }
+                      }}
+                      ref={(element) => {
+                        optionRefs.current[index] = element;
+                      }}
+                      role="option"
+                      tabIndex={-1}
+                      title={
+                        option.subOptions?.length ? undefined : option.label
+                      }
+                      type="button"
+                    >
+                      {option.icon}
+                      <span className="zp-single-select-option-label">
+                        {option.label}
+                      </span>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             {submenuOpen ? (
@@ -415,7 +489,15 @@ function SingleSelect({
                     : undefined
                 }
                 aria-label={subPopupLabel}
-                className="zp-single-select-popup zp-single-select-submenu"
+                className={[
+                  "zp-single-select-popup",
+                  "zp-single-select-submenu",
+                  variant === "compact"
+                    ? "zp-popup-surface zp-popup-list"
+                    : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 data-variant={variant}
                 onKeyDown={handleSubListboxKeyDown}
                 ref={subListboxRef}
@@ -423,34 +505,65 @@ function SingleSelect({
                 style={{ ...submenuStyle, width: subPopupMinWidth }}
                 tabIndex={0}
               >
-                {subOptions.map((subOption, index) => (
-                  <button
-                    aria-disabled={subOption.disabled || undefined}
-                    aria-selected={subOption.value === submenuOption?.subValue}
-                    className="zp-single-select-option"
-                    data-active={index === subActiveIndex || undefined}
-                    data-selected={
-                      subOption.value === submenuOption?.subValue || undefined
-                    }
-                    disabled={subOption.disabled}
-                    id={`${listboxId}-suboption-${index}`}
-                    key={subOption.value}
-                    onClick={() => selectSubIndex(index)}
-                    onMouseEnter={() => {
-                      if (!subOption.disabled) setSubActiveIndex(index);
-                    }}
-                    ref={(element) => {
-                      subOptionRefs.current[index] = element;
-                    }}
-                    role="option"
-                    tabIndex={-1}
-                    type="button"
-                  >
-                    <span className="zp-single-select-option-label">
-                      {subOption.label}
-                    </span>
-                  </button>
-                ))}
+                {subOptions.map((subOption, index) =>
+                  variant === "compact" ? (
+                    <PopupRow
+                      active={index === subActiveIndex}
+                      aria-selected={
+                        subOption.value === submenuOption?.subValue
+                      }
+                      className="zp-single-select-option"
+                      disabled={subOption.disabled}
+                      id={`${listboxId}-suboption-${index}`}
+                      key={subOption.value}
+                      label={subOption.label}
+                      onClick={() => selectSubIndex(index)}
+                      onMouseEnter={() => {
+                        if (!subOption.disabled) setSubActiveIndex(index);
+                      }}
+                      ref={(element) => {
+                        subOptionRefs.current[index] = element;
+                      }}
+                      role="option"
+                      selected={subOption.value === submenuOption?.subValue}
+                      selection={
+                        subOption.value === submenuOption?.subValue ? (
+                          <Check aria-hidden="true" size={13} />
+                        ) : null
+                      }
+                      tabIndex={-1}
+                    />
+                  ) : (
+                    <button
+                      aria-disabled={subOption.disabled || undefined}
+                      aria-selected={
+                        subOption.value === submenuOption?.subValue
+                      }
+                      className="zp-single-select-option"
+                      data-active={index === subActiveIndex || undefined}
+                      data-selected={
+                        subOption.value === submenuOption?.subValue || undefined
+                      }
+                      disabled={subOption.disabled}
+                      id={`${listboxId}-suboption-${index}`}
+                      key={subOption.value}
+                      onClick={() => selectSubIndex(index)}
+                      onMouseEnter={() => {
+                        if (!subOption.disabled) setSubActiveIndex(index);
+                      }}
+                      ref={(element) => {
+                        subOptionRefs.current[index] = element;
+                      }}
+                      role="option"
+                      tabIndex={-1}
+                      type="button"
+                    >
+                      <span className="zp-single-select-option-label">
+                        {subOption.label}
+                      </span>
+                    </button>
+                  ),
+                )}
               </div>
             ) : null}
           </div>
@@ -499,10 +612,28 @@ function calculateSubmenuStyle(
     0,
     listboxRect.bottom - listboxRect.top - submenuHeight,
   );
+  const top = Math.max(0, Math.min(desiredTop, maxTop));
+  if (
+    rootRect &&
+    availableRight < submenuWidth &&
+    availableLeft < submenuWidth
+  ) {
+    const listboxWidth = listboxRect.right - listboxRect.left;
+    const desiredStart = openAtEnd ? listboxWidth : -submenuWidth;
+    const minimumStart = rootRect.left - listboxRect.left;
+    const maximumStart = rootRect.right - listboxRect.left - submenuWidth;
+    return {
+      insetInlineStart: Math.max(
+        minimumStart,
+        Math.min(desiredStart, maximumStart),
+      ),
+      top,
+    };
+  }
   return {
     insetInlineEnd: openAtEnd ? undefined : "100%",
     insetInlineStart: openAtEnd ? "100%" : undefined,
-    top: Math.max(0, Math.min(desiredTop, maxTop)),
+    top,
   };
 }
 

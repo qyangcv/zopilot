@@ -1,80 +1,88 @@
-import type { KeyboardEvent, MouseEvent, ReactElement } from "react";
+import type { CSSProperties, MouseEvent, ReactElement, Ref } from "react";
 import { getString } from "../../../../app/localization";
+import { PopupRow } from "../../../../ui/primitives/index";
 import { Icon, type IconName } from "../Icon";
 import { formatWorkspaceMenuLabel } from "./workspaceTree";
 
 function WorkspaceMenuRow({
   active,
   className,
+  depth = 0,
   expanded = false,
   hasChildren = false,
   iconName,
-  indent = 0,
   itemCount,
   label,
-  onKeyDown,
-  onMouseDown,
+  onMouseEnter,
+  onSelect,
   onToggleDisclosure,
+  optionId,
+  rowRef,
+  selected,
   title,
 }: {
   active: boolean;
   className?: string;
+  depth?: number;
   expanded?: boolean;
   hasChildren?: boolean;
   iconName: IconName;
-  indent?: number;
   itemCount?: number;
   label: string;
-  onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
-  onMouseDown: (event: MouseEvent<HTMLElement>) => void;
+  onMouseEnter: () => void;
+  onSelect: () => void;
   onToggleDisclosure?: () => void;
+  optionId: string;
+  rowRef?: Ref<HTMLDivElement>;
+  selected: boolean;
   title: string;
 }): ReactElement {
   return (
-    <div
+    <PopupRow
+      active={active}
       aria-expanded={hasChildren ? expanded : undefined}
-      className={[
-        "zp-workspace-menu-row",
-        "zp-workspace-menu-action",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      data-active={active || undefined}
-      onKeyDown={onKeyDown}
-      onMouseDown={onMouseDown}
-      role="menuitem"
-      tabIndex={0}
-      title={title}
-    >
-      <span
-        className="zp-workspace-menu-main"
-        style={{ paddingInlineStart: `${10 + indent}px` }}
-      >
-        <Icon className="zp-workspace-menu-icon" name={iconName} size={14} />
-        <span className="zp-workspace-menu-label">
-          {formatWorkspaceMenuLabel(label)}
-        </span>
-      </span>
-      <span className="zp-workspace-menu-trailing">
-        <span className="zp-workspace-menu-check">
-          {active ? <Icon name="check" size={13} /> : null}
-        </span>
-        <span
-          className="zp-workspace-menu-count"
-          data-compact={
-            (itemCount !== undefined && itemCount >= 10) || undefined
-          }
-        >
-          {itemCount === undefined ? null : String(itemCount)}
-        </span>
+      aria-selected={selected}
+      className={["zp-workspace-menu-row", className].filter(Boolean).join(" ")}
+      disclosure={
         <WorkspaceDisclosure
           expanded={expanded}
           onToggle={onToggleDisclosure}
           visible={hasChildren}
         />
-      </span>
-    </div>
+      }
+      icon={
+        <Icon className="zp-workspace-menu-icon" name={iconName} size={14} />
+      }
+      id={optionId}
+      label={formatWorkspaceMenuLabel(label)}
+      metadata={
+        itemCount === undefined ? null : (
+          <span
+            className="zp-workspace-menu-count"
+            data-compact={itemCount >= 10 || undefined}
+          >
+            {String(itemCount)}
+          </span>
+        )
+      }
+      onMouseEnter={onMouseEnter}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect();
+      }}
+      ref={rowRef}
+      role="treeitem"
+      selected={selected}
+      selection={selected ? <Icon name="check" size={13} /> : null}
+      style={
+        {
+          "--zp-workspace-depth": depth,
+        } as CSSProperties
+      }
+      tabIndex={-1}
+      title={title}
+    />
   );
 }
 
@@ -86,33 +94,25 @@ function WorkspaceDisclosure({
   expanded: boolean;
   onToggle?: () => void;
   visible: boolean;
-}): ReactElement {
-  const title = visible
-    ? getString("sidebar-workspace-toggle-collections")
-    : undefined;
-  if (!visible) {
-    return <span className="zp-workspace-menu-expander" />;
-  }
+}): ReactElement | null {
+  if (!visible) return null;
+  const title = getString("sidebar-workspace-toggle-collections");
+  const stopAndToggle = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggle?.();
+  };
   return (
-    <button
+    <span
       aria-expanded={expanded}
       aria-label={title}
       className="zp-workspace-menu-expander"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onToggle?.();
-      }}
-      onKeyDown={(event) => event.stopPropagation()}
-      onMouseDown={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      }}
+      onMouseDown={stopAndToggle}
+      role="button"
       title={title}
-      type="button"
     >
       <Icon name={expanded ? "collapse" : "expand"} size={13} />
-    </button>
+    </span>
   );
 }
 

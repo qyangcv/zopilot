@@ -113,13 +113,14 @@ function ComposerPromptPicker({
   }
   return (
     <FloatingPortal
-      align="start"
-      anchorRef={bindings.promptButtonRef}
-      maxWidth={420}
-      minWidth={300}
+      align="stretch"
+      anchorRef={bindings.composerRef}
+      horizontalBoundaryRef={bindings.bottomDockRef}
+      horizontalMargin={0}
+      maxWidth={720}
+      minWidth={0}
       onDismiss={() => bindings.setPromptPickerOpen(false)}
       preferredSide="above"
-      width={380}
       zIndex={9}
     >
       <PromptPicker
@@ -129,6 +130,7 @@ function ComposerPromptPicker({
           bindings.insertPrompt(body);
         }}
         prompts={state.prompts}
+        triggerRef={bindings.promptButtonRef}
       />
     </FloatingPortal>
   );

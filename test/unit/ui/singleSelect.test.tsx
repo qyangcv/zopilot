@@ -106,6 +106,19 @@ describe("SingleSelect", function () {
     assert.equal(left.top, 100);
   });
 
+  it("overlaps the model menu when a narrow sidebar cannot fit either side", function () {
+    const style = calculateSubmenuStyle(
+      { top: 20, bottom: 220, left: 10, right: 270 },
+      { top: 80, bottom: 102 },
+      { left: 0, right: 280 },
+      88,
+      96,
+    );
+
+    assert.equal(style.insetInlineStart, 174);
+    assert.isAtMost(10 + Number(style.insetInlineStart) + 96, 280);
+  });
+
   it("resolves a model click to its enabled default sub-option", function () {
     assert.deepEqual(
       findDefaultSubOption({

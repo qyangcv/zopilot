@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useLayoutEffect,
+  useRef,
   useState,
   type CSSProperties,
   type ReactElement,
@@ -51,6 +52,7 @@ function FloatingPortal({
   preferredSide = "above",
   topBoundaryRef,
   width,
+  widthMode = "anchor",
   zIndex = 7,
 }: {
   align?: FloatingAlign;
@@ -66,11 +68,14 @@ function FloatingPortal({
   preferredSide?: FloatingSide;
   topBoundaryRef?: RefObject<HTMLElement | null>;
   width?: number;
+  widthMode?: "anchor" | "content";
   zIndex?: number;
 }): ReactElement | null {
   const { portalRoot } = useZopilotUI();
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const [style, setStyle] = useState<CSSProperties>({
     visibility: "hidden",
+    width: widthMode === "content" ? "max-content" : undefined,
     zIndex,
   });
 
@@ -81,6 +86,17 @@ function FloatingPortal({
     const horizontalBoundary = horizontalBoundaryRef?.current;
     const topBoundary = topBoundaryRef?.current;
     const updatePosition = () => {
+      let preferredWidth = width;
+      const layer = layerRef.current;
+      if (widthMode === "content" && layer) {
+        const previousWidth = layer.style.width;
+        const previousMaxWidth = layer.style.maxWidth;
+        layer.style.width = "max-content";
+        layer.style.maxWidth = `${maxWidth}px`;
+        preferredWidth = Math.ceil(layer.getBoundingClientRect().width);
+        layer.style.width = previousWidth;
+        layer.style.maxWidth = previousMaxWidth;
+      }
       const next = calculateFloatingPosition({
         align,
         anchorRect: anchor.getBoundingClientRect(),
@@ -92,7 +108,7 @@ function FloatingPortal({
         preferredSide,
         rootRect: portalRoot.getBoundingClientRect(),
         topBoundary: topBoundary?.getBoundingClientRect().bottom,
-        width,
+        width: preferredWidth,
       });
       const resolvedMaxHeight =
         maxHeight === undefined
@@ -149,6 +165,7 @@ function FloatingPortal({
     preferredSide,
     topBoundaryRef,
     width,
+    widthMode,
     zIndex,
   ]);
 
@@ -160,7 +177,12 @@ function FloatingPortal({
         if (event.target === event.currentTarget) onDismiss();
       }}
     >
-      <div className="zp-floating-layer" style={style}>
+      <div
+        className="zp-floating-layer"
+        data-width-mode={widthMode}
+        ref={layerRef}
+        style={style}
+      >
         {children}
       </div>
     </div>,

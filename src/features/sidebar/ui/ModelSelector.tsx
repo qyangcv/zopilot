@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, RefObject } from "react";
 import { getString } from "../../../app/localization";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 import { SingleSelect } from "../../../ui/primitives/index";
@@ -6,9 +6,11 @@ import type { SidebarActions, SidebarState } from "./types";
 
 function ModelSelector({
   actions,
+  horizontalBoundaryRef,
   state,
 }: {
   actions: Pick<SidebarActions, "selectModel" | "selectModelEffort">;
+  horizontalBoundaryRef?: RefObject<HTMLElement | null>;
   state: Pick<
     SidebarState,
     | "models"
@@ -22,6 +24,8 @@ function ModelSelector({
       aria-label={getString("sidebar-model-name")}
       allowFullTriggerLabel
       disabled={!state.models.length}
+      horizontalBoundaryRef={horizontalBoundaryRef}
+      horizontalMargin={0}
       onChange={actions.selectModel}
       onSubChange={actions.selectModelEffort}
       options={state.models.map((model) => {
@@ -50,7 +54,9 @@ function ModelSelector({
           value: createModelSelectValue(model.providerProfileId, model.slug),
         };
       })}
-      popupWidth={160}
+      popupMaxWidth={300}
+      popupMinWidth={260}
+      popupWidthMode="content"
       showIndicator={false}
       subPopupLabel={getString("sidebar-reasoning-depth")}
       subPopupMinWidth={96}

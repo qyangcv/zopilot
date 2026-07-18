@@ -7,16 +7,13 @@ import type {
   SourceMention,
 } from "../../../../domain/conversation";
 import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
+import { findPopupNextIndex } from "../../../../ui/primitives/index";
 import type { ComposerBindings } from "../composerBindings";
 import { resizeTextarea } from "../composerLayout";
 import type { SidebarActions, SidebarState } from "../types";
 import { countItemContextSelections } from "../itemContextGroups";
 import { useMentionPicker } from "./useMentionPicker";
-import {
-  findMentionQuery,
-  moveMentionCandidateIndex,
-  sourceToMention,
-} from "../mentions";
+import { findMentionQuery, sourceToMention } from "../mentions";
 import type { SidebarDropPayload } from "../../../../integrations/zotero/compat/dragData";
 import {
   mergeDroppedContext,
@@ -175,6 +172,20 @@ function useComposerDraft(
     activeItemContextIndex,
     Math.max(itemContextRowCount - 1, 0),
   );
+  const isItemContextRowDisabled = (index: number) => {
+    if (index === 0) return false;
+    const node = itemContextNodes[index - 1];
+    if (!node?.selectable) return true;
+    const selected =
+      (node.kind === "pdf" &&
+        (node.current ||
+          mentions.some(
+            (mention) => mention.sourceId === node.source.sourceId,
+          ))) ||
+      (node.kind === "note" &&
+        noteContexts.some((note) => note.id === node.note.id));
+    return selectedContextCount >= MAX_SELECTED_CONTEXTS && !selected;
+  };
   const setMentionQuery = mentionPicker.setMentionQuery;
   const updateDraft = (text: string, cursor?: number) => {
     updateDraftWithoutMention(text);
@@ -418,10 +429,11 @@ function useComposerDraft(
       noteContexts,
       moveItemContextSelection: (direction) => {
         setActiveItemContextIndex((current) =>
-          moveMentionCandidateIndex(
-            Math.min(current, Math.max(itemContextRowCount - 1, 0)),
+          findPopupNextIndex(
             itemContextRowCount,
+            Math.min(current, Math.max(itemContextRowCount - 1, 0)),
             direction,
+            isItemContextRowDisabled,
           ),
         );
       },

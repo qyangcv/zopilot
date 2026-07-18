@@ -34,10 +34,15 @@ function SidebarHeader({
         </div>
         <div className="zp-sidebar-actions">
           <button
+            aria-controls={
+              state.sessionsOpen && state.sessionsMode === "history"
+                ? "zp-session-list"
+                : undefined
+            }
             aria-expanded={
               state.sessionsOpen && state.sessionsMode === "history"
             }
-            aria-haspopup="true"
+            aria-haspopup="listbox"
             aria-label={getString("sidebar-history")}
             className="zp-icon-button zp-history-button"
             disabled={!state.context.workspaceKey}
@@ -52,10 +57,15 @@ function SidebarHeader({
             <Icon name="history" />
           </button>
           <button
+            aria-controls={
+              state.sessionsOpen && state.sessionsMode === "archive"
+                ? "zp-session-list"
+                : undefined
+            }
             aria-expanded={
               state.sessionsOpen && state.sessionsMode === "archive"
             }
-            aria-haspopup="true"
+            aria-haspopup="listbox"
             aria-label={getString("sidebar-archived-sessions")}
             className="zp-icon-button zp-archive-button"
             disabled={!state.context.workspaceKey}
@@ -108,7 +118,9 @@ function SidebarHeader({
           <SessionPopover
             actions={actions}
             mode={state.sessionsMode}
+            onClose={actions.hideSessions}
             sessions={state.sessions}
+            triggerRef={sessionAnchorRef}
           />
         </FloatingPortal>
       ) : null}

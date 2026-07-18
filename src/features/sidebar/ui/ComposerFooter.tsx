@@ -20,6 +20,7 @@ function ComposerFooter({
     localAttachments,
     mentions,
     promptButtonRef,
+    promptPickerOpen,
     setPromptPickerOpen,
   } = bindings;
   const noteContexts = bindings.noteContexts || [];
@@ -27,6 +28,9 @@ function ComposerFooter({
     <div className="zp-composer-footer">
       <div className="zp-composer-meta">
         <button
+          aria-controls={promptPickerOpen ? "zp-prompt-picker" : undefined}
+          aria-expanded={promptPickerOpen}
+          aria-haspopup="dialog"
           aria-label={getString("sidebar-prompts")}
           className="zp-context-add"
           disabled={!state.composerEnabled}
@@ -61,7 +65,11 @@ function ComposerFooter({
           </span>
         ) : null}
         {state.backendStatus !== "disconnected" ? (
-          <ModelSelector actions={actions} state={state} />
+          <ModelSelector
+            actions={actions}
+            horizontalBoundaryRef={bindings.composerRef}
+            state={state}
+          />
         ) : null}
       </div>
       <button

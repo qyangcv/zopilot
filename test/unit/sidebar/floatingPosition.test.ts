@@ -77,6 +77,40 @@ describe("floating popover positioning", function () {
     assert.equal(position.left, 90);
   });
 
+  it("keeps a content-sized model popup between its preferred bounds", function () {
+    const wide = calculateFloatingPosition({
+      anchorRect: rect({ bottom: 580, left: 100, right: 180, top: 558 }),
+      horizontalBoundaryRect: rect({
+        bottom: 600,
+        left: 20,
+        right: 420,
+        top: 0,
+      }),
+      horizontalMargin: 0,
+      maxWidth: 300,
+      minWidth: 260,
+      rootRect: rect({ bottom: 600, left: 0, right: 440, top: 0 }),
+      width: 280,
+    });
+    const narrow = calculateFloatingPosition({
+      anchorRect: rect({ bottom: 580, left: 40, right: 120, top: 558 }),
+      horizontalBoundaryRect: rect({
+        bottom: 600,
+        left: 20,
+        right: 260,
+        top: 0,
+      }),
+      horizontalMargin: 0,
+      maxWidth: 300,
+      minWidth: 260,
+      rootRect: rect({ bottom: 600, left: 0, right: 280, top: 0 }),
+      width: 280,
+    });
+
+    assert.equal(wide.width, 280);
+    assert.equal(narrow.width, 240);
+  });
+
   it("keeps an end-aligned header popup inside the sidebar boundary", function () {
     const position = calculateFloatingPosition({
       align: "end",

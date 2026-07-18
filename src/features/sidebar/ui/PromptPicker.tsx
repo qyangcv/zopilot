@@ -1,5 +1,12 @@
-import { type ReactElement } from "react";
+import { useRef, useState, type ReactElement, type RefObject } from "react";
 import { getString } from "../../../app/localization";
+import {
+  PopupHeader,
+  PopupList,
+  PopupRow,
+  PopupSurface,
+  usePopupListNavigation,
+} from "../../../ui/primitives/index";
 import { Icon } from "./Icon";
 import type { SidebarState } from "./types";
 
@@ -7,77 +14,102 @@ export function PromptPicker({
   onClose,
   onInsert,
   prompts,
+  triggerRef,
 }: {
   onClose: () => void;
   onInsert: (body: string) => void;
   prompts: SidebarState["prompts"];
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }): ReactElement {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const rowRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const navigation = usePopupListNavigation({
+    activeIndex,
+    itemCount: prompts.length,
+    itemRefs: rowRefs,
+    listRef,
+    onActiveIndexChange: setActiveIndex,
+    onCommit: (index) => {
+      const prompt = prompts[index];
+      if (prompt) onInsert(prompt.body);
+    },
+    onDismiss: onClose,
+    restoreFocusRef: triggerRef,
+  });
+  const closeAndRestore = () => {
+    onClose();
+    queueMicrotask(() => triggerRef.current?.focus({ preventScroll: true }));
+  };
   return (
-    <section
+    <PopupSurface
       aria-label={getString("sidebar-prompts")}
       className="zp-floating-panel zp-prompt-picker"
+      id="zp-prompt-picker"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();
-          onClose();
+          event.stopPropagation();
+          closeAndRestore();
+          return;
+        }
+        if (navigation.onKeyDown(event)) {
+          queueMicrotask(() => listRef.current?.focus({ preventScroll: true }));
         }
       }}
+      role="dialog"
     >
-      <FloatingPanelHeader
-        onClose={onClose}
+      <PopupHeader
+        actions={
+          <button
+            aria-label={getString("sidebar-close")}
+            className="zp-inline-copy"
+            data-popup-action
+            onClick={closeAndRestore}
+            title={getString("sidebar-close")}
+            type="button"
+          >
+            <Icon name="close" size={13} />
+          </button>
+        }
         title={getString("sidebar-prompts")}
       />
-      <div className="zp-panel-list">
-        {prompts.map((prompt) => (
-          <div
+      <PopupList
+        aria-activedescendant={
+          activeIndex >= 0 ? `zp-prompt-option-${activeIndex}` : undefined
+        }
+        aria-label={getString("sidebar-prompts")}
+        className="zp-panel-list"
+        onKeyDown={navigation.onKeyDown}
+        ref={listRef}
+        role="listbox"
+        tabIndex={0}
+      >
+        {prompts.map((prompt, index) => (
+          <PopupRow
+            active={index === activeIndex}
+            aria-selected={false}
             className="zp-panel-row zp-prompt-insert-row"
+            description={prompt.body}
+            id={`zp-prompt-option-${index}`}
             key={prompt.id}
+            label={prompt.title}
             onClick={() => onInsert(prompt.body)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onInsert(prompt.body);
-              }
+            onMouseEnter={() => setActiveIndex(index)}
+            ref={(element) => {
+              rowRefs.current[index] = element;
             }}
-            role="button"
-            tabIndex={0}
+            role="option"
+            tabIndex={-1}
             title={prompt.body}
-          >
-            <div className="zp-panel-row-main">
-              <span className="zp-panel-row-title">{prompt.title}</span>
-              <span className="zp-panel-row-description">{prompt.body}</span>
-            </div>
-          </div>
+          />
         ))}
         {prompts.length === 0 ? (
-          <div className="zp-panel-empty">
+          <div className="zp-popup-empty">
             {getString("sidebar-prompt-empty")}
           </div>
         ) : null}
-      </div>
-    </section>
-  );
-}
-
-function FloatingPanelHeader({
-  onClose,
-  title,
-}: {
-  onClose: () => void;
-  title: string;
-}): ReactElement {
-  return (
-    <div className="zp-floating-panel-header">
-      <span>{title}</span>
-      <button
-        aria-label={getString("sidebar-close")}
-        className="zp-inline-copy"
-        onClick={onClose}
-        title={getString("sidebar-close")}
-        type="button"
-      >
-        <Icon name="close" size={13} />
-      </button>
-    </div>
+      </PopupList>
+    </PopupSurface>
   );
 }

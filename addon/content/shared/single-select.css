@@ -298,3 +298,28 @@
     transition: none;
   }
 }
+
+/* Compact popup specialization; form selectors retain their existing geometry. */
+
+.zp-single-select-popup[data-variant="compact"] {
+  max-height: min(312px, 52vh);
+}
+
+.zp-single-select-popup[data-variant="compact"] .zp-single-select-group {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.zp-single-select-popup[data-variant="compact"] .zp-popup-row-label {
+  flex: 1 1 auto;
+}
+
+.zp-single-select-popup[data-variant="compact"] .zp-popup-row[data-selected] {
+  color: inherit;
+  font-weight: 400;
+}
+
+.zp-single-select-popup[data-variant="compact"] .zp-popup-row-action {
+  color: var(--zp-single-select-muted);
+}

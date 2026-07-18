@@ -25,6 +25,7 @@
   --zp-muted: color-mix(in srgb, CanvasText 50%, Canvas);
   --zp-muted-strong: color-mix(in srgb, CanvasText 64%, Canvas);
   --zp-accent: var(--accent-blue, AccentColor);
+  --zp-focus-ring: color-mix(in srgb, var(--zp-accent) 72%, CanvasText);
   --zp-danger: #c9342f;
   --zp-accent-text: AccentColorText;
 }

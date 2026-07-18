@@ -1,5 +1,10 @@
 import { assert } from "chai";
-import { isValidElement, type ReactElement, type ReactNode } from "react";
+import {
+  createRef,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SidebarApp } from "../../../src/features/sidebar/ui/SidebarApp.tsx";
 import { Message } from "../../../src/features/sidebar/ui/Message.tsx";
@@ -612,7 +617,7 @@ describe("SidebarApp", function () {
     assert.equal(countOccurrences(html, 'data-icon-name="workspaceItem"'), 3);
     assert.equal(countOccurrences(html, "zp-compact-context-chip"), 2);
     assert.equal(countOccurrences(html, "zp-context-chip-trigger"), 1);
-    assert.equal(countOccurrences(html, 'aria-haspopup="tree"'), 1);
+    assert.equal(countOccurrences(html, 'aria-haspopup="tree"'), 2);
     assert.notInclude(html, "Supplement.pdf");
     assert.notInclude(html, "Reading notes");
     assert.include(html, "Use the selected item context");
@@ -870,18 +875,24 @@ describe("SidebarApp", function () {
     const html = renderToStaticMarkup(
       <WorkspaceMenuRow
         active
+        depth={2}
         hasChildren
         iconName="workspaceCollection"
         itemCount={128}
         label="Reasoning"
-        onKeyDown={() => undefined}
-        onMouseDown={() => undefined}
+        onMouseEnter={() => undefined}
+        onSelect={() => undefined}
+        optionId="workspace-reasoning"
+        selected
         title="Reasoning"
       />,
     );
 
     assert.include(html, "Reasoning");
-    assert.include(html, 'class="zp-workspace-menu-trailing"');
+    assert.include(html, "--zp-workspace-depth:2");
+    assert.include(html, 'class="zp-popup-row-selection"');
+    assert.include(html, 'class="zp-popup-row-disclosure"');
+    assert.include(html, 'class="zp-popup-row-icon"');
     assert.include(
       html,
       'class="zp-workspace-menu-count" data-compact="true">128</span>',
@@ -890,12 +901,16 @@ describe("SidebarApp", function () {
     assert.include(html, 'class="zp-workspace-menu-expander"');
     assert.notInclude(html, "zp-workspace-menu-meta");
     assert.isBelow(
-      html.indexOf("zp-workspace-menu-check"),
-      html.indexOf("zp-workspace-menu-count"),
+      html.indexOf("zp-popup-row-selection"),
+      html.indexOf("zp-popup-row-disclosure"),
     );
     assert.isBelow(
+      html.indexOf("zp-popup-row-disclosure"),
+      html.indexOf("zp-popup-row-icon"),
+    );
+    assert.isBelow(
+      html.indexOf("zp-popup-row-icon"),
       html.indexOf("zp-workspace-menu-count"),
-      html.indexOf("zp-workspace-menu-expander"),
     );
   });
 
@@ -906,8 +921,10 @@ describe("SidebarApp", function () {
         iconName="workspaceLibrary"
         itemCount={1316}
         label="Library"
-        onKeyDown={() => undefined}
-        onMouseDown={() => undefined}
+        onMouseEnter={() => undefined}
+        onSelect={() => undefined}
+        optionId="workspace-library"
+        selected={false}
         title="Library"
       />,
     );
@@ -938,8 +955,10 @@ describe("SidebarApp", function () {
         iconName="workspaceCollection"
         itemCount={27}
         label="Collection"
-        onKeyDown={() => undefined}
-        onMouseDown={() => undefined}
+        onMouseEnter={() => undefined}
+        onSelect={() => undefined}
+        optionId="workspace-collection-27"
+        selected={false}
         title="Collection"
       />,
     );
@@ -949,8 +968,10 @@ describe("SidebarApp", function () {
         iconName="workspaceCollection"
         itemCount={9}
         label="Collection"
-        onKeyDown={() => undefined}
-        onMouseDown={() => undefined}
+        onMouseEnter={() => undefined}
+        onSelect={() => undefined}
+        optionId="workspace-collection-9"
+        selected={false}
         title="Collection"
       />,
     );
@@ -1060,6 +1081,7 @@ describe("SidebarApp", function () {
       <SessionPopover
         actions={createActions()}
         mode="archive"
+        onClose={() => undefined}
         sessions={[
           {
             id: "conv-archived",
@@ -1069,6 +1091,7 @@ describe("SidebarApp", function () {
             conversation: createConversation("conv-archived"),
           },
         ]}
+        triggerRef={createRef<HTMLButtonElement>()}
       />,
     );
 
@@ -1078,6 +1101,40 @@ describe("SidebarApp", function () {
     assert.include(html, "zopilot-sidebar-archived-sessions");
     assert.include(html, "Archived question");
     assert.notInclude(html, "zopilot-sidebar-delete-session");
+  });
+
+  it("keeps history check, title, time, and action in stable columns", function () {
+    const html = renderToStaticMarkup(
+      <SessionPopover
+        actions={createActions()}
+        mode="history"
+        onClose={() => undefined}
+        sessions={[
+          {
+            id: "conv-current",
+            title: "Current question",
+            meta: "2026-07-18T08:00:00.000Z",
+            active: true,
+            conversation: createConversation("conv-current"),
+          },
+        ]}
+        triggerRef={createRef<HTMLButtonElement>()}
+      />,
+    );
+
+    assert.include(html, 'data-icon-name="check"');
+    assert.isBelow(
+      html.indexOf("zp-popup-row-selection"),
+      html.indexOf("zp-popup-row-label"),
+    );
+    assert.isBelow(
+      html.indexOf("zp-popup-row-label"),
+      html.indexOf("zp-popup-row-metadata"),
+    );
+    assert.isBelow(
+      html.indexOf("zp-popup-row-metadata"),
+      html.indexOf("zp-popup-row-action"),
+    );
   });
 
   it("groups session timestamps into Copilot-style relative units", function () {
@@ -1107,7 +1164,13 @@ describe("SidebarApp", function () {
 
   it("uses a distinct empty state for archived sessions", function () {
     const html = renderToStaticMarkup(
-      <SessionPopover actions={createActions()} mode="archive" sessions={[]} />,
+      <SessionPopover
+        actions={createActions()}
+        mode="archive"
+        onClose={() => undefined}
+        sessions={[]}
+        triggerRef={createRef<HTMLButtonElement>()}
+      />,
     );
 
     assert.include(html, "zopilot-sidebar-no-archived-sessions");
@@ -1152,7 +1215,7 @@ describe("SidebarApp", function () {
     assert.include(html, "GPT-5.5");
     assert.include(html, 'data-provider-brand="codex"');
     assert.equal(countOccurrences(html, 'data-provider-brand="codex"'), 1);
-    assert.equal(countOccurrences(html, 'aria-haspopup="listbox"'), 1);
+    assert.equal(countOccurrences(html, 'class="zp-single-select-trigger"'), 1);
     assert.include(html, 'class="zp-single-select-trigger-primary">GPT-5.5');
     assert.include(html, 'class="zp-single-select-trigger-separator">·');
     assert.include(html, 'class="zp-single-select-trigger-detail">High');

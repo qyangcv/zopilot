@@ -1,205 +1,42 @@
-/* Composer popovers */
+/* Composer popover specializations. Shared geometry lives in popup-list.css. */
 
-.zp-mention-popover {
-  overflow: auto;
-  padding-block: 4px;
-  border-radius: 7px;
-  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 12%, transparent);
+.zp-mention-popover .zp-popup-list {
+  max-height: min(312px, 48vh);
 }
 
-.zp-panel-empty {
-  color: var(--zp-muted);
-  font-size: 11px;
-  padding: 10px;
-}
-
-/* Prompt panel */
-
-.zp-floating-panel {
-  overflow: hidden;
-  border-radius: 8px;
-  box-shadow: 0 6px 16px color-mix(in srgb, CanvasText 10%, transparent);
-}
-
-.zp-floating-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 8px 6px 10px;
-  border-bottom: 1px solid var(--zp-subtle-border);
-  color: var(--zp-muted-strong);
-  font-weight: 600;
-}
-
-.zp-panel-list {
-  display: flex;
-  flex-direction: column;
+.zp-prompt-picker .zp-popup-list {
   max-height: min(310px, 48vh);
-  overflow: auto;
-  padding: 5px;
 }
 
-.zp-panel-row {
-  appearance: none;
-  -moz-appearance: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-  font: inherit;
-  margin: 0;
-  padding: 8px 9px;
-  text-align: start;
-}
-
-.zp-panel-row:hover {
-  background: var(--zp-panel-strong);
-}
-
-.zp-panel-row:focus-visible {
-  outline: 2px solid var(--zp-focus-ring);
-  outline-offset: -2px;
-}
-
-.zp-panel-row:disabled {
-  opacity: 0.5;
-}
-
-.zp-panel-row-main {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.zp-prompt-insert-row {
-  appearance: none;
-  -moz-appearance: none;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-  font: inherit;
-  margin: 0;
-  text-align: start;
-}
-
-.zp-prompt-insert-row:disabled {
-  opacity: 0.5;
-}
-
-.zp-panel-row-title,
-.zp-panel-row-description {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zp-panel-row-title {
+.zp-prompt-insert-row .zp-popup-row-label {
+  flex: 0 1 auto;
   font-weight: 600;
-  line-height: 1.45;
-}
-
-.zp-panel-row-description {
-  color: var(--zp-muted);
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .zp-mention-limit {
-  padding: 7px 9px;
+  flex: 0 0 auto;
+  padding: 5px 6px;
   border-bottom: 1px solid var(--zp-subtle-border);
   color: var(--zp-muted);
-}
-
-.zp-mention-option {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  inline-size: 100%;
-  min-inline-size: 0;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-  overflow: hidden;
-  padding: 7px 10px;
-}
-
-.zp-mention-option:hover {
-  background: transparent;
-}
-
-.zp-mention-option[data-active] {
-  background: var(--zp-panel-strong);
-}
-
-.zp-mention-option[aria-disabled="true"] {
-  opacity: 0.5;
-}
-
-.zp-mention-title {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zp-mention-title {
-  flex: 1 1 auto;
-  font-weight: 400;
-  line-height: 16px;
+  font-size: 11px;
 }
 
 .zp-mention-icon {
-  flex: 0 0 auto;
   color: var(--zp-muted);
 }
 
-.zp-item-context-root {
+.zp-item-context-root .zp-popup-row-label {
   font-weight: 600;
 }
 
-.zp-item-context-child {
-  padding-inline-start: 31px;
-}
-
-.zp-item-context-selection {
-  flex: 0 0 auto;
+.zp-item-context-child .zp-popup-row-selection {
   color: var(--zp-muted);
 }
 
-.zp-item-context-child[data-selected] .zp-item-context-selection {
+.zp-item-context-child[data-selected] .zp-popup-row-selection {
   color: var(--zp-accent);
 }
 
-.zp-item-context-chevron {
-  flex: 0 0 auto;
-  color: var(--zp-muted);
-}
-
-.zp-item-context-meta {
-  flex: 0 0 auto;
-  max-width: 40%;
-  overflow: hidden;
-  color: var(--zp-muted);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zp-item-context-child[data-invalid] .zp-item-context-meta {
+.zp-item-context-child[data-invalid] .zp-popup-row-metadata {
   color: var(--zp-danger);
 }
