@@ -7,6 +7,7 @@ import {
   ZoteroCollectionRepository,
   type SourceUniverseCollectionOption,
 } from "./ZoteroCollectionRepository";
+import { ZoteroLibraryItemRepository } from "./ZoteroLibraryItemRepository";
 import { createPaperSourceRefWithZotero, dedupeSources } from "./items";
 import { getZoteroGlobal } from "../environment";
 
@@ -19,28 +20,33 @@ type SourceUniverseSnapshot = {
 
 class ZoteroSourceCatalog {
   private readonly collections: ZoteroCollectionRepository;
+  private readonly libraryItems: ZoteroLibraryItemRepository;
 
   constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {
     this.collections = new ZoteroCollectionRepository(this.zotero);
+    this.libraryItems = new ZoteroLibraryItemRepository(this.zotero);
   }
 
   async getSnapshot(input: {
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity;
   }): Promise<SourceUniverseSnapshot> {
-    const [collections, libraryItems] = await Promise.all([
+    const [collections, libraryItemIDs] = await Promise.all([
       this.collections.listOptions(input.workspace.libraryID),
-      this.zotero.Items.getAll(input.workspace.libraryID, true, false),
+      this.libraryItems.listViewItemIDs(input.workspace.libraryID),
     ]);
     const sources =
       input.workspace.workspaceType === "library"
-        ? await this.sourcesFromItems(libraryItems, input.currentSource)
+        ? await this.sourcesFromItems(
+            await this.libraryItems.getItems(libraryItemIDs),
+            input.currentSource,
+          )
         : await this.resolveSources(input.workspace, input.currentSource);
     return {
       workspace: input.workspace,
       sources,
       collections,
-      libraryItemCount: libraryItems.length,
+      libraryItemCount: libraryItemIDs.length,
     };
   }
 
@@ -67,7 +73,7 @@ class ZoteroSourceCatalog {
       );
     }
     return this.sourcesFromItems(
-      await this.zotero.Items.getAll(workspace.libraryID, true, false),
+      await this.libraryItems.listViewItems(workspace.libraryID),
       currentSource,
     );
   }

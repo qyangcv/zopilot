@@ -7,13 +7,17 @@ type MockItem = {
   key: string;
   libraryID: number;
   title: string;
+  deleted?: boolean;
+  parentItemID?: number;
   date?: string;
   attachment?: boolean;
   pdf?: boolean;
   attachments?: number[];
   collections?: number[];
   isRegularItem?: () => boolean;
+  isAnnotation?: () => boolean;
   isAttachment?: () => boolean;
+  isNote?: () => boolean;
   isPDFAttachment?: () => boolean;
   getField?: (field: string) => string;
   getAttachments?: () => number[];
@@ -40,7 +44,7 @@ describe("ZoteroSourceUniverse", function () {
 
   it("lists only library items with PDF attachments", async function () {
     const paper = createRegularItem(1, "AAA", "Paper A", [11]);
-    const pdf = createAttachment(11, "PDF-A", true);
+    const pdf = createAttachment(11, "PDF-A", true, paper.id);
     const noPdf = createRegularItem(2, "BBB", "Paper B", []);
     installZoteroMock([paper, pdf, noPdf], []);
     const universe = new ZoteroSourceUniverse();
@@ -84,8 +88,8 @@ describe("ZoteroSourceUniverse", function () {
       [
         parentPaper,
         childPaper,
-        createAttachment(11, "PDF-A", true),
-        createAttachment(21, "PDF-B", true),
+        createAttachment(11, "PDF-A", true, parentPaper.id),
+        createAttachment(21, "PDF-B", true, childPaper.id),
       ],
       [parentCollection, childCollection],
     );
@@ -122,8 +126,8 @@ describe("ZoteroSourceUniverse", function () {
       [
         parentPaper,
         childPaper,
-        createAttachment(11, "PDF-A", true),
-        createAttachment(21, "PDF-B", true),
+        createAttachment(11, "PDF-A", true, parentPaper.id),
+        createAttachment(21, "PDF-B", true, childPaper.id),
       ],
       [parentCollection, childCollection],
     );
@@ -215,8 +219,8 @@ describe("ZoteroSourceUniverse", function () {
     installZoteroMock(
       [
         paper,
-        createAttachment(11, "PDF-A", true),
-        createAttachment(12, "PDF-B", true),
+        createAttachment(11, "PDF-A", true, paper.id),
+        createAttachment(12, "PDF-B", true, paper.id),
       ],
       [],
     );
@@ -238,6 +242,98 @@ describe("ZoteroSourceUniverse", function () {
 
     assert.equal(sources[0]?.attachmentKey, "PDF-B");
   });
+
+  it("matches Zotero library view semantics for child and standalone items", async function () {
+    const paper = createRegularItem(1, "AAA", "Paper A", [11]);
+    const childPdf = createAttachment(11, "PDF-A", true, paper.id);
+    const childNote = createNote(12, "NOTE-A", paper.id);
+    const annotation = createAnnotation(13, "ANNOTATION-A", childPdf.id);
+    const standalonePdf = createAttachment(20, "PDF-STANDALONE", true);
+    const standaloneNote = createNote(21, "NOTE-STANDALONE");
+    const deletedPaper = {
+      ...createRegularItem(30, "DELETED", "Deleted Paper", []),
+      deleted: true,
+    };
+    installZoteroMock(
+      [
+        paper,
+        childPdf,
+        childNote,
+        annotation,
+        standalonePdf,
+        standaloneNote,
+        deletedPaper,
+      ],
+      [],
+    );
+    const universe = new ZoteroSourceUniverse();
+
+    const snapshot = await universe.getSnapshot({
+      workspace: {
+        workspaceKey: "library:1",
+        workspaceType: "library",
+        workspaceLabel: "Library 1",
+        workspaceTitle: "Library 1",
+        libraryID: 1,
+      },
+    });
+
+    assert.equal(snapshot.libraryItemCount, 3);
+    assert.deepEqual(
+      snapshot.sources.map((source) => source.title),
+      ["Paper A"],
+    );
+  });
+
+  it("scopes library counts and sources to the active library ID", async function () {
+    const libraryOnePaper = createRegularItem(
+      1,
+      "LIB-ONE",
+      "Library One Paper",
+      [11],
+      1,
+    );
+    const libraryFortyTwoPaper = createRegularItem(
+      42,
+      "LIB-FORTY-TWO",
+      "Library Forty Two Paper",
+      [142],
+      42,
+    );
+    installZoteroMock(
+      [
+        libraryOnePaper,
+        createAttachment(11, "PDF-ONE", true, libraryOnePaper.id, 1),
+        libraryFortyTwoPaper,
+        createAttachment(
+          142,
+          "PDF-FORTY-TWO",
+          true,
+          libraryFortyTwoPaper.id,
+          42,
+        ),
+        createNote(143, "NOTE-FORTY-TWO", undefined, 42),
+      ],
+      [],
+    );
+    const universe = new ZoteroSourceUniverse();
+
+    const snapshot = await universe.getSnapshot({
+      workspace: {
+        workspaceKey: "library:42",
+        workspaceType: "library",
+        workspaceLabel: "Library 42",
+        workspaceTitle: "Library 42",
+        libraryID: 42,
+      },
+    });
+
+    assert.equal(snapshot.libraryItemCount, 2);
+    assert.deepEqual(
+      snapshot.sources.map((source) => source.title),
+      ["Library Forty Two Paper"],
+    );
+  });
 });
 
 function createRegularItem(
@@ -245,12 +341,13 @@ function createRegularItem(
   key: string,
   title: string,
   attachments: number[],
+  libraryID = 1,
 ): MockItem {
   return {
     id,
     key,
     title,
-    libraryID: 1,
+    libraryID,
     attachments,
     isRegularItem: () => true,
     getField: (field) =>
@@ -261,17 +358,58 @@ function createRegularItem(
   };
 }
 
-function createAttachment(id: number, key: string, pdf: boolean): MockItem {
+function createAttachment(
+  id: number,
+  key: string,
+  pdf: boolean,
+  parentItemID?: number,
+  libraryID = 1,
+): MockItem {
   return {
     id,
     key,
     title: key,
-    libraryID: 1,
+    libraryID,
+    parentItemID,
     attachment: true,
     pdf,
     isRegularItem: () => false,
     isAttachment: () => true,
     isPDFAttachment: () => pdf,
+  };
+}
+
+function createNote(
+  id: number,
+  key: string,
+  parentItemID?: number,
+  libraryID = 1,
+): MockItem {
+  return {
+    id,
+    key,
+    title: key,
+    libraryID,
+    parentItemID,
+    isRegularItem: () => false,
+    isNote: () => true,
+  };
+}
+
+function createAnnotation(
+  id: number,
+  key: string,
+  parentItemID: number,
+  libraryID = 1,
+): MockItem {
+  return {
+    id,
+    key,
+    title: key,
+    libraryID,
+    parentItemID,
+    isRegularItem: () => false,
+    isAnnotation: () => true,
   };
 }
 
@@ -300,7 +438,37 @@ function installZoteroMock(
   libraryName = "Library 1",
 ): void {
   const itemById = new Map(items.map((item) => [item.id, item]));
+  class MockSearch {
+    readonly libraryID: number;
+    private noChildren = false;
+
+    constructor({ libraryID = 0 }: { libraryID?: number } = {}) {
+      this.libraryID = libraryID;
+    }
+
+    addCondition(condition: string, operator: string): number {
+      if (condition === "noChildren" && operator === "true") {
+        this.noChildren = true;
+      }
+      return 1;
+    }
+
+    async search(): Promise<number[]> {
+      if (!this.noChildren) {
+        throw new Error("Expected the Zotero noChildren search condition");
+      }
+      return items
+        .filter(
+          (item) =>
+            item.libraryID === this.libraryID &&
+            !item.deleted &&
+            item.parentItemID === undefined,
+        )
+        .map((item) => item.id);
+    }
+  }
   (globalThis as unknown as { Zotero: unknown }).Zotero = {
+    Search: MockSearch,
     Libraries: {
       getName: () => libraryName,
     },
@@ -309,7 +477,11 @@ function installZoteroMock(
         typeof id === "number"
           ? itemById.get(id)
           : items.find((item) => item.key === id),
-      getAll: async () => items.filter((item) => item.isRegularItem?.()),
+      getAsync: async (ids: number[]) =>
+        ids.map((id) => itemById.get(id)).filter(Boolean),
+      getAll: async () => {
+        throw new Error("Items.getAll must not define library view semantics");
+      },
     },
     Collections: {
       getByLibrary: () => collections,
