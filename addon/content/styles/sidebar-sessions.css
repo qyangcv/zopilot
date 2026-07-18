@@ -41,21 +41,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 5px;
-  scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
-  scrollbar-width: thin;
-}
-
-.zp-session-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.zp-session-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.zp-session-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, CanvasText 28%, transparent);
 }
 
 .zp-session-row {

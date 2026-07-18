@@ -110,7 +110,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 4px 6px 9px;
+  padding: 7px 10px 6px 9px;
   border-bottom: 1px solid var(--zp-subtle-border);
   color: var(--zp-muted-strong);
   font-weight: 600;
@@ -228,7 +228,7 @@
   column-gap: 1px;
   flex: 0 0 auto;
   align-items: center;
-  padding-inline-end: 4px;
+  padding-inline-end: 10px;
 }
 
 .zp-workspace-menu-expander {

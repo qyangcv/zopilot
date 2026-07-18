@@ -1,4 +1,5 @@
 @import url("vendor/katex/katex.min.css");
+@import url("shared/scrollbars.css");
 @import url("styles/context-pane.css");
 @import url("styles/sidebar-shell.css");
 @import url("styles/sidebar-sessions.css");

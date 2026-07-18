@@ -1,0 +1,67 @@
+/* Shared scrollbars for every Zopilot surface and portal */
+
+:where(
+  .zp-root,
+  .zp-root *,
+  .zp-portal-root,
+  .zp-portal-root *,
+  #zopilot-preferences-root,
+  #zopilot-preferences-root *
+) {
+  scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+:where(
+  .zp-root,
+  .zp-root *,
+  .zp-portal-root,
+  .zp-portal-root *,
+  #zopilot-preferences-root,
+  #zopilot-preferences-root *
+)::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+:where(
+  .zp-root,
+  .zp-root *,
+  .zp-portal-root,
+  .zp-portal-root *,
+  #zopilot-preferences-root,
+  #zopilot-preferences-root *
+)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:where(
+  .zp-root,
+  .zp-root *,
+  .zp-portal-root,
+  .zp-portal-root *,
+  #zopilot-preferences-root,
+  #zopilot-preferences-root *
+)::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, CanvasText 28%, transparent);
+}
+
+:where(
+    .zp-root,
+    .zp-root *,
+    .zp-portal-root,
+    .zp-portal-root *,
+    #zopilot-preferences-root,
+    #zopilot-preferences-root *
+  )::-webkit-scrollbar-thumb:hover,
+:where(
+    .zp-root,
+    .zp-root *,
+    .zp-portal-root,
+    .zp-portal-root *,
+    #zopilot-preferences-root,
+    #zopilot-preferences-root *
+  )::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, CanvasText 40%, transparent);
+}

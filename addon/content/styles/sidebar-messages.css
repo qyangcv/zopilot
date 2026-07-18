@@ -15,22 +15,7 @@
   overscroll-behavior: contain;
   padding-block: 12px 10px;
   padding-inline: 8px 14px;
-  scrollbar-color: color-mix(in srgb, CanvasText 34%, transparent) transparent;
-  scrollbar-width: thin;
   background: transparent;
-}
-
-.zp-chat-log::-webkit-scrollbar {
-  width: 6px;
-}
-
-.zp-chat-log::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.zp-chat-log::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, CanvasText 28%, transparent);
 }
 
 .zp-chat-log[data-empty] {
