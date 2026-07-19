@@ -121,20 +121,30 @@ describe("streaming performance attribution integration", function () {
           onOpenLink,
         }),
       );
-      await waitForFrames(win, 2);
+      await waitForCondition(
+        win,
+        () =>
+          reactMount.querySelectorAll("[data-zp-markdown-segment]").length > 24,
+      );
       const initialSegments = [
         ...reactMount.querySelectorAll("[data-zp-markdown-segment]"),
       ];
       assert.isAbove(initialSegments.length, 24);
 
       resetSidebarPerformanceMetrics();
+      const updatedMarkdown = `${initial} More text.`;
       root.render(
         createElement(StreamingMarkdownView, {
-          markdown: `${initial} More text.`,
+          markdown: updatedMarkdown,
           onOpenLink,
         }),
       );
-      await waitForFrames(win, 2);
+      await waitForCondition(win, () => {
+        const segments = [
+          ...reactMount.querySelectorAll("[data-zp-markdown-segment]"),
+        ];
+        return segments.at(-1)?.textContent?.includes("More text.") ?? false;
+      });
 
       const updatedSegments = [
         ...reactMount.querySelectorAll("[data-zp-markdown-segment]"),
@@ -143,6 +153,7 @@ describe("streaming performance attribution integration", function () {
       assert.strictEqual(updatedSegments[0], initialSegments[0]);
       assert.strictEqual(updatedSegments.at(-2), initialSegments.at(-2));
       assert.strictEqual(updatedSegments.at(-1), initialSegments.at(-1));
+      assert.include(updatedSegments.at(-1)?.textContent, "More text.");
 
       const report = getSidebarPerformanceReport();
       assert.equal(report["markdown.segment"]?.count, 1);
@@ -286,5 +297,16 @@ async function waitForFrames(win: Window, count: number): Promise<void> {
     await new Promise<void>((resolve) =>
       win.requestAnimationFrame(() => resolve()),
     );
+  }
+}
+
+async function waitForCondition(
+  win: Window,
+  condition: () => boolean,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition() && Date.now() < deadline) {
+    await new Promise<void>((resolve) => win.setTimeout(resolve, 10));
   }
 }
