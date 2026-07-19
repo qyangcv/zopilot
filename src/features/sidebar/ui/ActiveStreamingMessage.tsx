@@ -74,21 +74,23 @@ const ActiveStreamingMessage = memo(function ActiveStreamingMessage({
             : "complete"
       }
     >
-      {model ? (
-        <ProviderBrandIcon
-          brand={activeSnapshot.providerBrand || "generic"}
-          className="zp-message-avatar"
-          size={20}
-        />
-      ) : (
-        <Icon className="zp-message-avatar" name="brand" size={20} />
-      )}
-      <div className="zp-message-stack">
+      <div className="zp-message-assistant-heading">
+        {model ? (
+          <ProviderBrandIcon
+            brand={activeSnapshot.providerBrand || "generic"}
+            className="zp-message-avatar"
+            size={20}
+          />
+        ) : (
+          <Icon className="zp-message-avatar" name="brand" size={20} />
+        )}
         {model ? (
           <div className="zp-answer-model">
             <span>{model}</span>
           </div>
         ) : null}
+      </div>
+      <div className="zp-message-stack">
         <div className="zp-message-body">
           {running || activeSnapshot.traceBlocks.length ? (
             <TracePanel

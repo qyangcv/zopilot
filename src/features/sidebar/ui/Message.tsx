@@ -39,44 +39,44 @@ function Message({
       data-status={message.status}
     >
       {isAssistant ? (
-        message.model ? (
-          <ProviderBrandIcon
-            brand={message.providerBrand || "generic"}
-            className="zp-message-avatar"
-            size={20}
-          />
-        ) : (
-          <Icon className="zp-message-avatar" name="brand" size={20} />
-        )
+        <div className="zp-message-assistant-heading">
+          {message.model ? (
+            <ProviderBrandIcon
+              brand={message.providerBrand || "generic"}
+              className="zp-message-avatar"
+              size={20}
+            />
+          ) : (
+            <Icon className="zp-message-avatar" name="brand" size={20} />
+          )}
+          {message.model ? (
+            <div className="zp-answer-model">
+              <span>{message.model}</span>
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <div
         className={isAssistant ? "zp-message-stack" : "zp-message-user-stack"}
       >
         {isAssistant ? (
-          <>
-            {message.model ? (
-              <div className="zp-answer-model">
-                <span>{message.model}</span>
-              </div>
+          <div className="zp-message-body">
+            {message.trace?.length ? (
+              <TracePanel
+                collapsed
+                items={message.trace || []}
+                onOpenLink={onOpenLink}
+                running={false}
+              />
             ) : null}
-            <div className="zp-message-body">
-              {message.trace?.length ? (
-                <TracePanel
-                  collapsed
-                  items={message.trace || []}
-                  onOpenLink={onOpenLink}
-                  running={false}
-                />
-              ) : null}
-              {message.text ? (
-                <MarkdownView
-                  className="zp-message-markdown"
-                  markdown={message.text}
-                  onOpenLink={onOpenLink}
-                />
-              ) : null}
-            </div>
-          </>
+            {message.text ? (
+              <MarkdownView
+                className="zp-message-markdown"
+                markdown={message.text}
+                onOpenLink={onOpenLink}
+              />
+            ) : null}
+          </div>
         ) : itemContextTitle ||
           message.localAttachments?.length ||
           message.mentions?.length ||

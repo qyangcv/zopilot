@@ -171,6 +171,7 @@ describe("SidebarApp", function () {
 
     assert.include(html, "Streaming answer");
     assert.include(html, "GPT-5.3-Codex");
+    assert.include(html, 'class="zp-message-assistant-heading"');
     assert.notInclude(html, "paper_read");
   });
 
@@ -715,6 +716,7 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "zopilot-sidebar-copy-text");
+    assert.include(html, 'class="zp-message-assistant-heading"');
     assert.include(html, 'class="zp-answer-model"');
     assert.include(html, "gpt-5.3-codex");
     assert.include(

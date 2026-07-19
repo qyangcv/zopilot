@@ -63,7 +63,7 @@
   justify-content: space-between;
   gap: 6px;
   min-height: 41px;
-  padding: 6px 8px;
+  padding: 6px var(--zp-sidebar-gutter, 14px);
   border-bottom: 1px solid var(--zp-border);
   background: var(--zp-header-bg);
 }

@@ -4,7 +4,7 @@
   position: absolute;
   z-index: 2;
   inset-block-end: 10px;
-  inset-inline: 10px;
+  inset-inline: var(--zp-sidebar-gutter, 14px);
   display: flex;
   flex-direction: column;
   gap: 4px;

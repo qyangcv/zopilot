@@ -7,14 +7,14 @@
   inset-inline: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
   min-block-size: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-block: 12px 10px;
-  padding-inline: 8px 14px;
+  padding-block: 10px 8px;
+  padding-inline: var(--zp-sidebar-gutter, 14px);
   background: transparent;
 }
 
@@ -74,14 +74,22 @@
 }
 
 .zp-message-assistant {
-  align-items: flex-start;
-  padding-inline-end: 12px;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.zp-message-assistant-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 20px;
 }
 
 .zp-message-avatar {
   width: 20px;
   height: 20px;
-  margin-top: 2px;
   color: var(--zp-accent);
 }
 
@@ -103,10 +111,6 @@
   white-space: nowrap;
 }
 
-.zp-answer-model + .zp-message-body {
-  margin-block-start: 7px;
-}
-
 .zp-message-stack,
 .zp-message-user-stack {
   display: flex;
@@ -116,12 +120,13 @@
 
 .zp-message-stack {
   flex: 1 1 auto;
+  width: 100%;
   max-width: 100%;
 }
 
 .zp-message-user-stack {
   align-items: flex-end;
-  max-width: min(82%, 420px);
+  max-width: min(94%, 520px);
 }
 
 .zp-message-body,
@@ -136,7 +141,7 @@
 .zp-message-body {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
 }
 
 .zp-trace {
@@ -335,13 +340,13 @@
 }
 
 .zp-message-markdown .zp-markdown-heading {
-  margin: 0 0 6px;
+  margin: 0 0 5px;
   font-weight: 650;
   line-height: 1.28;
 }
 
 .zp-message-markdown .zp-markdown-heading:not(:first-child) {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .zp-message-markdown .zp-markdown-heading-1 {
@@ -367,7 +372,7 @@
 .zp-message-markdown .zp-code-block,
 .zp-message-markdown .zp-table-scroll,
 .zp-message-markdown .katex-display {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
 .zp-message-markdown p:last-child,
@@ -397,13 +402,13 @@
 .zp-message-markdown
   > .zp-markdown-segment:not(:last-child)
   > .katex-display:last-child {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .zp-message-markdown
   > .zp-markdown-segment:not(:first-child)
   > .zp-markdown-heading:first-child {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .zp-message-markdown ul,
@@ -428,7 +433,7 @@
 }
 
 .zp-message-markdown li + li {
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .zp-message-markdown blockquote {
@@ -639,7 +644,7 @@
 .zp-message-bubble {
   max-width: 100%;
   overflow-wrap: anywhere;
-  padding: 7px 9px;
+  padding: 6px 9px;
 }
 
 .zp-message-user-content {
@@ -669,7 +674,7 @@
   gap: 8px;
   inline-size: 100%;
   min-height: 24px;
-  margin-block-start: 3px;
+  margin-block-start: 2px;
   color: var(--zp-muted);
 }
 
