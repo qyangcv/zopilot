@@ -4,6 +4,7 @@ import type {
   AgentModelEntry,
   ProviderProfile,
 } from "../../../domain/agent/types";
+import { isModelVisible } from "../../../domain/agent/modelCatalog";
 import { getString } from "../../../app/localization";
 import { createLogger } from "../../../runtime/logging/logger";
 import { getPref, setPref } from "../../../runtime/preferences/prefs";
@@ -28,15 +29,24 @@ const logger = createLogger("sidebar.providers");
 
 class ProviderCatalogController {
   private refreshPromise?: Promise<void>;
+  private refreshPending = false;
   private profileCatalogSignature?: string;
+  private providerRefreshSignature?: string;
+  private catalogRevision = 0;
 
   constructor(private readonly options: ProviderCatalogControllerOptions) {}
 
   refresh(): Promise<void> {
     if (this.refreshPromise) {
+      this.refreshPending = true;
       return this.refreshPromise;
     }
-    this.refreshPromise = this.refreshOnce().finally(() => {
+    this.refreshPromise = (async () => {
+      do {
+        this.refreshPending = false;
+        await this.refreshOnce();
+      } while (this.refreshPending && !this.options.isDestroyed());
+    })().finally(() => {
       this.refreshPromise = undefined;
     });
     return this.refreshPromise;
@@ -46,21 +56,29 @@ class ProviderCatalogController {
     return getAgentBackendManager().subscribe((snapshot) => {
       const firstSnapshot = this.profileCatalogSignature === undefined;
       const nextSignature = createProviderCatalogSignature(snapshot);
+      const nextRefreshSignature = createProviderRefreshSignature(snapshot);
       const catalogChanged =
         this.profileCatalogSignature !== undefined &&
         this.profileCatalogSignature !== nextSignature;
+      const refreshRequired =
+        this.providerRefreshSignature !== undefined &&
+        this.providerRefreshSignature !== nextRefreshSignature;
       this.profileCatalogSignature = nextSignature;
+      this.providerRefreshSignature = nextRefreshSignature;
+      if (catalogChanged) {
+        this.catalogRevision++;
+      }
       const active = snapshot.profiles.find(
         (profile) => profile.id === snapshot.activeProviderId,
       );
       if (!active || this.options.isDestroyed()) {
         return;
       }
-      if (firstSnapshot) {
-        this.hydrateCachedCatalog(snapshot.profiles, snapshot.activeProviderId);
+      if (firstSnapshot || catalogChanged) {
+        this.applyCachedCatalog(snapshot.profiles, snapshot.activeProviderId);
       }
       this.options.updateViewState({ activeProviderLabel: active.displayName });
-      if (catalogChanged && this.options.isOpen()) {
+      if (refreshRequired && this.options.isOpen()) {
         void this.refresh();
       }
     });
@@ -112,6 +130,7 @@ class ProviderCatalogController {
   }
 
   private async refreshOnce(): Promise<void> {
+    const revision = this.catalogRevision;
     try {
       const manager = getAgentBackendManager();
       const snapshot = manager.getSnapshot();
@@ -123,7 +142,7 @@ class ProviderCatalogController {
             models: await this.loadProviderModels(profile),
           })),
       );
-      if (this.options.isDestroyed()) {
+      if (this.options.isDestroyed() || revision !== this.catalogRevision) {
         return;
       }
       const availableModels = providerModels.flatMap(({ profile, models }) =>
@@ -150,7 +169,7 @@ class ProviderCatalogController {
       });
     } catch (error) {
       logger.error("agent backend model list failed", error);
-      if (this.options.isDestroyed()) {
+      if (this.options.isDestroyed() || revision !== this.catalogRevision) {
         return;
       }
       this.updateModelSelection(
@@ -197,16 +216,15 @@ class ProviderCatalogController {
     );
   }
 
-  private hydrateCachedCatalog(
+  private applyCachedCatalog(
     profiles: ProviderProfile[],
     activeProviderId: string,
   ): void {
-    const models = profiles
-      .filter((profile) => profile.enabled)
-      .flatMap((profile) =>
-        profile.models.map((model) => agentModelToSidebarModel(model, profile)),
-      );
-    if (!models.length) return;
+    const models = createVisibleModelCatalog(profiles);
+    if (!models.length) {
+      this.updateModelSelection([], activeProviderId, "");
+      return;
+    }
     const selected = this.resolveSelectedModel(models, activeProviderId);
     this.updateModelSelection(
       models,
@@ -219,12 +237,20 @@ class ProviderCatalogController {
     profile: ProviderProfile,
   ): Promise<AgentModelEntry[]> {
     try {
-      const status = await getAgentBackendManager().checkStatus(profile.id);
+      const manager = getAgentBackendManager();
+      const status = await manager.checkStatus(profile.id);
+      const latestProfile =
+        manager.getSnapshot().profiles.find((item) => item.id === profile.id) ||
+        profile;
       if (status.models?.length) {
-        return status.models;
+        return latestProfile.models.filter(isModelVisible);
       }
       if (status.status === "connected") {
-        return await getAgentBackendManager().listModels(profile.id);
+        const models = await manager.listModels(profile.id);
+        const visibleIds = new Set(
+          latestProfile.models.filter(isModelVisible).map((model) => model.id),
+        );
+        return models.filter((model) => visibleIds.has(model.id));
       }
     } catch (error) {
       logger.error("agent backend provider model list failed", error, {
@@ -232,7 +258,7 @@ class ProviderCatalogController {
       });
     }
     return profile.status === "connected" || profile.models.length
-      ? profile.models
+      ? profile.models.filter(isModelVisible)
       : [];
   }
 
@@ -311,5 +337,39 @@ function createProviderCatalogSignature(input: {
   );
 }
 
-export { ProviderCatalogController, createProviderCatalogSignature };
+function createProviderRefreshSignature(input: {
+  profiles: ProviderProfile[];
+}): string {
+  return JSON.stringify(
+    input.profiles.map((profile) => ({
+      id: profile.id,
+      providerId: profile.providerId,
+      displayName: profile.displayName,
+      enabled: profile.enabled,
+      baseURL: profile.baseURL,
+      hasApiKey: profile.hasApiKey,
+      capabilities: profile.capabilities,
+      models: profile.models.map(({ visible: _visible, ...model }) => model),
+    })),
+  );
+}
+
+function createVisibleModelCatalog(
+  profiles: ProviderProfile[],
+): SidebarState["models"] {
+  return profiles
+    .filter((profile) => profile.enabled)
+    .flatMap((profile) =>
+      profile.models
+        .filter(isModelVisible)
+        .map((model) => agentModelToSidebarModel(model, profile)),
+    );
+}
+
+export {
+  ProviderCatalogController,
+  createProviderCatalogSignature,
+  createProviderRefreshSignature,
+  createVisibleModelCatalog,
+};
 export type { ProviderCatalogControllerOptions };

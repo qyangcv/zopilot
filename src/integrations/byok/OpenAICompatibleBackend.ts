@@ -3,6 +3,7 @@ import {
   createDiagnostic,
   normalizeBackendError,
 } from "../../domain/agent/errors";
+import { isModelVisible } from "../../domain/agent/modelCatalog";
 import type {
   AgentBackend,
   AgentCancelInput,
@@ -86,7 +87,11 @@ class OpenAICompatibleAgentsBackend implements AgentBackend {
 }
 
 function validateProfile(profile: ProviderProfileWithSecret) {
-  if (!profile.baseURL || !profile.apiKey || !profile.models.length) {
+  if (
+    !profile.baseURL ||
+    !profile.apiKey ||
+    !profile.models.some(isModelVisible)
+  ) {
     return createDiagnostic("provider_profile_incomplete");
   }
   return undefined;

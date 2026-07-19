@@ -118,6 +118,21 @@ describe("sidebar model preferences", function () {
     assert.equal(selected?.slug, "deepseek-chat");
   });
 
+  it("falls back within the active provider when the current model is hidden", function () {
+    const selected = resolveSelectedModel({
+      models: [models[1]],
+      activeProviderId: "codex-cli.default",
+      currentProviderId: "codex-cli.default",
+      currentModel: "gpt-fast",
+      savedSelectedModels: {
+        "codex-cli.default": "gpt-fast",
+      },
+    });
+
+    assert.equal(selected?.providerProfileId, "codex-cli.default");
+    assert.equal(selected?.slug, "gpt-basic");
+  });
+
   it("ignores invalid saved selected model payloads", function () {
     assert.deepEqual(parseSavedSelectedModels("not json"), {});
     assert.deepEqual(parseSavedSelectedModels('{"provider":"model","bad":1}'), {

@@ -1,6 +1,7 @@
 import { Agent, run, tool } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions/ai-sdk";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { isModelVisible } from "../../../domain/agent/modelCatalog";
 import { z } from "zod";
 import { buildCodexDeveloperInstructions } from "../../../application/agent/prompt/developerInstructions";
 import { buildStatelessAgentPrompt } from "../../../application/agent/prompt/contextAssembler";
@@ -43,13 +44,23 @@ class ByokAgentRunner {
       params.profile.timeoutMs,
     );
     try {
-      const response = await fetch(
-        `${normalizeBaseURL(params.profile.baseURL || "")}/models`,
-        {
-          headers: { Authorization: `Bearer ${params.profile.apiKey}` },
+      const baseURL = normalizeBaseURL(params.profile.baseURL || "");
+      const headers = { Authorization: `Bearer ${params.profile.apiKey}` };
+      if (params.profile.providerId === "openrouter") {
+        const keyResponse = await fetch(`${baseURL}/key`, {
+          headers,
           signal: controller.signal,
-        },
-      );
+        });
+        if (!keyResponse.ok) {
+          throw new Error(
+            `OpenRouter API key validation failed: ${keyResponse.status} ${keyResponse.statusText}`,
+          );
+        }
+      }
+      const response = await fetch(`${baseURL}/models`, {
+        headers,
+        signal: controller.signal,
+      });
       if (response.status === 404 || response.status === 405) {
         return configuredModels(params.profile);
       }
@@ -75,8 +86,8 @@ class ByokAgentRunner {
     );
     const modelId =
       params.input.model ||
-      params.profile.models[0]?.id ||
-      params.profile.defaultModel;
+      params.profile.defaultModel ||
+      params.profile.models.find(isModelVisible)?.id;
     if (!modelId) throw new Error("No model selected for this provider.");
     const responseTexts = new Map<number, string>();
     const responsesWithTools = new Set<number>();

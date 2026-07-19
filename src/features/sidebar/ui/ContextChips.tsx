@@ -6,6 +6,7 @@ import type {
   SourceMention,
 } from "../../../domain/conversation";
 import { Icon, type IconName } from "./Icon";
+import { ITEM_CONTEXT_ICONS } from "./itemContextIcons";
 
 export function ContextChips({
   attachments = [],
@@ -53,7 +54,7 @@ export function ContextChips({
       ) : null}
       {mentions.map((mention) => (
         <CompactContextChip
-          icon="paperMention"
+          icon={ITEM_CONTEXT_ICONS.pdf}
           key={mention.id}
           label={mention.title}
           expanded={expandedMentionSourceId === mention.sourceId}
@@ -66,7 +67,7 @@ export function ContextChips({
       ))}
       {notes.map((note) => (
         <CompactContextChip
-          icon="noteContext"
+          icon={ITEM_CONTEXT_ICONS.note}
           key={note.id}
           label={note.title}
           onRemove={onRemoveNote ? () => onRemoveNote(note.id) : undefined}

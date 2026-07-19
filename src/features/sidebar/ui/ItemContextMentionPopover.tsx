@@ -10,6 +10,7 @@ import {
   PopupSurface,
 } from "../../../ui/primitives/index";
 import { Icon } from "./Icon";
+import { iconForItemContextNode } from "./itemContextIcons";
 
 function ItemContextMentionPopover({
   activeIndex,
@@ -123,7 +124,7 @@ function ItemContextMentionPopover({
                     icon={
                       <Icon
                         className="zp-mention-icon"
-                        name={iconForNode(node)}
+                        name={iconForItemContextNode(node)}
                         size={14}
                       />
                     }
@@ -161,14 +162,6 @@ function ItemContextMentionPopover({
       </PopupList>
     </PopupSurface>
   );
-}
-
-function iconForNode(
-  node: ItemContextNode,
-): "file" | "notebookText" | "paperclip" {
-  if (node.kind === "pdf") return "file";
-  if (node.kind === "note") return "notebookText";
-  return "paperclip";
 }
 
 export { ItemContextMentionPopover };

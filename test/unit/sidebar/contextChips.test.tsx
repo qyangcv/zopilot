@@ -72,6 +72,45 @@ describe("ContextChips", function () {
     assert.equal(count(html, "<button"), 2);
     assert.notMatch(html, /<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/);
   });
+
+  it("uses the item-tree PDF and note icons for matching chips", function () {
+    const html = renderToStaticMarkup(
+      <ContextChips
+        mentions={[
+          {
+            id: "mention-a",
+            sourceId: "1-PDF",
+            paperKey: "1:PAPER",
+            libraryID: 1,
+            parentItemID: 1,
+            parentItemKey: "PAPER",
+            attachmentItemID: 2,
+            attachmentKey: "PDF",
+            title: "Paper A",
+          },
+        ]}
+        notes={[
+          {
+            id: "note:1:NOTE",
+            libraryID: 1,
+            parentItemID: 1,
+            parentItemKey: "PAPER",
+            noteItemID: 3,
+            noteItemKey: "NOTE",
+            title: "Reading notes",
+            dateModified: "2026-07-19 18:59:27",
+          },
+        ]}
+      />,
+    );
+
+    assert.include(html, 'data-icon-name="file"');
+    assert.include(html, "lucide-file");
+    assert.include(html, 'data-icon-name="notebookText"');
+    assert.include(html, "lucide-notebook-text");
+    assert.notInclude(html, 'data-icon-name="paperMention"');
+    assert.notInclude(html, 'data-icon-name="noteContext"');
+  });
 });
 
 function count(value: string, needle: string): number {

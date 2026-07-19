@@ -179,7 +179,6 @@ function renderMountError(
       message.setAttribute(name, value);
     }
   }
-  message.textContent = `Zopilot preferences failed to load: ${errorMessage}`;
   root.append(message);
   void dependencies.document.l10n
     ?.translateElements?.([message])

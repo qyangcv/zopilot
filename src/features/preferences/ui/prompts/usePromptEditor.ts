@@ -13,10 +13,11 @@ import {
 import type { PromptEditorMode, PromptMessage, PromptView } from "../types";
 import { promptErrorMessage } from "./promptMessages";
 
-export { usePromptEditor };
+export { getPromptModeAfterSave, usePromptEditor };
 
 function usePromptEditor(): {
   body: string;
+  hasUnsavedChanges: boolean;
   mode: PromptEditorMode;
   message?: PromptMessage;
   openNewPromptEditor: () => void;
@@ -95,30 +96,56 @@ function usePromptEditor(): {
         });
         return;
       }
-      setPromptState((current) => ({
-        ...current,
-        selectedPromptId: promptId,
-      }));
-      setPromptTitle(prompt.title);
-      setPromptBody(prompt.body);
-      setSavedDraft({ title: prompt.title, body: prompt.body });
-      setPromptMessage(undefined);
-      setMode("edit");
+      const openEditor = () => {
+        setPromptState((current) => ({
+          ...current,
+          selectedPromptId: promptId,
+        }));
+        setPromptTitle(prompt.title);
+        setPromptBody(prompt.body);
+        setSavedDraft({ title: prompt.title, body: prompt.body });
+        setPromptMessage(undefined);
+        setMode("edit");
+      };
+      if (!hasUnsavedChanges || promptState.selectedPromptId === promptId) {
+        openEditor();
+        return;
+      }
+      void confirmPromptAction(
+        localized("pref-prompt-confirm-discard-changes"),
+      ).then((confirmed) => {
+        if (confirmed) {
+          openEditor();
+        }
+      });
     },
-    [promptState.prompts],
+    [hasUnsavedChanges, promptState.prompts, promptState.selectedPromptId],
   );
 
   const openNewPromptEditor = useCallback(() => {
-    setPromptState((current) => ({
-      ...current,
-      selectedPromptId: undefined,
-    }));
-    setPromptTitle("");
-    setPromptBody("");
-    setSavedDraft({ title: "", body: "" });
-    setPromptMessage(undefined);
-    setMode("edit");
-  }, []);
+    const openEditor = () => {
+      setPromptState((current) => ({
+        ...current,
+        selectedPromptId: undefined,
+      }));
+      setPromptTitle("");
+      setPromptBody("");
+      setSavedDraft({ title: "", body: "" });
+      setPromptMessage(undefined);
+      setMode("edit");
+    };
+    if (!hasUnsavedChanges) {
+      openEditor();
+      return;
+    }
+    void confirmPromptAction(
+      localized("pref-prompt-confirm-discard-changes"),
+    ).then((confirmed) => {
+      if (confirmed) {
+        openEditor();
+      }
+    });
+  }, [hasUnsavedChanges]);
 
   const returnToPromptList = useCallback(() => {
     const returnToList = () => {
@@ -140,8 +167,9 @@ function usePromptEditor(): {
 
   const savePrompt = useCallback(() => {
     try {
-      const saved = promptState.selectedPromptId
-        ? updateCustomPrompt(promptState.selectedPromptId, {
+      const selectedPromptId = promptState.selectedPromptId;
+      const saved = selectedPromptId
+        ? updateCustomPrompt(selectedPromptId, {
             title: promptTitle,
             body: promptBody,
           })
@@ -152,6 +180,7 @@ function usePromptEditor(): {
         kind: "success",
         message: localized("pref-prompt-message-saved"),
       });
+      setMode(getPromptModeAfterSave(selectedPromptId));
     } catch (error) {
       setPromptMessage({
         kind: "error",
@@ -165,31 +194,25 @@ function usePromptEditor(): {
     if (!promptId) {
       return;
     }
-    void confirmPromptAction(localized("pref-prompt-confirm-delete")).then(
-      (confirmed) => {
-        if (!confirmed) {
-          return;
-        }
-        deleteCustomPrompt(promptId);
-        refreshPrompts();
-        setPromptState((current) => ({
-          ...current,
-          selectedPromptId: undefined,
-        }));
-        setPromptTitle("");
-        setPromptBody("");
-        setSavedDraft({ title: "", body: "" });
-        setMode("list");
-        setPromptMessage({
-          kind: "success",
-          message: localized("pref-prompt-message-deleted"),
-        });
-      },
-    );
+    deleteCustomPrompt(promptId);
+    refreshPrompts();
+    setPromptState((current) => ({
+      ...current,
+      selectedPromptId: undefined,
+    }));
+    setPromptTitle("");
+    setPromptBody("");
+    setSavedDraft({ title: "", body: "" });
+    setMode("list");
+    setPromptMessage({
+      kind: "success",
+      message: localized("pref-prompt-message-deleted"),
+    });
   }, [promptState.selectedPromptId, refreshPrompts]);
 
   return {
     body: promptBody,
+    hasUnsavedChanges,
     mode,
     message: promptMessage,
     openNewPromptEditor,
@@ -203,6 +226,10 @@ function usePromptEditor(): {
     setTitle: setPromptTitle,
     title: promptTitle,
   };
+}
+
+function getPromptModeAfterSave(selectedPromptId?: string): PromptEditorMode {
+  return selectedPromptId ? "edit" : "list";
 }
 
 async function confirmPromptAction(

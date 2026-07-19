@@ -3,6 +3,7 @@ import {
   CODEX_PROVIDER_ID,
   createCodexProviderProfile,
   createProviderProfile,
+  isModelVisible,
 } from "../../domain/agent/modelCatalog";
 import type {
   AgentCapabilities,
@@ -26,6 +27,7 @@ import {
 export {
   ProviderProfileStore,
   getProviderProfileStore,
+  mergeDiscoveredModels,
   migrateLegacyProviderPrefs,
   shutdownProviderProfileStore,
 };
@@ -36,6 +38,8 @@ type ProviderProfileSnapshot = {
 };
 
 type ProviderProfileListener = (snapshot: ProviderProfileSnapshot) => void;
+
+const SELECTED_MODELS_PREF = "agent.selectedModels";
 
 let sharedStore: ProviderProfileStore | undefined;
 
@@ -118,11 +122,12 @@ class ProviderProfileStore {
     }
     const current = normalizeStoredProfile(stored[index]);
     const models = patch.models || current.models;
+    const visibleModels = models.filter(isModelVisible);
     const next: StoredProviderProfile = {
       ...current,
       displayName: patch.displayName ?? current.displayName,
       baseURL: patch.baseURL ?? current.baseURL,
-      defaultModel: models[0]?.id,
+      defaultModel: visibleModels[0]?.id,
       models,
       capabilities: {
         ...current.capabilities,
@@ -147,14 +152,38 @@ class ProviderProfileStore {
     return this.withSecret(next);
   }
 
+  updateProviderFromDiscovery(
+    profileId: string,
+    input: {
+      models: AgentModelEntry[];
+      status: ProviderProfile["status"];
+      lastCheckedAt?: string;
+      lastDiagnostic?: ProviderProfile["lastDiagnostic"];
+    },
+  ): ProviderProfile | undefined {
+    const profile = this.getSnapshot().profiles.find(
+      (item) => item.id === profileId,
+    );
+    if (!profile || profile.kind === "codex-cli") {
+      return undefined;
+    }
+    return this.updateProvider(profileId, {
+      ...input,
+      models: mergeDiscoveredModels(profile.models, input.models, false),
+    });
+  }
+
   updateCodexProvider(input: {
     models?: AgentModelEntry[];
     status?: ProviderProfile["status"];
     lastCheckedAt?: string;
     lastDiagnostic?: ProviderProfile["lastDiagnostic"];
   }): ProviderProfile {
+    const current = this.repository.readCodexStatus();
     const profile = createCodexProviderProfile({
-      models: input.models,
+      models: input.models
+        ? mergeDiscoveredModels(current.models || [], input.models, true)
+        : current.models,
       status: input.status,
     });
     profile.lastCheckedAt = input.lastCheckedAt;
@@ -162,6 +191,41 @@ class ProviderProfileStore {
     this.repository.writeCodexStatus(profile);
     this.notifySoon();
     return profile;
+  }
+
+  setModelVisibility(
+    profileId: string,
+    modelId: string,
+    visible: boolean,
+  ): boolean {
+    const profile = this.getSnapshot().profiles.find(
+      (item) => item.id === profileId,
+    );
+    const model = profile?.models.find((item) => item.id === modelId);
+    if (!profile || !model || isModelVisible(model) === visible) {
+      return false;
+    }
+    if (!visible && profile.models.filter(isModelVisible).length <= 1) {
+      return false;
+    }
+
+    const models = profile.models.map((item) =>
+      item.id === modelId ? setModelVisible(item, visible) : item,
+    );
+    if (profile.kind === "codex-cli") {
+      const next = createCodexProviderProfile({
+        models,
+        status: profile.status,
+      });
+      next.lastCheckedAt = profile.lastCheckedAt;
+      next.lastDiagnostic = profile.lastDiagnostic;
+      this.repository.writeCodexStatus(next);
+      this.notifySoon();
+    } else {
+      this.updateProvider(profileId, { models });
+    }
+    this.resolveHiddenSelectedModel(profile, modelId, models);
+    return true;
   }
 
   deleteProvider(profileId: string): void {
@@ -246,6 +310,24 @@ class ProviderProfileStore {
     this.secrets.set(profileId, apiKey);
   }
 
+  private resolveHiddenSelectedModel(
+    profile: ProviderProfile,
+    hiddenModelId: string,
+    models: AgentModelEntry[],
+  ): void {
+    const saved = parseSelectedModels(getPref(SELECTED_MODELS_PREF));
+    const selectedModel = saved[profile.id] || profile.defaultModel;
+    if (selectedModel !== hiddenModelId) {
+      return;
+    }
+    const fallback = models.find(isModelVisible);
+    if (!fallback) {
+      return;
+    }
+    saved[profile.id] = fallback.id;
+    setPref(SELECTED_MODELS_PREF, JSON.stringify(saved));
+  }
+
   private notify(): void {
     const snapshot = this.getSnapshot();
     for (const listener of this.listeners) {
@@ -256,7 +338,7 @@ class ProviderProfileStore {
   private notifySoon(): void {
     if (this.notificationQueued) return;
     this.notificationQueued = true;
-    queueMicrotask(() => {
+    void Promise.resolve().then(() => {
       this.notificationQueued = false;
       if (this.listeners.size > 0) this.notify();
     });
@@ -272,6 +354,49 @@ class ProviderProfileStore {
   private stopPrefObserver(): void {
     this.prefObserverDisposer?.();
     this.prefObserverDisposer = undefined;
+  }
+}
+
+function mergeDiscoveredModels(
+  current: AgentModelEntry[],
+  discovered: AgentModelEntry[],
+  newModelsVisible: boolean,
+): AgentModelEntry[] {
+  const currentById = new Map(current.map((model) => [model.id, model]));
+  const merged = discovered.map((model) => {
+    const existing = currentById.get(model.id);
+    return setModelVisible(
+      model,
+      existing ? isModelVisible(existing) : newModelsVisible,
+    );
+  });
+  if (merged.length && !merged.some(isModelVisible)) {
+    merged[0] = setModelVisible(merged[0], true);
+  }
+  return merged;
+}
+
+function setModelVisible(
+  model: AgentModelEntry,
+  visible: boolean,
+): AgentModelEntry {
+  const { visible: _visible, ...entry } = model;
+  return visible ? entry : { ...entry, visible: false };
+}
+
+function parseSelectedModels(raw: unknown): Record<string, string> {
+  try {
+    const parsed = JSON.parse(String(raw || "{}")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    );
+  } catch {
+    return {};
   }
 }
 

@@ -1,8 +1,14 @@
 import { Copy, ExternalLink, FolderOpen } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { useId, type ReactElement, type ReactNode } from "react";
 import type { PdfHelperStatus } from "../../../../document/pdf-helper/index";
 import { copyText } from "../../../sidebar/ui/clipboard";
-import { LocalizedMessageText, T } from "../PreferenceChrome";
+import { l10nAttributes } from "../../localization";
+import {
+  LocalizedMessageText,
+  PreferenceIconButton,
+  T,
+} from "../PreferenceChrome";
+import { PreferenceCodeScroller } from "../PreferenceCodeScroller";
 import { unsupportedDependencyMessage } from "./dependencyMessages";
 
 type DependencyPathAction = "open-url" | "reveal";
@@ -19,24 +25,41 @@ function DependencyPathList({
 }: {
   helper: PdfHelperStatus;
 }): ReactElement {
+  const labelPrefix = `zp-pref-path-label-${useId().replaceAll(":", "")}`;
   return (
     <dl className="zp-pref-path-list">
-      {buildDependencyPathRows(helper).map((row) => (
-        <div className="zp-pref-path-row" key={row.key}>
-          <dt>{row.label}</dt>
-          <dd>{row.valueNode ?? row.value}</dd>
-          {row.action ? <PathActions row={row} /> : null}
-        </div>
-      ))}
+      {buildDependencyPathRows(helper).map((row) => {
+        const labelId = `${labelPrefix}-${row.key}`;
+        return (
+          <div
+            className="zp-pref-path-row"
+            data-scrollable={row.action || undefined}
+            key={row.key}
+          >
+            <dt id={labelId}>{row.label}</dt>
+            <dd>
+              {row.action ? (
+                <PreferenceCodeScroller
+                  aria-labelledby={labelId}
+                  value={row.value}
+                />
+              ) : (
+                <span className="zp-pref-path-value">
+                  {row.valueNode ?? row.value}
+                </span>
+              )}
+            </dd>
+            {row.action ? <PathActions row={row} /> : null}
+          </div>
+        );
+      })}
       {helper.status === "unsupported" ? (
         <div className="zp-pref-path-row">
           <dt>
-            <T id="pref-dependencies-unsupported-reason">原因</T>
+            <T id="pref-dependencies-unsupported-reason" />
           </dt>
           <dd>
-            <LocalizedMessageText message={unsupportedDependencyMessage()}>
-              当前系统不受 PDF 解析工具支持。
-            </LocalizedMessageText>
+            <LocalizedMessageText message={unsupportedDependencyMessage()} />
           </dd>
         </div>
       ) : null}
@@ -47,30 +70,38 @@ function DependencyPathList({
 function PathActions({ row }: { row: DependencyPathRow }): ReactElement {
   return (
     <div className="zp-pref-path-actions">
-      <button
-        className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
+      <PreferenceIconButton
+        className="zp-pref-icon-button zp-pref-path-action"
+        {...l10nAttributes("pref-dependencies-copy-button")}
         onClick={() => void copyText(row.value).catch(() => undefined)}
+        tooltip={<T id="pref-dependencies-copy" />}
         type="button"
       >
-        <Copy size={13} />
-        <T id="pref-dependencies-copy">复制</T>
-      </button>
-      <button
-        className="zp-pref-button zp-pref-button-secondary zp-pref-path-action"
+        <Copy aria-hidden="true" size={13} />
+      </PreferenceIconButton>
+      <PreferenceIconButton
+        className="zp-pref-icon-button zp-pref-path-action"
+        {...l10nAttributes(
+          row.action === "open-url"
+            ? "pref-dependencies-open-url-button"
+            : "pref-dependencies-reveal-button",
+        )}
         onClick={() => openDependencyValue(row.value, row.action)}
+        tooltip={
+          row.action === "open-url" ? (
+            <T id="pref-dependencies-open-url" />
+          ) : (
+            <T id="pref-dependencies-reveal" />
+          )
+        }
         type="button"
       >
         {row.action === "open-url" ? (
-          <ExternalLink size={13} />
+          <ExternalLink aria-hidden="true" size={13} />
         ) : (
-          <FolderOpen size={13} />
+          <FolderOpen aria-hidden="true" size={13} />
         )}
-        {row.action === "open-url" ? (
-          <T id="pref-dependencies-open-url">打开链接</T>
-        ) : (
-          <T id="pref-dependencies-reveal">在文件管理器中显示</T>
-        )}
-      </button>
+      </PreferenceIconButton>
     </div>
   );
 }
@@ -79,32 +110,32 @@ function buildDependencyPathRows(helper: PdfHelperStatus): DependencyPathRow[] {
   return [
     {
       key: "installedVersion",
-      label: <T id="pref-dependencies-installed-version">已安装版本</T>,
+      label: <T id="pref-dependencies-installed-version" />,
       value: installedVersionText(helper),
       valueNode: installedVersionNode(helper),
     },
     {
       key: "latestVersion",
-      label: <T id="pref-dependencies-latest-version">最新版本</T>,
+      label: <T id="pref-dependencies-latest-version" />,
       value: `v${helper.latestVersion}`,
       valueNode: `v${helper.latestVersion}`,
     },
     {
       action: "reveal",
       key: "installDir",
-      label: <T id="pref-dependencies-install-dir">安装目录</T>,
+      label: <T id="pref-dependencies-install-dir" />,
       value: helper.installDir,
     },
     {
       action: "reveal",
       key: "executablePath",
-      label: <T id="pref-dependencies-executable-path">可执行文件</T>,
+      label: <T id="pref-dependencies-executable-path" />,
       value: helper.executablePath,
     },
     {
       action: "open-url",
       key: "manifestUrl",
-      label: <T id="pref-dependencies-manifest-url">版本清单</T>,
+      label: <T id="pref-dependencies-manifest-url" />,
       value: helper.manifestUrl,
     },
   ];
@@ -119,7 +150,7 @@ function installedVersionText(helper: PdfHelperStatus): string {
 function installedVersionNode(helper: PdfHelperStatus): ReactNode {
   if (!helper.installedVersion) {
     return helper.hasInstallCandidate ? (
-      <T id="pref-dependencies-version-unknown">未知</T>
+      <T id="pref-dependencies-version-unknown" />
     ) : (
       "-"
     );
@@ -127,7 +158,7 @@ function installedVersionNode(helper: PdfHelperStatus): ReactNode {
   const version = `v${helper.installedVersion}`;
   return helper.installedVersionState === "incomplete" ? (
     <>
-      {version} <T id="pref-dependencies-version-incomplete">不完整</T>
+      {version} <T id="pref-dependencies-version-incomplete" />
     </>
   ) : (
     version

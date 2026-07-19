@@ -24,21 +24,18 @@ function DependenciesPanel({
       ? state.helper
       : undefined;
   const busy = ["checking", "installing", "removing"].includes(state.status);
-  const unsupported = helper?.status === "unsupported";
-  const showUpdate = Boolean(helper?.hasInstallCandidate && !unsupported);
-  const alreadyLatest = showUpdate && helper?.needsUpdate === false;
+  const showInstall = helper?.status === "not-installed";
+  const showUpdate = helper?.status === "outdated";
+  const showInstalling = state.status === "installing";
+  const showRemove = Boolean(helper?.hasInstallCandidate);
 
   return (
     <section className="zp-pref-page">
       <PageHeader
-        description={
-          <T id="pref-dependencies-description">
-            管理 Zopilot 的 PDF 解析工具，无需向系统 Python 安装软件包。
-          </T>
-        }
-        title={<T id="pref-dependencies-title">依赖管理</T>}
+        description={<T id="pref-dependencies-description" />}
+        title={<T id="pref-dependencies-title" />}
       />
-      <div className="zp-pref-card zp-pref-dependency-card">
+      <div className="zp-pref-dependency-section">
         <div className="zp-pref-dependency-header">
           <DependencyHeading helper={helper} state={state} />
           <div className="zp-pref-button-group">
@@ -49,38 +46,42 @@ function DependenciesPanel({
               type="button"
             >
               <RotateCcw size={14} />
-              <T id="pref-dependencies-check">检测</T>
+              <T id="pref-dependencies-check" />
             </button>
-            <button
-              className="zp-pref-button zp-pref-button-primary"
-              disabled={busy || unsupported || alreadyLatest}
-              onClick={onInstall}
-              type="button"
-            >
-              {state.status === "installing" ? (
-                <LoaderCircle className="zp-pref-spin" size={14} />
-              ) : (
-                <Download size={14} />
-              )}
-              {showUpdate ? (
-                <T id="pref-dependencies-update">更新</T>
-              ) : (
-                <T id="pref-dependencies-install">安装</T>
-              )}
-            </button>
-            <button
-              className="zp-pref-button zp-pref-button-danger"
-              disabled={busy || unsupported}
-              onClick={onRemove}
-              type="button"
-            >
-              {state.status === "removing" ? (
-                <LoaderCircle className="zp-pref-spin" size={14} />
-              ) : (
-                <Trash2 size={14} />
-              )}
-              <T id="pref-dependencies-remove">删除</T>
-            </button>
+            {showInstall || showUpdate || showInstalling ? (
+              <button
+                className="zp-pref-button zp-pref-button-secondary"
+                disabled={busy}
+                onClick={onInstall}
+                type="button"
+              >
+                {showInstalling ? (
+                  <LoaderCircle className="zp-pref-spin" size={14} />
+                ) : (
+                  <Download size={14} />
+                )}
+                {showUpdate ? (
+                  <T id="pref-dependencies-update" />
+                ) : (
+                  <T id="pref-dependencies-install" />
+                )}
+              </button>
+            ) : null}
+            {showRemove ? (
+              <button
+                className="zp-pref-button zp-pref-button-danger"
+                disabled={busy}
+                onClick={onRemove}
+                type="button"
+              >
+                {state.status === "removing" ? (
+                  <LoaderCircle className="zp-pref-spin" size={14} />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                <T id="pref-dependencies-remove" />
+              </button>
+            ) : null}
           </div>
         </div>
         {state.status === "installing" ? (
@@ -108,7 +109,7 @@ function DependencyHeading({
     <div className="zp-pref-dependency-heading">
       <div className="zp-pref-dependency-title-row">
         <h3>
-          <T id="pref-pdf-helper-card-title">PDF 解析工具</T>
+          <T id="pref-pdf-helper-card-title" />
         </h3>
         {state.status === "installing" ? null : (
           <DependencyStatus state={state} />
@@ -117,7 +118,7 @@ function DependencyHeading({
           <span className="zp-pref-dependency-meta">
             <span>
               {helper.status === "unsupported" ? (
-                <T id="pref-dependencies-platform-unsupported">不支持</T>
+                <T id="pref-dependencies-platform-unsupported" />
               ) : (
                 helper.platform
               )}
@@ -126,11 +127,6 @@ function DependencyHeading({
           </span>
         ) : null}
       </div>
-      <p>
-        <T id="pref-pdf-helper-card-description">
-          用于解析 PDF、提取文本和渲染页面图片。
-        </T>
-      </p>
     </div>
   );
 }

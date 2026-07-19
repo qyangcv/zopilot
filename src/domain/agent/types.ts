@@ -36,6 +36,7 @@ export type AgentModelEntry = {
   displayName: string;
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  visible?: boolean;
 };
 
 export type ProviderConnectionStatus =

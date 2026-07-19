@@ -66,10 +66,16 @@ class AgentBackendManager {
         lastCheckedAt: new Date().toISOString(),
         lastDiagnostic: result.diagnostic,
       });
+    } else if (result.models) {
+      getProviderProfileStore().updateProviderFromDiscovery(profile.id, {
+        models: result.models,
+        status: result.status,
+        lastCheckedAt: new Date().toISOString(),
+        lastDiagnostic: result.diagnostic,
+      });
     } else {
       getProviderProfileStore().updateProvider(profile.id, {
         status: result.status,
-        models: result.models,
         lastCheckedAt: new Date().toISOString(),
         lastDiagnostic: result.diagnostic,
       });

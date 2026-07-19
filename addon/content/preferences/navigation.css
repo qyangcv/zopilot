@@ -1,47 +1,96 @@
-/* Navigation */
+/* Compact section navigation */
 
-.zp-pref-sidebar {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  border-inline-end: 1px solid var(--zp-pref-border);
-  background: var(--zp-pref-panel);
-  padding: 16px 12px;
-}
-.zp-pref-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.zp-pref-nav-item,
+.zp-pref-tab,
 .zp-pref-button,
+.zp-pref-icon-button,
 .zp-pref-back-button,
-.zp-pref-prompt-row {
+.zp-pref-prompt-row,
+.zp-pref-provider-summary-main {
   appearance: none;
   -moz-appearance: none;
   border: 0;
   font: inherit;
 }
-.zp-pref-nav-item {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+
+.zp-pref-section-navigation {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  min-width: 0;
+  border-block-end: 1px solid var(--zp-pref-border);
+  background: Canvas;
+  padding-inline: 16px;
+}
+
+.zp-pref-tabs {
+  display: flex;
+  min-width: 0;
   align-items: center;
-  gap: 10px;
-  min-height: 34px;
-  border-radius: 6px;
+  gap: 2px;
+}
+
+.zp-pref-tab {
+  position: relative;
+  display: inline-flex;
+  height: 28px;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  border-radius: 3px 3px 0 0;
   background: transparent;
   color: var(--zp-pref-muted);
   cursor: default;
-  padding: 7px 8px;
-  text-align: start;
+  font-size: 12px;
+  padding: 0 8px;
+  white-space: nowrap;
 }
-.zp-pref-nav-item:hover,
-.zp-pref-nav-item[data-active] {
-  background: var(--zp-pref-panel-strong);
+
+.zp-pref-tab::after {
+  position: absolute;
+  right: 6px;
+  bottom: -1px;
+  left: 6px;
+  height: 2px;
+  background: transparent;
+  content: "";
+}
+
+.zp-pref-tab:hover {
+  background: var(--zp-pref-panel);
   color: CanvasText;
 }
-.zp-pref-nav-count {
+
+.zp-pref-tab[data-active] {
+  color: CanvasText;
+}
+
+.zp-pref-tab[data-active]::after {
+  background: var(--zp-pref-accent);
+}
+
+.zp-pref-tab-alert {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--zp-pref-danger);
+}
+
+.zp-pref-tab-count {
   color: var(--zp-pref-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.zp-pref-section-switcher {
+  display: none;
+  padding-block: 4px;
+}
+
+.zp-pref-section-switcher
+  .zp-single-select[data-variant="form"]
+  .zp-single-select-trigger {
+  min-height: 28px;
+  border-radius: 3px;
+  padding-block: 2px;
 }

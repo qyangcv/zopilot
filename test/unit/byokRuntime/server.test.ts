@@ -55,6 +55,72 @@ describe("ByokRuntimeServer", function () {
     );
   });
 
+  it("validates an OpenRouter API key before requesting models", async function () {
+    const harness = createServerHarness();
+    const requestedURLs: string[] = [];
+    (globalThis as { fetch: typeof fetch }).fetch = async (input, init) => {
+      requestedURLs.push(String(input));
+      assert.equal(
+        new Headers(init?.headers).get("Authorization"),
+        "Bearer secret",
+      );
+      return new Response(null, { status: 401, statusText: "Unauthorized" });
+    };
+
+    harness.send({
+      id: 3,
+      method: "model/list",
+      params: {
+        profile: { ...createProfile(), providerId: "openrouter" },
+      },
+    });
+    await flush();
+
+    assert.deepEqual(requestedURLs, ["https://provider.example/v1/key"]);
+    assert.deepInclude(harness.messages[0], {
+      id: 3,
+      error: {
+        code: -32000,
+        message: "OpenRouter API key validation failed: 401 Unauthorized",
+      },
+    });
+  });
+
+  it("requests OpenRouter models after successful key validation", async function () {
+    const harness = createServerHarness();
+    const requestedURLs: string[] = [];
+    (globalThis as { fetch: typeof fetch }).fetch = async (input) => {
+      const url = String(input);
+      requestedURLs.push(url);
+      return url.endsWith("/key")
+        ? new Response(JSON.stringify({ data: { label: "test" } }))
+        : new Response(JSON.stringify({ data: [{ id: "model-a" }] }));
+    };
+
+    harness.send({
+      id: 4,
+      method: "model/list",
+      params: {
+        profile: { ...createProfile(), providerId: "openrouter" },
+      },
+    });
+    await flush();
+
+    assert.deepEqual(requestedURLs, [
+      "https://provider.example/v1/key",
+      "https://provider.example/v1/models",
+    ]);
+    const response = harness.messages[0] as {
+      id: number;
+      result: Array<{ id: string }>;
+    };
+    assert.equal(response.id, 4);
+    assert.deepEqual(
+      response.result.map((model) => model.id),
+      ["model-a"],
+    );
+  });
+
   it("reports malformed JSON and unsupported methods without stopping", async function () {
     const harness = createServerHarness();
 

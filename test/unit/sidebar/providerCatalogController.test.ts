@@ -1,6 +1,10 @@
 import { assert } from "chai";
 import type { ProviderProfile } from "../../../src/domain/agent/types.ts";
-import { createProviderCatalogSignature } from "../../../src/features/sidebar/providers/ProviderCatalogController.ts";
+import {
+  createProviderCatalogSignature,
+  createProviderRefreshSignature,
+  createVisibleModelCatalog,
+} from "../../../src/features/sidebar/providers/ProviderCatalogController.ts";
 
 describe("sidebar provider catalog subscription", function () {
   it("does not rebuild the catalog when only the active provider changes", function () {
@@ -56,6 +60,69 @@ describe("sidebar provider catalog subscription", function () {
 
     assert.notEqual(changedModels, original);
     assert.notEqual(changedEndpoint, original);
+  });
+
+  it("rebuilds locally without refreshing providers for visibility-only changes", function () {
+    const visible = {
+      profiles: [createProfile()],
+    };
+    const hidden = {
+      profiles: [
+        createProfile({
+          models: [
+            {
+              ...createProfile().models[0],
+              visible: false,
+            },
+          ],
+        }),
+      ],
+    };
+
+    assert.notEqual(
+      createProviderCatalogSignature(visible),
+      createProviderCatalogSignature(hidden),
+    );
+    assert.equal(
+      createProviderRefreshSignature(visible),
+      createProviderRefreshSignature(hidden),
+    );
+  });
+
+  it("builds the immediate sidebar catalog from visible models only", function () {
+    const models = createVisibleModelCatalog([
+      createProfile({
+        models: [
+          {
+            id: "deepseek-v4-flash",
+            displayName: "DeepSeek V4 Flash",
+            supportedReasoningEfforts: ["medium", "high"],
+          },
+          {
+            id: "deepseek-v4-pro",
+            displayName: "DeepSeek V4 Pro",
+            supportedReasoningEfforts: ["medium", "high"],
+            visible: false,
+          },
+        ],
+      }),
+      createProfile({
+        id: "disabled-provider",
+        enabled: false,
+        models: [
+          {
+            id: "disabled-model",
+            displayName: "Disabled Model",
+            supportedReasoningEfforts: [],
+          },
+        ],
+      }),
+    ]);
+
+    assert.deepEqual(
+      models.map((model) => model.slug),
+      ["deepseek-v4-flash"],
+    );
   });
 });
 

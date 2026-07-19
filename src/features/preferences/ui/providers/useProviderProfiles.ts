@@ -26,6 +26,11 @@ function useProviderProfiles(): {
     input: Partial<ProviderProfileInput>,
   ) => void;
   deleteProvider: (profileId: string) => void;
+  setModelVisibility: (
+    profileId: string,
+    modelId: string,
+    visible: boolean,
+  ) => void;
   readProviderApiKey: (profileId: string) => string;
   checkProvider: (profileId: string) => void;
   listProviderModels: (input: {
@@ -63,6 +68,13 @@ function useProviderProfiles(): {
   const deleteProvider = useCallback((profileId: string) => {
     getProviderProfileStore().deleteProvider(profileId);
   }, []);
+
+  const setModelVisibility = useCallback(
+    (profileId: string, modelId: string, visible: boolean) => {
+      getProviderProfileStore().setModelVisibility(profileId, modelId, visible);
+    },
+    [],
+  );
 
   const readProviderApiKey = useCallback(
     (profileId: string) =>
@@ -129,6 +141,7 @@ function useProviderProfiles(): {
     createProvider,
     updateProvider,
     deleteProvider,
+    setModelVisibility,
     readProviderApiKey,
     checkProvider,
     listProviderModels,

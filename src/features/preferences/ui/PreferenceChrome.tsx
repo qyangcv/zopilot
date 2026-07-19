@@ -1,11 +1,11 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from "react";
 import {
   l10nAttributes,
   type FluentArgs,
   type LocalizedMessage,
 } from "../localization";
 
-export { LocalizedMessageText, NavButton, PageHeader, T };
+export { LocalizedMessageText, PageHeader, PreferenceIconButton, T };
 
 function PageHeader({
   action,
@@ -27,55 +27,37 @@ function PageHeader({
   );
 }
 
-function NavButton({
-  active,
-  count,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  count?: number;
-  icon: ReactNode;
-  label: ReactNode;
-  onClick: () => void;
-}): ReactElement {
-  return (
-    <button
-      className="zp-pref-nav-item"
-      data-active={active || undefined}
-      onClick={onClick}
-      type="button"
-    >
-      {icon}
-      <span>{label}</span>
-      {count ? <span className="zp-pref-nav-count">{count}</span> : null}
-    </button>
-  );
-}
-
 function T({
   args,
-  children,
   id,
 }: {
   args?: FluentArgs;
-  children?: ReactNode;
   id: LocalizedMessage["id"];
 }): ReactElement {
-  return <span {...l10nAttributes(id, args)}>{children}</span>;
+  return <span {...l10nAttributes(id, args)} />;
 }
 
 function LocalizedMessageText({
-  children,
   message,
 }: {
-  children?: ReactNode;
   message: LocalizedMessage;
 }): ReactElement {
+  return <T args={message.args} id={message.id} />;
+}
+
+function PreferenceIconButton({
+  children,
+  tooltip,
+  ...buttonProps
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  tooltip: ReactNode;
+}): ReactElement {
   return (
-    <T args={message.args} id={message.id}>
+    <button {...buttonProps}>
       {children}
-    </T>
+      <span className="zp-pref-icon-button-tooltip" role="tooltip">
+        {tooltip}
+      </span>
+    </button>
   );
 }

@@ -455,7 +455,7 @@ describe("SidebarApp", function () {
 
     assert.include(html, "CodeV: Code with Images");
     assert.include(html, "paper.pdf");
-    assert.include(html, 'data-icon-name="paperMention"');
+    assert.include(html, 'data-icon-name="file"');
     assert.include(html, 'data-icon-name="attachmentPdf"');
     assert.include(html, "zp-context-chip");
     assert.notInclude(html, "@CodeV: Code with Images");
@@ -490,7 +490,7 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "Reading notes");
-    assert.include(html, 'data-icon-name="noteContext"');
+    assert.include(html, 'data-icon-name="notebookText"');
   });
 
   it("keeps each item-tree selection visible after a library message is sent", function () {

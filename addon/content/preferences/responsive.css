@@ -1,52 +1,79 @@
-/* Responsive layout and motion */
+/* Container-responsive preference layout */
 
-@media (max-width: 900px) {
-  .zp-pref-shell {
-    grid-template-columns: 170px minmax(0, 1fr);
+@container zopilot-preferences (max-width: 619px) {
+  .zp-pref-provider-description {
+    display: none;
   }
+
+  .zp-pref-provider-details {
+    padding-inline-start: 24px;
+  }
+}
+
+@container zopilot-preferences (max-width: 519px) {
   .zp-pref-main {
-    padding: 22px;
+    padding: 12px 14px 18px;
   }
+
+  .zp-pref-page-header {
+    gap: 8px;
+  }
+
+  .zp-pref-path-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 6px;
+  }
+
+  .zp-pref-path-row dt {
+    grid-column: 1 / -1;
+  }
+
+  .zp-pref-path-row dd {
+    grid-column: 1;
+  }
+
+  .zp-pref-path-row:not([data-scrollable]) dd {
+    grid-column: 1 / -1;
+  }
+
+  .zp-pref-path-actions {
+    grid-column: 2;
+  }
+
   .zp-pref-textarea {
     min-height: 200px;
   }
-  .zp-pref-prompt-edit-header {
-    align-items: flex-start;
+}
+
+@container zopilot-preferences (max-width: 419px) {
+  .zp-pref-section-navigation {
+    padding-inline: 14px;
   }
-  .zp-pref-actions.zp-pref-prompt-edit-actions {
-    justify-content: flex-end;
+
+  .zp-pref-tabs {
+    display: none;
+  }
+
+  .zp-pref-section-switcher {
+    display: block;
+  }
+
+  .zp-pref-provider-summary-main {
+    grid-template-columns: 14px 16px minmax(0, 1fr) auto;
+  }
+
+  .zp-pref-provider-summary-status {
+    font-size: 0;
+  }
+
+  .zp-pref-provider-summary-status svg {
+    width: 12px;
+    height: 12px;
   }
 }
-@media (min-width: 1080px) {
-  .zp-pref-path-list {
-    gap: 18px;
-  }
-  .zp-pref-path-row {
-    grid-template-columns:
-      minmax(92px, max-content)
-      minmax(0, 1fr)
-      auto;
-    gap: 8px 12px;
-  }
-  .zp-pref-path-actions {
-    grid-column: auto;
-    justify-content: flex-end;
-  }
-}
-@media (max-width: 760px) {
-  .zp-pref-shell {
-    grid-template-columns: 1fr;
-  }
-  .zp-pref-sidebar {
-    border-block-end: 1px solid var(--zp-pref-border);
-    border-inline-end: 0;
-  }
-  .zp-pref-main {
-    padding: 20px;
-  }
-}
-@keyframes zp-pref-spin {
-  to {
-    transform: rotate(360deg);
+
+@media (prefers-reduced-motion: reduce) {
+  .zp-pref-spin {
+    animation: none;
   }
 }

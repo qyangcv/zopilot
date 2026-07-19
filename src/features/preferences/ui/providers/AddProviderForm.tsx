@@ -13,6 +13,7 @@ import { SingleSelect } from "../../../../ui/primitives/index";
 import { ProviderBrandIcon } from "../../../../ui/ProviderBrandIcon";
 
 type AddProviderFormProps = {
+  onCancel: () => void;
   onCreate: (input: {
     providerId: Exclude<AgentProviderId, "codex">;
     displayName?: string;
@@ -25,7 +26,18 @@ type AddProviderFormProps = {
     baseURL: string;
     apiKey: string;
   }) => Promise<AgentModelEntry[]>;
+  onCreated: () => void;
 };
+
+function updateSelectedModelIds(
+  current: string[],
+  modelId: string,
+  checked: boolean,
+): string[] {
+  return checked
+    ? [...new Set([...current, modelId])]
+    : current.filter((id) => id !== modelId);
+}
 
 function AddProviderForm(props: AddProviderFormProps): ReactElement {
   const providerLabelId = `zp-provider-label-${useId().replaceAll(":", "")}`;
@@ -87,32 +99,37 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
     setApiKey("");
     resetModels();
     setMessage(localized("pref-provider-added"));
+    props.onCreated();
   };
 
   return (
-    <div className="zp-pref-card zp-pref-provider-create">
+    <div className="zp-pref-provider-create">
       <div className="zp-pref-card-header">
         <div>
           <h3>
-            <T id="pref-provider-add-title">添加自定义模型服务（BYOK）</T>
+            <T id="pref-provider-add-title" />
           </h3>
           <p>
-            <T id="pref-provider-add-description">
-              输入兼容 OpenAI API 的基础地址和 API
-              密钥，获取模型列表后选择要启用的模型。
-            </T>
+            <T id="pref-provider-add-description" />
           </p>
         </div>
+        <button
+          className="zp-pref-button zp-pref-button-secondary"
+          onClick={props.onCancel}
+          type="button"
+        >
+          <T id="pref-cancel" />
+        </button>
       </div>
       <div className="zp-pref-provider-steps">
         <section className="zp-pref-provider-step">
           <h4>
-            <T id="pref-provider-step-credentials">1. 服务地址与 API 密钥</T>
+            <T id="pref-provider-step-credentials" />
           </h4>
           <div className="zp-pref-form-grid">
             <div className="zp-pref-form-field">
               <span id={providerLabelId}>
-                <T id="pref-provider-kind">Provider</T>
+                <T id="pref-provider-kind" />
               </span>
               <SingleSelect
                 aria-labelledby={providerLabelId}
@@ -137,7 +154,7 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
               />
             </div>
             <label>
-              <T id="pref-provider-base-url">API 基础地址</T>
+              <T id="pref-provider-base-url" />
               <input
                 autoComplete="off"
                 placeholder="https://provider.example.com/v1"
@@ -148,13 +165,11 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
                 }}
               />
               <span className="zp-pref-muted zp-pref-url-hint">
-                <T id="pref-provider-base-url-hint">
-                  输入兼容 OpenAI API 的端点基础地址。
-                </T>
+                <T id="pref-provider-base-url-hint" />
               </span>
             </label>
             <label>
-              <T id="pref-provider-api-key">API 密钥</T>
+              <T id="pref-provider-api-key" />
               <input
                 autoComplete="off"
                 type="password"
@@ -183,56 +198,55 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
                   ? "pref-provider-listing-models"
                   : "pref-provider-list-models"
               }
-            >
-              {loadingModels ? "正在获取模型…" : "获取模型列表"}
-            </T>
+            />
           </button>
         </section>
-        <section className="zp-pref-provider-step">
+        <section className="zp-pref-provider-step zp-pref-provider-model-step">
           <h4>
-            <T id="pref-provider-step-models">2. 选择模型</T>
+            <T id="pref-provider-step-models" />
           </h4>
-          {models.length ? (
-            <div className="zp-pref-model-checklist">
-              {models.map((model) => (
-                <label key={model.id}>
-                  <input
-                    checked={selectedModels.includes(model.id)}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setSelectedModels((current) =>
-                        event.currentTarget.checked
-                          ? [...new Set([...current, model.id])]
-                          : current.filter((id) => id !== model.id),
-                      )
-                    }
-                  />
-                  <span>{model.displayName}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p className="zp-pref-muted">
-              <T id="pref-provider-models-query-first">请先获取模型列表。</T>
-            </p>
-          )}
-        </section>
-        <section className="zp-pref-provider-step">
-          <h4>
-            <T id="pref-provider-step-add">3. 添加模型服务</T>
-          </h4>
-          <button
-            className="zp-pref-button zp-pref-button-primary"
-            disabled={!canCreate}
-            onClick={createProvider}
-            type="button"
-          >
-            <Plus size={14} />
-            <T id="pref-provider-add">添加</T>
-          </button>
-          {message ? (
-            <div className="zp-pref-status zp-pref-status-message">
-              <LocalizedMessageText message={message} />
+          <div className="zp-pref-provider-model-area">
+            {models.length ? (
+              <div className="zp-pref-model-checklist">
+                {models.map((model) => (
+                  <label key={model.id}>
+                    <input
+                      checked={selectedModels.includes(model.id)}
+                      type="checkbox"
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setSelectedModels((current) =>
+                          updateSelectedModelIds(current, model.id, checked),
+                        );
+                      }}
+                    />
+                    <span>{model.displayName}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="zp-pref-muted">
+                <T id="pref-provider-models-query-first" />
+              </p>
+            )}
+          </div>
+          {message || canCreate ? (
+            <div className="zp-pref-provider-create-actions">
+              {message ? (
+                <div className="zp-pref-status zp-pref-status-message">
+                  <LocalizedMessageText message={message} />
+                </div>
+              ) : null}
+              {canCreate ? (
+                <button
+                  className="zp-pref-button zp-pref-button-secondary"
+                  onClick={createProvider}
+                  type="button"
+                >
+                  <Plus size={14} />
+                  <T id="pref-provider-add" />
+                </button>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -241,5 +255,5 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
   );
 }
 
-export { AddProviderForm };
+export { AddProviderForm, updateSelectedModelIds };
 export type { AddProviderFormProps };

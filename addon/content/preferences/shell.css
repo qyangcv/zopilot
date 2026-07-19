@@ -2,33 +2,32 @@
 
 #zopilot-preferences-root {
   --zp-pref-bg: Canvas;
-  --zp-pref-panel: color-mix(in srgb, Canvas 94%, CanvasText 6%);
-  --zp-pref-panel-strong: color-mix(in srgb, Canvas 88%, CanvasText 12%);
-  --zp-pref-border: color-mix(in srgb, CanvasText 18%, transparent);
-  --zp-pref-border-strong: color-mix(in srgb, CanvasText 26%, transparent);
-  --zp-pref-muted: color-mix(in srgb, CanvasText 62%, transparent);
+  --zp-pref-panel: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+  --zp-pref-panel-strong: color-mix(in srgb, Canvas 91%, CanvasText 9%);
+  --zp-pref-border: color-mix(in srgb, CanvasText 16%, transparent);
+  --zp-pref-border-strong: color-mix(in srgb, CanvasText 28%, transparent);
+  --zp-pref-muted: color-mix(in srgb, CanvasText 58%, transparent);
   --zp-pref-accent: AccentColor;
   --zp-pref-danger: #c9342f;
   position: relative;
+  min-width: 0;
   color-scheme: light dark;
-  min-height: 520px;
+  container-name: zopilot-preferences;
+  container-type: inline-size;
 }
 
 .zp-pref-shell {
-  display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  min-height: 520px;
-  overflow: hidden;
-  border: 1px solid var(--zp-pref-border);
-  border-radius: 8px;
-  background: var(--zp-pref-bg);
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  background: transparent;
   color: CanvasText;
   font: menu;
   font-size: 13px;
 }
 
 .zp-pref-react-root {
-  min-height: 520px;
+  min-width: 0;
 }
 
 .zp-pref-portal-root {

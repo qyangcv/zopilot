@@ -12,6 +12,7 @@ export {
   createProviderProfile,
   createLegacyProviderDisplayName,
   getProviderDefinition,
+  isModelVisible,
   isProviderId,
   modelFromId,
   resolveProviderId,
@@ -109,13 +110,14 @@ function createCodexProviderProfile(
   } = {},
 ): ProviderProfile {
   const models = input.models || [];
+  const visibleModels = models.filter(isModelVisible);
   const provider = getProviderDefinition("codex");
   return {
     id: CODEX_PROVIDER_ID,
     kind: "codex-cli",
     providerId: provider.id,
     displayName: provider.displayName,
-    defaultModel: models[0]?.id,
+    defaultModel: visibleModels[0]?.id,
     models,
     capabilities: createCapabilities(provider.id),
     timeoutMs: 180000,
@@ -142,10 +144,14 @@ function createProviderProfile(input: {
 }): ProviderProfile {
   const provider = getProviderDefinition(input.providerId);
   const models = input.models?.length
-    ? input.models.map((model) => modelFromId(model.id))
+    ? input.models.map((model) => ({
+        ...modelFromId(model.id),
+        ...(model.visible === false ? { visible: false } : {}),
+      }))
     : input.defaultModel
       ? [modelFromId(input.defaultModel)]
       : [];
+  const visibleModels = models.filter(isModelVisible);
   return {
     id: input.id,
     kind: "openai-compatible",
@@ -154,7 +160,7 @@ function createProviderProfile(input: {
     baseURL: input.baseURL || provider.defaultBaseURL,
     apiKeyRef: input.apiKeyRef || input.id,
     hasApiKey: input.hasApiKey,
-    defaultModel: input.defaultModel || models[0]?.id,
+    defaultModel: input.defaultModel || visibleModels[0]?.id,
     models,
     capabilities: createCapabilities(provider.id, input.capabilities),
     timeoutMs: input.timeoutMs || 180000,
@@ -162,6 +168,10 @@ function createProviderProfile(input: {
     enabled: input.enabled ?? true,
     status: input.status || "unchecked",
   };
+}
+
+function isModelVisible(model: AgentModelEntry): boolean {
+  return model.visible !== false;
 }
 
 function modelFromId(id: string): AgentModelEntry {

@@ -31,65 +31,44 @@ function DependencyProgress({
 
 function DependencyStatus({ state }: { state: DependencyState }): ReactElement {
   if (state.status === "checking") {
-    return (
-      <BusyStatus
-        id="pref-dependencies-status-checking"
-        text="正在检测依赖..."
-      />
-    );
+    return <BusyStatus id="pref-dependencies-status-checking" />;
   }
   if (state.status === "installing") {
-    return (
-      <BusyStatus
-        id="pref-dependencies-status-installing"
-        text="正在安装依赖..."
-      />
-    );
+    return <BusyStatus id="pref-dependencies-status-installing" />;
   }
   if (state.status === "removing") {
-    return (
-      <BusyStatus
-        id="pref-dependencies-status-removing"
-        text="正在删除依赖..."
-      />
-    );
+    return <BusyStatus id="pref-dependencies-status-removing" />;
   }
   const helper = state.helper;
   if (helper?.status === "installed") {
     return (
       <div className="zp-pref-status zp-pref-status-connected">
         <PackageCheck size={16} />
-        <T id="pref-dependencies-status-installed">已安装</T>
+        <T id="pref-dependencies-status-installed" />
       </div>
     );
   }
   const status = helper?.status;
-  const labels = {
-    outdated: ["pref-dependencies-status-update-available", "需要更新"],
-    unsupported: ["pref-dependencies-status-unsupported", "当前平台暂不支持"],
-    "not-installed": ["pref-dependencies-status-not-installed", "未安装"],
-    error: ["pref-dependencies-status-error", "依赖状态检测失败"],
+  const messageIds = {
+    outdated: "pref-dependencies-status-update-available",
+    unsupported: "pref-dependencies-status-unsupported",
+    "not-installed": "pref-dependencies-status-not-installed",
+    error: "pref-dependencies-status-error",
   } as const;
-  const [id, text] = labels[status ?? "error"];
+  const id = messageIds[status ?? "error"];
   return (
     <div className="zp-pref-status zp-pref-status-missing">
       <CircleAlert size={16} />
-      <T id={id}>{text}</T>
+      <T id={id} />
     </div>
   );
 }
 
-function BusyStatus({
-  id,
-  text,
-}: {
-  id: LocalizedMessage["id"];
-  text: string;
-}): ReactElement {
+function BusyStatus({ id }: { id: LocalizedMessage["id"] }): ReactElement {
   return (
     <div className="zp-pref-status">
       <LoaderCircle className="zp-pref-spin" size={16} />
-      <T id={id}>{text}</T>
+      <T id={id} />
     </div>
   );
 }
@@ -104,19 +83,19 @@ function installProgressLabel(
 ): ReactNode {
   switch (phase) {
     case "manifest":
-      return <T id="pref-dependencies-progress-manifest">读取版本清单</T>;
+      return <T id="pref-dependencies-progress-manifest" />;
     case "download":
-      return <T id="pref-dependencies-progress-download">下载解析工具</T>;
+      return <T id="pref-dependencies-progress-download" />;
     case "verify":
-      return <T id="pref-dependencies-progress-verify">校验下载</T>;
+      return <T id="pref-dependencies-progress-verify" />;
     case "write":
-      return <T id="pref-dependencies-progress-write">写入文件</T>;
+      return <T id="pref-dependencies-progress-write" />;
     case "extract":
-      return <T id="pref-dependencies-progress-extract">解压安装</T>;
+      return <T id="pref-dependencies-progress-extract" />;
     case "complete":
-      return <T id="pref-dependencies-progress-complete">安装完成</T>;
+      return <T id="pref-dependencies-progress-complete" />;
     default:
-      return <T id="pref-dependencies-progress-starting">准备安装</T>;
+      return <T id="pref-dependencies-progress-starting" />;
   }
 }
 

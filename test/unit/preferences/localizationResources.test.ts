@@ -81,16 +81,18 @@ describe("preference localization resources", function () {
       l10n: {
         async formatValue(id) {
           formattedId = id;
-          return "Delete this prompt?";
+          return "Discard unsaved changes and return to the prompt list?";
         },
       },
     };
     try {
       assert.equal(
-        await formatLocalizedMessage(localized("pref-prompt-confirm-delete")),
-        "Delete this prompt?",
+        await formatLocalizedMessage(
+          localized("pref-prompt-confirm-discard-changes"),
+        ),
+        "Discard unsaved changes and return to the prompt list?",
       );
-      assert.equal(formattedId, "zopilot-pref-prompt-confirm-delete");
+      assert.equal(formattedId, "zopilot-pref-prompt-confirm-discard-changes");
     } finally {
       if (originalDocument) {
         host.document = originalDocument;

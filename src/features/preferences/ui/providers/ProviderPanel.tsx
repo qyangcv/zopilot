@@ -1,4 +1,5 @@
-import type { ReactElement } from "react";
+import { Plus } from "lucide-react";
+import { useState, type ReactElement } from "react";
 import type {
   AgentModelEntry,
   AgentProviderId,
@@ -25,6 +26,11 @@ type ProviderPanelProps = {
     apiKey: string;
   }) => Promise<AgentModelEntry[]>;
   onReadApiKey: (profileId: string) => string;
+  onSetModelVisibility: (
+    profileId: string,
+    modelId: string,
+    visible: boolean,
+  ) => void;
   onUpdate: (
     profileId: string,
     input: { displayName?: string; baseURL?: string; apiKey?: string },
@@ -33,28 +39,61 @@ type ProviderPanelProps = {
 };
 
 function ProviderPanel(props: ProviderPanelProps): ReactElement {
+  const [createExpanded, setCreateExpanded] = useState(false);
+  const [expandedProviderIds, setExpandedProviderIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
   return (
     <section className="zp-pref-page">
       <PageHeader
-        description={
-          <T id="pref-provider-description">
-            管理 Codex CLI 和兼容 OpenAI API 的模型服务。
-          </T>
+        action={
+          <button
+            aria-expanded={createExpanded}
+            className="zp-pref-button zp-pref-button-secondary"
+            onClick={() => setCreateExpanded((current) => !current)}
+            type="button"
+          >
+            <Plus aria-hidden="true" size={14} />
+            <T id="pref-provider-add-action" />
+          </button>
         }
-        title={<T id="pref-provider-title">模型服务</T>}
+        description={<T id="pref-provider-description" />}
+        title={<T id="pref-provider-title" />}
       />
-      <AddProviderForm
-        onCreate={props.onCreate}
-        onListModels={props.onListModels}
-      />
+      {createExpanded ? (
+        <AddProviderForm
+          onCancel={() => setCreateExpanded(false)}
+          onCreate={props.onCreate}
+          onCreated={() => setCreateExpanded(false)}
+          onListModels={props.onListModels}
+        />
+      ) : null}
       <div className="zp-pref-provider-list">
         {props.profiles.map((profile) => (
           <ProviderCard
             checking={profile.id === props.checkingProviderId}
+            expanded={expandedProviderIds.has(profile.id)}
             key={profile.id}
             onCheck={() => props.onCheck(profile.id)}
-            onDelete={() => props.onDelete(profile.id)}
+            onDelete={() => {
+              props.onDelete(profile.id);
+              setExpandedProviderIds((current) => {
+                if (!current.has(profile.id)) return current;
+                const next = new Set(current);
+                next.delete(profile.id);
+                return next;
+              });
+            }}
             onReadApiKey={() => props.onReadApiKey(profile.id)}
+            onSetModelVisibility={(modelId, visible) =>
+              props.onSetModelVisibility(profile.id, modelId, visible)
+            }
+            onToggle={() =>
+              setExpandedProviderIds((current) =>
+                toggleProviderExpansion(current, profile.id),
+              )
+            }
             onUpdate={(input) => props.onUpdate(profile.id, input)}
             profile={profile}
           />
@@ -64,5 +103,18 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
   );
 }
 
-export { ProviderPanel };
+function toggleProviderExpansion(
+  expandedProviderIds: ReadonlySet<string>,
+  profileId: string,
+): Set<string> {
+  const next = new Set(expandedProviderIds);
+  if (next.has(profileId)) {
+    next.delete(profileId);
+  } else {
+    next.add(profileId);
+  }
+  return next;
+}
+
+export { ProviderPanel, toggleProviderExpansion };
 export type { ProviderPanelProps };
