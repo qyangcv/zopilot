@@ -30,12 +30,19 @@
   overflow: hidden;
 }
 
-.zp-single-select-label > span:last-child,
+.zp-single-select-trigger-text,
 .zp-single-select-option-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zp-model-diagnostic {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--zp-danger);
 }
 
 .zp-single-select-trigger-value {
@@ -322,4 +329,14 @@
 
 .zp-single-select-popup[data-variant="compact"] .zp-popup-row-action {
   color: var(--zp-single-select-muted);
+}
+
+.zp-single-select-popup[data-variant="compact"] .zp-model-diagnostic {
+  margin-inline-start: 4px;
+}
+
+.zp-single-select-popup[data-variant="compact"] .zp-popup-row-metadata {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
 }

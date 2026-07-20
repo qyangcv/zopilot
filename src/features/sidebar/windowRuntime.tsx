@@ -114,6 +114,10 @@ function createCommandActions(
       invoke("resolveDroppedContext", [input]) as ReturnType<
         SidebarActions["resolveDroppedContext"]
       >,
+    reloadPlugin: (context) =>
+      invoke("reloadPlugin", [context]) as ReturnType<
+        SidebarActions["reloadPlugin"]
+      >,
     hideSessions: () => void invoke("hideSessions"),
     interruptActiveTurn: () => void invoke("interruptActiveTurn"),
     openExternalLink: (url) => void invoke("openExternalLink", [url]),

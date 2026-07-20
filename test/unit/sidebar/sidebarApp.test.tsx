@@ -33,6 +33,40 @@ describe("SidebarApp", function () {
     installLocaleMock();
   });
 
+  it("renders the reload action directly after the Zopilot title", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp actions={createActions()} state={createState()} />,
+    );
+    const titleIndex = html.indexOf("zopilot-sidebar-title");
+    const reloadIndex = html.indexOf('class="zp-icon-button zp-reload-button"');
+    const historyIndex = html.indexOf(
+      'class="zp-icon-button zp-history-button"',
+    );
+
+    assert.isAtLeast(titleIndex, 0);
+    assert.isAbove(reloadIndex, titleIndex);
+    assert.isAbove(historyIndex, reloadIndex);
+    assert.include(html, 'aria-label="zopilot-sidebar-reload"');
+    assert.include(html, 'data-icon-name="reload"');
+  });
+
+  it("disables and spins the reload action while reloading", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({ reloading: true })}
+      />,
+    );
+
+    assert.include(
+      html,
+      'aria-busy="true" aria-label="zopilot-sidebar-reload"',
+    );
+    assert.include(html, "zp-icon zp-spin");
+    assert.include(html, 'data-icon-name="reload"');
+    assert.include(html, "disabled");
+  });
+
   it("shows no assistant footer while a response is running", function () {
     const streamStore = createStreamStore({
       answerBlocks: [
@@ -1303,7 +1337,7 @@ describe("SidebarApp", function () {
     assert.include(html, 'data-icon-name="paperclip"');
   });
 
-  it("shows a backend diagnostic without model controls after a failed connection", function () {
+  it("keeps model controls available beside a provider diagnostic", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
@@ -1315,8 +1349,45 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "Codex CLI not found");
-    assert.notInclude(html, 'aria-label="zopilot-sidebar-model-name"');
+    assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
     assert.notInclude(html, 'aria-label="zopilot-sidebar-reasoning-depth"');
+  });
+
+  it("marks only the timed-out model while keeping the selector available", function () {
+    const timeoutMessage = "Codex Request timed out";
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          backendStatus: "disconnected",
+          backendDiagnosticMessage: timeoutMessage,
+          models: [
+            {
+              slug: "gpt-5.5",
+              displayName: "GPT-5.5",
+              providerProfileId: "codex-cli.default",
+              providerLabel: "Codex CLI",
+              supportedReasoningEfforts: ["medium"],
+              defaultReasoningEffort: "medium",
+              diagnosticMessage: timeoutMessage,
+            },
+            {
+              slug: "deepseek-chat",
+              displayName: "DeepSeek Chat",
+              providerProfileId: "deepseek.custom",
+              providerLabel: "DeepSeek",
+              supportedReasoningEfforts: ["medium"],
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, 'aria-label="zopilot-sidebar-model-name"');
+    assert.include(html, 'class="zp-model-diagnostic"');
+    assert.include(html, 'data-icon-name="disconnected"');
+    assert.include(html, `title="${timeoutMessage}"`);
+    assert.notInclude(html, "zp-backend-status");
   });
 
   it("does not render legacy CSS-drawn icon classes", function () {
@@ -1395,6 +1466,7 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: TEST_PROMPTS,
+    reloading: false,
     ...patch,
   };
 }
@@ -1423,6 +1495,7 @@ function createActions(): SidebarActions {
     createNewSession: () => undefined,
     getItemContextTree: async () => undefined,
     resolveDroppedContext: async () => [],
+    reloadPlugin: async () => undefined,
     hideSessions: () => undefined,
     interruptActiveTurn: () => undefined,
     openExternalLink: () => undefined,

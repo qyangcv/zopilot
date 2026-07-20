@@ -102,7 +102,7 @@
 .zp-sidebar-title-block {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
 }
@@ -122,6 +122,10 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 1px;
+}
+
+.zp-reload-button {
+  flex: 0 0 auto;
 }
 
 .zp-icon-button,

@@ -10,6 +10,7 @@ import type {
   BackendStatusResult,
   ProviderProfile,
 } from "../../domain/agent/types";
+import { createLogger } from "../../runtime/logging/logger";
 
 export { AgentBackendManager, getAgentBackendManager, shutdownAgentBackends };
 
@@ -19,11 +20,14 @@ type BackendManagerListener = (profiles: {
 }) => void;
 
 let sharedManager: AgentBackendManager | undefined;
+let managerShutdownPromise: Promise<void> | undefined;
+const logger = createLogger("agent.backends");
 
 class AgentBackendManager {
   private readonly backends = new Map<string, AgentBackend>();
   private readonly listeners = new Set<BackendManagerListener>();
   private readonly disposeProfileSubscription: () => void;
+  private disposePromise?: Promise<void>;
 
   constructor() {
     this.disposeProfileSubscription = getProviderProfileStore().subscribe(
@@ -111,12 +115,24 @@ class AgentBackendManager {
     await this.getBackend(profileId).cancelTurn(input);
   }
 
-  dispose(): void {
+  dispose(): Promise<void> {
+    if (this.disposePromise) return this.disposePromise;
     this.disposeProfileSubscription();
-    for (const backend of this.backends.values()) {
-      void backend.dispose();
-    }
+    this.listeners.clear();
+    const backends = Array.from(this.backends.values());
     this.backends.clear();
+    this.disposePromise = Promise.allSettled(
+      backends.map(async (backend) => {
+        await backend.dispose();
+      }),
+    ).then((results) => {
+      results.forEach((result) => {
+        if (result.status === "rejected") {
+          logger.error("failed to dispose an agent backend", result.reason);
+        }
+      });
+    });
+    return this.disposePromise;
   }
 
   private getBackend(profileId: string): AgentBackend {
@@ -152,11 +168,30 @@ class AgentBackendManager {
 }
 
 function getAgentBackendManager(): AgentBackendManager {
+  if (managerShutdownPromise) {
+    throw new Error("Zopilot agent backends are shutting down.");
+  }
   sharedManager ??= new AgentBackendManager();
   return sharedManager;
 }
 
-function shutdownAgentBackends(): void {
-  sharedManager?.dispose();
+function shutdownAgentBackends(): Promise<void> {
+  if (managerShutdownPromise) return managerShutdownPromise;
+  const manager = sharedManager;
   sharedManager = undefined;
+  const pending = manager?.dispose() || Promise.resolve();
+  managerShutdownPromise = pending;
+  pending.then(
+    () => {
+      if (managerShutdownPromise === pending) {
+        managerShutdownPromise = undefined;
+      }
+    },
+    () => {
+      if (managerShutdownPromise === pending) {
+        managerShutdownPromise = undefined;
+      }
+    },
+  );
+  return pending;
 }

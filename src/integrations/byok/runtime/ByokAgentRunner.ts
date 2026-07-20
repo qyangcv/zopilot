@@ -80,10 +80,19 @@ class ByokAgentRunner {
     validateProfile(params.profile);
     const controller = new AbortController();
     this.abortControllers.set(params.runId, controller);
-    const timer = setTimeout(
-      () => controller.abort(),
+    let startupTimedOut = false;
+    let startupTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(
+      () => {
+        startupTimedOut = true;
+        controller.abort();
+      },
       params.profile.timeoutMs,
     );
+    const markResponseStarted = () => {
+      if (startupTimer === undefined) return;
+      clearTimeout(startupTimer);
+      startupTimer = undefined;
+    };
     const modelId =
       params.input.model ||
       params.profile.defaultModel ||
@@ -131,6 +140,7 @@ class ByokAgentRunner {
         { stream: true, signal: controller.signal, maxTurns: null },
       );
       for await (const event of stream) {
+        markResponseStarted();
         if (event.type === "raw_model_stream_event") {
           const data = asRecord(event.data);
           if (data?.type === "response_started") {
@@ -179,6 +189,11 @@ class ByokAgentRunner {
         }
       }
       await stream.completed;
+      if (startupTimedOut) {
+        throw new Error(
+          "Provider response timed out before streaming started.",
+        );
+      }
       const finalOutput =
         typeof stream.finalOutput === "string" ? stream.finalOutput : "";
       const lastVisibleResponse = [...responseTexts.entries()]
@@ -192,6 +207,11 @@ class ByokAgentRunner {
         status: stream.cancelled ? "interrupted" : "completed",
       };
     } catch (error) {
+      if (startupTimedOut) {
+        throw new Error(
+          "Provider response timed out before streaming started.",
+        );
+      }
       if (!controller.signal.aborted) throw error;
       return {
         backendId: params.profile.id,
@@ -201,7 +221,9 @@ class ByokAgentRunner {
         status: "interrupted",
       };
     } finally {
-      clearTimeout(timer);
+      if (startupTimer !== undefined) {
+        clearTimeout(startupTimer);
+      }
       this.abortControllers.delete(params.runId);
     }
   }

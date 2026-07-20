@@ -31,6 +31,12 @@ function loadSubprocessModule<Module>(): Module {
   ).Subprocess;
 }
 
+function loadAddonManagerModule<Module>(): Module {
+  return ChromeUtils.importESModule(
+    "resource://gre/modules/AddonManager.sys.mjs",
+  ) as Module;
+}
+
 function hasGeckoIO(): boolean {
   return Boolean((globalThis as { IOUtils?: unknown }).IOUtils);
 }
@@ -80,6 +86,7 @@ export {
   geckoPath,
   getGeckoComponents,
   hasGeckoIO,
+  loadAddonManagerModule,
   loadSubprocessModule,
 };
 export type { ZoteroFilePicker };

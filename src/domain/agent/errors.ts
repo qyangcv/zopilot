@@ -37,7 +37,11 @@ function createDiagnostic(
 function normalizeBackendError(error: unknown): AgentDiagnostic {
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
-  if (lower.includes("abort") || lower.includes("interrupt")) {
+  if (
+    lower.includes("abort") ||
+    lower.includes("interrupt") ||
+    (lower.includes("stream") && lower.includes("disconnect"))
+  ) {
     return createDiagnostic("stream_interrupted", message);
   }
   if (lower.includes("timeout") || lower.includes("timed out")) {
@@ -72,7 +76,13 @@ function normalizeBackendError(error: unknown): AgentDiagnostic {
   if (
     lower.includes("network") ||
     lower.includes("failed to fetch") ||
-    lower.includes("econn")
+    lower.includes("fetch failed") ||
+    lower.includes("disconnect") ||
+    lower.includes("socket hang up") ||
+    lower.includes("econn") ||
+    lower.includes("etimedout") ||
+    lower.includes("enotfound") ||
+    lower.includes("eai_again")
   ) {
     return createDiagnostic("network_unavailable", message);
   }

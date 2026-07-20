@@ -38,6 +38,7 @@ function createInitialSidebarState(label: string): SidebarState {
     libraryItemCount: 0,
     collectionOptions: [],
     prompts: [],
+    reloading: false,
   };
 }
 

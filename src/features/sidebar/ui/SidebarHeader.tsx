@@ -10,6 +10,7 @@ type SidebarHeaderProps = {
   archiveButtonRef: RefObject<HTMLButtonElement | null>;
   headerRef: RefObject<HTMLElement | null>;
   historyButtonRef: RefObject<HTMLButtonElement | null>;
+  onReload: () => Promise<void>;
   state: SidebarState;
 };
 
@@ -18,6 +19,7 @@ function SidebarHeader({
   archiveButtonRef,
   headerRef,
   historyButtonRef,
+  onReload,
   state,
 }: SidebarHeaderProps): ReactElement {
   const sessionAnchorRef =
@@ -31,6 +33,23 @@ function SidebarHeader({
               {getString("sidebar-title")}
             </span>
           </span>
+          <button
+            aria-busy={state.reloading || undefined}
+            aria-label={getString("sidebar-reload")}
+            className="zp-icon-button zp-reload-button"
+            disabled={state.reloading}
+            onClick={(event) => {
+              event.stopPropagation();
+              void onReload();
+            }}
+            title={getString("sidebar-reload")}
+            type="button"
+          >
+            <Icon
+              className={state.reloading ? "zp-spin" : undefined}
+              name="reload"
+            />
+          </button>
         </div>
         <div className="zp-sidebar-actions">
           <button

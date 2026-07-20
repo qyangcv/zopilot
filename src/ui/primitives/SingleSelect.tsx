@@ -34,6 +34,7 @@ type SingleSelectOption = {
   subDefaultValue?: string;
   subOptions?: SingleSelectSubOption[];
   subValue?: string;
+  status?: ReactNode;
   triggerIcon?: ReactNode;
   triggerDetail?: string;
   value: string;
@@ -321,8 +322,11 @@ function SingleSelect({
               </span>
             </span>
           ) : (
-            <span>{selected?.label || value || title}</span>
+            <span className="zp-single-select-trigger-text">
+              {selected?.label || value || title}
+            </span>
           )}
+          {selected?.status}
         </span>
         {showIndicator ? (
           <ChevronDown
@@ -415,6 +419,7 @@ function SingleSelect({
                       icon={option.icon}
                       id={`${listboxId}-option-${index}`}
                       label={option.label}
+                      metadata={option.status}
                       onClick={() => selectIndex(index)}
                       onMouseEnter={() => {
                         if (!option.disabled) {
@@ -476,6 +481,7 @@ function SingleSelect({
                       <span className="zp-single-select-option-label">
                         {option.label}
                       </span>
+                      {option.status}
                     </button>
                   )}
                 </div>

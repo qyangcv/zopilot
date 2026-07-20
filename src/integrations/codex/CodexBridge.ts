@@ -36,6 +36,8 @@ class CodexBridge {
   private process?: CodexSubprocessProcess;
   private transport?: StdioJsonRpcPeer;
   private startPromise?: Promise<void>;
+  private stopPromise?: Promise<void>;
+  private stopping = false;
   private readonly threads = new CodexThreadManager({
     start: () => this.start(),
     request: (method, params) => this.request(method, params),
@@ -48,11 +50,18 @@ class CodexBridge {
   private readonly activeTurns = new CodexTurnRegistry();
 
   async start(): Promise<void> {
+    if (this.stopping) {
+      throw new Error("Codex app-server is stopping.");
+    }
     if (this.initialized && this.process) {
       return;
     }
     if (this.startPromise) {
-      return this.startPromise;
+      await this.startPromise;
+      if (this.stopping) {
+        throw new Error("Codex app-server is stopping.");
+      }
+      return;
     }
 
     this.startPromise = this.startProcess();
@@ -61,15 +70,27 @@ class CodexBridge {
     } finally {
       this.startPromise = undefined;
     }
+    if (this.stopping) {
+      throw new Error("Codex app-server is stopping.");
+    }
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    this.stopPromise ??= this.stopProcess();
+    return this.stopPromise;
+  }
+
+  private async stopProcess(): Promise<void> {
+    this.stopping = true;
     this.initialized = false;
     this.threads.clear();
     const stoppedError = new Error("Codex app-server stopped.");
     this.rejectAll(stoppedError);
-    this.transport?.stop(stoppedError);
-    this.transport = undefined;
+    this.stopTransport(stoppedError);
+    await this.startPromise?.catch(() => undefined);
+    this.initialized = false;
+    this.rejectAll(stoppedError);
+    this.stopTransport(stoppedError);
     const proc = this.process;
     this.process = undefined;
     if (!proc) {
@@ -77,6 +98,11 @@ class CodexBridge {
     }
     await proc.stdin.close().catch(() => undefined);
     await proc.kill(500).catch(() => undefined);
+  }
+
+  private stopTransport(error: Error): void {
+    this.transport?.stop(error);
+    this.transport = undefined;
   }
 
   async prewarm(): Promise<void> {
@@ -104,13 +130,6 @@ class CodexBridge {
     const threadId = await this.threads.ensure(options.conversation);
 
     const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.activeTurns.reject(
-          threadId,
-          undefined,
-          new Error("Codex request timed out."),
-        );
-      }, this.getTimeoutMs());
       const activeTurn: ActiveCodexTurn = {
         anonymousBlockIds: new Map(),
         backendId: options.backendId,
@@ -123,7 +142,6 @@ class CodexBridge {
         started: false,
         streamLengths: new Map(),
         syntheticIdSequence: 0,
-        timer,
         threadId,
       };
       this.activeTurns.add(activeTurn);
@@ -157,7 +175,7 @@ class CodexBridge {
       const result = (await this.request(
         "turn/start",
         params,
-        this.getTimeoutMs(),
+        this.getTurnStartTimeoutMs(),
       )) as { turn?: { id?: string } };
       const activeTurn = this.activeTurns.find(threadId);
       if (activeTurn && result?.turn?.id) {
@@ -293,7 +311,7 @@ class CodexBridge {
     return this.subprocess;
   }
 
-  private getTimeoutMs(): number {
+  private getTurnStartTimeoutMs(): number {
     const value = Number(getPref("codex.timeoutMs"));
     if (!Number.isFinite(value) || value < 1000) {
       return 180000;
@@ -303,14 +321,33 @@ class CodexBridge {
 }
 
 let sharedBridge: CodexBridge | undefined;
+let bridgeShutdownPromise: Promise<void> | undefined;
 
 function getCodexBridge(): CodexBridge {
+  if (bridgeShutdownPromise) {
+    throw new Error("Codex app-server is shutting down.");
+  }
   sharedBridge ??= new CodexBridge();
   return sharedBridge;
 }
 
-async function shutdownCodexBridge(): Promise<void> {
+function shutdownCodexBridge(): Promise<void> {
+  if (bridgeShutdownPromise) return bridgeShutdownPromise;
   const bridge = sharedBridge;
   sharedBridge = undefined;
-  await bridge?.stop();
+  const pending = bridge?.stop() || Promise.resolve();
+  bridgeShutdownPromise = pending;
+  pending.then(
+    () => {
+      if (bridgeShutdownPromise === pending) {
+        bridgeShutdownPromise = undefined;
+      }
+    },
+    () => {
+      if (bridgeShutdownPromise === pending) {
+        bridgeShutdownPromise = undefined;
+      }
+    },
+  );
+  return pending;
 }

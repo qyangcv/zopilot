@@ -7,6 +7,7 @@ type SidebarActionHandlers = {
   createNewSession: () => void;
   getItemContextTree: SidebarActions["getItemContextTree"];
   resolveDroppedContext: SidebarActions["resolveDroppedContext"];
+  reloadPlugin: SidebarActions["reloadPlugin"];
   hideSessions: () => void;
   interruptActiveTurn: () => void;
   openExternalLink: (url: string) => void;
@@ -30,6 +31,7 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     createNewSession: handlers.createNewSession,
     getItemContextTree: handlers.getItemContextTree,
     resolveDroppedContext: handlers.resolveDroppedContext,
+    reloadPlugin: handlers.reloadPlugin,
     hideSessions: handlers.hideSessions,
     interruptActiveTurn: handlers.interruptActiveTurn,
     openExternalLink: handlers.openExternalLink,

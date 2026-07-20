@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import { RunningTurnStore } from "../../../src/features/sidebar/chat/RunningTurnStore.ts";
+import { combineFailedTurnText } from "../../../src/features/sidebar/chat/TurnCoordinator.ts";
 
 describe("running turn store", function () {
   it("keeps trace order and stable references for unchanged blocks", function () {
@@ -189,6 +190,16 @@ describe("running turn store", function () {
       store.getProjection("conv-stream").finalText,
       "Authoritative result",
     );
+  });
+
+  it("keeps streamed text when a turn ends with the existing error message", function () {
+    const formattedError = "Provider request failed.\n\n```\ntimed out\n```";
+
+    assert.equal(
+      combineFailedTurnText("Already streamed", formattedError),
+      `Already streamed\n\n${formattedError}`,
+    );
+    assert.equal(combineFailedTurnText("", formattedError), formattedError);
   });
 });
 

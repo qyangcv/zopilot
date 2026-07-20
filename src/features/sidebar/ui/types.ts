@@ -37,6 +37,7 @@ export type SidebarModelView = {
   providerBrand?: ProviderBrand;
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  diagnosticMessage?: string;
 };
 
 export type SidebarContextView = {
@@ -105,6 +106,7 @@ export type SidebarState = {
   libraryItemCount: number;
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
+  reloading: boolean;
 };
 
 export type SidebarStreamingSnapshot = RunningTurnSnapshot;
@@ -114,6 +116,12 @@ export type SidebarPromptSubmission = {
   mentions: SourceMention[];
   noteContexts?: NoteContextRef[];
   localAttachments: LocalAttachmentRef[];
+};
+
+export type SidebarReloadContext = {
+  workspaceKey?: string;
+  conversationId?: string;
+  hostContextKind?: SidebarContextView["hostContextKind"];
 };
 
 export type SidebarActions = {
@@ -127,6 +135,7 @@ export type SidebarActions = {
     payload: SidebarDropPayload;
     workspaceKey: string;
   }) => Promise<DroppedContextCandidate[]>;
+  reloadPlugin: (context: SidebarReloadContext) => Promise<void>;
   hideSessions: () => void;
   openExternalLink: (url: string) => void;
   selectModel: (model: string) => void;

@@ -120,6 +120,34 @@ describe("ProviderProfileStore", function () {
     assert.equal(store.getProfile(profile.id)?.apiKey, "secret-a");
   });
 
+  it("clears a stale BYOK diagnostic after the provider recovers", function () {
+    const store = new ProviderProfileStore();
+    const profile = store.createProvider({
+      providerId: "deepseek",
+      apiKey: "secret-a",
+      baseURL: "https://api.deepseek.com",
+      models: [{ id: "deepseek-chat", displayName: "DeepSeek Chat" }],
+    });
+
+    store.updateProvider(profile.id, {
+      status: "disconnected",
+      lastDiagnostic: {
+        code: "provider_timeout",
+        message: "Provider request timed out.",
+      },
+    });
+    assert.equal(
+      store.getProfile(profile.id)?.lastDiagnostic?.code,
+      "provider_timeout",
+    );
+
+    store.updateProvider(profile.id, {
+      status: "connected",
+      lastDiagnostic: undefined,
+    });
+    assert.isUndefined(store.getProfile(profile.id)?.lastDiagnostic);
+  });
+
   it("keeps model visibility while applying provider-specific discovery defaults", function () {
     const current = [
       { id: "stable", displayName: "Stable" },

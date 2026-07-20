@@ -101,6 +101,25 @@ describe("ByokRuntimeBridge", function () {
     assert.equal(toolEvents[0]?.blockId, toolEvents[1]?.blockId);
   });
 
+  it("does not apply the provider startup deadline to the whole turn", async function () {
+    const harness = createBridgeHarness();
+    const profile = { ...createProfile(), timeoutMs: 5 };
+    const pending = harness.instance.sendPrompt(profile, createPromptInput());
+    await flush();
+
+    const request = harness.requests[0];
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    harness.respond(request.id, {
+      backendId: profile.id,
+      providerProfileId: profile.id,
+      runId: request.params.runId,
+      text: "Late answer",
+      status: "completed",
+    });
+
+    assert.equal((await pending).text, "Late answer");
+  });
+
   it("interrupts the selected BYOK run", async function () {
     const harness = createBridgeHarness();
     const pending = harness.instance.interruptTurn("run-a");

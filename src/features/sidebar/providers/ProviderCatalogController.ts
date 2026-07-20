@@ -1,6 +1,9 @@
 import { getAgentBackendManager } from "../../../application/agent/BackendManager";
+import { getProviderProfileStore } from "../../../application/providers/ProviderProfileService";
+import { normalizeBackendError } from "../../../domain/agent/errors";
 import type {
   AgentDiagnostic,
+  AgentDiagnosticCode,
   AgentModelEntry,
   ProviderProfile,
 } from "../../../domain/agent/types";
@@ -25,6 +28,13 @@ type ProviderCatalogControllerOptions = {
 };
 
 const SELECTED_MODELS_PREF = "agent.selectedModels";
+const MODEL_SCOPED_DIAGNOSTICS = new Set<AgentDiagnosticCode>([
+  "stream_interrupted",
+  "rate_limited",
+  "provider_timeout",
+  "provider_server_error",
+  "network_unavailable",
+]);
 const logger = createLogger("sidebar.providers");
 
 class ProviderCatalogController {
@@ -92,6 +102,47 @@ class ProviderCatalogController {
     this.applyModelSelection(value, effort);
   }
 
+  markBackendHealthy(providerProfileId?: string, model?: string): void {
+    const manager = getAgentBackendManager();
+    const profileId =
+      providerProfileId || manager.getSnapshot().activeProviderId;
+    const profile = getProviderProfileStore().getProfile(profileId);
+    const lastCheckedAt = new Date().toISOString();
+    const viewState = this.options.getViewState();
+    const models = viewState.models.map((item) =>
+      item.providerProfileId === profileId && (!model || item.slug === model)
+        ? { ...item, diagnosticMessage: undefined }
+        : item,
+    );
+    if (
+      !this.options.isDestroyed() &&
+      viewState.selectedProviderId === profileId &&
+      (!model || viewState.selectedModel === model)
+    ) {
+      this.options.updateViewState({
+        models,
+        backendStatus: "connected",
+        backendDiagnosticMessage: undefined,
+      });
+    } else if (!this.options.isDestroyed()) {
+      this.options.updateViewState({ models });
+    }
+    if (!profile) return;
+    if (profile.kind === "codex-cli") {
+      getProviderProfileStore().updateCodexProvider({
+        status: "connected",
+        lastCheckedAt,
+        lastDiagnostic: undefined,
+      });
+    } else {
+      getProviderProfileStore().updateProvider(profileId, {
+        status: "connected",
+        lastCheckedAt,
+        lastDiagnostic: undefined,
+      });
+    }
+  }
+
   private applyModelSelection(value: string, effort?: string): void {
     const { providerProfileId, model } = parseModelSelectValue(value);
     const viewState = this.options.getViewState();
@@ -116,6 +167,8 @@ class ProviderCatalogController {
     this.updateModelSelection(viewState.models, providerProfileId, model);
     this.options.updateViewState({
       activeProviderLabel: selected.providerLabel,
+      backendStatus: selected.diagnosticMessage ? "disconnected" : "connected",
+      backendDiagnosticMessage: selected.diagnosticMessage,
     });
   }
 
@@ -172,33 +225,106 @@ class ProviderCatalogController {
       if (this.options.isDestroyed() || revision !== this.catalogRevision) {
         return;
       }
-      this.updateModelSelection(
-        [],
-        getAgentBackendManager().getSnapshot().activeProviderId,
-        "",
-      );
       await this.refreshActiveBackendDiagnostic(error);
     }
   }
 
-  async refreshActiveBackendDiagnostic(error?: unknown): Promise<void> {
-    let diagnostic: AgentDiagnostic | undefined;
-    try {
-      diagnostic = (await getAgentBackendManager().checkActiveStatus())
-        .diagnostic;
-    } catch {
-      diagnostic = undefined;
-    }
-    if (this.options.isDestroyed()) {
+  async refreshActiveBackendDiagnostic(
+    error?: unknown,
+    providerProfileId?: string,
+    model?: string,
+  ): Promise<void> {
+    const manager = getAgentBackendManager();
+    const profileId =
+      providerProfileId || manager.getSnapshot().activeProviderId;
+    if (error !== undefined) {
+      const diagnostic = normalizeBackendError(error);
+      this.showBackendDisconnected(
+        profileId,
+        model,
+        getRawErrorMessage(error) || diagnostic.message,
+        isModelScopedProviderDiagnostic(diagnostic),
+      );
       return;
     }
-    this.options.updateViewState({
-      backendStatus: "disconnected",
-      backendDiagnosticMessage:
-        diagnostic?.message ||
-        (error instanceof Error ? error.message : undefined) ||
-        getString("sidebar-backend-status-disconnected"),
-    });
+
+    try {
+      const status = await manager.checkStatus(profileId);
+      if (this.options.isDestroyed()) return;
+      if (status.status === "connected") {
+        this.markBackendHealthy(profileId, model);
+        return;
+      }
+      this.showBackendDisconnected(
+        profileId,
+        model,
+        status.diagnostic?.message ||
+          getString("sidebar-backend-status-disconnected"),
+        isModelScopedProviderDiagnostic(status.diagnostic),
+      );
+    } catch (statusError) {
+      if (this.options.isDestroyed()) return;
+      const diagnostic = normalizeBackendError(statusError);
+      this.showBackendDisconnected(
+        profileId,
+        model,
+        getRawErrorMessage(statusError) || diagnostic.message,
+        isModelScopedProviderDiagnostic(diagnostic),
+      );
+    }
+  }
+
+  private showBackendDisconnected(
+    providerProfileId: string,
+    model: string | undefined,
+    message: string,
+    modelScoped: boolean,
+  ): void {
+    if (this.options.isDestroyed()) return;
+    const viewState = this.options.getViewState();
+    const targetModel =
+      model ||
+      (viewState.selectedProviderId === providerProfileId
+        ? viewState.selectedModel
+        : undefined);
+    const hasTargetModel =
+      modelScoped &&
+      Boolean(targetModel) &&
+      viewState.models.some(
+        (item) =>
+          item.providerProfileId === providerProfileId &&
+          item.slug === targetModel,
+      );
+    if (hasTargetModel) {
+      const models = viewState.models.map((item) =>
+        item.providerProfileId === providerProfileId &&
+        item.slug === targetModel
+          ? { ...item, diagnosticMessage: message }
+          : item,
+      );
+      const selected =
+        viewState.selectedProviderId === providerProfileId &&
+        viewState.selectedModel === targetModel;
+      this.options.updateViewState({
+        models,
+        ...(selected
+          ? {
+              backendStatus: "disconnected" as const,
+              backendDiagnosticMessage: message,
+            }
+          : {}),
+      });
+      return;
+    }
+    if (
+      getAgentBackendManager().getSnapshot().activeProviderId ===
+      providerProfileId
+    ) {
+      this.options.updateViewState({
+        backendStatus: "disconnected",
+        backendDiagnosticMessage: message,
+      });
+    }
   }
 
   private updateModelSelection(
@@ -366,10 +492,23 @@ function createVisibleModelCatalog(
     );
 }
 
+function isModelScopedProviderDiagnostic(
+  diagnostic?: Pick<AgentDiagnostic, "code">,
+): boolean {
+  return diagnostic ? MODEL_SCOPED_DIAGNOSTICS.has(diagnostic.code) : false;
+}
+
+function getRawErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error) return error.message || undefined;
+  if (error === undefined || error === null) return undefined;
+  return String(error) || undefined;
+}
+
 export {
   ProviderCatalogController,
   createProviderCatalogSignature,
   createProviderRefreshSignature,
   createVisibleModelCatalog,
+  isModelScopedProviderDiagnostic,
 };
 export type { ProviderCatalogControllerOptions };

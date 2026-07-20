@@ -118,6 +118,31 @@ describe("CodexBridge", function () {
     });
   });
 
+  it("does not apply the turn/start deadline to an active turn", async function () {
+    const bridge = createBridgeHarness();
+    bridge.cacheThread("conv-long");
+    bridge.setTurnStartTimeoutMs(5);
+    const promise = bridge.instance.sendPrompt("Question", {
+      conversation: createConversation("conv-long"),
+    });
+    await bridge.flush();
+
+    const start = bridge.requests[0];
+    bridge.respond(start.id, { turn: { id: "turn-long" } });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    bridge.notify("item/agentMessage/delta", {
+      threadId: "thread-conv-long",
+      turnId: "turn-long",
+      delta: "Late answer",
+    });
+    bridge.notify("turn/completed", {
+      threadId: "thread-conv-long",
+      turn: { id: "turn-long", status: "completed" },
+    });
+
+    assert.equal((await promise).text, "Late answer");
+  });
+
   it("streams reasoning, commentary, MCP tools, and final answer separately", async function () {
     const bridge = createBridgeHarness();
     bridge.cacheThread("conv-trace");
@@ -373,11 +398,12 @@ function createBridgeHarness(): {
   respond: (id: number, result: unknown) => void;
   notify: (method: string, params: unknown) => void;
   cacheThread: (conversationId: string) => void;
+  setTurnStartTimeoutMs: (timeoutMs: number) => void;
 } {
   const instance = new CodexBridge();
   const bridge = instance as unknown as {
     start: () => Promise<void>;
-    getTimeoutMs: () => number;
+    getTurnStartTimeoutMs: () => number;
     threads: {
       threads: Map<string, string>;
     };
@@ -388,7 +414,7 @@ function createBridgeHarness(): {
   };
   const requests: JsonRpcTestRequest[] = [];
   bridge.start = async () => undefined;
-  bridge.getTimeoutMs = () => 30000;
+  bridge.getTurnStartTimeoutMs = () => 30000;
   bridge.process = {
     stdin: {
       write: async (line: string) => {
@@ -411,6 +437,9 @@ function createBridgeHarness(): {
     },
     cacheThread: (conversationId) => {
       bridge.threads.threads.set(conversationId, `thread-${conversationId}`);
+    },
+    setTurnStartTimeoutMs: (timeoutMs) => {
+      bridge.getTurnStartTimeoutMs = () => timeoutMs;
     },
   };
 }

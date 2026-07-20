@@ -8,7 +8,11 @@ import type {
 import { ZoteroSourceUniverse } from "../../../integrations/zotero/ZoteroWorkspaceService";
 import { getSelectedPDFReader } from "../../../integrations/zotero/reader";
 import { isLibraryTab } from "../../../integrations/zotero/selectedWorkspace";
-import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
+import type {
+  SidebarPromptSubmission,
+  SidebarReloadContext,
+  SidebarState,
+} from "../ui/types";
 import { getSelectedItemTitle } from "./selectedItem";
 import { SidebarSessionCoordinator } from "../chat/SessionCoordinator";
 import { loadPromptViews, subscribePromptViews } from "../prompts/promptStore";
@@ -38,9 +42,22 @@ import { LibrarySelectionCoordinator } from "./LibrarySelectionCoordinator";
 import type { SidebarSurfaceKind } from "./SidebarSurface";
 import { ZoteroDroppedContextResolver } from "../context/ZoteroDroppedContextResolver";
 import type { SidebarDropPayload } from "../../../integrations/zotero/compat/dragData";
+import { getString } from "../../../app/localization";
+import {
+  consumeReloadContext,
+  peekReloadContext,
+  requestPluginReload,
+} from "../../../app/pluginLifecycle";
+import { createLogger } from "../../../runtime/logging/logger";
 
 const controllers = new WeakMap<Window, SidebarHostController>();
-export { registerSidebar, unregisterSidebar, unregisterAllSidebars };
+const logger = createLogger("sidebar.host");
+export {
+  prepareAllSidebarsForShutdown,
+  registerSidebar,
+  unregisterSidebar,
+  unregisterAllSidebars,
+};
 
 type DisplayState = SidebarDisplayState;
 
@@ -69,6 +86,19 @@ function unregisterSidebar(
 
 function unregisterAllSidebars(): void {
   Zotero.getMainWindows().forEach((win) => unregisterSidebar(win));
+}
+
+async function prepareAllSidebarsForShutdown(): Promise<void> {
+  const results = await Promise.allSettled(
+    Zotero.getMainWindows()
+      .map((win) => controllers.get(win)?.prepareForShutdown())
+      .filter((pending): pending is Promise<void> => Boolean(pending)),
+  );
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      logger.error("failed to settle a sidebar before shutdown", result.reason);
+    }
+  });
 }
 
 class SidebarHostController {
@@ -199,7 +229,10 @@ class SidebarHostController {
       setReadyConversation: (conversation) =>
         this.setReadyConversation(conversation),
       updateViewState: (patch) => this.updateViewState(patch),
-      refreshBackendDiagnostic: (error) => this.showBackendDiagnostic(error),
+      refreshBackendDiagnostic: (error, providerProfileId, model) =>
+        this.showBackendDiagnostic(error, providerProfileId, model),
+      markBackendHealthy: (providerProfileId, model) =>
+        this.providerCatalog.markBackendHealthy(providerProfileId, model),
       refreshSessions: () => {
         void this.sessions.showPopover();
       },
@@ -239,7 +272,21 @@ class SidebarHostController {
   mount(): void {
     this.surface.mount();
     this.listeners.push(...this.hostBindings.bind());
-    this.refreshContext();
+    const reloadContext = peekReloadContext();
+    if (
+      reloadContext?.hostContextKind === "library" &&
+      isLibraryTab(this.win)
+    ) {
+      this.librarySelection.openPane();
+    } else if (reloadContext?.hostContextKind === "reader") {
+      this.readerSelection.openPane();
+    } else {
+      this.refreshContext();
+    }
+  }
+
+  prepareForShutdown(): Promise<void> {
+    return this.turnCoordinator.prepareForShutdown();
   }
 
   destroy(options: { restoreHost?: boolean } = { restoreHost: true }): void {
@@ -269,10 +316,6 @@ class SidebarHostController {
     this.readerSelection.openPane(reader);
   }
 
-  private queueBackendStatusCheck(): void {
-    this.scheduleTimeout(() => void this.providerCatalog.refresh());
-  }
-
   private async loadWorkspaceConversation(input: {
     token: number;
     hostContext?: SidebarHostContext;
@@ -293,8 +336,44 @@ class SidebarHostController {
     this.turnCoordinator.interruptActive();
   }
 
-  private async showBackendDiagnostic(error?: unknown): Promise<void> {
-    await this.providerCatalog.refreshActiveBackendDiagnostic(error);
+  private async reloadPlugin(context: SidebarReloadContext): Promise<void> {
+    if (this.viewState.reloading) return;
+    if (
+      this.viewState.busy &&
+      !Services.prompt.confirm(
+        this.win as unknown as mozIDOMWindowProxy,
+        getString("sidebar-title"),
+        getString("sidebar-reload-confirm"),
+      )
+    ) {
+      return;
+    }
+
+    this.updateViewState({ reloading: true });
+    try {
+      await requestPluginReload(context);
+    } catch (error) {
+      logger.error("failed to reload Zopilot", error);
+      if (this.destroyed) return;
+      this.updateViewState({ reloading: false });
+      Services.prompt.alert(
+        this.win as unknown as mozIDOMWindowProxy,
+        getString("sidebar-title"),
+        getString("sidebar-reload-failed"),
+      );
+    }
+  }
+
+  private async showBackendDiagnostic(
+    error?: unknown,
+    providerProfileId?: string,
+    model?: string,
+  ): Promise<void> {
+    await this.providerCatalog.refreshActiveBackendDiagnostic(
+      error,
+      providerProfileId,
+      model,
+    );
   }
 
   private selectModel(value: string): void {
@@ -398,18 +477,22 @@ class SidebarHostController {
   }
 
   private renderDisplayState(): void {
-    this.updateViewState(
-      projectSidebarState({
-        displayState: this.displayState,
-        viewState: this.viewState,
-        busy: this.turnStore.has(
-          this.getReadyDisplayState()?.conversation.metadata.id,
-        ),
-        pdfHelperNotice: this.pdfHelperGuard.notice,
-        getClosedLabel: () =>
-          getSelectedItemTitle(this.win, getSelectedPDFReader(this.win)),
-      }),
-    );
+    const ready = this.getReadyDisplayState();
+    const projected = projectSidebarState({
+      displayState: this.displayState,
+      viewState: this.viewState,
+      busy: this.turnStore.has(ready?.conversation.metadata.id),
+      pdfHelperNotice: this.pdfHelperGuard.notice,
+      getClosedLabel: () =>
+        getSelectedItemTitle(this.win, getSelectedPDFReader(this.win)),
+    });
+    if (ready && !this.viewState.reloading) {
+      consumeReloadContext(
+        ready.workspace.workspaceKey,
+        ready.conversation.metadata.id,
+      );
+    }
+    this.updateViewState(projected);
   }
 
   private canCommitSelection(token: number): boolean {
@@ -417,7 +500,6 @@ class SidebarHostController {
   }
 
   private setOpen(open: boolean): void {
-    const wasOpen = this.open;
     this.open = open;
     if (!open) {
       this.closeZopilotPane({ restoreItemPane: true });
@@ -428,13 +510,7 @@ class SidebarHostController {
     this.scheduleFrame(() => {
       this.win.dispatchEvent(new this.win.Event("resize"));
     });
-
-    if (open) {
-      if (!wasOpen) {
-        this.queueBackendStatusCheck();
-      }
-      this.focusComposer();
-    }
+    this.focusComposer();
   }
 
   private closeZopilotPane(options: { restoreItemPane?: boolean } = {}): void {
@@ -525,6 +601,7 @@ class SidebarHostController {
         createNewSession: () => void this.sessions.createNewSession(),
         getItemContextTree: (source) => this.getItemContextTree(source),
         resolveDroppedContext: (input) => this.resolveDroppedContext(input),
+        reloadPlugin: (context) => this.reloadPlugin(context),
         hideSessions: () => this.sessions.hidePopover(),
         interruptActiveTurn: () => this.interruptActiveTurn(),
         openExternalLink: (url) => this.contextActions.openExternalLink(url),

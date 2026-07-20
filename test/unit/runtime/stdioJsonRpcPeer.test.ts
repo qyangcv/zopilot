@@ -55,6 +55,22 @@ describe("StdioJsonRpcPeer", function () {
     await assertRejected(failed, "model/list: denied");
   });
 
+  it("allows long-running requests without a total deadline", async function () {
+    const writes: string[] = [];
+    const process = createProcess({ writes });
+    const peer = createPeer(process);
+
+    const pending = peer.request("turn/start", undefined, null);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const request = JSON.parse(writes[0]) as { id: number };
+    peer.handleLine(
+      JSON.stringify({ id: request.id, result: { status: "completed" } }),
+    );
+
+    assert.deepEqual(await pending, { status: "completed" });
+  });
+
   it("rejects pending requests when the child process exits", async function () {
     const writes: string[] = [];
     const exit = deferred<{ exitCode: number }>();

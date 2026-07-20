@@ -24,6 +24,13 @@ function ComposerFooter({
     setPromptPickerOpen,
   } = bindings;
   const noteContexts = bindings.noteContexts || [];
+  const selectedModel = state.models.find(
+    (model) =>
+      model.providerProfileId === state.selectedProviderId &&
+      model.slug === state.selectedModel,
+  );
+  const showStandaloneDiagnostic =
+    state.backendStatus === "disconnected" && !selectedModel?.diagnosticMessage;
   return (
     <div className="zp-composer-footer">
       <div className="zp-composer-meta">
@@ -57,19 +64,17 @@ function ComposerFooter({
         >
           <Icon name="paperclip" size={15} />
         </button>
-        {state.backendStatus === "disconnected" ? (
+        <ModelSelector
+          actions={actions}
+          horizontalBoundaryRef={bindings.composerRef}
+          state={state}
+        />
+        {showStandaloneDiagnostic ? (
           <span className="zp-backend-status" data-status={state.backendStatus}>
             <Icon className="zp-status-icon" name="disconnected" size={13} />
             {state.backendDiagnosticMessage ||
               getString("sidebar-backend-status-disconnected")}
           </span>
-        ) : null}
-        {state.backendStatus !== "disconnected" ? (
-          <ModelSelector
-            actions={actions}
-            horizontalBoundaryRef={bindings.composerRef}
-            state={state}
-          />
         ) : null}
       </div>
       <button

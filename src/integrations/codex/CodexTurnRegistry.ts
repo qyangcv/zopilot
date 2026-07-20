@@ -35,7 +35,6 @@ type ActiveCodexTurn = {
   started: boolean;
   streamLengths: Map<string, number>;
   syntheticIdSequence: number;
-  timer: ReturnType<typeof setTimeout>;
   threadId: string;
   turnId?: string;
 };
@@ -101,7 +100,6 @@ class CodexTurnRegistry {
     const turn = this.find(threadId, turnId);
     if (!turn) return;
     this.remove(turn.threadId, turn.turnId);
-    clearTimeout(turn.timer);
     const normalized = toError(error);
     this.emit(turn, { type: "turn.failed", error: normalized.message });
     turn.reject(normalized);
@@ -109,7 +107,6 @@ class CodexTurnRegistry {
 
   rejectAll(error: unknown): void {
     for (const turn of this.turns.values()) {
-      clearTimeout(turn.timer);
       const normalized = toError(error);
       this.emit(turn, { type: "turn.failed", error: normalized.message });
       turn.reject(normalized);
@@ -473,7 +470,6 @@ class CodexTurnRegistry {
     if (!turn) return;
     const status = getNestedString(params, ["turn", "status"]);
     this.remove(turn.threadId, turn.turnId);
-    clearTimeout(turn.timer);
     if (status && status !== "completed" && status !== "interrupted") {
       const error = new Error(`Codex turn ${status}.`);
       this.emit(turn, { type: "turn.failed", error: error.message });

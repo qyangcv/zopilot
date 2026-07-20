@@ -15,7 +15,7 @@ type PendingRequest = {
   method: string;
   resolve: (result: JsonValue | undefined) => void;
   reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout>;
 };
 
 type StdioJsonRpcPeerOptions = {
@@ -53,17 +53,20 @@ class StdioJsonRpcPeer {
   async request(
     method: string,
     params?: JsonValue,
-    timeoutMs = 30000,
+    timeoutMs: number | null = 30000,
   ): Promise<JsonValue | undefined> {
     if (!this.active) {
       throw new Error(this.options.requestTimeoutMessage(method));
     }
     const id = this.nextRequestId++;
     const promise = new Promise<JsonValue | undefined>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingRequests.delete(id);
-        reject(new Error(this.options.requestTimeoutMessage(method)));
-      }, timeoutMs);
+      const timer =
+        timeoutMs === null
+          ? undefined
+          : setTimeout(() => {
+              this.pendingRequests.delete(id);
+              reject(new Error(this.options.requestTimeoutMessage(method)));
+            }, timeoutMs);
       this.pendingRequests.set(id, { method, resolve, reject, timer });
     });
 
@@ -73,7 +76,9 @@ class StdioJsonRpcPeer {
       const pending = this.pendingRequests.get(id);
       if (pending) {
         this.pendingRequests.delete(id);
-        clearTimeout(pending.timer);
+        if (pending.timer !== undefined) {
+          clearTimeout(pending.timer);
+        }
       }
       throw error;
     }
@@ -120,7 +125,9 @@ class StdioJsonRpcPeer {
 
   rejectAll(error: Error): void {
     for (const pending of this.pendingRequests.values()) {
-      clearTimeout(pending.timer);
+      if (pending.timer !== undefined) {
+        clearTimeout(pending.timer);
+      }
       pending.reject(error);
     }
     this.pendingRequests.clear();
@@ -132,7 +139,9 @@ class StdioJsonRpcPeer {
       return;
     }
     this.pendingRequests.delete(message.id);
-    clearTimeout(pending.timer);
+    if (pending.timer !== undefined) {
+      clearTimeout(pending.timer);
+    }
     if (message.error) {
       pending.reject(
         new Error(

@@ -139,9 +139,9 @@ class ProviderProfileStore {
       status: patch.status ?? current.status,
       lastCheckedAt: patch.lastCheckedAt ?? current.lastCheckedAt,
       lastDiagnostic:
-        patch.lastDiagnostic === undefined
-          ? current.lastDiagnostic
-          : patch.lastDiagnostic,
+        "lastDiagnostic" in patch
+          ? patch.lastDiagnostic
+          : current.lastDiagnostic,
     };
     stored[index] = toStoredProviderProfile(next);
     this.writeStoredProfiles(stored);

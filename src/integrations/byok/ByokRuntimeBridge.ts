@@ -68,16 +68,27 @@ class ByokRuntimeBridge {
   private transport?: StdioJsonRpcPeer;
   private activeTurns = new Map<string, ActiveTurn>();
   private startPromise?: Promise<void>;
+  private stopPromise?: Promise<void>;
+  private stopping = false;
   private initialized = false;
 
   constructor(private readonly options: ByokRuntimeBridgeOptions = {}) {}
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    this.stopPromise ??= this.stopProcess();
+    return this.stopPromise;
+  }
+
+  private async stopProcess(): Promise<void> {
+    this.stopping = true;
     this.initialized = false;
     const stoppedError = new Error("BYOK runtime stopped.");
     this.rejectAll(stoppedError);
-    this.transport?.stop(stoppedError);
-    this.transport = undefined;
+    this.stopTransport(stoppedError);
+    await this.startPromise?.catch(() => undefined);
+    this.initialized = false;
+    this.rejectAll(stoppedError);
+    this.stopTransport(stoppedError);
     const proc = this.process;
     this.process = undefined;
     if (!proc) {
@@ -85,6 +96,11 @@ class ByokRuntimeBridge {
     }
     await proc.stdin.close().catch(() => undefined);
     await proc.kill(500).catch(() => undefined);
+  }
+
+  private stopTransport(error: Error): void {
+    this.transport?.stop(error);
+    this.transport = undefined;
   }
 
   async listModels(
@@ -129,7 +145,7 @@ class ByokRuntimeBridge {
           profile: sanitizeProfileForRuntime(profile),
           input,
         },
-        profile.timeoutMs + 1000,
+        null,
       );
       const parsed = parseRunResult(result, profile, runId);
       this.emit(activeTurn, {
@@ -157,17 +173,27 @@ class ByokRuntimeBridge {
   }
 
   private async start(): Promise<void> {
+    if (this.stopping) {
+      throw new Error("BYOK runtime is stopping.");
+    }
     if (this.initialized && this.process) {
       return;
     }
     if (this.startPromise) {
-      return this.startPromise;
+      await this.startPromise;
+      if (this.stopping) {
+        throw new Error("BYOK runtime is stopping.");
+      }
+      return;
     }
     this.startPromise = this.startProcess();
     try {
       await this.startPromise;
     } finally {
       this.startPromise = undefined;
+    }
+    if (this.stopping) {
+      throw new Error("BYOK runtime is stopping.");
     }
   }
 
@@ -212,7 +238,7 @@ class ByokRuntimeBridge {
   private async request(
     method: string,
     params?: JsonValue,
-    timeoutMs = 30000,
+    timeoutMs: number | null = 30000,
   ): Promise<JsonValue | undefined> {
     return this.getTransport().request(method, params, timeoutMs);
   }
@@ -599,14 +625,33 @@ function toolProgressStreamKey(blockId: string): string {
 }
 
 let sharedBridge: ByokRuntimeBridge | undefined;
+let bridgeShutdownPromise: Promise<void> | undefined;
 
 function getByokRuntimeBridge(): ByokRuntimeBridge {
+  if (bridgeShutdownPromise) {
+    throw new Error("BYOK runtime is shutting down.");
+  }
   sharedBridge ??= new ByokRuntimeBridge();
   return sharedBridge;
 }
 
-async function shutdownByokRuntimeBridge(): Promise<void> {
+function shutdownByokRuntimeBridge(): Promise<void> {
+  if (bridgeShutdownPromise) return bridgeShutdownPromise;
   const bridge = sharedBridge;
   sharedBridge = undefined;
-  await bridge?.stop();
+  const pending = bridge?.stop() || Promise.resolve();
+  bridgeShutdownPromise = pending;
+  pending.then(
+    () => {
+      if (bridgeShutdownPromise === pending) {
+        bridgeShutdownPromise = undefined;
+      }
+    },
+    () => {
+      if (bridgeShutdownPromise === pending) {
+        bridgeShutdownPromise = undefined;
+      }
+    },
+  );
+  return pending;
 }

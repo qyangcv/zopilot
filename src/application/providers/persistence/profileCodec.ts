@@ -50,23 +50,28 @@ function normalizeStoredProfile(
 ): StoredProviderProfile {
   const providerId = resolveStoredProviderId(input);
   const displayName = normalizeStoredDisplayName(input);
-  return toStoredProviderProfile(
-    createProviderProfile({
-      id: typeof input.id === "string" ? input.id : createProfileId(providerId),
-      providerId,
-      displayName,
-      baseURL: input.baseURL,
-      models: Array.isArray(input.models) ? input.models : undefined,
-      defaultModel:
-        typeof input.defaultModel === "string" ? input.defaultModel : undefined,
-      capabilities: input.capabilities,
-      timeoutMs: input.timeoutMs,
-      retryCount: input.retryCount,
-      enabled: input.enabled,
-      status: input.status,
-      apiKeyRef: input.apiKeyRef,
-    }),
-  );
+  const profile = createProviderProfile({
+    id: typeof input.id === "string" ? input.id : createProfileId(providerId),
+    providerId,
+    displayName,
+    baseURL: input.baseURL,
+    models: Array.isArray(input.models) ? input.models : undefined,
+    defaultModel:
+      typeof input.defaultModel === "string" ? input.defaultModel : undefined,
+    capabilities: input.capabilities,
+    timeoutMs: input.timeoutMs,
+    retryCount: input.retryCount,
+    enabled: input.enabled,
+    status: input.status,
+    apiKeyRef: input.apiKeyRef,
+  });
+  profile.lastCheckedAt =
+    typeof input.lastCheckedAt === "string" ? input.lastCheckedAt : undefined;
+  profile.lastDiagnostic =
+    input.lastDiagnostic && typeof input.lastDiagnostic === "object"
+      ? input.lastDiagnostic
+      : undefined;
+  return toStoredProviderProfile(profile);
 }
 
 function normalizeStoredDisplayName(

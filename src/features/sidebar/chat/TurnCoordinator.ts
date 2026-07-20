@@ -30,17 +30,33 @@ type TurnCoordinatorOptions = {
   clearPromptNotice: (conversationId: string) => void;
   setReadyConversation: (conversation: Conversation) => void;
   updateViewState: (patch: Partial<SidebarState>) => void;
-  refreshBackendDiagnostic: (error?: unknown) => Promise<void>;
+  refreshBackendDiagnostic: (
+    error?: unknown,
+    providerProfileId?: string,
+    model?: string,
+  ) => Promise<void>;
+  markBackendHealthy: (providerProfileId?: string, model?: string) => void;
   refreshSessions: () => void;
   areSessionsOpen: () => boolean;
 };
 
+type ActiveTurnExecution = {
+  conversation: Conversation;
+  conversationId: string;
+  runningTurn: RunningTurnHandle;
+  finalization?: Promise<void>;
+};
+
 class TurnCoordinator {
   private noteContextResolver?: ZoteroNoteContextResolver;
+  private readonly activeExecutions = new Map<string, ActiveTurnExecution>();
+  private shutdownPromise?: Promise<void>;
+  private shuttingDown = false;
 
   constructor(private readonly options: TurnCoordinatorOptions) {}
 
   async submitPrompt(submission: SidebarPromptSubmission): Promise<void> {
+    if (this.shuttingDown) return;
     const promptText = submission.text.trim();
     if (!promptText) return;
     const noteContexts = submission.noteContexts || [];
@@ -77,6 +93,12 @@ class TurnCoordinator {
       providerProfileId: viewState.selectedProviderId,
       providerBrand: resolveProviderBrand(selectedProfile),
     });
+    const execution: ActiveTurnExecution = {
+      conversation,
+      conversationId,
+      runningTurn,
+    };
+    this.activeExecutions.set(conversationId, execution);
     this.updateRunningState();
     this.options.streamScheduler.publishActive();
 
@@ -103,34 +125,47 @@ class TurnCoordinator {
           onEvent: (event) => this.handleEvent(conversationId, event),
         },
       );
+      if (execution.finalization) {
+        await execution.finalization;
+        return;
+      }
       this.reconcileResult(conversationId, result);
-      this.options.updateViewState({
-        backendStatus: "connected",
-        backendDiagnosticMessage: undefined,
-      });
-      conversation = await this.persistCompletedTurn(
-        conversation,
-        runningTurn,
-        result,
+      this.options.markBackendHealthy(
+        result.providerProfileId,
+        runningTurn.model,
       );
-      this.finish(conversationId, conversation);
+      await this.finalizeExecution(execution, () =>
+        this.persistCompletedTurn(conversation, runningTurn, result),
+      );
     } catch (error) {
+      if (execution.finalization) {
+        await execution.finalization;
+        return;
+      }
       logger.error("agent backend sendPrompt failed", error, {
         conversationId,
         workspaceKey: conversation.metadata.workspaceKey,
         ...this.options.turnStore.getRunIdentity(conversationId),
       });
-      await this.options.refreshBackendDiagnostic(error);
-      this.reconcileFailure(conversationId, error);
-      conversation = await this.persistFailedTurn(
-        conversation,
-        runningTurn,
+      await this.options.refreshBackendDiagnostic(
         error,
+        runningTurn.providerProfileId,
+        runningTurn.model,
       );
-      this.finish(conversationId, conversation);
+      this.reconcileFailure(conversationId, error);
+      await this.finalizeExecution(execution, () =>
+        this.persistFailedTurn(conversation, runningTurn, error),
+      );
     } finally {
-      this.updateRunningState();
+      if (!this.shuttingDown) this.updateRunningState();
     }
+  }
+
+  prepareForShutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise;
+    this.shuttingDown = true;
+    this.shutdownPromise = this.finalizeInterruptedExecutions();
+    return this.shutdownPromise;
   }
 
   interruptActive(): void {
@@ -171,6 +206,56 @@ class TurnCoordinator {
           turnId: identity.turnId,
         });
       });
+  }
+
+  private async finalizeInterruptedExecutions(): Promise<void> {
+    const error = new Error("Zopilot reloaded during an active response.");
+    const pending = Array.from(this.activeExecutions.values()).map(
+      (execution) => {
+        if (!execution.finalization) {
+          const result = this.options.turnStore.requestInterrupt(
+            execution.conversationId,
+          );
+          this.scheduleAppliedChange(execution.conversationId, result);
+          this.requestBackendCancel(execution.conversationId);
+          this.reconcileFailure(execution.conversationId, error);
+        }
+        return this.finalizeExecution(execution, () =>
+          this.persistFailedTurn(
+            execution.conversation,
+            execution.runningTurn,
+            error,
+          ),
+        );
+      },
+    );
+    const results = await Promise.allSettled(pending);
+    results.forEach((result) => {
+      if (result.status === "rejected") {
+        logger.error(
+          "failed to persist an interrupted turn during shutdown",
+          result.reason,
+        );
+      }
+    });
+  }
+
+  private finalizeExecution(
+    execution: ActiveTurnExecution,
+    persist: () => Promise<Conversation>,
+  ): Promise<void> {
+    if (!execution.finalization) {
+      const pending = (async () => {
+        const conversation = await persist();
+        this.finish(execution.conversationId, conversation);
+      })();
+      execution.finalization = pending;
+      pending.then(
+        () => this.activeExecutions.delete(execution.conversationId),
+        () => this.activeExecutions.delete(execution.conversationId),
+      );
+    }
+    return execution.finalization;
   }
 
   private handleEvent(conversationId: string, event: AgentStreamEvent): void {
@@ -309,7 +394,10 @@ class TurnCoordinator {
       role: "assistant",
       text: interrupted
         ? projection.finalText || getString("sidebar-status-interrupted")
-        : formatBackendError(error),
+        : combineFailedTurnText(
+            projection.finalText,
+            formatBackendError(error),
+          ),
       status: interrupted ? "interrupted" : "error",
       completedAt: new Date().toISOString(),
       backendId: identity.backendId,
@@ -347,4 +435,11 @@ class TurnCoordinator {
   }
 }
 
-export { TurnCoordinator };
+function combineFailedTurnText(
+  streamedText: string,
+  formattedError: string,
+): string {
+  return streamedText ? `${streamedText}\n\n${formattedError}` : formattedError;
+}
+
+export { TurnCoordinator, combineFailedTurnText };

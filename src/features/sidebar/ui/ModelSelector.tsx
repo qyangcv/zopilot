@@ -2,6 +2,7 @@ import type { ReactElement, RefObject } from "react";
 import { getString } from "../../../app/localization";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 import { SingleSelect } from "../../../ui/primitives/index";
+import { Icon } from "./Icon";
 import type { SidebarActions, SidebarState } from "./types";
 
 function ModelSelector({
@@ -32,12 +33,23 @@ function ModelSelector({
         const selected =
           model.providerProfileId === state.selectedProviderId &&
           model.slug === state.selectedModel;
+        const status = model.diagnosticMessage ? (
+          <span
+            aria-label={model.diagnosticMessage}
+            className="zp-model-diagnostic"
+            role="img"
+            title={model.diagnosticMessage}
+          >
+            <Icon name="disconnected" size={13} />
+          </span>
+        ) : undefined;
         return {
           groupIcon: model.providerBrand ? (
             <ProviderBrandIcon brand={model.providerBrand} size={14} />
           ) : undefined,
           groupLabel: model.providerLabel,
           label: model.displayName,
+          status,
           subDefaultValue: resolveDefaultEffort(model),
           subOptions: model.supportedReasoningEfforts.map((effort) => ({
             label: formatEffortLabel(effort),

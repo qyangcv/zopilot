@@ -54,6 +54,13 @@ export function SidebarApp({
         archiveButtonRef={archiveButtonRef}
         headerRef={headerRef}
         historyButtonRef={historyButtonRef}
+        onReload={() =>
+          actions.reloadPlugin({
+            workspaceKey: state.context.workspaceKey,
+            conversationId: state.conversationId,
+            hostContextKind: state.context.hostContextKind,
+          })
+        }
         state={state}
       />
       <ComposerPromptPicker bindings={composer.bindings} state={state} />

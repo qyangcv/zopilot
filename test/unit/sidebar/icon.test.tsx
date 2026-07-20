@@ -24,6 +24,7 @@ describe("sidebar Icon", function () {
       "attachmentImage",
       "attachmentPdf",
       "paperMention",
+      "reload",
       "resend",
       "send",
       "square",

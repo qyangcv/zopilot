@@ -1,9 +1,11 @@
 import { assert } from "chai";
 import type { ProviderProfile } from "../../../src/domain/agent/types.ts";
+import { normalizeBackendError } from "../../../src/domain/agent/errors.ts";
 import {
   createProviderCatalogSignature,
   createProviderRefreshSignature,
   createVisibleModelCatalog,
+  isModelScopedProviderDiagnostic,
 } from "../../../src/features/sidebar/providers/ProviderCatalogController.ts";
 
 describe("sidebar provider catalog subscription", function () {
@@ -123,6 +125,36 @@ describe("sidebar provider catalog subscription", function () {
       models.map((model) => model.slug),
       ["deepseek-v4-flash"],
     );
+  });
+
+  it("marks transient request failures on a model but not configuration errors", function () {
+    assert.isTrue(
+      isModelScopedProviderDiagnostic({ code: "provider_timeout" }),
+    );
+    assert.isTrue(
+      isModelScopedProviderDiagnostic({ code: "network_unavailable" }),
+    );
+    assert.isTrue(
+      isModelScopedProviderDiagnostic(
+        normalizeBackendError(new Error("TypeError: fetch failed")),
+      ),
+    );
+    assert.equal(
+      normalizeBackendError(new Error("stream disconnected before completion"))
+        .code,
+      "stream_interrupted",
+    );
+    assert.isTrue(
+      isModelScopedProviderDiagnostic(
+        normalizeBackendError(
+          new Error("stream disconnected before completion"),
+        ),
+      ),
+    );
+    assert.isFalse(
+      isModelScopedProviderDiagnostic({ code: "invalid_api_key" }),
+    );
+    assert.isFalse(isModelScopedProviderDiagnostic(undefined));
   });
 });
 
