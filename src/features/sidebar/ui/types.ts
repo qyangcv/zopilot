@@ -24,6 +24,7 @@ export type SidebarMessageView = {
   completedAt?: string;
   responseDuration?: string;
   model?: string;
+  reasoningEffort?: string;
   providerBrand?: ProviderBrand;
   transient?: boolean;
   trace?: AgentTraceItem[];

@@ -8,6 +8,7 @@ import type { RunningTurnContentBlock } from "../../../domain/agent/streaming";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 import { resolveModelDisplayName } from "../state/viewModel";
 import { Icon } from "./Icon";
+import { formatModelEffortLabel } from "./modelLabels";
 import { StreamingMarkdownView } from "./StreamingMarkdownView";
 import type { SidebarModelView } from "./types";
 import type { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
@@ -86,7 +87,9 @@ const ActiveStreamingMessage = memo(function ActiveStreamingMessage({
         )}
         {model ? (
           <div className="zp-answer-model">
-            <span>{model}</span>
+            <span>
+              {formatModelEffortLabel(model, activeSnapshot.reasoningEffort)}
+            </span>
           </div>
         ) : null}
       </div>

@@ -215,6 +215,7 @@ describe("SidebarApp", function () {
       lifecycle: "running",
       stateVersion: 2,
       model: "gpt-5.3-codex",
+      reasoningEffort: "max",
       providerProfileId: "codex-cli.default",
       providerBrand: "codex",
       finalStarted: true,
@@ -259,9 +260,61 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, "Streaming answer");
-    assert.include(html, "GPT-5.3-Codex");
+    assert.include(html, "GPT-5.3-Codex · Max");
     assert.include(html, 'class="zp-message-assistant-heading"');
     assert.notInclude(html, "paper_read");
+  });
+
+  it("renders each saved answer with its submitted reasoning effort", function () {
+    const statuses: SidebarMessageView["status"][] = [
+      "complete",
+      "error",
+      "interrupted",
+    ];
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          selectedReasoningEffort: "medium",
+          messages: statuses.map((status, index) => ({
+            id: `answer-${status}`,
+            role: "assistant",
+            text: `Answer ${index}`,
+            status,
+            model: "GPT-5.6-Sol",
+            reasoningEffort: "max",
+            completedAt: "2026-06-13 15:30",
+          })),
+        })}
+      />,
+    );
+
+    assert.equal(countOccurrences(html, "GPT-5.6-Sol · Max"), 3);
+    assert.notInclude(html, "GPT-5.6-Sol · Medium");
+  });
+
+  it("keeps saved answer labels unchanged when effort is missing", function () {
+    const html = renderToStaticMarkup(
+      <Message
+        busy={false}
+        copiedId={null}
+        message={{
+          id: "legacy-answer",
+          role: "assistant",
+          text: "Legacy answer",
+          status: "complete",
+          model: "GPT-5.6-Sol",
+          completedAt: "2026-06-13 15:30",
+        }}
+        onCopy={() => undefined}
+        onEdit={() => undefined}
+        onOpenLink={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    assert.include(html, ">GPT-5.6-Sol</span>");
+    assert.notInclude(html, "GPT-5.6-Sol ·");
   });
 
   it("renders every tool call separately with duration and expandable payloads", function () {

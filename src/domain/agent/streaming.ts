@@ -167,6 +167,7 @@ export type RunningTurnSnapshot = {
   lifecycle: RunningTurnLifecycle;
   stateVersion: number;
   model?: string;
+  reasoningEffort?: string;
   providerProfileId?: string;
   providerBrand?: ProviderBrand;
   finalStarted: boolean;

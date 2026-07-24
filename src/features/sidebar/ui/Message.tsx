@@ -3,6 +3,7 @@ import { getString } from "../../../app/localization";
 import { Icon, type IconName } from "./Icon";
 import { ContextChips } from "./ContextChips";
 import { MarkdownView } from "./MarkdownView";
+import { formatModelEffortLabel } from "./modelLabels";
 import type { SidebarMessageView } from "./types";
 import { TracePanel } from "./TracePanel";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
@@ -51,7 +52,9 @@ function Message({
           )}
           {message.model ? (
             <div className="zp-answer-model">
-              <span>{message.model}</span>
+              <span>
+                {formatModelEffortLabel(message.model, message.reasoningEffort)}
+              </span>
             </div>
           ) : null}
         </div>

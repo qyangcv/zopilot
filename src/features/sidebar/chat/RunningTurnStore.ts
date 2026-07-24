@@ -300,6 +300,7 @@ class RunningTurnStore {
       lifecycle: turn.lifecycle,
       stateVersion: turn.stateVersion,
       model: turn.model,
+      reasoningEffort: turn.reasoningEffort,
       providerProfileId: turn.providerProfileId,
       providerBrand: turn.providerBrand,
       finalStarted: answerBlocks.some((block) => Boolean(block.text)),

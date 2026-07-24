@@ -92,6 +92,7 @@ function toMessageView(
       message.model,
       message.providerProfileId,
     ),
+    reasoningEffort: normalizeReasoningEffort(message.reasoningEffort),
     providerBrand:
       message.providerBrand ||
       resolveProviderBrand({ kind: message.backendKind }),
@@ -104,6 +105,11 @@ function toMessageView(
         ? formatResponseDuration(userCreatedAt, message.completedAt)
         : undefined,
   };
+}
+
+function normalizeReasoningEffort(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  return value.trim() || undefined;
 }
 
 function resolveModelDisplayName(

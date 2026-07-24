@@ -65,6 +65,31 @@ describe("sidebar view model", function () {
     assert.equal(messages[1].model, "GPT-5.3-Codex");
   });
 
+  it("keeps a saved reasoning effort for answer labels", function () {
+    const conversation = createConversation();
+    conversation.messages[1].reasoningEffort = " max ";
+
+    const messages = createConversationMessages(conversation);
+
+    assert.equal(messages[1].reasoningEffort, "max");
+  });
+
+  it("omits empty or invalid saved reasoning efforts", function () {
+    const emptyConversation = createConversation();
+    emptyConversation.messages[1].reasoningEffort = " ";
+    const invalidConversation = createConversation();
+    Object.assign(invalidConversation.messages[1], {
+      reasoningEffort: 42,
+    });
+
+    assert.isUndefined(
+      createConversationMessages(emptyConversation)[1].reasoningEffort,
+    );
+    assert.isUndefined(
+      createConversationMessages(invalidConversation)[1].reasoningEffort,
+    );
+  });
+
   it("formats response durations in minutes and seconds", function () {
     const conversation = createConversation();
     conversation.messages[1].completedAt = "2026-06-13T07:03:27.000Z";

@@ -3,6 +3,12 @@ import { RunningTurnStore } from "../../../src/features/sidebar/chat/RunningTurn
 import { combineFailedTurnText } from "../../../src/features/sidebar/chat/TurnCoordinator.ts";
 
 describe("running turn store", function () {
+  it("exposes the submitted reasoning effort in stream snapshots", function () {
+    const store = createStore("max");
+
+    assert.equal(store.getSnapshot("conv-stream")?.reasoningEffort, "max");
+  });
+
   it("keeps trace order and stable references for unchanged blocks", function () {
     const store = createStore();
     store.apply("conv-stream", {
@@ -203,11 +209,12 @@ describe("running turn store", function () {
   });
 });
 
-function createStore(): RunningTurnStore {
+function createStore(reasoningEffort?: string): RunningTurnStore {
   const store = new RunningTurnStore();
   store.create({
     conversationId: "conv-stream",
     messageId: "assistant-stream",
+    reasoningEffort,
   });
   return store;
 }

@@ -3,6 +3,7 @@ import { getString } from "../../../app/localization";
 import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 import { SingleSelect } from "../../../ui/primitives/index";
 import { Icon } from "./Icon";
+import { formatEffortLabel } from "./modelLabels";
 import type { SidebarActions, SidebarState } from "./types";
 
 function ModelSelector({
@@ -91,10 +92,6 @@ function resolveDefaultEffort(model: SidebarState["models"][number]): string {
     return defaultEffort;
   }
   return model.supportedReasoningEfforts[0] || "";
-}
-
-function formatEffortLabel(effort: string): string {
-  return effort.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase());
 }
 
 function createModelSelectValue(
