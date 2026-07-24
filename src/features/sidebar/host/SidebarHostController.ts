@@ -563,6 +563,9 @@ class SidebarHostController {
       return;
     }
     if (active) {
+      if (this.open && this.surface.isActive(kind)) {
+        return;
+      }
       if (kind === "library") this.librarySelection.openPane();
       else this.openZopilotPane();
       return;

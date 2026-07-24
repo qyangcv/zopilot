@@ -466,6 +466,56 @@ describe("sidebar controller", function () {
     assert.equal(controller.viewState.title, "Paper B / Question B");
   });
 
+  it("ignores activation of an already active surface", function () {
+    for (const kind of ["reader", "library"] as const) {
+      const win = new FakeWindow(1200);
+      const controller = new (
+        __sidebarControllerTestHooks as unknown as {
+          SidebarController: new (win: Window) => Record<string, any>;
+        }
+      ).SidebarController(win as unknown as Window) as Record<string, any>;
+      let activationCount = 0;
+      const initialDisplayState = controller.displayState;
+      const initialViewState = controller.viewState;
+
+      controller.open = true;
+      controller.selectionToken = 7;
+      controller.surface.isActive = (candidate: string) => candidate === kind;
+      controller.surface.close = () => {
+        throw new Error("an active icon click must not close the surface");
+      };
+      controller.readerSelection.openPane = () => activationCount++;
+      controller.librarySelection.openPane = () => activationCount++;
+
+      controller.handleActiveSurfaceChange(kind, true);
+
+      assert.isTrue(controller.open);
+      assert.equal(controller.selectionToken, 7);
+      assert.strictEqual(controller.displayState, initialDisplayState);
+      assert.strictEqual(controller.viewState, initialViewState);
+      assert.equal(activationCount, 0);
+    }
+  });
+
+  it("reactivates an open surface whose host attachment needs repair", function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    let activationCount = 0;
+
+    controller.open = true;
+    controller.surface.isActive = () => false;
+    controller.readerSelection.openPane = () => activationCount++;
+
+    controller.handleActiveSurfaceChange("reader", true);
+
+    assert.isTrue(controller.open);
+    assert.equal(activationCount, 1);
+  });
+
   it("refreshes stale ready state from the selected reader before workspace actions", async function () {
     const win = new FakeWindow(1200) as FakeWindow & {
       Zotero_Tabs: { selectedID: string; selectedType: string };
