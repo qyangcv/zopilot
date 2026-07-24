@@ -122,6 +122,7 @@
   flex: 1 1 auto;
   width: 100%;
   max-width: 100%;
+  padding-inline-start: 10px;
 }
 
 .zp-message-user-stack {
@@ -362,6 +363,10 @@
 .zp-message-markdown .zp-markdown-heading-5,
 .zp-message-markdown .zp-markdown-heading-6 {
   font-size: 13px;
+}
+
+.zp-message-assistant .zp-message-markdown p {
+  text-wrap: pretty;
 }
 
 .zp-message-markdown p,
