@@ -60,7 +60,7 @@ export default zotero({
         },
         {
           selector:
-            "Literal[value=/^#?zotero-(pane|context-pane|item-pane|view-item-sidenav|collections-tree|items-tree)/]",
+            "Literal[value=/^(#?zotero-(pane|context-pane|context-splitter|item-pane|view-item-sidenav|layout-switcher|items-pane-container|items-splitter|collections-tree|items-tree)|#?tabs-deck)/]",
           message:
             "Zotero host selectors are restricted to the sidebar host layer.",
         },

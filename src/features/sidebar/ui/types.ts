@@ -82,6 +82,11 @@ export type SidebarPromptView = {
   custom?: boolean;
 };
 
+export type SidebarLayoutState = {
+  canMaximize: boolean;
+  maximized: boolean;
+};
+
 export type SidebarState = {
   conversationId?: string;
   title: string;
@@ -107,6 +112,7 @@ export type SidebarState = {
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
   reloading: boolean;
+  layout: SidebarLayoutState;
 };
 
 export type SidebarStreamingSnapshot = RunningTurnSnapshot;
@@ -149,5 +155,6 @@ export type SidebarActions = {
   restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;
   toggleArchivedSessions: () => void;
+  toggleSidebarMaximized: () => void;
   toggleSessions: () => void;
 };

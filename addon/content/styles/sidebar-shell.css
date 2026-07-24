@@ -124,6 +124,14 @@
   gap: 1px;
 }
 
+.zp-sidebar-action-separator {
+  align-self: center;
+  width: 0;
+  height: 16px;
+  margin-inline: 4px;
+  border-inline-start: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+}
+
 .zp-reload-button {
   flex: 0 0 auto;
 }

@@ -70,7 +70,10 @@
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
+  width: 100%;
+  max-width: 900px;
   min-width: 0;
+  margin-inline: auto;
 }
 
 .zp-message-assistant {

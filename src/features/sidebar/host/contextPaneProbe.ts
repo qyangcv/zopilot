@@ -10,6 +10,10 @@ type ContextPaneProbeSuccess = {
   sidenav: Element;
   notesButton: Element;
   selectionMode: "selectedPanel" | "selectedIndex";
+  widthCapability?: {
+    sibling: Element;
+    splitter: Element;
+  };
 };
 
 type ContextPaneUnavailableResult = {
@@ -83,6 +87,15 @@ function probeContextPane(doc: Document): ContextPaneProbeResult {
       "top context deck cannot assign a selected panel",
     );
   }
+  const sibling = requireSelector(doc, "#tabs-deck");
+  const splitter = requireSelector(doc, "#zotero-context-splitter");
+  const widthCapability =
+    sibling &&
+    splitter &&
+    sibling.parentElement === contextPane.parentElement &&
+    splitter.parentElement === contextPane.parentElement
+      ? { sibling, splitter }
+      : undefined;
   return {
     available: true,
     contextPane,
@@ -93,6 +106,7 @@ function probeContextPane(doc: Document): ContextPaneProbeResult {
     sidenav,
     notesButton,
     selectionMode,
+    widthCapability,
   };
 }
 

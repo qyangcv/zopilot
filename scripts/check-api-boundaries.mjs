@@ -74,7 +74,7 @@ const scopedRules = [
   },
   {
     pattern:
-      /\bzotero-(?:pane|context-pane|item-pane|view-item-sidenav|collections-tree|items-tree)\b|\.highlight-notes-(?:active|inactive)|\.btn\[data-pane\]/u,
+      /\bzotero-(?:pane|context-pane|context-splitter|item-pane|view-item-sidenav|layout-switcher|items-pane-container|items-splitter|collections-tree|items-tree)\b|\btabs-deck\b|\.highlight-notes-(?:active|inactive)|\.btn\[data-pane\]/u,
     allow: [
       "src/features/sidebar/windowRuntime.tsx",
       "src/features/sidebar/host/ContextPaneAdapter.ts",

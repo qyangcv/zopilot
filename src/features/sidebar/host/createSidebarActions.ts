@@ -20,6 +20,7 @@ type SidebarActionHandlers = {
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   switchSession: SidebarActions["switchSession"];
   toggleArchivedSessions: () => void;
+  toggleSidebarMaximized: () => void;
   toggleSessions: () => void;
   uploadAttachment: SidebarActions["uploadAttachment"];
 };
@@ -45,6 +46,7 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     switchSession: (conversation) => handlers.switchSession(conversation),
     restoreSession: (conversation) => handlers.restoreSession(conversation),
     toggleArchivedSessions: handlers.toggleArchivedSessions,
+    toggleSidebarMaximized: handlers.toggleSidebarMaximized,
     toggleSessions: handlers.toggleSessions,
   };
 }

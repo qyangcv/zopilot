@@ -39,6 +39,10 @@ function createInitialSidebarState(label: string): SidebarState {
     collectionOptions: [],
     prompts: [],
     reloading: false,
+    layout: {
+      canMaximize: false,
+      maximized: false,
+    },
   };
 }
 

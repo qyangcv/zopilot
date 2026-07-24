@@ -67,6 +67,61 @@ describe("SidebarApp", function () {
     assert.include(html, "disabled");
   });
 
+  it("renders a separator between new chat and maximize", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          layout: { canMaximize: true, maximized: false },
+        })}
+      />,
+    );
+    const historyIndex = html.indexOf("zp-history-button");
+    const archiveIndex = html.indexOf("zp-archive-button");
+    const separatorIndex = html.indexOf("zp-sidebar-action-separator");
+    const newChatIndex = html.indexOf("zp-new-session-button");
+    const maximizeIndex = html.indexOf("zp-sidebar-size-button");
+    const closeIndex = html.indexOf('aria-label="zopilot-sidebar-close"');
+
+    assert.isAbove(archiveIndex, historyIndex);
+    assert.isAbove(newChatIndex, archiveIndex);
+    assert.isAbove(separatorIndex, newChatIndex);
+    assert.isAbove(maximizeIndex, separatorIndex);
+    assert.isAbove(closeIndex, maximizeIndex);
+    assert.include(html, 'role="separator"');
+    assert.include(html, 'aria-orientation="vertical"');
+    assert.include(html, 'aria-pressed="false"');
+    assert.include(html, 'aria-label="zopilot-sidebar-maximize"');
+    assert.include(html, 'data-icon-name="maximize"');
+  });
+
+  it("uses the minimize icon to restore a maximized sidebar", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          layout: { canMaximize: true, maximized: true },
+        })}
+      />,
+    );
+
+    assert.include(html, 'aria-pressed="true"');
+    assert.include(html, 'aria-label="zopilot-sidebar-restore"');
+    assert.include(html, 'data-icon-name="minimize"');
+    assert.notInclude(html, 'data-icon-name="maximize"');
+  });
+
+  it("hides the sidebar size action when the host cannot maximize", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp actions={createActions()} state={createState()} />,
+    );
+
+    assert.notInclude(html, "zp-sidebar-size-button");
+    assert.notInclude(html, "zp-sidebar-action-separator");
+    assert.notInclude(html, 'data-icon-name="maximize"');
+    assert.notInclude(html, 'data-icon-name="minimize"');
+  });
+
   it("shows no assistant footer while a response is running", function () {
     const streamStore = createStreamStore({
       answerBlocks: [
@@ -1467,6 +1522,10 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     collectionOptions: [],
     prompts: TEST_PROMPTS,
     reloading: false,
+    layout: {
+      canMaximize: false,
+      maximized: false,
+    },
     ...patch,
   };
 }
@@ -1509,6 +1568,7 @@ function createActions(): SidebarActions {
     restoreSession: () => undefined,
     switchSession: () => undefined,
     toggleArchivedSessions: () => undefined,
+    toggleSidebarMaximized: () => undefined,
     toggleSessions: () => undefined,
   };
 }

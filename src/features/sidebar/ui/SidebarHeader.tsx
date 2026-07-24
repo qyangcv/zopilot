@@ -111,6 +111,36 @@ function SidebarHeader({
           >
             <Icon name="newChat" />
           </button>
+          {state.layout.canMaximize ? (
+            <>
+              <span
+                aria-orientation="vertical"
+                className="zp-sidebar-action-separator"
+                role="separator"
+              />
+              <button
+                aria-label={getString(
+                  state.layout.maximized
+                    ? "sidebar-restore"
+                    : "sidebar-maximize",
+                )}
+                aria-pressed={state.layout.maximized}
+                className="zp-icon-button zp-sidebar-size-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  actions.toggleSidebarMaximized();
+                }}
+                title={getString(
+                  state.layout.maximized
+                    ? "sidebar-restore"
+                    : "sidebar-maximize",
+                )}
+                type="button"
+              >
+                <Icon name={state.layout.maximized ? "minimize" : "maximize"} />
+              </button>
+            </>
+          ) : null}
           <button
             aria-label={getString("sidebar-close")}
             className="zp-icon-button"

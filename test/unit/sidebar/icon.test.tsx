@@ -19,6 +19,8 @@ describe("sidebar Icon", function () {
       "edit",
       "file",
       "history",
+      "maximize",
+      "minimize",
       "newChat",
       "notebookText",
       "attachmentImage",
@@ -45,6 +47,14 @@ describe("sidebar Icon", function () {
 
     assert.include(atSign, "lucide-at-sign");
     assert.include(atSign, 'data-icon-name="atSign"');
+  });
+
+  it("uses Lucide maximize and minimize for sidebar sizing", function () {
+    const maximize = renderToStaticMarkup(<Icon name="maximize" />);
+    const minimize = renderToStaticMarkup(<Icon name="minimize" />);
+
+    assert.include(maximize, "lucide-maximize");
+    assert.include(minimize, "lucide-minimize");
   });
 
   it("renders the Remix chat-ai brand icon", function () {

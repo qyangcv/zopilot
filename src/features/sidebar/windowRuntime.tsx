@@ -135,6 +135,7 @@ function createCommandActions(
     switchSession: (conversation) =>
       void invoke("switchSession", [conversation]),
     toggleArchivedSessions: () => void invoke("toggleArchivedSessions"),
+    toggleSidebarMaximized: () => void invoke("toggleSidebarMaximized"),
     toggleSessions: () => void invoke("toggleSessions"),
     uploadAttachment: () =>
       invoke("uploadAttachment") as Promise<

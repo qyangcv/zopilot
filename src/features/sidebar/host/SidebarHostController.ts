@@ -141,6 +141,9 @@ class SidebarHostController {
       isOpen: () => this.open,
       onActiveSurfaceChange: (kind, active) =>
         this.handleActiveSurfaceChange(kind, active),
+      onLayoutStateChange: (layout) => {
+        if (!this.destroyed) this.updateViewState({ layout });
+      },
       onUnavailable: () => this.setOpen(false),
       onReady: () => this.renderApp(),
     });
@@ -624,6 +627,7 @@ class SidebarHostController {
           void this.sessions.restoreSession(conversation),
         toggleArchivedSessions: () =>
           void this.sessions.togglePopover("archive"),
+        toggleSidebarMaximized: () => this.surface.toggleMaximized(),
         toggleSessions: () => void this.sessions.togglePopover("history"),
       }),
     );

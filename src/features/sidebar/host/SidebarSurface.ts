@@ -9,6 +9,10 @@ import { STYLE_URI } from "./constants";
 import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
 import { LibraryItemPaneAdapter } from "./LibraryItemPaneAdapter";
 import type { HostMutationTargets } from "./HostMutationCoordinator";
+import {
+  PaneWidthController,
+  type PaneWidthState,
+} from "./PaneWidthController";
 
 const logger = createLogger("sidebar.surface");
 
@@ -16,6 +20,7 @@ type SidebarSurfaceOptions = {
   isDestroyed: () => boolean;
   isOpen: () => boolean;
   onActiveSurfaceChange: (kind: SidebarSurfaceKind, active: boolean) => void;
+  onLayoutStateChange?: (state: PaneWidthState) => void;
   onUnavailable: () => void;
   onReady: () => void;
 };
@@ -27,6 +32,7 @@ class SidebarSurface {
   private styleNode?: ProcessingInstruction;
   private readonly deckAdapter: ContextPaneDeckAdapter;
   private readonly libraryAdapter: LibraryItemPaneAdapter;
+  private readonly paneWidthController: PaneWidthController;
   private deckHost?: ZopilotDeckHost;
   private deckHostCreation?: Promise<void>;
   private deckPanel?: Element;
@@ -38,6 +44,10 @@ class SidebarSurface {
     private readonly options: SidebarSurfaceOptions,
   ) {
     this.doc = win.document;
+    this.paneWidthController = new PaneWidthController(win, {
+      onStateChange: (state) => this.options.onLayoutStateChange?.(state),
+      onWarning: (message, error) => logger.warn(message, error),
+    });
     this.deckAdapter = new ContextPaneDeckAdapter(win, {
       onActivate: () => this.requestActivation("reader"),
       onDeactivate: () => this.requestDeactivation("reader"),
@@ -60,20 +70,46 @@ class SidebarSurface {
       byID("zotero-context-pane-inner"),
       byID("zotero-context-pane-deck"),
       byID("zotero-context-pane-sidenav"),
+      byID("zotero-context-splitter"),
+      byID("tabs-deck"),
       byID("zotero-item-pane"),
       byID("zotero-item-pane-content"),
       byID("zotero-view-item-sidenav"),
+      byID("zotero-layout-switcher"),
+      byID("zotero-items-pane-container"),
+      byID("zotero-items-splitter"),
     ].filter((element): element is Element => Boolean(element));
     const attributes: HostMutationTargets["attributes"] = [];
     const contextPane = byID("zotero-context-pane");
     if (contextPane) {
-      attributes.push({ element: contextPane, names: ["collapsed"] });
+      attributes.push({
+        element: contextPane,
+        names: ["class", "collapsed", "style", "width"],
+      });
+    }
+    const contextSplitter = byID("zotero-context-splitter");
+    if (contextSplitter) {
+      attributes.push({
+        element: contextSplitter,
+        names: ["hidden", "orient", "state"],
+      });
     }
     const itemPane = byID("zotero-item-pane");
     if (itemPane) {
       attributes.push({
         element: itemPane,
-        names: ["collapsed", "view-type"],
+        names: ["class", "collapsed", "style", "view-type", "width"],
+      });
+    }
+    const layoutSwitcher = byID("zotero-layout-switcher");
+    if (layoutSwitcher) {
+      attributes.push({ element: layoutSwitcher, names: ["orient"] });
+    }
+    const itemsSplitter = byID("zotero-items-splitter");
+    if (itemsSplitter) {
+      attributes.push({
+        element: itemsSplitter,
+        names: ["orient", "state"],
       });
     }
     return { attributes, childList };
@@ -100,6 +136,7 @@ class SidebarSurface {
   }
 
   destroy(options: { restoreHost?: boolean } = { restoreHost: true }): void {
+    this.paneWidthController.destroy();
     this.deckHost?.destroy();
     this.deckHost = undefined;
     this.deckPanel = undefined;
@@ -125,9 +162,13 @@ class SidebarSurface {
         this.attachLibrary();
       }
     }
+    this.reconcilePaneWidth();
   }
 
   attach(_reader?: _ZoteroTypes.ReaderInstance): void {
+    if (this.activeKind && this.activeKind !== "reader") {
+      this.paneWidthController.close();
+    }
     this.libraryAdapter.deactivate();
     if (!this.deckAdapter.ensureVisible()) {
       logger.warn("failed to open Zotero context pane compatibility host");
@@ -149,6 +190,9 @@ class SidebarSurface {
   }
 
   attachLibrary(): void {
+    if (this.activeKind && this.activeKind !== "library") {
+      this.paneWidthController.close();
+    }
     const mountedPanel = this.libraryAdapter.getPanel();
     if (
       this.activeKind === "library" &&
@@ -174,6 +218,7 @@ class SidebarSurface {
   }
 
   close(restoreItemPane = false): void {
+    this.paneWidthController.close();
     if (restoreItemPane) {
       this.deckAdapter.restoreNativePanel();
       this.libraryAdapter.selectNative();
@@ -188,6 +233,10 @@ class SidebarSurface {
 
   render(state: SidebarState, actions: SidebarActions): void {
     this.deckHost?.render(state, actions);
+  }
+
+  toggleMaximized(): void {
+    this.paneWidthController.toggle();
   }
 
   publishStreaming(snapshot: SidebarStreamingSnapshot | undefined): void {
@@ -210,9 +259,27 @@ class SidebarSurface {
   }
 
   private activatePanel(kind: SidebarSurfaceKind, panel: Element): void {
+    if (this.activeKind && this.activeKind !== kind) {
+      this.paneWidthController.close();
+    }
     this.activeKind = kind;
     this.deckPanel = panel;
+    this.reconcilePaneWidth();
     this.ensureDeckHost(panel);
+  }
+
+  private reconcilePaneWidth(): void {
+    if (typeof this.doc.querySelector !== "function") {
+      this.paneWidthController.reconcile(undefined);
+      return;
+    }
+    const target =
+      this.activeKind === "reader"
+        ? this.deckAdapter.getPaneWidthTarget?.()
+        : this.activeKind === "library"
+          ? this.libraryAdapter.getPaneWidthTarget?.()
+          : undefined;
+    this.paneWidthController.reconcile(target);
   }
 
   private ensureDeckHost(panel: Element): void {
@@ -253,6 +320,7 @@ class SidebarSurface {
 
   private requestDeactivation(kind: SidebarSurfaceKind): void {
     if (this.activeKind !== kind) return;
+    this.paneWidthController.close();
     this.activeKind = undefined;
     this.deckPanel = undefined;
     this.options.onActiveSurfaceChange(kind, false);
