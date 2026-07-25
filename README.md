@@ -48,6 +48,10 @@ Zopilot 是一款简约、现代化的 Zotero AI 插件, 将 AI 接入 Zotero �
 
 <img src="./assets/preview_2/history.png" alt="history" width="400">
 
+**独立窗口**
+
+![window](./assets/preview_2/window.png)
+
 **配置自定义 API**
 
 <img src="./assets/preview_2/provider.png" alt="提供商选择" width="600">
