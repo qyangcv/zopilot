@@ -4,22 +4,27 @@ import { formatSessionRelativeTime } from "./SessionPopover";
 import { Icon } from "./Icon";
 import type { SidebarActions, SidebarSessionView, SidebarState } from "./types";
 
+export const DETACHED_WINDOW_NAVIGATION_ID = "zp-detached-navigation";
+
 export function DetachedWindowNavigation({
   actions,
+  expanded,
   state,
 }: {
   actions: SidebarActions;
+  expanded: boolean;
   state: SidebarState;
 }): ReactElement {
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [archiveExpanded, setArchiveExpanded] = useState(false);
-  const now = useRelativeTimeClock(
-    state.sessions.length + state.archivedSessions.length > 0,
-  );
+  const hasSessions = state.sessions.length + state.archivedSessions.length > 0;
+  const now = useRelativeTimeClock(expanded && hasSessions);
   return (
     <nav
       aria-label={getString("sidebar-window-navigation")}
       className="zp-detached-navigation"
+      hidden={!expanded}
+      id={DETACHED_WINDOW_NAVIGATION_ID}
     >
       <button
         aria-label={getString("sidebar-new-chat")}

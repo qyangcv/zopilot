@@ -54,7 +54,7 @@ function ComposerFooter({
         <button
           aria-label={getString("sidebar-add-context")}
           className="zp-context-add"
-          disabled={!state.context.workspaceKey || state.busy}
+          disabled={!state.context.workspaceKey}
           onClick={(event) => {
             event.stopPropagation();
             addLocalAttachment();

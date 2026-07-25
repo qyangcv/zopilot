@@ -3,7 +3,11 @@ import { getString } from "../../../app/localization";
 import { copyText } from "./clipboard";
 import { Composer, ComposerPromptPicker } from "./Composer";
 import { ConversationLog } from "./ConversationLog";
-import { DetachedWindowNavigation } from "./DetachedWindowNavigation";
+import {
+  DETACHED_WINDOW_NAVIGATION_ID,
+  DetachedWindowNavigation,
+} from "./DetachedWindowNavigation";
+import { DetachedWindowNavigationResizer } from "./DetachedWindowNavigationResizer";
 import { DetachedWindowPlaceholder } from "./DetachedWindowPlaceholder";
 import { DetachedWindowTooltipLayer } from "./DetachedWindowTooltipLayer";
 import { Icon } from "./Icon";
@@ -58,6 +62,8 @@ function InteractiveSidebarApp({
 }): ReactElement {
   streamStore ||= emptyStreamStore;
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [detachedNavigationExpanded, setDetachedNavigationExpanded] =
+    useState(true);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const archiveButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -71,6 +77,11 @@ function InteractiveSidebarApp({
     state.messages,
   );
   useSidebarLayoutBounds(headerRef, composer.bindings.bottomDockRef);
+  const navigationToggleLabel = getString(
+    detachedNavigationExpanded
+      ? "sidebar-collapse-window-navigation"
+      : "sidebar-expand-window-navigation",
+  );
 
   const copyMessage = (message: SidebarMessageView) => {
     void copyText(message.text).then(() => {
@@ -83,6 +94,9 @@ function InteractiveSidebarApp({
     <aside
       aria-label={getString("sidebar-title")}
       className="zp-sidebar"
+      data-navigation-expanded={
+        presentation === "window" ? detachedNavigationExpanded : undefined
+      }
       data-presentation={presentation}
       ref={sidebarRef}
       role={presentation === "window" ? "main" : "complementary"}
@@ -102,20 +116,57 @@ function InteractiveSidebarApp({
           }
           state={state}
         />
-      ) : (
-        <button
-          aria-label={getString("sidebar-restore-to-sidebar")}
-          className="zp-icon-button zp-detached-restore-button"
-          data-zp-tooltip={getString("sidebar-restore-to-sidebar")}
-          onClick={actions.restoreToSidebar}
-          title={getString("sidebar-restore-to-sidebar")}
-          type="button"
-        >
-          <Icon className="zp-restore-sidebar-icon" name="openInWindow" />
-        </button>
-      )}
+      ) : null}
       {presentation === "window" ? (
-        <DetachedWindowNavigation actions={actions} state={state} />
+        <div
+          aria-label={getString("sidebar-window-controls")}
+          className="zp-detached-toolbar"
+          role="toolbar"
+        >
+          <button
+            aria-controls={DETACHED_WINDOW_NAVIGATION_ID}
+            aria-expanded={detachedNavigationExpanded}
+            aria-label={navigationToggleLabel}
+            className="zp-icon-button zp-detached-navigation-button"
+            data-zp-tooltip={navigationToggleLabel}
+            onClick={() =>
+              setDetachedNavigationExpanded((expanded) => !expanded)
+            }
+            title={navigationToggleLabel}
+            type="button"
+          >
+            <Icon
+              name={
+                detachedNavigationExpanded
+                  ? "navigationCollapse"
+                  : "navigationExpand"
+              }
+            />
+          </button>
+          <button
+            aria-label={getString("sidebar-restore-to-sidebar")}
+            className="zp-icon-button zp-detached-restore-button"
+            data-zp-tooltip={getString("sidebar-restore-to-sidebar")}
+            onClick={actions.restoreToSidebar}
+            title={getString("sidebar-restore-to-sidebar")}
+            type="button"
+          >
+            <Icon className="zp-restore-sidebar-icon" name="openInWindow" />
+          </button>
+        </div>
+      ) : null}
+      {presentation === "window" ? (
+        <DetachedWindowNavigation
+          actions={actions}
+          expanded={detachedNavigationExpanded}
+          state={state}
+        />
+      ) : null}
+      {presentation === "window" ? (
+        <DetachedWindowNavigationResizer
+          expanded={detachedNavigationExpanded}
+          rootRef={sidebarRef}
+        />
       ) : null}
       <ComposerPromptPicker bindings={composer.bindings} state={state} />
       <ConversationLog

@@ -7,6 +7,10 @@ import {
 } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SidebarApp } from "../../../src/features/sidebar/ui/SidebarApp.tsx";
+import {
+  DETACHED_WINDOW_NAVIGATION_ID,
+  DetachedWindowNavigation,
+} from "../../../src/features/sidebar/ui/DetachedWindowNavigation.tsx";
 import { Message } from "../../../src/features/sidebar/ui/Message.tsx";
 import {
   resolveSessionRelativeTime,
@@ -98,6 +102,7 @@ describe("SidebarApp", function () {
       />,
     );
     assert.include(html, 'data-presentation="window"');
+    assert.include(html, 'data-navigation-expanded="true"');
     assert.include(html, 'role="main"');
     assert.notInclude(html, "zp-sidebar-header");
     assert.notInclude(html, "zp-reload-button");
@@ -107,6 +112,31 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "zp-sidebar-action-separator");
     assert.notInclude(html, "zp-sidebar-open-window-button");
     assert.notInclude(html, 'aria-label="zopilot-sidebar-close"');
+    assert.include(
+      html,
+      `aria-controls="${DETACHED_WINDOW_NAVIGATION_ID}" aria-expanded="true"`,
+    );
+    assert.include(
+      html,
+      'aria-label="zopilot-sidebar-collapse-window-navigation"',
+    );
+    assert.include(
+      html,
+      'aria-label="zopilot-sidebar-window-controls" class="zp-detached-toolbar" role="toolbar"',
+    );
+    assert.include(html, "zp-detached-navigation-button");
+    assert.include(html, 'data-icon-name="navigationCollapse"');
+    assert.include(html, "lucide-panel-left-close");
+    assert.include(html, "zp-detached-navigation-resizer");
+    assert.include(
+      html,
+      'aria-label="zopilot-sidebar-resize-window-navigation"',
+    );
+    assert.include(html, 'aria-orientation="vertical"');
+    assert.include(html, 'aria-valuemax="420"');
+    assert.include(html, 'aria-valuemin="176"');
+    assert.include(html, 'aria-valuenow="232"');
+    assert.include(html, 'role="separator" tabindex="0"');
     assert.include(html, "zp-detached-restore-button");
     assert.include(html, 'aria-label="zopilot-sidebar-restore-to-sidebar"');
     assert.include(
@@ -115,6 +145,20 @@ describe("SidebarApp", function () {
     );
     assert.include(html, "zp-restore-sidebar-icon");
     assert.include(html, "lucide-square-arrow-out-up-left");
+  });
+
+  it("keeps detached navigation mounted but hidden when collapsed", function () {
+    const html = renderToStaticMarkup(
+      <DetachedWindowNavigation
+        actions={createActions()}
+        expanded={false}
+        state={createState()}
+      />,
+    );
+
+    assert.include(html, `id="${DETACHED_WINDOW_NAVIGATION_ID}"`);
+    assert.include(html, "hidden");
+    assert.include(html, "zp-detached-navigation");
   });
 
   it("replaces the sidebar with a passive placeholder while detached", function () {
@@ -1511,6 +1555,27 @@ describe("SidebarApp", function () {
     assert.include(html, 'aria-label="zopilot-sidebar-prompts"');
     assert.include(html, 'aria-label="zopilot-sidebar-add-context"');
     assert.include(html, 'data-icon-name="paperclip"');
+  });
+
+  it("keeps attachment selection available while a reply is generating", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({
+          busy: true,
+          context: {
+            label: "Paper",
+            workspaceKey: "item:1:AAA",
+          },
+        })}
+      />,
+    );
+    const attachmentButton = html.match(
+      /<button(?=[^>]*aria-label="zopilot-sidebar-add-context")[^>]*>/,
+    )?.[0];
+
+    assert.isString(attachmentButton);
+    assert.notInclude(attachmentButton, "disabled");
   });
 
   it("keeps model controls available beside a provider diagnostic", function () {

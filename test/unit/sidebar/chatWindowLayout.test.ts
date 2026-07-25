@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("chat window layout styles", function () {
-  it("defines one shared 900px content width token", function () {
+  it("defines a shared base content width token", function () {
     const hostCss = readFileSync(
       resolve("addon/content/styles/context-pane.css"),
       "utf8",
@@ -62,7 +62,12 @@ describe("chat window layout styles", function () {
       "utf8",
     );
 
-    assert.include(css, "--zp-detached-navigation-width: 232px");
+    assert.include(css, "--zp-detached-navigation-expanded-width: 232px");
+    assert.include(css, "--zp-detached-navigation-width: var(");
+    assert.include(css, '[data-navigation-expanded="false"]');
+    assert.include(css, "--zp-detached-navigation-width: 0px");
+    assert.include(css, "--zp-sidebar-gutter: 20px");
+    assert.include(css, "--zp-chat-content-max-width: 760px");
     assert.include(css, ".zp-detached-navigation");
     assert.include(
       css,
@@ -70,9 +75,30 @@ describe("chat window layout styles", function () {
     );
     assert.include(css, ".zp-detached-session-list");
     assert.include(css, "overflow-y: auto");
+    assert.include(css, ".zp-detached-navigation[hidden]");
+    assert.include(css, "display: none");
+    assert.include(css, ".zp-detached-navigation-resizer");
+    assert.include(
+      css,
+      "inset-inline-start: calc(var(--zp-detached-navigation-width) - 3px)",
+    );
+    assert.include(css, "cursor: col-resize");
+    assert.include(css, "touch-action: none");
+    assert.include(css, '[data-navigation-resizing="true"]');
   });
 
-  it("removes the detached header and aligns lightweight navigation controls", function () {
+  it("centers the narrower chat content in the detached main area", function () {
+    const css = readFileSync(
+      resolve("addon/content/styles/sidebar-shell.css"),
+      "utf8",
+    );
+
+    assert.include(css, "100% - var(--zp-detached-navigation-width) -");
+    assert.include(css, "var(--zp-chat-content-max-width, 760px)");
+    assert.include(css, "inset-inline-end: max(");
+  });
+
+  it("keeps detached controls in a seamless toolbar above the scroll area", function () {
     const css = readFileSync(
       resolve("addon/content/styles/sidebar-shell.css"),
       "utf8",
@@ -83,10 +109,23 @@ describe("chat window layout styles", function () {
     );
 
     assert.include(css, "--zp-header-height: 0px");
+    assert.include(css, "--zp-detached-toolbar-height: 38px");
+    assert.include(css, ".zp-detached-toolbar");
     assert.include(css, ".zp-detached-restore-button");
-    assert.include(css, "inset-block-start: 10px");
+    assert.include(css, ".zp-detached-navigation-button");
+    assert.include(css, "inset-block-start: var(--zp-detached-toolbar-height)");
+    assert.include(
+      css,
+      "inset-inline-start: var(--zp-detached-navigation-width)",
+    );
+    assert.include(css, "height: var(--zp-detached-toolbar-height)");
+    assert.include(css, "justify-content: space-between");
+    assert.include(css, "padding: 6px 12px");
+    assert.include(css, "border: 0");
+    assert.include(css, "background: transparent");
     assert.include(css, "background: transparent !important");
     assert.include(css, "box-shadow: none");
+    assert.notInclude(css, "padding-block-start: 44px");
     assert.notInclude(detachedCss, ".zp-sidebar-header");
     assert.include(css, ".zp-detached-new-session,");
     assert.include(css, ".zp-detached-session-toggle {");

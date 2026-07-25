@@ -20,6 +20,8 @@ describe("sidebar Icon", function () {
       "file",
       "history",
       "newChat",
+      "navigationCollapse",
+      "navigationExpand",
       "notebookText",
       "openInWindow",
       "attachmentImage",
@@ -39,6 +41,14 @@ describe("sidebar Icon", function () {
       assert.include(html, "zp-icon");
       assert.include(html, `data-icon-name="${name}"`);
     }
+  });
+
+  it("uses dedicated panel icons for detached navigation", function () {
+    const collapse = renderToStaticMarkup(<Icon name="navigationCollapse" />);
+    const expand = renderToStaticMarkup(<Icon name="navigationExpand" />);
+
+    assert.include(collapse, "lucide-panel-left-close");
+    assert.include(expand, "lucide-panel-left-open");
   });
 
   it("uses the Lucide at-sign icon for mention guidance", function () {

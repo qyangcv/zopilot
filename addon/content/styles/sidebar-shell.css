@@ -140,8 +140,16 @@
    every React host, including plugin-owned chrome windows. */
 
 .zp-sidebar[data-presentation="window"] {
-  --zp-detached-navigation-width: 232px;
+  --zp-detached-navigation-expanded-width: 232px;
+  --zp-detached-navigation-width: var(--zp-detached-navigation-expanded-width);
+  --zp-detached-toolbar-height: 38px;
   --zp-header-height: 0px;
+  --zp-sidebar-gutter: 20px;
+  --zp-chat-content-max-width: 760px;
+}
+
+.zp-sidebar[data-presentation="window"][data-navigation-expanded="false"] {
+  --zp-detached-navigation-width: 0px;
 }
 
 .zp-detached-navigation {
@@ -159,6 +167,54 @@
   padding: 10px 8px;
   border-inline-end: 1px solid var(--zp-border);
   background: color-mix(in srgb, var(--zp-panel) 58%, var(--zp-app-bg));
+}
+
+.zp-detached-navigation[hidden] {
+  display: none;
+}
+
+.zp-detached-navigation-resizer {
+  position: absolute;
+  z-index: 5;
+  inset-block: 0;
+  inset-inline-start: calc(var(--zp-detached-navigation-width) - 3px);
+  width: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.zp-detached-navigation-resizer::after {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 2px;
+  width: 2px;
+  background: transparent;
+  content: "";
+}
+
+.zp-detached-navigation-resizer:is(
+    :hover,
+    :focus-visible,
+    [data-dragging]
+  )::after {
+  background: color-mix(in srgb, var(--zp-accent) 62%, transparent);
+}
+
+.zp-detached-navigation-resizer:focus-visible {
+  outline: 0;
+}
+
+.zp-detached-navigation-resizer[hidden] {
+  display: none;
+}
+
+.zp-sidebar[data-navigation-resizing="true"],
+.zp-sidebar[data-navigation-resizing="true"] * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .zp-detached-new-session,
@@ -364,27 +420,61 @@
 }
 
 .zp-sidebar[data-presentation="window"] .zp-chat-log {
+  inset-block-start: var(--zp-detached-toolbar-height);
   inset-inline-start: var(--zp-detached-navigation-width);
-  padding-block-start: 44px;
 }
 
 .zp-sidebar[data-presentation="window"] .zp-bottom-dock {
   inset-inline-start: calc(
-    var(--zp-detached-navigation-width) + var(--zp-sidebar-gutter, 14px)
+    var(--zp-detached-navigation-width) +
+      max(
+        var(--zp-sidebar-gutter, 14px),
+        calc(
+          (
+              100% - var(--zp-detached-navigation-width) -
+                var(--zp-chat-content-max-width, 760px)
+            ) /
+            2
+        )
+      )
   );
-  inset-inline-end: var(--zp-sidebar-gutter, 14px);
+  inset-inline-end: max(
+    var(--zp-sidebar-gutter, 14px),
+    calc(
+      (
+          100% - var(--zp-detached-navigation-width) -
+            var(--zp-chat-content-max-width, 760px)
+        ) /
+        2
+    )
+  );
 }
 
-.zp-sidebar[data-presentation="window"] .zp-detached-restore-button {
+.zp-detached-toolbar {
   position: absolute;
-  z-index: 4;
-  inset-block-start: 10px;
-  inset-inline-end: 12px;
+  z-index: 3;
+  inset-block-start: 0;
+  inset-inline-start: var(--zp-detached-navigation-width);
+  inset-inline-end: 0;
+  display: flex;
+  height: var(--zp-detached-toolbar-height);
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.zp-sidebar[data-presentation="window"] .zp-detached-navigation-button,
+.zp-sidebar[data-presentation="window"] .zp-detached-restore-button {
   background: transparent !important;
   color: var(--zp-muted-strong);
   box-shadow: none;
 }
 
+.zp-sidebar[data-presentation="window"]
+  .zp-detached-navigation-button:is(:hover, :focus-visible),
 .zp-sidebar[data-presentation="window"]
   .zp-detached-restore-button:is(:hover, :focus-visible) {
   color: CanvasText;
