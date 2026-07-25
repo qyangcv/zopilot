@@ -51,6 +51,7 @@ describe("sidebar session coordinator", function () {
       },
     });
 
+    await harness.coordinator.showPopover();
     await harness.coordinator.archiveSession(active);
 
     assert.deepEqual(harness.interruptedConversationIds, ["conv-a"]);
@@ -64,6 +65,28 @@ describe("sidebar session coordinator", function () {
       })),
       [{ id: "conv-b", active: true }],
     );
+  });
+
+  it("loads active and archived sessions together for detached navigation", async function () {
+    const active = createConversation("conv-a", "Question A");
+    const archived = createConversation("conv-z", "Archived question");
+    const harness = createHarness({
+      readyConversation: active,
+      conversations: [active],
+      archivedConversations: [archived],
+    });
+
+    await harness.coordinator.refreshNavigationSessions();
+
+    assert.deepEqual(
+      harness.state.sessions.map((session) => session.id),
+      ["conv-a"],
+    );
+    assert.deepEqual(
+      harness.state.archivedSessions.map((session) => session.id),
+      ["conv-z"],
+    );
+    assert.isFalse(harness.state.sessionsOpen);
   });
 });
 

@@ -9,7 +9,6 @@ import {
   type ContextPaneProbeSuccess,
   type ContextPaneUnavailableResult,
 } from "./contextPaneProbe";
-import type { PaneWidthTarget } from "./PaneWidthController";
 
 type ContextPaneDeckAdapterOptions = {
   onActivate?: () => void;
@@ -96,22 +95,6 @@ class ContextPaneDeckAdapter {
       this.panel.isConnected
       ? this.panel
       : undefined;
-  }
-
-  getPaneWidthTarget(): PaneWidthTarget | undefined {
-    const probe = probeContextPane(this.win.document);
-    const capability = probe.available ? probe.widthCapability : undefined;
-    if (!probe.available || !capability) return undefined;
-    return {
-      pane: probe.contextPane,
-      sibling: capability.sibling,
-      splitter: capability.splitter,
-      standard:
-        probe.contextPane.classList.contains("standard") &&
-        !probe.contextPane.classList.contains("stacked") &&
-        capability.splitter.getAttribute("hidden") !== "true" &&
-        capability.splitter.getAttribute("orient") === "horizontal",
-    };
   }
 
   ensurePanel(): Element | undefined {

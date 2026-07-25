@@ -99,6 +99,10 @@
   stroke: none;
 }
 
+.zp-restore-sidebar-icon {
+  transform: rotate(-180deg);
+}
+
 .zp-sidebar-title-block {
   display: flex;
   flex-direction: column;
@@ -130,6 +134,279 @@
   height: 16px;
   margin-inline: 4px;
   border-inline-start: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+}
+
+/* Detached-window navigation lives here because this sheet is mounted with
+   every React host, including plugin-owned chrome windows. */
+
+.zp-sidebar[data-presentation="window"] {
+  --zp-detached-navigation-width: 232px;
+  --zp-header-height: 0px;
+}
+
+.zp-detached-navigation {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  display: flex;
+  width: var(--zp-detached-navigation-width);
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding: 10px 8px;
+  border-inline-end: 1px solid var(--zp-border);
+  background: color-mix(in srgb, var(--zp-panel) 58%, var(--zp-app-bg));
+}
+
+.zp-detached-new-session,
+.zp-detached-session-main,
+.zp-detached-session-action {
+  appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+}
+
+.zp-detached-new-session,
+.zp-detached-session-toggle {
+  appearance: none !important;
+  -moz-appearance: none !important;
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 7px;
+  border: 0 !important;
+  border-radius: 5px;
+  background: color-mix(in srgb, CanvasText 7%, transparent) !important;
+  box-shadow: none !important;
+  color: var(--zp-muted-strong);
+  cursor: default;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: start;
+}
+
+.zp-detached-new-session {
+  flex: 0 0 auto;
+}
+
+.zp-detached-new-session:is(:hover, :focus-visible),
+.zp-detached-session-toggle:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, CanvasText 10%, transparent) !important;
+  color: CanvasText;
+  outline: 0;
+}
+
+.zp-detached-new-session-content,
+.zp-detached-session-toggle-content {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 5px;
+}
+
+.zp-detached-navigation-disclosure-spacer {
+  width: 12px;
+  flex: 0 0 12px;
+}
+
+.zp-detached-new-session:disabled {
+  opacity: 0.45;
+}
+
+.zp-detached-session-section {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.zp-detached-session-section[data-expanded] {
+  flex: 1 1 0;
+  min-height: 72px;
+}
+
+.zp-detached-session-heading {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+}
+
+.zp-detached-session-toggle {
+  flex: 0 0 auto;
+}
+
+.zp-detached-session-heading-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-detached-session-count {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  color: var(--zp-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.zp-detached-session-list {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-block-start: 3px;
+  scrollbar-width: thin;
+}
+
+.zp-detached-session-row {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 29px;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.zp-detached-session-row:is(:hover, :focus-within) {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+}
+
+.zp-detached-session-row[data-active] {
+  background: color-mix(in srgb, var(--zp-accent) 10%, transparent);
+}
+
+.zp-detached-session-row[data-active]::before {
+  position: absolute;
+  inset-block: 6px;
+  inset-inline-start: 1px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--zp-accent);
+  content: "";
+}
+
+.zp-detached-session-main {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 29px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px 4px 8px;
+  border-radius: 4px;
+  text-align: start;
+}
+
+.zp-detached-session-main:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--zp-accent) 72%, transparent);
+  outline-offset: -1px;
+}
+
+.zp-detached-session-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-detached-session-time {
+  color: var(--zp-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.zp-detached-session-row:hover .zp-detached-session-time,
+.zp-detached-session-row:focus-within .zp-detached-session-time {
+  display: none;
+}
+
+.zp-detached-session-action {
+  display: none;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  margin-inline-end: 2px;
+  border-radius: 4px;
+  color: var(--zp-muted-strong);
+}
+
+.zp-detached-session-row:is(:hover, :focus-within) .zp-detached-session-action {
+  display: grid;
+}
+
+.zp-detached-session-action:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, CanvasText 10%, transparent);
+  color: CanvasText;
+  outline: 0;
+}
+
+.zp-detached-session-empty {
+  padding: 6px;
+  color: var(--zp-muted);
+  font-size: 11px;
+}
+
+.zp-sidebar[data-presentation="window"] .zp-chat-log {
+  inset-inline-start: var(--zp-detached-navigation-width);
+  padding-block-start: 44px;
+}
+
+.zp-sidebar[data-presentation="window"] .zp-bottom-dock {
+  inset-inline-start: calc(
+    var(--zp-detached-navigation-width) + var(--zp-sidebar-gutter, 14px)
+  );
+  inset-inline-end: var(--zp-sidebar-gutter, 14px);
+}
+
+.zp-sidebar[data-presentation="window"] .zp-detached-restore-button {
+  position: absolute;
+  z-index: 4;
+  inset-block-start: 10px;
+  inset-inline-end: 12px;
+  background: transparent !important;
+  color: var(--zp-muted-strong);
+  box-shadow: none;
+}
+
+.zp-sidebar[data-presentation="window"]
+  .zp-detached-restore-button:is(:hover, :focus-visible) {
+  color: CanvasText;
+  outline: 0;
+}
+
+.zp-window-tooltip {
+  position: absolute;
+  z-index: 12;
+  width: max-content;
+  max-width: 280px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+  box-shadow: 0 2px 8px color-mix(in srgb, CanvasText 18%, transparent);
+  color: CanvasText;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none !important;
+  user-select: none;
 }
 
 .zp-reload-button {

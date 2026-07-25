@@ -67,59 +67,127 @@ describe("SidebarApp", function () {
     assert.include(html, "disabled");
   });
 
-  it("renders a separator between new chat and maximize", function () {
+  it("renders the open-in-window action in the primary action group", function () {
     const html = renderToStaticMarkup(
-      <SidebarApp
-        actions={createActions()}
-        state={createState({
-          layout: { canMaximize: true, maximized: false },
-        })}
-      />,
+      <SidebarApp actions={createActions()} state={createState()} />,
     );
     const historyIndex = html.indexOf("zp-history-button");
     const archiveIndex = html.indexOf("zp-archive-button");
     const separatorIndex = html.indexOf("zp-sidebar-action-separator");
     const newChatIndex = html.indexOf("zp-new-session-button");
-    const maximizeIndex = html.indexOf("zp-sidebar-size-button");
+    const openWindowIndex = html.indexOf("zp-sidebar-open-window-button");
     const closeIndex = html.indexOf('aria-label="zopilot-sidebar-close"');
 
+    assert.isAbove(historyIndex, newChatIndex);
     assert.isAbove(archiveIndex, historyIndex);
-    assert.isAbove(newChatIndex, archiveIndex);
-    assert.isAbove(separatorIndex, newChatIndex);
-    assert.isAbove(maximizeIndex, separatorIndex);
-    assert.isAbove(closeIndex, maximizeIndex);
+    assert.isAbove(separatorIndex, archiveIndex);
+    assert.isAbove(openWindowIndex, separatorIndex);
+    assert.isAbove(closeIndex, openWindowIndex);
     assert.include(html, 'role="separator"');
     assert.include(html, 'aria-orientation="vertical"');
-    assert.include(html, 'aria-pressed="false"');
-    assert.include(html, 'aria-label="zopilot-sidebar-maximize"');
-    assert.include(html, 'data-icon-name="maximize"');
+    assert.include(html, 'aria-label="zopilot-sidebar-open-window"');
+    assert.include(html, 'data-icon-name="openInWindow"');
   });
 
-  it("uses the minimize icon to restore a maximized sidebar", function () {
+  it("uses a window presentation without sidebar window controls", function () {
     const html = renderToStaticMarkup(
       <SidebarApp
         actions={createActions()}
+        presentation="window"
+        state={createState()}
+      />,
+    );
+    assert.include(html, 'data-presentation="window"');
+    assert.include(html, 'role="main"');
+    assert.notInclude(html, "zp-sidebar-header");
+    assert.notInclude(html, "zp-reload-button");
+    assert.notInclude(html, "zp-new-session-button");
+    assert.notInclude(html, "zp-history-button");
+    assert.notInclude(html, "zp-archive-button");
+    assert.notInclude(html, "zp-sidebar-action-separator");
+    assert.notInclude(html, "zp-sidebar-open-window-button");
+    assert.notInclude(html, 'aria-label="zopilot-sidebar-close"');
+    assert.include(html, "zp-detached-restore-button");
+    assert.include(html, 'aria-label="zopilot-sidebar-restore-to-sidebar"');
+    assert.include(
+      html,
+      'data-zp-tooltip="zopilot-sidebar-restore-to-sidebar"',
+    );
+    assert.include(html, "zp-restore-sidebar-icon");
+    assert.include(html, "lucide-square-arrow-out-up-left");
+  });
+
+  it("replaces the sidebar with a passive placeholder while detached", function () {
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        state={createState({ detachedWindowOpen: true })}
+      />,
+    );
+
+    assert.include(html, 'data-presentation="placeholder"');
+    assert.include(html, "zopilot-sidebar-window-placeholder");
+    assert.include(html, "zopilot-sidebar-window-focus");
+    assert.notInclude(html, "zp-history-button");
+    assert.notInclude(html, "zp-archive-button");
+    assert.notInclude(html, "zp-chat-log");
+    assert.notInclude(html, "zp-composer");
+  });
+
+  it("renders detached navigation with history, archive, and hover labels", function () {
+    const active = createConversation("conv-active");
+    const archived = createConversation("conv-archived");
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        presentation="window"
         state={createState({
-          layout: { canMaximize: true, maximized: true },
+          detachedWindowOpen: true,
+          sessions: [
+            {
+              id: active.metadata.id,
+              title: "Current discussion",
+              meta: active.metadata.updatedAt,
+              active: true,
+              conversation: active,
+            },
+          ],
+          archivedSessions: [
+            {
+              id: archived.metadata.id,
+              title: "Archived discussion",
+              meta: archived.metadata.updatedAt,
+              active: false,
+              conversation: archived,
+            },
+          ],
         })}
       />,
     );
 
-    assert.include(html, 'aria-pressed="true"');
-    assert.include(html, 'aria-label="zopilot-sidebar-restore"');
-    assert.include(html, 'data-icon-name="minimize"');
-    assert.notInclude(html, 'data-icon-name="maximize"');
-  });
-
-  it("hides the sidebar size action when the host cannot maximize", function () {
-    const html = renderToStaticMarkup(
-      <SidebarApp actions={createActions()} state={createState()} />,
+    assert.include(html, 'data-presentation="window"');
+    assert.include(html, "zp-detached-navigation");
+    assert.include(html, 'aria-label="zopilot-sidebar-window-navigation"');
+    assert.include(html, "Current discussion");
+    assert.notInclude(html, "Archived discussion");
+    assert.include(
+      html,
+      'aria-controls="zp-detached-history-list" aria-expanded="true"',
     );
-
-    assert.notInclude(html, "zp-sidebar-size-button");
-    assert.notInclude(html, "zp-sidebar-action-separator");
-    assert.notInclude(html, 'data-icon-name="maximize"');
-    assert.notInclude(html, 'data-icon-name="minimize"');
+    assert.include(html, 'data-zp-tooltip="zopilot-sidebar-collapse-history"');
+    assert.include(
+      html,
+      'aria-controls="zp-detached-archive-list" aria-expanded="false"',
+    );
+    assert.include(
+      html,
+      'data-zp-tooltip="zopilot-sidebar-expand-archived-sessions"',
+    );
+    assert.include(html, 'title="zopilot-sidebar-new-chat"');
+    assert.include(html, 'title="zopilot-sidebar-delete-session"');
+    assert.notInclude(html, 'title="zopilot-sidebar-restore-session"');
+    assert.include(html, "zp-chat-log");
+    assert.notInclude(html, 'data-presentation="placeholder"');
   });
 
   it("shows no assistant footer while a response is running", function () {
@@ -1544,12 +1612,14 @@ const TEST_PROMPTS: SidebarPromptView[] = [
 function createState(patch: Partial<SidebarState> = {}): SidebarState {
   return {
     title: "Paper",
+    detachedWindowOpen: false,
     context: {
       label: "Paper",
       paperKey: "1:AAA",
     },
     messages: [],
     sessions: [],
+    archivedSessions: [],
     sessionsOpen: false,
     sessionsMode: "history",
     composerEnabled: true,
@@ -1575,10 +1645,6 @@ function createState(patch: Partial<SidebarState> = {}): SidebarState {
     collectionOptions: [],
     prompts: TEST_PROMPTS,
     reloading: false,
-    layout: {
-      canMaximize: false,
-      maximized: false,
-    },
     ...patch,
   };
 }
@@ -1610,7 +1676,9 @@ function createActions(): SidebarActions {
     reloadPlugin: async () => undefined,
     hideSessions: () => undefined,
     interruptActiveTurn: () => undefined,
+    openInWindow: () => undefined,
     openExternalLink: () => undefined,
+    restoreToSidebar: () => undefined,
     selectModel: () => undefined,
     selectModelEffort: () => undefined,
     selectWorkspaceMode: () => undefined,
@@ -1621,7 +1689,6 @@ function createActions(): SidebarActions {
     restoreSession: () => undefined,
     switchSession: () => undefined,
     toggleArchivedSessions: () => undefined,
-    toggleSidebarMaximized: () => undefined,
     toggleSessions: () => undefined,
   };
 }

@@ -53,6 +53,19 @@ function SidebarHeader({
         </div>
         <div className="zp-sidebar-actions">
           <button
+            aria-label={getString("sidebar-new-chat")}
+            className="zp-icon-button zp-new-session-button"
+            disabled={!state.context.workspaceKey}
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.createNewSession();
+            }}
+            title={getString("sidebar-new-chat")}
+            type="button"
+          >
+            <Icon name="newChat" />
+          </button>
+          <button
             aria-controls={
               state.sessionsOpen && state.sessionsMode === "history"
                 ? "zp-session-list"
@@ -98,49 +111,23 @@ function SidebarHeader({
           >
             <Icon name="archive" />
           </button>
+          <span
+            aria-orientation="vertical"
+            className="zp-sidebar-action-separator"
+            role="separator"
+          />
           <button
-            aria-label={getString("sidebar-new-chat")}
-            className="zp-icon-button zp-new-session-button"
-            disabled={!state.context.workspaceKey}
+            aria-label={getString("sidebar-open-window")}
+            className="zp-icon-button zp-sidebar-open-window-button"
             onClick={(event) => {
               event.stopPropagation();
-              actions.createNewSession();
+              actions.openInWindow();
             }}
-            title={getString("sidebar-new-chat")}
+            title={getString("sidebar-open-window")}
             type="button"
           >
-            <Icon name="newChat" />
+            <Icon name="openInWindow" />
           </button>
-          {state.layout.canMaximize ? (
-            <>
-              <span
-                aria-orientation="vertical"
-                className="zp-sidebar-action-separator"
-                role="separator"
-              />
-              <button
-                aria-label={getString(
-                  state.layout.maximized
-                    ? "sidebar-restore"
-                    : "sidebar-maximize",
-                )}
-                aria-pressed={state.layout.maximized}
-                className="zp-icon-button zp-sidebar-size-button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  actions.toggleSidebarMaximized();
-                }}
-                title={getString(
-                  state.layout.maximized
-                    ? "sidebar-restore"
-                    : "sidebar-maximize",
-                )}
-                type="button"
-              >
-                <Icon name={state.layout.maximized ? "minimize" : "maximize"} />
-              </button>
-            </>
-          ) : null}
           <button
             aria-label={getString("sidebar-close")}
             className="zp-icon-button"
@@ -168,7 +155,11 @@ function SidebarHeader({
             actions={actions}
             mode={state.sessionsMode}
             onClose={actions.hideSessions}
-            sessions={state.sessions}
+            sessions={
+              state.sessionsMode === "archive"
+                ? state.archivedSessions
+                : state.sessions
+            }
             triggerRef={sessionAnchorRef}
           />
         </FloatingPortal>

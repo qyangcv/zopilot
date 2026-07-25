@@ -3,26 +3,62 @@ import { getString } from "../../../app/localization";
 import { copyText } from "./clipboard";
 import { Composer, ComposerPromptPicker } from "./Composer";
 import { ConversationLog } from "./ConversationLog";
+import { DetachedWindowNavigation } from "./DetachedWindowNavigation";
+import { DetachedWindowPlaceholder } from "./DetachedWindowPlaceholder";
+import { DetachedWindowTooltipLayer } from "./DetachedWindowTooltipLayer";
+import { Icon } from "./Icon";
 import { SidebarHeader } from "./SidebarHeader";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { useComposerDraft } from "./hooks/useComposerDraft";
 import { useSidebarLayoutBounds } from "./hooks/useSidebarLayoutBounds";
-import type { SidebarActions, SidebarMessageView, SidebarState } from "./types";
+import type {
+  SidebarActions,
+  SidebarMessageView,
+  SidebarPresentation,
+  SidebarState,
+} from "./types";
 import { SidebarStreamSnapshotStore } from "./SidebarStreamSnapshotStore";
 
 const emptyStreamStore = new SidebarStreamSnapshotStore();
 
 export function SidebarApp({
   actions,
+  presentation = "sidebar",
   state,
   streamStore,
 }: {
   actions: SidebarActions;
+  presentation?: SidebarPresentation;
+  state: SidebarState;
+  streamStore?: SidebarStreamSnapshotStore;
+}): ReactElement {
+  if (presentation === "sidebar" && state.detachedWindowOpen) {
+    return <DetachedWindowPlaceholder actions={actions} />;
+  }
+  return (
+    <InteractiveSidebarApp
+      actions={actions}
+      presentation={presentation}
+      state={state}
+      streamStore={streamStore}
+    />
+  );
+}
+
+function InteractiveSidebarApp({
+  actions,
+  presentation,
+  state,
+  streamStore,
+}: {
+  actions: SidebarActions;
+  presentation: SidebarPresentation;
   state: SidebarState;
   streamStore?: SidebarStreamSnapshotStore;
 }): ReactElement {
   streamStore ||= emptyStreamStore;
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const sidebarRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const archiveButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -47,22 +83,40 @@ export function SidebarApp({
     <aside
       aria-label={getString("sidebar-title")}
       className="zp-sidebar"
-      role="complementary"
+      data-presentation={presentation}
+      ref={sidebarRef}
+      role={presentation === "window" ? "main" : "complementary"}
     >
-      <SidebarHeader
-        actions={actions}
-        archiveButtonRef={archiveButtonRef}
-        headerRef={headerRef}
-        historyButtonRef={historyButtonRef}
-        onReload={() =>
-          actions.reloadPlugin({
-            workspaceKey: state.context.workspaceKey,
-            conversationId: state.conversationId,
-            hostContextKind: state.context.hostContextKind,
-          })
-        }
-        state={state}
-      />
+      {presentation === "sidebar" ? (
+        <SidebarHeader
+          actions={actions}
+          archiveButtonRef={archiveButtonRef}
+          headerRef={headerRef}
+          historyButtonRef={historyButtonRef}
+          onReload={() =>
+            actions.reloadPlugin({
+              workspaceKey: state.context.workspaceKey,
+              conversationId: state.conversationId,
+              hostContextKind: state.context.hostContextKind,
+            })
+          }
+          state={state}
+        />
+      ) : (
+        <button
+          aria-label={getString("sidebar-restore-to-sidebar")}
+          className="zp-icon-button zp-detached-restore-button"
+          data-zp-tooltip={getString("sidebar-restore-to-sidebar")}
+          onClick={actions.restoreToSidebar}
+          title={getString("sidebar-restore-to-sidebar")}
+          type="button"
+        >
+          <Icon className="zp-restore-sidebar-icon" name="openInWindow" />
+        </button>
+      )}
+      {presentation === "window" ? (
+        <DetachedWindowNavigation actions={actions} state={state} />
+      ) : null}
       <ComposerPromptPicker bindings={composer.bindings} state={state} />
       <ConversationLog
         actions={actions}
@@ -82,6 +136,9 @@ export function SidebarApp({
         headerBoundaryRef={headerRef}
         state={state}
       />
+      {presentation === "window" ? (
+        <DetachedWindowTooltipLayer rootRef={sidebarRef} />
+      ) : null}
     </aside>
   );
 }

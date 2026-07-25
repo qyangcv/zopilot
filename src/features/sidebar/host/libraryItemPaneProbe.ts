@@ -7,11 +7,6 @@ type LibraryItemPaneProbeSuccess = {
   deck: Element & Partial<XUL.Deck>;
   sidenav: Element;
   selectionMode: "selectedPanel" | "selectedIndex";
-  widthCapability?: {
-    layoutSwitcher: Element;
-    sibling: Element;
-    splitter: Element;
-  };
 };
 
 type LibraryItemPaneUnavailableResult = {
@@ -60,25 +55,12 @@ function probeLibraryItemPane(doc: Document): LibraryItemPaneProbeResult {
       "library item pane deck cannot select a panel",
     );
   }
-  const layoutSwitcher = doc.querySelector("#zotero-layout-switcher");
-  const sibling = doc.querySelector("#zotero-items-pane-container");
-  const splitter = doc.querySelector("#zotero-items-splitter");
-  const widthCapability =
-    layoutSwitcher &&
-    sibling &&
-    splitter &&
-    itemPane.parentElement === layoutSwitcher &&
-    sibling.parentElement === layoutSwitcher &&
-    splitter.parentElement === layoutSwitcher
-      ? { layoutSwitcher, sibling, splitter }
-      : undefined;
   return {
     available: true,
     itemPane,
     deck,
     sidenav,
     selectionMode,
-    widthCapability,
   };
 }
 

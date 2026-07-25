@@ -8,13 +8,15 @@ function useSidebarLayoutBounds(
     const bottomDock = bottomDockRef.current;
     const header = headerRef.current;
     const root = bottomDock?.closest(".zp-sidebar") as HTMLElement | null;
-    if (!root || !bottomDock || !header) {
+    if (!root || !bottomDock) {
       return;
     }
     const updateLayoutBounds = () => {
       root.style.setProperty(
         "--zp-header-height",
-        `${Math.ceil(header.getBoundingClientRect().height)}px`,
+        header
+          ? `${Math.ceil(header.getBoundingClientRect().height)}px`
+          : "0px",
       );
       root.style.setProperty(
         "--zp-composer-height",
@@ -27,7 +29,7 @@ function useSidebarLayoutBounds(
       return;
     }
     const resizeObserver = new ResizeObserverCtor(updateLayoutBounds);
-    resizeObserver.observe(header);
+    if (header) resizeObserver.observe(header);
     resizeObserver.observe(bottomDock);
     return () => resizeObserver.disconnect();
   }, [bottomDockRef, headerRef]);

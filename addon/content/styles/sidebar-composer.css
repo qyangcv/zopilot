@@ -4,7 +4,10 @@
   position: absolute;
   z-index: 2;
   inset-block-end: 10px;
-  inset-inline: max(var(--zp-sidebar-gutter, 14px), calc((100% - 900px) / 2));
+  inset-inline: max(
+    var(--zp-sidebar-gutter, 14px),
+    calc((100% - var(--zp-chat-content-max-width, 900px)) / 2)
+  );
   display: flex;
   flex-direction: column;
   gap: 4px;

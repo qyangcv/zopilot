@@ -8,6 +8,7 @@ import {
   SIDEBAR_WINDOW_RUNTIME_KEY,
   type SidebarCommand,
   type SidebarWindowHost,
+  type SidebarWindowHostOptions,
   type SidebarWindowRuntime,
 } from "./windowRuntimeTypes";
 
@@ -23,7 +24,10 @@ type ZopilotDeckHost = {
   destroy: () => void;
 };
 
-async function createZopilotDeckHost(panel: Element): Promise<ZopilotDeckHost> {
+async function createZopilotDeckHost(
+  panel: Element,
+  options?: SidebarWindowHostOptions,
+): Promise<ZopilotDeckHost> {
   const doc = panel.ownerDocument;
   if (!doc) {
     throw new Error("Zopilot deck panel has no owner document");
@@ -41,7 +45,7 @@ async function createZopilotDeckHost(panel: Element): Promise<ZopilotDeckHost> {
       | undefined;
     return action?.(...command.args);
   };
-  const host: SidebarWindowHost = runtime.createHost(panel, dispatch);
+  const host: SidebarWindowHost = runtime.createHost(panel, dispatch, options);
 
   return {
     attach: (nextPanel) => host.attach(nextPanel),

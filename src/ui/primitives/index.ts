@@ -1,4 +1,8 @@
-export { FloatingPortal, ZopilotUIProvider } from "./FloatingPortal";
+export {
+  FloatingPortal,
+  useZopilotPortalRoot,
+  ZopilotUIProvider,
+} from "./FloatingPortal";
 export {
   PopupHeader,
   PopupList,

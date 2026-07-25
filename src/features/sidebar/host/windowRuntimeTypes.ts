@@ -1,6 +1,7 @@
 import type { FluentMessageId } from "../../../../typings/i10n";
 import type {
   SidebarActions,
+  SidebarPresentation,
   SidebarState,
   SidebarStreamingSnapshot,
 } from "../ui/types";
@@ -24,6 +25,11 @@ type SidebarCommand =
 
 type SidebarCommandDispatch = (command: SidebarCommand) => unknown;
 
+type SidebarWindowHostOptions = {
+  portalHost?: Element;
+  presentation?: SidebarPresentation;
+};
+
 type SidebarWindowHost = {
   attach(panel: Element): boolean;
   render(state: SidebarState): void;
@@ -37,6 +43,7 @@ type SidebarWindowRuntime = {
   createHost(
     panel: Element,
     dispatch: SidebarCommandDispatch,
+    options?: SidebarWindowHostOptions,
   ): SidebarWindowHost;
 };
 
@@ -48,5 +55,6 @@ export type {
   SidebarCommand,
   SidebarCommandDispatch,
   SidebarWindowHost,
+  SidebarWindowHostOptions,
   SidebarWindowRuntime,
 };

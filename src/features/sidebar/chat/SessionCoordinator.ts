@@ -58,6 +58,9 @@ type SidebarSessionCoordinatorOptions = {
 const logger = createLogger("sidebar.sessions");
 
 class SidebarSessionCoordinator {
+  private navigationWorkspaceKey?: string;
+  private navigationRefresh?: Promise<void>;
+
   constructor(private readonly options: SidebarSessionCoordinatorOptions) {}
 
   async togglePopover(mode: SidebarSessionMode = "history"): Promise<void> {
@@ -99,10 +102,13 @@ class SidebarSessionCoordinator {
     }
     const activeConversationId =
       this.options.getReadyDisplayState()?.conversation.metadata.id;
+    const sessionViews = conversations.map((conversation) =>
+      createSessionView(conversation, activeConversationId),
+    );
     this.options.updateViewState({
-      sessions: conversations.map((conversation) =>
-        createSessionView(conversation, activeConversationId),
-      ),
+      ...(mode === "archive"
+        ? { archivedSessions: sessionViews }
+        : { sessions: sessionViews }),
       sessionsOpen: true,
       sessionsMode: mode,
     });
@@ -110,10 +116,39 @@ class SidebarSessionCoordinator {
 
   hidePopover(): void {
     const viewState = this.options.getViewState();
-    if (!viewState.sessionsOpen && !viewState.sessions.length) {
+    if (!viewState.sessionsOpen) return;
+    this.options.updateViewState({ sessionsOpen: false });
+  }
+
+  ensureNavigationSessions(): void {
+    const workspaceKey =
+      this.options.getReadyDisplayState()?.workspace.workspaceKey;
+    if (!workspaceKey || workspaceKey === this.navigationWorkspaceKey) {
       return;
     }
-    this.options.updateViewState({ sessionsOpen: false, sessions: [] });
+    if (this.navigationRefresh) {
+      void this.navigationRefresh.then(() => this.ensureNavigationSessions());
+      return;
+    }
+    void this.refreshNavigationSessions();
+  }
+
+  async refreshNavigationSessions(): Promise<void> {
+    if (this.navigationRefresh) {
+      await this.navigationRefresh;
+    }
+    const ready = this.options.getReadyDisplayState();
+    if (!ready) return;
+    const workspaceKey = ready.workspace.workspaceKey;
+    const refresh = this.loadNavigationSessions(workspaceKey);
+    this.navigationRefresh = refresh;
+    try {
+      await refresh;
+    } finally {
+      if (this.navigationRefresh === refresh) {
+        this.navigationRefresh = undefined;
+      }
+    }
   }
 
   async createNewSession(): Promise<void> {
@@ -135,6 +170,7 @@ class SidebarSessionCoordinator {
     this.options.setReadyConversation(conversation);
     this.hidePopover();
     this.options.focusComposer();
+    await this.refreshDetachedNavigation();
   }
 
   async switchSession(conversation: Conversation): Promise<void> {
@@ -160,6 +196,7 @@ class SidebarSessionCoordinator {
     this.options.setReadyConversation(active);
     this.hidePopover();
     this.options.focusComposer();
+    await this.refreshDetachedNavigation();
   }
 
   async archiveSession(conversation: Conversation): Promise<void> {
@@ -202,7 +239,7 @@ class SidebarSessionCoordinator {
       this.options.setReadyConversation(next);
     }
 
-    await this.showPopover();
+    await this.refreshVisibleSessions();
   }
 
   async restoreSession(conversation: Conversation): Promise<void> {
@@ -235,11 +272,55 @@ class SidebarSessionCoordinator {
       });
     }
 
-    await this.showPopover("archive");
+    await this.refreshVisibleSessions();
   }
 
   private get store(): SidebarSessionStore {
     return this.options.store || getConversationStore();
+  }
+
+  private async loadNavigationSessions(workspaceKey: string): Promise<void> {
+    let sessions: Conversation[];
+    let archivedSessions: Conversation[];
+    try {
+      [sessions, archivedSessions] = await Promise.all([
+        this.store.listWorkspaceConversations(workspaceKey),
+        this.store.listArchivedWorkspaceConversations(workspaceKey),
+      ]);
+    } catch (error) {
+      logger.error("failed to list detached window conversations", error, {
+        workspaceKey,
+      });
+      return;
+    }
+    if (!this.isStillCurrentWorkspace(workspaceKey)) return;
+    const activeConversationId =
+      this.options.getReadyDisplayState()?.conversation.metadata.id;
+    this.navigationWorkspaceKey = workspaceKey;
+    this.options.updateViewState({
+      sessions: sessions.map((conversation) =>
+        createSessionView(conversation, activeConversationId),
+      ),
+      archivedSessions: archivedSessions.map((conversation) =>
+        createSessionView(conversation, activeConversationId),
+      ),
+    });
+  }
+
+  private async refreshDetachedNavigation(): Promise<void> {
+    if (!this.options.getViewState().detachedWindowOpen) return;
+    await this.refreshNavigationSessions();
+  }
+
+  private async refreshVisibleSessions(): Promise<void> {
+    const viewState = this.options.getViewState();
+    if (viewState.detachedWindowOpen) {
+      await this.refreshNavigationSessions();
+      return;
+    }
+    if (viewState.sessionsOpen) {
+      await this.showPopover(viewState.sessionsMode);
+    }
   }
 
   private isStillCurrentWorkspace(workspaceKey: string): boolean {

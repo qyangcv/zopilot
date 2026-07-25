@@ -1,7 +1,9 @@
 @import url("vendor/katex/katex.min.css");
 @import url("shared/scrollbars.css");
 @import url("styles/context-pane.css");
+@import url("styles/detached-chat-window.css");
 @import url("styles/sidebar-shell.css");
+@import url("styles/sidebar-detached-placeholder.css");
 @import url("styles/sidebar-sessions.css");
 @import url("styles/sidebar-messages.css");
 @import url("styles/sidebar-composer.css");

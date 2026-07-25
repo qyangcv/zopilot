@@ -1,0 +1,43 @@
+.zp-detached-placeholder {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  inset: 41px 0 0;
+  justify-content: center;
+  padding: 24px;
+  position: absolute;
+  text-align: center;
+}
+
+.zp-detached-placeholder > .zp-icon {
+  color: var(--zp-muted-strong);
+}
+
+.zp-detached-placeholder-title {
+  color: var(--zp-muted-strong);
+  margin: 0;
+  max-width: 240px;
+}
+
+.zp-detached-placeholder-action {
+  appearance: none;
+  -moz-appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--zp-accent);
+  cursor: default;
+  font: inherit;
+  margin: 2px 0 0;
+  padding: 4px 7px;
+}
+
+.zp-detached-placeholder-action:hover {
+  background: color-mix(in srgb, var(--zp-accent) 10%, transparent);
+}
+
+.zp-detached-placeholder-action:focus-visible {
+  outline: 2px solid var(--zp-focus-ring);
+  outline-offset: 1px;
+}

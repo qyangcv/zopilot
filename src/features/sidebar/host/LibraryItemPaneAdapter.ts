@@ -6,7 +6,6 @@ import {
   type LibraryItemPaneProbeSuccess,
   type LibraryItemPaneUnavailableResult,
 } from "./libraryItemPaneProbe";
-import type { PaneWidthTarget } from "./PaneWidthController";
 
 const LIBRARY_PANEL_ID = "zopilot-library-item-pane-deck";
 const LIBRARY_PANE_NAME = "zopilot-library";
@@ -88,21 +87,6 @@ class LibraryItemPaneAdapter {
       this.panel.isConnected
       ? this.panel
       : undefined;
-  }
-
-  getPaneWidthTarget(): PaneWidthTarget | undefined {
-    const probe = probeLibraryItemPane(this.win.document);
-    const capability = probe.available ? probe.widthCapability : undefined;
-    if (!probe.available || !capability) return undefined;
-    return {
-      pane: probe.itemPane,
-      sibling: capability.sibling,
-      splitter: capability.splitter,
-      standard:
-        capability.layoutSwitcher.getAttribute("orient") === "horizontal" &&
-        capability.splitter.getAttribute("orient") === "horizontal" &&
-        !probe.itemPane.classList.contains("stacked"),
-    };
   }
 
   ensurePanel(): Element | undefined {

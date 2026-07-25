@@ -17,9 +17,11 @@ export {
 function createInitialSidebarState(label: string): SidebarState {
   return {
     title: label,
+    detachedWindowOpen: false,
     context: { label },
     messages: [],
     sessions: [],
+    archivedSessions: [],
     sessionsOpen: false,
     sessionsMode: "history",
     composerEnabled: false,
@@ -39,10 +41,6 @@ function createInitialSidebarState(label: string): SidebarState {
     collectionOptions: [],
     prompts: [],
     reloading: false,
-    layout: {
-      canMaximize: false,
-      maximized: false,
-    },
   };
 }
 

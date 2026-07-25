@@ -13,16 +13,17 @@ import {
 } from "./host/windowRuntimeTypes";
 
 const runtime: SidebarWindowRuntime = {
-  createHost(panel, dispatch) {
+  createHost(panel, dispatch, options) {
     const doc = panel.ownerDocument;
     if (!doc) throw new Error("Zopilot deck panel has no owner document");
-    let overlayHost = resolveSidebarPortalHost(panel);
+    const presentation = options?.presentation || "sidebar";
+    let overlayHost = options?.portalHost || resolveSidebarPortalHost(panel);
 
     removeDuplicateRoots(doc);
     const mountNode = doc.createElementNS(HTML_NS, "div") as HTMLElement;
     const portalRoot = doc.createElementNS(HTML_NS, "div") as HTMLElement;
     mountNode.className = "zp-react-root zp-root";
-    mountNode.dataset.zopilotRoot = "sidebar";
+    mountNode.dataset.zopilotRoot = presentation;
     portalRoot.id = PORTAL_ROOT_ID;
     portalRoot.className = "zp-portal-root";
     panel.replaceChildren(mountNode);
@@ -40,7 +41,8 @@ const runtime: SidebarWindowRuntime = {
     return {
       attach(nextPanel) {
         if (destroyed) return false;
-        const nextOverlayHost = resolveSidebarPortalHost(nextPanel);
+        const nextOverlayHost =
+          options?.portalHost || resolveSidebarPortalHost(nextPanel);
         const mountChanged =
           mountNode.parentElement !== nextPanel || !mountNode.isConnected;
         const portalChanged =
@@ -58,6 +60,7 @@ const runtime: SidebarWindowRuntime = {
           <ZopilotUIProvider portalRoot={portalRoot}>
             <SidebarApp
               actions={actions}
+              presentation={presentation}
               state={state}
               streamStore={streamStore}
             />
@@ -75,7 +78,7 @@ const runtime: SidebarWindowRuntime = {
           mountNode.parentElement === nextPanel &&
           mountNode.isConnected &&
           overlayHost.isConnected &&
-          overlayHost.contains(nextPanel) &&
+          (overlayHost === nextPanel || overlayHost.contains(nextPanel)) &&
           portalRoot.parentElement === overlayHost &&
           portalRoot.isConnected
         );
@@ -120,7 +123,9 @@ function createCommandActions(
       >,
     hideSessions: () => void invoke("hideSessions"),
     interruptActiveTurn: () => void invoke("interruptActiveTurn"),
+    openInWindow: () => void invoke("openInWindow"),
     openExternalLink: (url) => void invoke("openExternalLink", [url]),
+    restoreToSidebar: () => void invoke("restoreToSidebar"),
     restoreSession: (conversation) =>
       void invoke("restoreSession", [conversation]),
     selectCollectionWorkspace: (key) =>
@@ -135,7 +140,6 @@ function createCommandActions(
     switchSession: (conversation) =>
       void invoke("switchSession", [conversation]),
     toggleArchivedSessions: () => void invoke("toggleArchivedSessions"),
-    toggleSidebarMaximized: () => void invoke("toggleSidebarMaximized"),
     toggleSessions: () => void invoke("toggleSessions"),
     uploadAttachment: () =>
       invoke("uploadAttachment") as Promise<
@@ -150,7 +154,7 @@ function createCommandActions(
 
 function removeDuplicateRoots(doc: Document): void {
   const roots = Array.prototype.slice.call(
-    doc.querySelectorAll('[data-zopilot-root="sidebar"], #zopilot-portal-root'),
+    doc.querySelectorAll("[data-zopilot-root], #zopilot-portal-root"),
   ) as Element[];
   roots.forEach((root) => root.remove());
 }

@@ -10,7 +10,9 @@ type SidebarActionHandlers = {
   reloadPlugin: SidebarActions["reloadPlugin"];
   hideSessions: () => void;
   interruptActiveTurn: () => void;
+  openInWindow: () => void;
   openExternalLink: (url: string) => void;
+  restoreToSidebar: () => void;
   restoreSession: SidebarActions["restoreSession"];
   selectCollectionWorkspace: (collectionKey: string) => void;
   selectItemWorkspace: (sourceId: string) => void;
@@ -20,7 +22,6 @@ type SidebarActionHandlers = {
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   switchSession: SidebarActions["switchSession"];
   toggleArchivedSessions: () => void;
-  toggleSidebarMaximized: () => void;
   toggleSessions: () => void;
   uploadAttachment: SidebarActions["uploadAttachment"];
 };
@@ -35,7 +36,9 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     reloadPlugin: handlers.reloadPlugin,
     hideSessions: handlers.hideSessions,
     interruptActiveTurn: handlers.interruptActiveTurn,
+    openInWindow: handlers.openInWindow,
     openExternalLink: handlers.openExternalLink,
+    restoreToSidebar: handlers.restoreToSidebar,
     selectModel: handlers.selectModel,
     selectModelEffort: handlers.selectModelEffort,
     selectWorkspaceMode: handlers.selectWorkspaceMode,
@@ -46,7 +49,6 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     switchSession: (conversation) => handlers.switchSession(conversation),
     restoreSession: (conversation) => handlers.restoreSession(conversation),
     toggleArchivedSessions: handlers.toggleArchivedSessions,
-    toggleSidebarMaximized: handlers.toggleSidebarMaximized,
     toggleSessions: handlers.toggleSessions,
   };
 }

@@ -51,6 +51,9 @@ function projectSidebarState(
       sessions: input.viewState.sessions.map((session) =>
         createSessionView(session.conversation, state.conversation.metadata.id),
       ),
+      archivedSessions: input.viewState.archivedSessions.map((session) =>
+        createSessionView(session.conversation, state.conversation.metadata.id),
+      ),
     };
   }
 
@@ -67,6 +70,7 @@ function projectSidebarState(
     busy: false,
     sessionsOpen: false,
     sessions: [],
+    archivedSessions: [],
     sourceCandidates: [],
     itemContextTree: undefined,
     libraryItemCount: 0,

@@ -49,6 +49,7 @@ import {
   requestPluginReload,
 } from "../../../app/pluginLifecycle";
 import { createLogger } from "../../../runtime/logging/logger";
+import { DetachedChatWindow } from "./DetachedChatWindow";
 
 const controllers = new WeakMap<Window, SidebarHostController>();
 const logger = createLogger("sidebar.host");
@@ -105,6 +106,7 @@ class SidebarHostController {
   private readonly doc: Document;
   private readonly win: Window;
   private readonly surface: SidebarSurface;
+  private readonly detachedWindow: DetachedChatWindow;
   private open = false;
   private destroyed = false;
   private selectionToken = 0;
@@ -141,11 +143,12 @@ class SidebarHostController {
       isOpen: () => this.open,
       onActiveSurfaceChange: (kind, active) =>
         this.handleActiveSurfaceChange(kind, active),
-      onLayoutStateChange: (layout) => {
-        if (!this.destroyed) this.updateViewState({ layout });
-      },
       onUnavailable: () => this.setOpen(false),
       onReady: () => this.renderApp(),
+    });
+    this.detachedWindow = new DetachedChatWindow(win, {
+      onClose: () => this.handleDetachedWindowClosed(),
+      onReady: () => this.handleDetachedWindowReady(),
     });
     this.streamScheduler = new StreamRenderScheduler({
       win: this.win,
@@ -153,7 +156,10 @@ class SidebarHostController {
         this.getReadyDisplayState()?.conversation.metadata.id,
       getSnapshot: (conversationId) =>
         this.turnStore.getSnapshot(conversationId),
-      publish: (snapshot) => this.surface.publishStreaming(snapshot),
+      publish: (snapshot) => {
+        this.surface.publishStreaming(snapshot);
+        this.detachedWindow.publishStreaming(snapshot);
+      },
     });
     this.streamScheduler.setVisible(false);
     const label = getSelectedItemTitle(this.win);
@@ -237,9 +243,14 @@ class SidebarHostController {
       markBackendHealthy: (providerProfileId, model) =>
         this.providerCatalog.markBackendHealthy(providerProfileId, model),
       refreshSessions: () => {
-        void this.sessions.showPopover();
+        if (this.viewState.detachedWindowOpen) {
+          void this.sessions.refreshNavigationSessions();
+        } else {
+          void this.sessions.showPopover();
+        }
       },
-      areSessionsOpen: () => this.viewState.sessionsOpen,
+      areSessionsOpen: () =>
+        this.viewState.sessionsOpen || this.viewState.detachedWindowOpen,
     });
     this.sessions = new SidebarSessionCoordinator({
       getReadyDisplayState: () => this.getReadyDisplayState(),
@@ -300,6 +311,7 @@ class SidebarHostController {
     this.pendingTimeouts.clear();
     this.listeners.splice(0).forEach((dispose) => dispose());
     this.streamScheduler.destroy();
+    this.detachedWindow.destroy();
     this.surface.destroy(options);
   }
 
@@ -313,6 +325,24 @@ class SidebarHostController {
 
   private ensureMountedSurfaces(): void {
     this.surface.ensureMounted();
+  }
+
+  private handleDetachedWindowReady(): void {
+    if (this.destroyed) return;
+    this.updateViewState({
+      detachedWindowOpen: true,
+      sessionsOpen: false,
+    });
+    void this.sessions.refreshNavigationSessions();
+  }
+
+  private handleDetachedWindowClosed(): void {
+    if (this.destroyed) return;
+    this.updateViewState({
+      detachedWindowOpen: false,
+      sessionsOpen: false,
+      focusToken: this.viewState.focusToken + 1,
+    });
   }
 
   private openZopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
@@ -496,6 +526,9 @@ class SidebarHostController {
       );
     }
     this.updateViewState(projected);
+    if (this.viewState.detachedWindowOpen) {
+      this.sessions.ensureNavigationSessions();
+    }
   }
 
   private canCommitSelection(token: number): boolean {
@@ -598,39 +631,38 @@ class SidebarHostController {
   }
 
   private renderApp(): void {
-    this.surface.render(
-      this.viewState,
-      createSidebarActions({
-        archiveSession: (conversation) =>
-          void this.sessions.archiveSession(conversation),
-        close: () => this.setOpen(false),
-        createNewSession: () => void this.sessions.createNewSession(),
-        getItemContextTree: (source) => this.getItemContextTree(source),
-        resolveDroppedContext: (input) => this.resolveDroppedContext(input),
-        reloadPlugin: (context) => this.reloadPlugin(context),
-        hideSessions: () => this.sessions.hidePopover(),
-        interruptActiveTurn: () => this.interruptActiveTurn(),
-        openExternalLink: (url) => this.contextActions.openExternalLink(url),
-        selectModel: (model) => this.selectModel(model),
-        selectModelEffort: (model, effort) =>
-          this.selectModelEffort(model, effort),
-        selectWorkspaceMode: (type) => void this.selectWorkspaceMode(type),
-        selectCollectionWorkspace: (collectionKey) =>
-          void this.selectCollectionWorkspace(collectionKey),
-        selectItemWorkspace: (sourceId) =>
-          void this.selectItemWorkspace(sourceId),
-        submitPrompt: (submission) => void this.submitPromptAsync(submission),
-        uploadAttachment: () => this.contextActions.uploadAttachment(),
-        switchSession: (conversation) =>
-          void this.sessions.switchSession(conversation),
-        restoreSession: (conversation) =>
-          void this.sessions.restoreSession(conversation),
-        toggleArchivedSessions: () =>
-          void this.sessions.togglePopover("archive"),
-        toggleSidebarMaximized: () => this.surface.toggleMaximized(),
-        toggleSessions: () => void this.sessions.togglePopover("history"),
-      }),
-    );
+    const actions = createSidebarActions({
+      archiveSession: (conversation) =>
+        void this.sessions.archiveSession(conversation),
+      close: () => this.setOpen(false),
+      createNewSession: () => void this.sessions.createNewSession(),
+      getItemContextTree: (source) => this.getItemContextTree(source),
+      resolveDroppedContext: (input) => this.resolveDroppedContext(input),
+      reloadPlugin: (context) => this.reloadPlugin(context),
+      hideSessions: () => this.sessions.hidePopover(),
+      interruptActiveTurn: () => this.interruptActiveTurn(),
+      openInWindow: () => this.detachedWindow.open(),
+      openExternalLink: (url) => this.contextActions.openExternalLink(url),
+      restoreToSidebar: () => this.detachedWindow.close(),
+      selectModel: (model) => this.selectModel(model),
+      selectModelEffort: (model, effort) =>
+        this.selectModelEffort(model, effort),
+      selectWorkspaceMode: (type) => void this.selectWorkspaceMode(type),
+      selectCollectionWorkspace: (collectionKey) =>
+        void this.selectCollectionWorkspace(collectionKey),
+      selectItemWorkspace: (sourceId) =>
+        void this.selectItemWorkspace(sourceId),
+      submitPrompt: (submission) => void this.submitPromptAsync(submission),
+      uploadAttachment: () => this.contextActions.uploadAttachment(),
+      switchSession: (conversation) =>
+        void this.sessions.switchSession(conversation),
+      restoreSession: (conversation) =>
+        void this.sessions.restoreSession(conversation),
+      toggleArchivedSessions: () => void this.sessions.togglePopover("archive"),
+      toggleSessions: () => void this.sessions.togglePopover("history"),
+    });
+    this.surface.render(this.viewState, actions);
+    this.detachedWindow.render(this.viewState, actions);
   }
 }
 

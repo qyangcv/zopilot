@@ -16,7 +16,7 @@ import {
   type FloatingSide,
 } from "./floatingPosition";
 
-export { FloatingPortal, ZopilotUIProvider };
+export { FloatingPortal, useZopilotPortalRoot, ZopilotUIProvider };
 
 type ZopilotUIContextValue = {
   portalRoot?: HTMLElement | null;
@@ -192,4 +192,8 @@ function FloatingPortal({
 
 function useZopilotUI(): ZopilotUIContextValue {
   return useContext(ZopilotUIContext);
+}
+
+function useZopilotPortalRoot(): HTMLElement | null | undefined {
+  return useZopilotUI().portalRoot;
 }

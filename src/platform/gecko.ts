@@ -7,6 +7,15 @@ type ZoteroFilePicker = {
   show(): Promise<number>;
 };
 
+type GeckoDialogOwnerWindow = Window & {
+  openDialog?: (
+    url?: string,
+    name?: string,
+    features?: string,
+    ...args: unknown[]
+  ) => Window | null;
+};
+
 const geckoIO = createGlobalProxy<typeof IOUtils>("IOUtils");
 const geckoPath = createGlobalProxy<typeof PathUtils>("PathUtils");
 
@@ -79,6 +88,17 @@ function createZoteroFilePicker(): ZoteroFilePicker {
   return new imported.FilePicker();
 }
 
+function openGeckoDialogWindow(
+  ownerWindow: Window,
+  url: string,
+  name: string,
+  features: string,
+): Window | null {
+  const owner = ownerWindow as GeckoDialogOwnerWindow;
+  if (typeof owner.openDialog !== "function") return null;
+  return owner.openDialog(url, name, features);
+}
+
 export {
   copyWithGeckoClipboard,
   createZoteroFilePicker,
@@ -88,5 +108,6 @@ export {
   hasGeckoIO,
   loadAddonManagerModule,
   loadSubprocessModule,
+  openGeckoDialogWindow,
 };
 export type { ZoteroFilePicker };

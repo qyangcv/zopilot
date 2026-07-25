@@ -64,7 +64,7 @@ export type SidebarCollectionOption = {
   itemCount: number;
 };
 
-type SidebarSessionView = {
+export type SidebarSessionView = {
   id: string;
   title: string;
   meta: string;
@@ -73,6 +73,7 @@ type SidebarSessionView = {
 };
 
 export type SidebarSessionMode = "history" | "archive";
+export type SidebarPresentation = "sidebar" | "window";
 
 export type SidebarPromptView = {
   id: string;
@@ -83,17 +84,14 @@ export type SidebarPromptView = {
   custom?: boolean;
 };
 
-export type SidebarLayoutState = {
-  canMaximize: boolean;
-  maximized: boolean;
-};
-
 export type SidebarState = {
   conversationId?: string;
   title: string;
+  detachedWindowOpen: boolean;
   context: SidebarContextView;
   messages: SidebarMessageView[];
   sessions: SidebarSessionView[];
+  archivedSessions: SidebarSessionView[];
   sessionsOpen: boolean;
   sessionsMode: SidebarSessionMode;
   composerEnabled: boolean;
@@ -113,7 +111,6 @@ export type SidebarState = {
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
   reloading: boolean;
-  layout: SidebarLayoutState;
 };
 
 export type SidebarStreamingSnapshot = RunningTurnSnapshot;
@@ -156,6 +153,7 @@ export type SidebarActions = {
   restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;
   toggleArchivedSessions: () => void;
-  toggleSidebarMaximized: () => void;
+  openInWindow: () => void;
+  restoreToSidebar: () => void;
   toggleSessions: () => void;
 };
