@@ -3,7 +3,7 @@
 .zp-bottom-dock {
   position: absolute;
   z-index: 2;
-  inset-block-end: 10px;
+  inset-block-end: 4px;
   inset-inline: max(
     var(--zp-sidebar-gutter, 14px),
     calc((100% - var(--zp-chat-content-max-width, 900px)) / 2)
