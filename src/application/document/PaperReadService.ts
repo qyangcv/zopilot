@@ -11,6 +11,7 @@ import type {
 } from "../../document/types";
 import type { JsonValue } from "../../runtime/json/types";
 import { createLogger } from "../../runtime/logging/logger";
+import { throwIfAborted } from "../../runtime/cancellation";
 import { ZoteroSourceUniverse } from "../../integrations/zotero/ZoteroWorkspaceService";
 import {
   DocumentContextBuilder,
@@ -74,6 +75,7 @@ type PaperReadServiceOptions = {
       bindingError?: string;
       question?: string;
       sources?: PaperSourceRef[];
+      signal?: AbortSignal;
     }): Promise<BuiltContext>;
   };
   sourceUniverse?: PaperSourceUniverse;
@@ -91,7 +93,9 @@ class PaperReadService {
   async read(
     input: PaperReadInput,
     context: PaperReadServiceContext,
+    signal?: AbortSignal,
   ): Promise<PaperReadBusinessResult> {
+    throwIfAborted(signal);
     const startedAt = Date.now();
     const logger =
       this.options.logger ||
@@ -108,6 +112,7 @@ class PaperReadService {
           context.workspaceScope,
           input.sourceIds,
           () => this.getSourceUniverse(),
+          signal,
         )
       : {
           ok: true as const,
@@ -129,11 +134,13 @@ class PaperReadService {
       };
     }
 
+    throwIfAborted(signal);
     const output = await this.getContextBuilder().build({
       scope: sourceSelection.scope,
       bindingError: context.bindingError,
       question: input.question,
       sources: sourceSelection.sources,
+      signal,
     });
     const images = selectEvidenceImages(output, context.acceptsImages);
     const structuredContent = buildStructuredResult(output, images);
@@ -222,6 +229,7 @@ async function resolveSourceSelection(
   scope: WorkspaceQueryScope,
   sourceIds: string[] | undefined,
   getSourceUniverse: () => PaperSourceUniverse,
+  signal?: AbortSignal,
 ): Promise<
   | {
       ok: true;
@@ -231,6 +239,7 @@ async function resolveSourceSelection(
   | { ok: false; error: string }
 > {
   const workspace = scopeToWorkspace(scope);
+  throwIfAborted(signal);
   if (!sourceIds?.length && scope.workspaceType !== "collection") {
     return { ok: true, scope };
   }
@@ -238,6 +247,7 @@ async function resolveSourceSelection(
   const universe = sourceIds?.length
     ? await sourceUniverse.resolveSelectedPdfSources(workspace, sourceIds)
     : await sourceUniverse.resolveSources(workspace, workspace.defaultSource);
+  throwIfAborted(signal);
   if (sourceIds?.length) {
     const sourceById = new Map(
       universe.map((source) => [source.sourceId, source]),

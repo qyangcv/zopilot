@@ -438,6 +438,11 @@ describe("SidebarApp", function () {
         server: "zopilot",
         arguments: `{"question":"part ${index}"}`,
         result: `Evidence ${index}`,
+        risk: "read-only",
+        structuredContent:
+          index === 0
+            ? { status: "ready", evidence: [{ sourceId: "1-PDF", page: 5 }] }
+            : undefined,
         status: "completed",
         durationMs,
         revision: 1,
@@ -497,6 +502,10 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "mcp:zopilot");
     assert.include(html, "sidebar-trace-tool-arguments");
     assert.include(html, "sidebar-trace-tool-result");
+    assert.include(html, "sidebar-trace-tool-risk");
+    assert.include(html, "sidebar-trace-tool-risk-read-only");
+    assert.include(html, "sidebar-trace-tool-structured-result");
+    assert.include(html, "&quot;page&quot;: 5");
     assert.include(html, 'data-status="running"');
     assert.include(html, 'data-status="failed"');
   });

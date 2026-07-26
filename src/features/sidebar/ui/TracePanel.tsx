@@ -181,10 +181,22 @@ function ToolPayloadValues({ item }: { item: ToolTraceItem }): ReactElement {
           value={item.arguments}
         />
       ) : null}
+      {item.risk ? (
+        <TracePayloadValue
+          label={getString("sidebar-trace-tool-risk")}
+          value={formatToolRisk(item.risk)}
+        />
+      ) : null}
       {item.result ? (
         <TracePayloadValue
           label={getString("sidebar-trace-tool-result")}
           value={item.result}
+        />
+      ) : null}
+      {item.structuredContent !== undefined ? (
+        <TracePayloadValue
+          label={getString("sidebar-trace-tool-structured-result")}
+          value={JSON.stringify(item.structuredContent, null, 2)}
         />
       ) : null}
       {item.error ? (
@@ -213,6 +225,19 @@ function TracePayloadValue({
       <pre>{value}</pre>
     </section>
   );
+}
+
+function formatToolRisk(risk: ToolTraceItem["risk"]): string {
+  switch (risk) {
+    case "read-only":
+      return getString("sidebar-trace-tool-risk-read-only");
+    case "network":
+      return getString("sidebar-trace-tool-risk-network");
+    case "write":
+      return getString("sidebar-trace-tool-risk-write");
+    default:
+      return getString("sidebar-trace-tool-risk-unknown");
+  }
 }
 
 function formatDuration(durationMs: number): string {

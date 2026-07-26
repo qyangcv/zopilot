@@ -57,6 +57,33 @@ describe("subprocess utilities", function () {
     });
     assert.equal(killedWith, 500);
   });
+
+  it("kills the child process and rejects when the caller cancels", async function () {
+    const controller = new AbortController();
+    let killCount = 0;
+    const pending = waitForSubprocessResult(
+      {
+        wait: async () => new Promise<{ exitCode: number }>(() => undefined),
+        stdout: createHangingStream(),
+        stderr: createHangingStream(),
+        kill: async () => {
+          killCount += 1;
+        },
+      },
+      { signal: controller.signal },
+    );
+
+    controller.abort();
+
+    let rejection: unknown;
+    try {
+      await pending;
+    } catch (error) {
+      rejection = error;
+    }
+    assert.equal((rejection as Error)?.name, "AbortError");
+    assert.equal(killCount, 1);
+  });
 });
 
 function createStream(chunks: string[]) {

@@ -61,6 +61,10 @@ describe("ByokRuntimeBridge", function () {
       runId,
       name: "paper_read",
       result: "Evidence",
+      structuredContent: {
+        status: "ready",
+        evidence: [{ sourceId: "1-PDF", page: 5 }],
+      },
     });
     harness.respond(request.id, {
       backendId: profile.id,
@@ -99,6 +103,13 @@ describe("ByokRuntimeBridge", function () {
         event.type === "tool.started" || event.type === "tool.completed",
     );
     assert.equal(toolEvents[0]?.blockId, toolEvents[1]?.blockId);
+    assert.deepInclude(toolEvents[1] as Record<string, unknown>, {
+      risk: "read-only",
+      structuredContent: {
+        status: "ready",
+        evidence: [{ sourceId: "1-PDF", page: 5 }],
+      },
+    });
   });
 
   it("does not apply the provider startup deadline to the whole turn", async function () {

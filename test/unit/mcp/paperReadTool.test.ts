@@ -134,6 +134,27 @@ describe("PaperReadService", function () {
     assert.equal(result.structuredContent.status, "invalid_source");
     assert.include(result.text, "outside the current workspace");
   });
+
+  it("passes cancellation to the document builder", async function () {
+    const controller = new AbortController();
+    let receivedSignal: AbortSignal | undefined;
+    const service = new PaperReadService({
+      contextBuilder: {
+        async build(input) {
+          receivedSignal = input.signal;
+          return createContext("ready");
+        },
+      },
+    });
+
+    await service.read(
+      {},
+      { workspaceScope: createScope(), acceptsImages: false },
+      controller.signal,
+    );
+
+    assert.strictEqual(receivedSignal, controller.signal);
+  });
 });
 
 async function assertErrorStatus(

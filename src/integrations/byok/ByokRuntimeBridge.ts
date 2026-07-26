@@ -33,7 +33,10 @@ import type {
 } from "../../runtime/process/types";
 import { buildZopilotMcpConnection } from "../mcp/connection";
 import { LocalAttachmentPreparer } from "../../application/agent/LocalAttachmentPreparer";
-import { sanitizeToolTraceText } from "../../application/agent/toolTraceSanitizer";
+import {
+  sanitizeToolTraceJson,
+  sanitizeToolTraceText,
+} from "../../application/agent/toolTraceSanitizer";
 import { ensureRuntimeFile } from "./runtime/runtimeBundle";
 import {
   createRunId,
@@ -43,6 +46,7 @@ import {
   sanitizeProfileForRuntime,
   toError,
 } from "./messageParsing";
+import { getNestedValue } from "../../runtime/json/accessors";
 import { loadSubprocessModule } from "../../platform/gecko";
 
 export { ByokRuntimeBridge, getByokRuntimeBridge, shutdownByokRuntimeBridge };
@@ -423,6 +427,7 @@ class ByokRuntimeBridge {
             type: "tool.started",
             blockId,
             kind: "mcp",
+            risk: "read-only",
             name,
             server: getNestedString(message.params, ["server"]),
             arguments: argumentsText
@@ -495,6 +500,7 @@ class ByokRuntimeBridge {
             type: "tool.completed",
             blockId,
             kind: "mcp",
+            risk: "read-only",
             name,
             server: getNestedString(message.params, ["server"]),
             arguments: sanitizeOptionalTraceText(
@@ -502,6 +508,9 @@ class ByokRuntimeBridge {
             ),
             result: sanitizeOptionalTraceText(
               getNestedString(message.params, ["result"]),
+            ),
+            structuredContent: sanitizeToolTraceJson(
+              getNestedValue(message.params, ["structuredContent"]),
             ),
             error: sanitizeOptionalTraceText(
               getNestedString(message.params, ["error"]),

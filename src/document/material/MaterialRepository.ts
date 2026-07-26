@@ -11,6 +11,7 @@ import type {
 import { ensurePdfHelperExecutable } from "../pdf-helper/index";
 import { createLogger } from "../../runtime/logging/logger";
 import { encodePathSegment } from "../../runtime/persistence/pathCodec";
+import { throwIfAborted } from "../../runtime/cancellation";
 import { geckoIO, geckoPath, loadSubprocessModule } from "../../platform/gecko";
 
 export { MaterialRepository, MATERIAL_SCHEMA_VERSION, MATERIAL_PARSER_VERSION };
@@ -39,21 +40,32 @@ type SubprocessProcess = {
     readString(length?: number | null): Promise<string>;
   };
   wait(): Promise<{ exitCode: number }>;
+  kill?(timeout?: number): Promise<unknown>;
 };
 
 class MaterialRepository {
   constructor(private readonly rootDir = getDefaultMaterialRootDir()) {}
 
-  async getOrBuild(source: SourceIdentity): Promise<Material> {
+  async getOrBuild(
+    source: SourceIdentity,
+    signal?: AbortSignal,
+  ): Promise<Material> {
+    throwIfAborted(signal);
     const dir = this.getSourceDir(source.sourceId);
     const manifest = await this.readManifestIfFresh(dir, source);
+    throwIfAborted(signal);
     if (manifest) {
       return this.readMaterial(dir, manifest);
     }
-    return this.build(source, dir);
+    return this.build(source, dir, signal);
   }
 
-  private async build(source: SourceIdentity, dir: string): Promise<Material> {
+  private async build(
+    source: SourceIdentity,
+    dir: string,
+    signal?: AbortSignal,
+  ): Promise<Material> {
+    throwIfAborted(signal);
     await geckoIO.remove(dir, { recursive: true, ignoreAbsent: true });
     await geckoIO.makeDirectory(geckoPath.join(dir, "assets"), {
       createAncestors: true,
@@ -63,10 +75,14 @@ class MaterialRepository {
     let parserWarnings: string[] = [];
     let pageCount = 0;
     try {
-      const result = await this.runParser(source.filePath, dir);
+      const result = await this.runParser(source.filePath, dir, signal);
       parserWarnings = result.warnings;
       pageCount = result.pageCount;
     } catch (error) {
+      if (signal?.aborted) {
+        await geckoIO.remove(dir, { recursive: true, ignoreAbsent: true });
+        throw error;
+      }
       const manifest: MaterialManifest = {
         schemaVersion: MATERIAL_SCHEMA_VERSION,
         parser: "Zopilot PDF Helper/PyMuPDF",
@@ -81,6 +97,7 @@ class MaterialRepository {
       throw error;
     }
 
+    throwIfAborted(signal);
     const markdown = await geckoIO.readUTF8(geckoPath.join(dir, "paper.md"));
     const text = await geckoIO.readUTF8(geckoPath.join(dir, "paper.txt"));
     const pages = await this.readPages(dir);
@@ -117,6 +134,7 @@ class MaterialRepository {
   private async runParser(
     filePath: string,
     dir: string,
+    signal?: AbortSignal,
   ): Promise<{ pageCount: number; warnings: string[] }> {
     const subprocess = this.getSubprocess();
     const executable = await ensurePdfHelperExecutable();
@@ -130,7 +148,9 @@ class MaterialRepository {
       stdout: "pipe",
       stderr: "pipe",
     });
-    const { exitCode, stdout, stderr } = await waitForSubprocessResult(proc);
+    const { exitCode, stdout, stderr } = await waitForSubprocessResult(proc, {
+      signal,
+    });
     if (exitCode !== 0) {
       throw new Error(
         `PDF material helper failed (${exitCode}): ${stderr || stdout}`,

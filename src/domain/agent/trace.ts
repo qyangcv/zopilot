@@ -1,3 +1,5 @@
+import type { JsonValue } from "../../runtime/json/types";
+
 export type AgentContentPhase = "commentary" | "final_answer" | "candidate";
 
 export type AgentReasoningKind = "content" | "summary";
@@ -18,6 +20,8 @@ export type AgentToolStatus =
   | "failed"
   | "interrupted";
 
+export type AgentToolRisk = "read-only" | "network" | "write" | "unknown";
+
 export type AgentTraceItem =
   | {
       id: string;
@@ -34,11 +38,13 @@ export type AgentTraceItem =
       id: string;
       type: "tool";
       kind?: AgentToolKind;
+      risk?: AgentToolRisk;
       name: string;
       server?: string;
       arguments?: string;
       progress?: string;
       result?: string;
+      structuredContent?: JsonValue;
       error?: string;
       status: AgentToolStatus;
       startedAt?: number;
@@ -76,15 +82,40 @@ export function isAgentTraceItem(value: unknown): value is AgentTraceItem {
         item.status === "interrupted") &&
       optionalString(item.server) &&
       optionalToolKind(item.kind) &&
+      optionalToolRisk(item.risk) &&
       optionalString(item.arguments) &&
       optionalString(item.progress) &&
       optionalString(item.result) &&
+      optionalJsonValue(item.structuredContent) &&
       optionalString(item.error) &&
       optionalNonNegativeNumber(item.startedAt) &&
       optionalNonNegativeNumber(item.durationMs)
     );
   }
   return false;
+}
+
+function optionalToolRisk(value: unknown): boolean {
+  return (
+    value === undefined ||
+    ["read-only", "network", "write", "unknown"].includes(String(value))
+  );
+}
+
+function optionalJsonValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return true;
+  }
+  if (Array.isArray(value)) return value.every(optionalJsonValue);
+  return (
+    typeof value === "object" &&
+    Object.values(value as Record<string, unknown>).every(optionalJsonValue)
+  );
 }
 
 function optionalToolKind(value: unknown): boolean {

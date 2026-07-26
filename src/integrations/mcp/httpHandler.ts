@@ -6,7 +6,7 @@ import type { PaperReadService } from "../../application/document/PaperReadServi
 import {
   registerPaperReadTool,
   type RegisterPaperReadToolOptions,
-} from "./tools/paperRead";
+} from "./paperReadAdapter";
 import {
   errorResponse,
   fromWebResponse,

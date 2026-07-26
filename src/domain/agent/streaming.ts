@@ -4,6 +4,7 @@ import type {
   AgentContentPhase,
   AgentReasoningKind,
   AgentToolKind,
+  AgentToolRisk,
   AgentToolStatus,
   AgentTraceItem,
 } from "./trace";
@@ -73,6 +74,7 @@ export type AgentStreamEvent =
       blockId: string;
       name: string;
       kind?: AgentToolKind;
+      risk?: AgentToolRisk;
       server?: string;
       arguments?: string;
     })
@@ -89,9 +91,11 @@ export type AgentStreamEvent =
       blockId: string;
       name?: string;
       kind?: AgentToolKind;
+      risk?: AgentToolRisk;
       server?: string;
       arguments?: string;
       result?: string;
+      structuredContent?: import("../../runtime/json/types").JsonValue;
       error?: string;
       status?: AgentToolStatus;
       durationMs?: number;
@@ -142,11 +146,13 @@ export type RunningTurnToolBlock = {
   id: string;
   type: "tool";
   kind?: AgentToolKind;
+  risk?: AgentToolRisk;
   name: string;
   server?: string;
   arguments?: string;
   progress?: string;
   result?: string;
+  structuredContent?: import("../../runtime/json/types").JsonValue;
   error?: string;
   status: AgentToolStatus;
   startedAt?: number;

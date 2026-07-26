@@ -9,6 +9,7 @@ import type {
   SourceIdentity,
   WorkspaceQueryScope,
 } from "../../document/types";
+import { throwIfAborted } from "../../runtime/cancellation";
 
 export { DocumentContextBuilder, formatContextForTool };
 
@@ -19,7 +20,7 @@ type DocumentContextBuilderOptions = {
     ): Promise<SourceIdentity | null>;
   };
   materialCache?: {
-    getOrBuild(source: SourceIdentity): Promise<Material>;
+    getOrBuild(source: SourceIdentity, signal?: AbortSignal): Promise<Material>;
   };
 };
 
@@ -46,7 +47,9 @@ class DocumentContextBuilder {
     bindingError?: string;
     question?: string;
     sources?: PaperSourceRef[];
+    signal?: AbortSignal;
   }): Promise<BuiltContext> {
+    throwIfAborted(input.signal);
     const plan = parseRetrievalQuery(input.question);
     if (!input.scope) {
       return {
@@ -70,8 +73,9 @@ class DocumentContextBuilder {
     };
     const requestedSources = input.sources || [];
     const sourceResults = requestedSources.length
-      ? await this.resolveSelectedSources(requestedSources)
+      ? await this.resolveSelectedSources(requestedSources, input.signal)
       : [await this.sourceResolver.resolveDefaultSource(input.scope)];
+    throwIfAborted(input.signal);
     const sources = sourceResults.filter((source): source is SourceIdentity =>
       Boolean(source),
     );
@@ -90,8 +94,11 @@ class DocumentContextBuilder {
     const warnings: string[] = [];
     for (const source of sources) {
       try {
-        materials.push(await this.materialCache.getOrBuild(source));
+        materials.push(
+          await this.materialCache.getOrBuild(source, input.signal),
+        );
       } catch (error) {
+        throwIfAborted(input.signal);
         warnings.push(`${source.title}: ${String(error)}`);
       }
     }
@@ -122,13 +129,16 @@ class DocumentContextBuilder {
 
   private async resolveSelectedSources(
     sources: PaperSourceRef[],
+    signal?: AbortSignal,
   ): Promise<Array<SourceIdentity | null>> {
     if (!this.sourceResolver.resolveSourceRef) {
       return [];
     }
-    return Promise.all(
+    const resolved = await Promise.all(
       sources.map((source) => this.sourceResolver.resolveSourceRef!(source)),
     );
+    throwIfAborted(signal);
+    return resolved;
   }
 }
 

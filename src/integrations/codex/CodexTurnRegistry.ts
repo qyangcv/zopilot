@@ -1,10 +1,12 @@
 import {
   formatToolTraceValue,
+  sanitizeToolTraceJson,
   sanitizeToolTraceText,
 } from "../../application/agent/toolTraceSanitizer";
 import type {
   AgentContentPhase,
   AgentToolKind,
+  AgentToolRisk,
   AgentToolStatus,
 } from "../../domain/agent/trace";
 import type {
@@ -411,6 +413,7 @@ class CodexTurnRegistry {
       type: "tool.completed",
       ...tool,
       result: parseToolResult(itemType, item),
+      structuredContent: parseToolStructuredContent(itemType, item),
       error: parseToolError(item),
       status: parseToolStatus(item),
       durationMs: numberProperty(item, "durationMs"),
@@ -590,6 +593,7 @@ function parseToolItem(
 ): {
   blockId: string;
   kind: AgentToolKind;
+  risk: AgentToolRisk;
   name: string;
   server?: string;
   arguments?: string;
@@ -605,6 +609,7 @@ function parseToolItem(
   return {
     blockId: itemId,
     kind: toolKindFromItemType(itemType),
+    risk: toolRiskFromItemType(itemType),
     name,
     server: stringProperty(item, "server"),
     arguments: formatJson(argumentValue),
@@ -632,8 +637,9 @@ function parseToolResult(
   itemType: string,
   item: JsonRecord,
 ): string | undefined {
+  const resultRecord = asRecord(item.result);
   const value =
-    item.result ??
+    (itemType === "mcpToolCall" ? resultRecord?.content : item.result) ??
     item.results ??
     item.aggregatedOutput ??
     item.output ??
@@ -641,6 +647,14 @@ function parseToolResult(
     item.agentsStates ??
     (itemType === "fileChange" ? item.changes : undefined);
   return formatJson(value);
+}
+
+function parseToolStructuredContent(
+  itemType: string,
+  item: JsonRecord,
+): JsonValue | undefined {
+  if (itemType !== "mcpToolCall") return undefined;
+  return sanitizeToolTraceJson(asRecord(item.result)?.structuredContent);
 }
 
 function parseToolError(item: JsonRecord): string | undefined {
@@ -689,6 +703,21 @@ function toolKindFromItemType(itemType: string): AgentToolKind {
       return "image-view";
     default:
       return "generic";
+  }
+}
+
+function toolRiskFromItemType(itemType: string): AgentToolRisk {
+  switch (itemType) {
+    case "mcpToolCall":
+    case "commandExecution":
+    case "imageView":
+      return "read-only";
+    case "webSearch":
+      return "network";
+    case "fileChange":
+      return "write";
+    default:
+      return "unknown";
   }
 }
 

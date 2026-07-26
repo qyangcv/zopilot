@@ -152,7 +152,7 @@ describe("CodexBridge", function () {
   it("streams reasoning, commentary, MCP tools, and final answer separately", async function () {
     const bridge = createBridgeHarness();
     bridge.cacheThread("conv-trace");
-    const events: Array<{ type: string }> = [];
+    const events: Array<Record<string, unknown>> = [];
     const promise = bridge.instance.sendPrompt("Question", {
       backendId: "codex-cli.default",
       conversation: createConversation("conv-trace"),
@@ -205,7 +205,13 @@ describe("CodexBridge", function () {
         tool: "paper_read",
         status: "completed",
         arguments: { question: "method" },
-        result: { content: [{ type: "text", text: "Evidence" }] },
+        result: {
+          content: [{ type: "text", text: "Evidence" }],
+          structuredContent: {
+            status: "ready",
+            evidence: [{ sourceId: "1-PDF", page: 5 }],
+          },
+        },
       },
     });
     bridge.notify("item/started", {
@@ -247,6 +253,14 @@ describe("CodexBridge", function () {
         event.type === "tool.started" || event.type === "tool.completed",
     ) as Array<{ blockId: string }>;
     assert.equal(toolEvents[0]?.blockId, toolEvents[1]?.blockId);
+    assert.deepInclude(toolEvents[1] as Record<string, unknown>, {
+      risk: "read-only",
+      result: '[\n  {\n    "type": "text",\n    "text": "Evidence"\n  }\n]',
+      structuredContent: {
+        status: "ready",
+        evidence: [{ sourceId: "1-PDF", page: 5 }],
+      },
+    });
   });
 
   it("keeps Codex tool parameters out of stable tool names", async function () {

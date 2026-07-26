@@ -1,3 +1,5 @@
+import type { JsonValue } from "../../runtime/json/types";
+
 const MAX_TOOL_TRACE_CHARS = 8000;
 const SENSITIVE_KEY =
   /^(authorization|api[-_]?key|password|secret|token|access[-_]?token|refresh[-_]?token)$/i;
@@ -63,9 +65,40 @@ function formatToolTraceValue(value: unknown): string | undefined {
   return sanitizeToolTraceText(text);
 }
 
+function sanitizeToolTraceJson(value: unknown): JsonValue | undefined {
+  return toJsonValue(sanitizeToolTraceValue(value));
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => toJsonValue(entry) ?? null);
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value)
+      .map(([key, entry]) => [key, toJsonValue(entry)] as const)
+      .filter(
+        (entry): entry is readonly [string, JsonValue] =>
+          entry[1] !== undefined,
+      );
+    return Object.fromEntries(entries);
+  }
+  return undefined;
+}
+
 export {
   MAX_TOOL_TRACE_CHARS,
   formatToolTraceValue,
+  sanitizeToolTraceJson,
   sanitizeToolTraceText,
   sanitizeToolTraceValue,
 };

@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { MCPServerStreamableHttp } from "@openai/agents";
 import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
 import type { BuiltContext } from "../../../src/document/types.ts";
 import { PaperReadService } from "../../../src/application/document/PaperReadService.ts";
@@ -51,6 +52,65 @@ describe("MCP HTTP handler", function () {
         [...Buffer.from(result.content[1].data, "base64").subarray(0, 8)],
         [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
       );
+    }
+  });
+
+  it("returns the same contract to the standard and Agents SDK clients", async function () {
+    const handler = createHandler();
+    const headers = {
+      Authorization: `Bearer ${TOKEN}`,
+      ...createPaperBindingHeaders(createConversation(), {
+        acceptsImages: true,
+      }),
+    };
+    const standardTransport = new StreamableHTTPClientTransport(
+      new URL(MCP_URL),
+      {
+        requestInit: { headers },
+        fetch: createHandlerFetch(handler),
+      },
+    );
+    const standard = new Client({
+      name: "codex-contract-test",
+      version: "1.0.0",
+    });
+    const agents = new MCPServerStreamableHttp({
+      name: "zopilot",
+      url: MCP_URL,
+      requestInit: { headers },
+      fetch: createHandlerFetch(handler),
+    });
+
+    try {
+      await standard.connect(standardTransport);
+      await agents.connect();
+      const [standardTools, agentsTools] = await Promise.all([
+        standard.listTools(),
+        agents.listTools(),
+      ]);
+      const [standardResult, agentsResult] = await Promise.all([
+        standard.callTool({
+          name: "paper_read",
+          arguments: { question: "Explain Figure 2" },
+        }),
+        agents.callToolResult("paper_read", {
+          question: "Explain Figure 2",
+        }),
+      ]);
+
+      assert.deepEqual(
+        standardTools.tools.map((tool) => tool.name),
+        agentsTools.map((tool) => tool.name),
+      );
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(standardResult)),
+        JSON.parse(JSON.stringify(agentsResult)),
+      );
+    } finally {
+      await Promise.all([
+        standard.close().catch(() => undefined),
+        agents.close().catch(() => undefined),
+      ]);
     }
   });
 

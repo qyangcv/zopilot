@@ -12,6 +12,7 @@ import { buildCodexDeveloperInstructions } from "../../../application/agent/prom
 import { buildStatelessAgentPrompt } from "../../../application/agent/prompt/contextAssembler";
 import {
   formatToolTraceValue,
+  sanitizeToolTraceJson,
   sanitizeToolTraceValue,
 } from "../../../application/agent/toolTraceSanitizer";
 import type {
@@ -454,9 +455,17 @@ class ByokAgentRunner {
         runId,
         toolCallId: callId,
         kind: "mcp",
+        risk: "read-only",
         name: toolName,
         ...(server ? { server } : {}),
         ...(result ? { result } : {}),
+        ...(customData?.structuredContent === undefined
+          ? {}
+          : {
+              structuredContent: sanitizeToolTraceJson(
+                customData.structuredContent,
+              ),
+            }),
         ...(error ? { error } : {}),
       });
       startedToolCalls.delete(callId);
@@ -477,6 +486,7 @@ class ByokAgentRunner {
       runId,
       toolCallId: callId,
       kind: "mcp",
+      risk: "read-only",
       name,
       ...(server ? { server } : {}),
       ...(argumentsText ? { arguments: argumentsText } : {}),
