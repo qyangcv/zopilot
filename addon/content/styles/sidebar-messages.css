@@ -262,7 +262,17 @@
   background: color-mix(in srgb, CanvasText 5%, transparent);
 }
 
+.zp-trace-tool-kind {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .zp-trace-tool-name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   border: 0;
@@ -281,8 +291,7 @@
   color: var(--zp-muted-strong);
 }
 
-.zp-trace-tool[data-status="failed"] .zp-trace-tool-header > .zp-icon,
-.zp-trace-tool[data-status="failed"] .zp-trace-tool-meta {
+.zp-trace-tool[data-status="failed"] .zp-trace-tool-header > .zp-icon {
   color: #c33;
 }
 
@@ -291,11 +300,6 @@
   color: var(--zp-muted);
   font-size: 10px;
   font-weight: 400;
-}
-
-.zp-trace-tool-status-icon {
-  flex: 0 0 auto;
-  color: var(--zp-muted-strong);
 }
 
 .zp-trace-tool-body {

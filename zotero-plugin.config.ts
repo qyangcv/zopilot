@@ -55,7 +55,7 @@ export default defineConfig({
         bundle: true,
         platform: "node",
         format: "cjs",
-        target: "node20",
+        target: "node22",
         outfile: ".scaffold/build/addon/content/scripts/byok-runtime.cjs",
       },
     ],

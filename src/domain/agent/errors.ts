@@ -8,6 +8,8 @@ const DEFAULT_MESSAGES: Record<AgentDiagnosticCode, string> = {
   provider_profile_incomplete: "Provider profile is incomplete.",
   byok_runtime_unavailable:
     "BYOK runtime is unavailable. Install Node.js or restart Zotero.",
+  node_version_unsupported:
+    "BYOK requires Node.js 22 or newer. Upgrade Node.js and restart Zotero.",
   invalid_api_key: "API key is missing or invalid.",
   provider_unauthorized: "Provider rejected the API key.",
   model_not_found: "The selected model was not found by the provider.",
@@ -46,6 +48,12 @@ function normalizeBackendError(error: unknown): AgentDiagnostic {
   }
   if (lower.includes("timeout") || lower.includes("timed out")) {
     return createDiagnostic("provider_timeout", message);
+  }
+  if (
+    lower.includes("requires node.js 22") ||
+    lower.includes("node.js 22 or newer")
+  ) {
+    return createDiagnostic("node_version_unsupported", message);
   }
   if (
     lower.includes("byok runtime") ||

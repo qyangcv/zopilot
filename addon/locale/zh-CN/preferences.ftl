@@ -64,6 +64,7 @@ pref-provider-diagnostic-missing-codex-cli = 未安装 Codex CLI，或无法找�
 pref-provider-diagnostic-codex-not-signed-in = Codex CLI 尚未登录。
 pref-provider-diagnostic-profile-incomplete = 模型服务配置不完整。
 pref-provider-diagnostic-byok-runtime-unavailable = BYOK 运行环境不可用。请安装 Node.js 或重启 Zotero。
+pref-provider-diagnostic-node-version-unsupported = BYOK 需要 Node.js 22 或更高版本。请升级 Node.js 并重启 Zotero。
 pref-provider-diagnostic-invalid-api-key = API 密钥缺失或无效。
 pref-provider-diagnostic-unauthorized = 模型服务拒绝了该 API 密钥。
 pref-provider-diagnostic-model-not-found = 模型服务中未找到所选模型。

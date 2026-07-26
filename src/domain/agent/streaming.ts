@@ -3,6 +3,7 @@ import type { ProviderBrand } from "./providerBrand";
 import type {
   AgentContentPhase,
   AgentReasoningKind,
+  AgentToolKind,
   AgentToolStatus,
   AgentTraceItem,
 } from "./trace";
@@ -71,6 +72,7 @@ export type AgentStreamEvent =
       type: "tool.started";
       blockId: string;
       name: string;
+      kind?: AgentToolKind;
       server?: string;
       arguments?: string;
     })
@@ -86,10 +88,13 @@ export type AgentStreamEvent =
       type: "tool.completed";
       blockId: string;
       name?: string;
+      kind?: AgentToolKind;
       server?: string;
       arguments?: string;
       result?: string;
       error?: string;
+      status?: AgentToolStatus;
+      durationMs?: number;
     })
   | (AgentStreamEventBase & {
       type: "notice.upsert";
@@ -136,6 +141,7 @@ export type RunningTurnCommentaryBlock = {
 export type RunningTurnToolBlock = {
   id: string;
   type: "tool";
+  kind?: AgentToolKind;
   name: string;
   server?: string;
   arguments?: string;

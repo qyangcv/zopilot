@@ -6,6 +6,7 @@ export {
   PAPER_BINDING_MISSING_MESSAGE,
   createPaperBindingHeaders,
   conversationToWorkspaceQueryScope,
+  parseMcpClientCapabilities,
   parsePaperBindingHeaders,
 };
 export type { BoundWorkspaceScope };
@@ -28,6 +29,7 @@ const PAPER_BINDING_HEADERS = {
   attachmentItemID: "X-Zopilot-Attachment-Item-ID",
   attachmentKey: "X-Zopilot-Attachment-Key",
   libraryID: "X-Zopilot-Library-ID",
+  acceptsImages: "X-Zopilot-Accepts-Images",
 } as const;
 
 type BoundWorkspaceScope = {
@@ -73,6 +75,7 @@ function conversationToWorkspaceQueryScope(
 
 function createPaperBindingHeaders(
   conversation: ConversationMetadata,
+  options: { acceptsImages?: boolean } = {},
 ): Record<string, string> {
   const headers: Record<string, string> = {
     [PAPER_BINDING_HEADERS.conversationId]: conversation.id,
@@ -80,6 +83,9 @@ function createPaperBindingHeaders(
     [PAPER_BINDING_HEADERS.workspaceType]: conversation.workspaceType,
     [PAPER_BINDING_HEADERS.workspaceLabel]: conversation.workspaceLabel,
     [PAPER_BINDING_HEADERS.libraryID]: String(conversation.libraryID),
+    [PAPER_BINDING_HEADERS.acceptsImages]: options.acceptsImages
+      ? "true"
+      : "false",
   };
   if (conversation.collectionKey) {
     headers[PAPER_BINDING_HEADERS.collectionKey] = conversation.collectionKey;
@@ -106,6 +112,15 @@ function createPaperBindingHeaders(
     headers[PAPER_BINDING_HEADERS.attachmentKey] = source.attachmentKey;
   }
   return headers;
+}
+
+function parseMcpClientCapabilities(headers: Record<string, string>): {
+  acceptsImages: boolean;
+} {
+  return {
+    acceptsImages:
+      readHeader(headers, PAPER_BINDING_HEADERS.acceptsImages) === "true",
+  };
 }
 
 function parsePaperBindingHeaders(

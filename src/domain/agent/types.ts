@@ -50,6 +50,7 @@ export type AgentDiagnosticCode =
   | "codex_not_signed_in"
   | "provider_profile_incomplete"
   | "byok_runtime_unavailable"
+  | "node_version_unsupported"
   | "invalid_api_key"
   | "provider_unauthorized"
   | "model_not_found"
@@ -131,6 +132,21 @@ export type AgentPromptInput = {
   mentions?: SourceMention[];
   resolvedNoteContexts?: ResolvedNoteContext[];
   localAttachments?: LocalAttachmentRef[];
+  preparedLocalAttachments?: PreparedLocalAttachments;
+};
+
+export type PreparedAttachmentImage = {
+  filename: string;
+  path: string;
+  mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+  page?: number;
+};
+
+export type PreparedLocalAttachments = {
+  text?: string;
+  images: PreparedAttachmentImage[];
+  warnings: string[];
+  validAttachmentCount: number;
 };
 
 export type AgentPromptCallbacks = {

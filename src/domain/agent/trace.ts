@@ -2,6 +2,16 @@ export type AgentContentPhase = "commentary" | "final_answer" | "candidate";
 
 export type AgentReasoningKind = "content" | "summary";
 
+export type AgentToolKind =
+  | "mcp"
+  | "command"
+  | "file-change"
+  | "web-search"
+  | "image-view"
+  | "dynamic"
+  | "collaboration"
+  | "generic";
+
 export type AgentToolStatus =
   | "running"
   | "completed"
@@ -23,6 +33,7 @@ export type AgentTraceItem =
   | {
       id: string;
       type: "tool";
+      kind?: AgentToolKind;
       name: string;
       server?: string;
       arguments?: string;
@@ -64,6 +75,7 @@ export function isAgentTraceItem(value: unknown): value is AgentTraceItem {
         item.status === "failed" ||
         item.status === "interrupted") &&
       optionalString(item.server) &&
+      optionalToolKind(item.kind) &&
       optionalString(item.arguments) &&
       optionalString(item.progress) &&
       optionalString(item.result) &&
@@ -73,6 +85,22 @@ export function isAgentTraceItem(value: unknown): value is AgentTraceItem {
     );
   }
   return false;
+}
+
+function optionalToolKind(value: unknown): boolean {
+  return (
+    value === undefined ||
+    [
+      "mcp",
+      "command",
+      "file-change",
+      "web-search",
+      "image-view",
+      "dynamic",
+      "collaboration",
+      "generic",
+    ].includes(String(value))
+  );
 }
 
 function optionalString(value: unknown): boolean {

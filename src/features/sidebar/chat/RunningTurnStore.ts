@@ -461,6 +461,7 @@ class RunningTurnStore {
     const next: RunningTurnToolBlock = {
       id: event.blockId,
       type: "tool",
+      kind: event.kind ?? tool?.kind ?? "generic",
       name: event.name,
       server: event.server,
       arguments: event.arguments ?? tool?.arguments,
@@ -515,18 +516,20 @@ class RunningTurnStore {
     const next: RunningTurnToolBlock = {
       id: event.blockId,
       type: "tool",
+      kind: event.kind ?? tool?.kind ?? "generic",
       name: event.name || tool?.name || "tool",
       server: event.server ?? tool?.server,
       arguments: event.arguments ?? tool?.arguments,
       progress: tool?.progress,
       result: event.result,
       error: event.error,
-      status: event.error ? "failed" : "completed",
+      status: event.status ?? (event.error ? "failed" : "completed"),
       startedAt: tool?.startedAt,
       durationMs:
-        tool?.startedAt === undefined
+        event.durationMs ??
+        (tool?.startedAt === undefined
           ? undefined
-          : Math.max(0, occurredAt - tool.startedAt),
+          : Math.max(0, occurredAt - tool.startedAt)),
       revision: (tool?.revision || 0) + 1,
     };
     this.setTraceBlock(turn, event.blockId, next);

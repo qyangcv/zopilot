@@ -7,6 +7,7 @@ import type { JsonValue } from "../../runtime/json/types";
 import { createLogger } from "../../runtime/logging/logger";
 import {
   buildByokRuntimeEnvironment,
+  createNodeVersionProbe,
   resolveNodeBinaryPath,
 } from "./runtime/nodeDiscovery";
 import { getHomeDir } from "../../runtime/platform/host";
@@ -30,7 +31,9 @@ import type {
   StdioSubprocess,
   StdioSubprocessModule,
 } from "../../runtime/process/types";
-import { callPaperRead } from "./paperReadGateway";
+import { buildZopilotMcpConnection } from "../mcp/connection";
+import { LocalAttachmentPreparer } from "../../application/agent/LocalAttachmentPreparer";
+import { sanitizeToolTraceText } from "../../application/agent/toolTraceSanitizer";
 import { ensureRuntimeFile } from "./runtime/runtimeBundle";
 import {
   createRunId,
@@ -45,7 +48,8 @@ import { loadSubprocessModule } from "../../platform/gecko";
 export { ByokRuntimeBridge, getByokRuntimeBridge, shutdownByokRuntimeBridge };
 
 type ByokRuntimeBridgeOptions = {
-  callPaperRead?: typeof callPaperRead;
+  buildMcpConnection?: typeof buildZopilotMcpConnection;
+  prepareAttachments?: LocalAttachmentPreparer["prepare"];
 };
 
 type ByokSubprocessProcess = StdioSubprocess;
@@ -71,6 +75,7 @@ class ByokRuntimeBridge {
   private stopPromise?: Promise<void>;
   private stopping = false;
   private initialized = false;
+  private attachmentPreparer?: LocalAttachmentPreparer;
 
   constructor(private readonly options: ByokRuntimeBridgeOptions = {}) {}
 
@@ -138,13 +143,39 @@ class ByokRuntimeBridge {
       runId,
     });
     try {
+      const preparedLocalAttachments = input.localAttachments?.length
+        ? await (
+            this.options.prepareAttachments ||
+            ((prepareInput) => {
+              this.attachmentPreparer ??= new LocalAttachmentPreparer();
+              return this.attachmentPreparer.prepare(prepareInput);
+            })
+          )({
+            attachments: input.localAttachments,
+            prompt: input.prompt,
+            acceptsImages: profile.capabilities.images,
+          })
+        : undefined;
+      const mcpResult = await (
+        this.options.buildMcpConnection || buildZopilotMcpConnection
+      )(input.conversation.metadata, {
+        acceptsImages: profile.capabilities.images,
+        timeoutMs: profile.timeoutMs,
+      });
+      const { localAttachments: _localAttachments, ...runtimeInput } = input;
       const result = await this.request(
         "turn/start",
         {
           runId,
           profile: sanitizeProfileForRuntime(profile),
-          input,
-        },
+          input: {
+            ...runtimeInput,
+            ...(preparedLocalAttachments ? { preparedLocalAttachments } : {}),
+          },
+          ...(mcpResult.status === "ready"
+            ? { mcp: mcpResult.connection }
+            : { mcpDiagnostic: mcpResult.diagnostic.message }),
+        } as unknown as JsonValue,
         null,
       );
       const parsed = parseRunResult(result, profile, runId);
@@ -200,7 +231,11 @@ class ByokRuntimeBridge {
   private async startProcess(): Promise<void> {
     const subprocess = this.getSubprocess();
     const environment = await buildByokRuntimeEnvironment(subprocess);
-    const command = await resolveNodeBinaryPath(environment.PATH);
+    const command = await resolveNodeBinaryPath(
+      environment.PATH,
+      undefined,
+      createNodeVersionProbe(subprocess),
+    );
     const runtimePath = await ensureRuntimeFile();
     const proc = await subprocess.call({
       command,
@@ -243,24 +278,14 @@ class ByokRuntimeBridge {
     return this.getTransport().request(method, params, timeoutMs);
   }
 
-  private async handleRuntimeRequest(message: JsonRpcRequest): Promise<void> {
-    try {
-      if (message.method !== "tool/paper_read") {
-        throw new Error(`Unsupported BYOK runtime request: ${message.method}`);
-      }
-      const result = await (this.options.callPaperRead || callPaperRead)(
-        message.params,
-      );
-      await this.transport?.send({ id: message.id, result });
-    } catch (error) {
-      await this.transport?.send({
-        id: message.id,
-        error: {
-          code: -32000,
-          message: error instanceof Error ? error.message : String(error),
-        },
-      });
-    }
+  private rejectRuntimeRequest(message: JsonRpcRequest): void {
+    void this.transport?.send({
+      id: message.id,
+      error: {
+        code: -32601,
+        message: `Unsupported BYOK runtime request: ${message.method}`,
+      },
+    });
   }
 
   private handleNotification(message: JsonRpcMessage): void {
@@ -397,9 +422,12 @@ class ByokRuntimeBridge {
           this.emit(activeTurn, {
             type: "tool.started",
             blockId,
+            kind: "mcp",
             name,
             server: getNestedString(message.params, ["server"]),
-            arguments: argumentsText,
+            arguments: argumentsText
+              ? sanitizeToolTraceText(argumentsText)
+              : undefined,
           });
         }
         break;
@@ -466,11 +494,18 @@ class ByokRuntimeBridge {
           this.emit(activeTurn, {
             type: "tool.completed",
             blockId,
+            kind: "mcp",
             name,
             server: getNestedString(message.params, ["server"]),
-            arguments: getNestedString(message.params, ["arguments"]),
-            result: getNestedString(message.params, ["result"]),
-            error: getNestedString(message.params, ["error"]),
+            arguments: sanitizeOptionalTraceText(
+              getNestedString(message.params, ["arguments"]),
+            ),
+            result: sanitizeOptionalTraceText(
+              getNestedString(message.params, ["result"]),
+            ),
+            error: sanitizeOptionalTraceText(
+              getNestedString(message.params, ["error"]),
+            ),
           });
           activeTurn.anonymousBlockIds.delete("tool");
         }
@@ -565,7 +600,7 @@ class ByokRuntimeBridge {
       responseErrorFallback: "BYOK runtime error",
       exitError: (exitCode) => new Error(`BYOK runtime exited (${exitCode}).`),
       onRequest: (message) => {
-        void this.handleRuntimeRequest(message);
+        this.rejectRuntimeRequest(message);
       },
       onNotification: (message) => this.handleNotification(message),
       onInvalidJson: (line, error) => {
@@ -596,6 +631,12 @@ class ByokRuntimeBridge {
     this.subprocess = loadSubprocessModule<ByokSubprocessModule>();
     return this.subprocess;
   }
+}
+
+function sanitizeOptionalTraceText(
+  value: string | undefined,
+): string | undefined {
+  return value === undefined ? undefined : sanitizeToolTraceText(value);
 }
 
 function parseContentPhase(value: string | undefined): AgentContentPhase {

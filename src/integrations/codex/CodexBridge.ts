@@ -4,7 +4,10 @@ import {
   buildCodexSubprocessEnvironment,
   resolveCodexBinaryPath,
 } from "./cliDiscovery";
-import type { JsonRpcRequest } from "../../runtime/json-rpc/protocol";
+import type {
+  JsonRpcRequest,
+  JsonRpcResponse,
+} from "../../runtime/json-rpc/protocol";
 import type {
   CodexModelInfo,
   CodexPromptOptions,
@@ -14,7 +17,6 @@ import type { JsonValue } from "../../runtime/json/types";
 import { parseModelList, toError } from "./messageParsing";
 import { getPref } from "../../runtime/preferences/prefs";
 import { createLogger } from "../../runtime/logging/logger";
-import { getHomeDir } from "../../runtime/platform/host";
 import { StdioJsonRpcPeer } from "../../runtime/json-rpc/StdioJsonRpcPeer";
 import type {
   StdioSubprocess,
@@ -22,7 +24,7 @@ import type {
 } from "../../runtime/process/types";
 import { CodexTurnRegistry, type ActiveCodexTurn } from "./CodexTurnRegistry";
 import { CodexThreadManager } from "./CodexThreadManager";
-import { loadSubprocessModule } from "../../platform/gecko";
+import { geckoIO, geckoPath, loadSubprocessModule } from "../../platform/gecko";
 
 type CodexSubprocessProcess = StdioSubprocess;
 type CodexSubprocessModule = StdioSubprocessModule<CodexSubprocessProcess>;
@@ -41,10 +43,7 @@ class CodexBridge {
   private readonly threads = new CodexThreadManager({
     start: () => this.start(),
     request: (method, params) => this.request(method, params),
-    getCwd: () =>
-      this.subprocess
-        ? getHomeDir(this.subprocess.getEnvironment())
-        : undefined,
+    getCwd: () => getCodexRuntimeDir(),
   });
   private initialized = false;
   private readonly activeTurns = new CodexTurnRegistry();
@@ -150,6 +149,11 @@ class CodexBridge {
     try {
       const params: { [key: string]: JsonValue } = {
         threadId,
+        approvalPolicy: "never",
+        sandboxPolicy: {
+          type: "readOnly",
+          networkAccess: false,
+        },
         input: [
           {
             type: "text",
@@ -158,12 +162,7 @@ class CodexBridge {
           },
         ],
       };
-      const cwd = this.subprocess
-        ? getHomeDir(this.subprocess.getEnvironment())
-        : undefined;
-      if (cwd) {
-        params.cwd = cwd;
-      }
+      params.cwd = getCodexRuntimeDir();
       if (options.model) {
         params.model = options.model;
       }
@@ -192,6 +191,8 @@ class CodexBridge {
     const subprocess = this.getSubprocess();
     const environment = await buildCodexSubprocessEnvironment(subprocess);
     const command = await resolveCodexBinaryPath(environment.PATH);
+    const runtimeDir = getCodexRuntimeDir();
+    await geckoIO.makeDirectory(runtimeDir, { ignoreExisting: true });
     const proc = await subprocess.call({
       command: command.command,
       arguments: [...command.argsPrefix, ...buildCodexAppServerArguments()],
@@ -199,7 +200,7 @@ class CodexBridge {
       environmentAppend: true,
       stdout: "pipe",
       stderr: "pipe",
-      workdir: getHomeDir(subprocess.getEnvironment()),
+      workdir: runtimeDir,
     });
 
     this.subprocess = subprocess;
@@ -243,13 +244,25 @@ class CodexBridge {
 
   private rejectServerRequest(message: JsonRpcRequest): void {
     const method = message.method || "unknown";
-    const response = {
-      id: message.id,
-      error: {
-        code: -32601,
-        message: `Zopilot does not support app-server request: ${method}`,
-      },
-    };
+    let response: JsonRpcResponse;
+    if (
+      method === "item/commandExecution/requestApproval" ||
+      method === "item/fileChange/requestApproval"
+    ) {
+      response = { id: message.id, result: { decision: "decline" } };
+      this.activeTurns.showDeclinedRequest(message.params, method);
+    } else if (method === "mcpServer/elicitation/request") {
+      response = { id: message.id, result: { action: "decline" } };
+      this.activeTurns.showDeclinedRequest(message.params, method);
+    } else {
+      response = {
+        id: message.id,
+        error: {
+          code: -32601,
+          message: `Zopilot does not support app-server request: ${method}`,
+        },
+      };
+    }
     void this.transport?.send(response);
   }
 
@@ -317,6 +330,14 @@ class CodexBridge {
       return 180000;
     }
     return value;
+  }
+}
+
+function getCodexRuntimeDir(): string {
+  try {
+    return geckoPath.join(geckoPath.profileDir, "zopilot", "codex-runtime");
+  } catch {
+    return "/tmp/zopilot/codex-runtime";
   }
 }
 

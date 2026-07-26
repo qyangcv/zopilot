@@ -75,6 +75,8 @@ class CodexThreadManager {
     const mcpServers = await buildCodexMcpServersConfig(conversation);
     const params: { [key: string]: JsonValue } = {
       ...extraParams,
+      approvalPolicy: "never",
+      sandbox: "read-only",
       developerInstructions: buildCodexDeveloperInstructions(),
       config: { mcp_servers: mcpServers },
     };

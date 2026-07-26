@@ -2,11 +2,9 @@ import { createInterface } from "node:readline";
 import {
   encodeJsonRpcMessage,
   isJsonRpcRequest,
-  isJsonRpcResponse,
   parseJsonRpcMessage,
   type JsonRpcMessage,
   type JsonRpcRequest,
-  type JsonRpcResponse,
 } from "../../../runtime/json-rpc/protocol";
 import type { JsonValue } from "../../../runtime/json/types";
 import { ByokAgentRunner } from "./ByokAgentRunner";
@@ -15,21 +13,12 @@ import {
   parseTurnStartParams,
 } from "./requestValidation";
 
-type PendingRequest = {
-  method: string;
-  resolve: (result: JsonValue | undefined) => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-};
-
 type ByokRuntimeServerIO = {
   write(line: string): void;
   exit(code: number): void;
 };
 
 class ByokRuntimeServer {
-  private nextRequestId = 0;
-  private readonly pendingRequests = new Map<number, PendingRequest>();
   private readonly agentRunner: ByokAgentRunner;
 
   constructor(
@@ -40,8 +29,6 @@ class ByokRuntimeServer {
   ) {
     this.agentRunner = new ByokAgentRunner({
       notify: (method, params) => this.notify(method, params),
-      requestParent: (method, params, timeoutMs) =>
-        this.request(method, params, timeoutMs),
     });
   }
 
@@ -65,9 +52,7 @@ class ByokRuntimeServer {
       });
       return;
     }
-    if (isJsonRpcResponse(message)) {
-      this.handleResponse(message);
-    } else if (isJsonRpcRequest(message)) {
+    if (isJsonRpcRequest(message)) {
       void this.handleRequest(message);
     }
   }
@@ -105,39 +90,6 @@ class ByokRuntimeServer {
       default:
         throw new Error(`Unsupported BYOK runtime method: ${method}`);
     }
-  }
-
-  private request(
-    method: string,
-    params?: JsonValue,
-    timeoutMs = 30000,
-  ): Promise<JsonValue | undefined> {
-    const id = this.nextRequestId++;
-    const promise = new Promise<JsonValue | undefined>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingRequests.delete(id);
-        reject(new Error(`BYOK runtime parent request timed out: ${method}`));
-      }, timeoutMs);
-      this.pendingRequests.set(id, { method, resolve, reject, timer });
-    });
-    this.write({ id, method, params });
-    return promise;
-  }
-
-  private handleResponse(message: JsonRpcResponse): void {
-    const pending = this.pendingRequests.get(message.id);
-    if (!pending) return;
-    this.pendingRequests.delete(message.id);
-    clearTimeout(pending.timer);
-    if (message.error) {
-      pending.reject(
-        new Error(
-          `${pending.method}: ${message.error.message || "parent error"}`,
-        ),
-      );
-      return;
-    }
-    pending.resolve(message.result);
   }
 
   private respond(

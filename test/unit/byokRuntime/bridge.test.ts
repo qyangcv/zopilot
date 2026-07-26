@@ -132,24 +132,27 @@ describe("ByokRuntimeBridge", function () {
     await pending;
   });
 
-  it("answers reverse paper_read requests over the same transport", async function () {
-    const calls: unknown[] = [];
-    const harness = createBridgeHarness(async (params) => {
-      calls.push(params);
-      return { text: "evidence", isError: false };
-    });
-
-    harness.requestFromRuntime(77, "tool/paper_read", {
-      input: { question: "method" },
-    });
+  it("passes the shared MCP connection to each BYOK turn", async function () {
+    const harness = createBridgeHarness();
+    const pending = harness.instance.sendPrompt(
+      createProfile(),
+      createPromptInput(),
+    );
     await flush();
 
-    assert.deepEqual(calls, [{ input: { question: "method" } }]);
-    const response = harness.responses.find((item) => item.id === 77);
-    assert.deepEqual(response, {
-      id: 77,
-      result: { text: "evidence", isError: false },
+    const request = harness.requests[0];
+    assert.deepEqual(request.params.mcp, {
+      url: "http://127.0.0.1:23119/zopilot/mcp",
+      headers: { Authorization: "Bearer test" },
+      serverName: "zopilot",
+      acceptsImages: false,
+      timeoutMs: 30000,
     });
+    harness.respond(request.id, {
+      text: "Answer",
+      status: "completed",
+    });
+    await pending;
   });
 });
 
@@ -165,20 +168,25 @@ type RpcResponse = {
   error?: unknown;
 };
 
-function createBridgeHarness(
-  callPaperRead?: (params: never) => Promise<{
-    text: string;
-    isError: boolean;
-  }>,
-): {
+function createBridgeHarness(): {
   instance: ByokRuntimeBridge;
   requests: RpcRequest[];
   responses: RpcResponse[];
   respond: (id: number, result: unknown) => void;
   notify: (method: string, params: unknown) => void;
-  requestFromRuntime: (id: number, method: string, params: unknown) => void;
 } {
-  const instance = new ByokRuntimeBridge({ callPaperRead });
+  const instance = new ByokRuntimeBridge({
+    buildMcpConnection: async (_conversation, options) => ({
+      status: "ready",
+      connection: {
+        url: "http://127.0.0.1:23119/zopilot/mcp",
+        headers: { Authorization: "Bearer test" },
+        serverName: "zopilot",
+        acceptsImages: options.acceptsImages,
+        timeoutMs: options.timeoutMs,
+      },
+    }),
+  });
   const bridge = instance as unknown as {
     start: () => Promise<void>;
     process: unknown;
@@ -211,9 +219,6 @@ function createBridgeHarness(
     },
     notify: (method, params) => {
       bridge.getTransport().handleLine(JSON.stringify({ method, params }));
-    },
-    requestFromRuntime: (id, method, params) => {
-      bridge.getTransport().handleLine(JSON.stringify({ id, method, params }));
     },
   };
 }

@@ -13,7 +13,8 @@ Zopilot 是一款简约、现代化的 Zotero AI 插件, 将 AI 接入 Zotero �
 
 ## 环境要求
 
-- Zotero 9.0
+- Zotero >= 9.0
+- Node.js >= 22
 - macOS 或 Windows x86_64
 
 ## 开始使用

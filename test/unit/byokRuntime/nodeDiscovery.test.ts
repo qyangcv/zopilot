@@ -19,6 +19,7 @@ describe("BYOK Node discovery", function () {
     const resolved = await resolveNodeBinaryPath(
       "/Users/test/.nvm/current/bin:/usr/bin",
       "macos",
+      async () => 22,
     );
 
     assert.equal(resolved, "/Users/test/.nvm/current/bin/node");
@@ -30,9 +31,36 @@ describe("BYOK Node discovery", function () {
     const resolved = await resolveNodeBinaryPath(
       "C:\\Program Files\\nodejs;C:\\custom\\bin",
       "windows",
+      async () => 24,
     );
 
     assert.equal(resolved, "C:\\Program Files\\nodejs\\node.exe");
+  });
+
+  it("skips Node versions older than 22", async function () {
+    existingPaths.add("/opt/homebrew/bin/node");
+    existingPaths.add("/Users/test/.nvm/current/bin/node");
+
+    const resolved = await resolveNodeBinaryPath(
+      "/Users/test/.nvm/current/bin",
+      "macos",
+      async (path) => (path === "/opt/homebrew/bin/node" ? 20 : 22),
+    );
+
+    assert.equal(resolved, "/Users/test/.nvm/current/bin/node");
+  });
+
+  it("reports an unsupported Node version", async function () {
+    existingPaths.add("/usr/bin/node");
+
+    let message = "";
+    try {
+      await resolveNodeBinaryPath("/usr/bin", "macos", async () => 21);
+    } catch (error) {
+      message = String(error);
+    }
+
+    assert.include(message, "requires Node.js 22");
   });
 });
 

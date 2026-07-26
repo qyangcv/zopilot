@@ -429,7 +429,7 @@ describe("SidebarApp", function () {
     assert.notInclude(html, "GPT-5.6-Sol ·");
   });
 
-  it("renders every tool call separately with duration and expandable payloads", function () {
+  it("renders tool source, name, and duration in each collapsed tool row", function () {
     const completedCalls = [0, 1_000, 10_000].map(
       (durationMs, index): SidebarStreamingSnapshot["traceBlocks"][number] => ({
         id: `call-${index}`,
@@ -457,10 +457,11 @@ describe("SidebarApp", function () {
         {
           id: "call-failed",
           type: "tool",
-          name: "paper_read",
-          server: "zopilot",
+          kind: "web-search",
+          name: "web_search",
+          arguments: '{"query":"DeepSeek-R1"}',
           status: "failed",
-          error: "Failed to read",
+          error: "Search failed",
           revision: 1,
         },
       ],
@@ -478,32 +479,26 @@ describe("SidebarApp", function () {
 
     assert.notInclude(html, "zp-trace-tool-group");
     assert.equal(countOccurrences(html, 'data-icon-name="tool"'), 5);
-    assert.equal(countOccurrences(html, ">paper_read</code>"), 5);
-    const statusIcons = html.match(
-      /<svg[^>]*zp-trace-tool-status-icon[^>]*>/gu,
+    assert.equal(countOccurrences(html, ">paper_read</code>"), 4);
+    assert.equal(countOccurrences(html, ">web_search</code>"), 1);
+    assert.equal(
+      countOccurrences(html, 'class="zp-trace-tool-kind">zopilot</span>'),
+      4,
     );
-    assert.lengthOf(statusIcons || [], 4);
-    assert.lengthOf(
-      (statusIcons || []).filter((icon) =>
-        icon.includes('data-icon-name="check"'),
-      ),
-      3,
-    );
-    assert.lengthOf(
-      (statusIcons || []).filter((icon) =>
-        icon.includes('data-icon-name="close"'),
-      ),
+    assert.equal(
+      countOccurrences(html, 'class="zp-trace-tool-kind">codex</span>'),
       1,
     );
     assert.include(html, "0.1s");
     assert.include(html, "1.0s");
     assert.include(html, "10.0s");
     assert.notInclude(html, ">0s<");
+    assert.notInclude(html, "zp-trace-tool-status-icon");
+    assert.notInclude(html, "mcp:zopilot");
     assert.include(html, "sidebar-trace-tool-arguments");
     assert.include(html, "sidebar-trace-tool-result");
     assert.include(html, 'data-status="running"');
     assert.include(html, 'data-status="failed"');
-    assert.notInclude(html, "zopilot · paper_read");
   });
 
   it("renders sent user messages with the shared Markdown view", function () {

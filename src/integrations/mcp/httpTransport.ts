@@ -1,6 +1,3 @@
-import type { JsonValue } from "../../runtime/json/types";
-import { isJsonObject } from "./protocol";
-
 type McpHttpRequest = {
   method: string;
   headers: Record<string, string>;
@@ -12,10 +9,6 @@ type McpHttpResponse = {
   headers: Record<string, string>;
   body?: string;
 };
-
-type ParsedRequestBody =
-  | { ok: true; value: JsonValue }
-  | { ok: false; error: string };
 
 function validateRequestSecurity(
   request: McpHttpRequest,
@@ -36,25 +29,38 @@ function validateRequestSecurity(
   return undefined;
 }
 
-function parseRequestBody(data: unknown): ParsedRequestBody {
-  if (typeof data === "string") {
-    try {
-      return { ok: true, value: JSON.parse(data) as JsonValue };
-    } catch (error) {
-      return { ok: false, error: `Invalid JSON body: ${String(error)}` };
-    }
-  }
-  if (isJsonObject(data) || Array.isArray(data)) {
-    return { ok: true, value: data as JsonValue };
-  }
-  return { ok: false, error: "MCP request body must be JSON." };
+function toWebRequest(request: McpHttpRequest, url: string): Request {
+  const body =
+    request.method === "GET" || request.method === "HEAD"
+      ? undefined
+      : typeof request.data === "string"
+        ? request.data
+        : JSON.stringify(request.data);
+  return new Request(url, {
+    method: request.method,
+    headers: request.headers,
+    body,
+  });
 }
 
-function jsonResponse(status: number, body: JsonValue): McpHttpResponse {
+async function fromWebResponse(response: Response): Promise<McpHttpResponse> {
+  const body = await response.text();
+  const headers: Record<string, string> = {};
+  response.headers.forEach((value, name) => {
+    headers[name] = value;
+  });
+  return {
+    status: response.status,
+    headers,
+    body: body || undefined,
+  };
+}
+
+function errorResponse(status: number, message: string): McpHttpResponse {
   return {
     status,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ error: message }),
   };
 }
 
@@ -90,5 +96,10 @@ function isAllowedOrigin(origin: string): boolean {
   }
 }
 
-export { jsonResponse, parseRequestBody, validateRequestSecurity };
-export type { McpHttpRequest, McpHttpResponse, ParsedRequestBody };
+export {
+  errorResponse,
+  fromWebResponse,
+  toWebRequest,
+  validateRequestSecurity,
+};
+export type { McpHttpRequest, McpHttpResponse };

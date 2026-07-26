@@ -1,7 +1,7 @@
-import { createPaperReadTool } from "./tools/paperRead";
 import { createLogger } from "../../runtime/logging/logger";
 import { createMcpHttpHandler } from "./httpHandler";
 import { ZoteroServerEndpointRegistry } from "../zotero/compat/serverEndpointRegistry";
+import { installMcpWebRuntime } from "./webRuntime";
 export { createMcpHttpHandler } from "./httpHandler";
 
 export { MCP_ENDPOINT_PATH, shutdownMcpHttpServer, startMcpHttpServer };
@@ -38,6 +38,12 @@ async function startMcpHttpServer(): Promise<McpHttpServerResult> {
   }
   if (disabledResult) return disabledResult;
 
+  try {
+    installMcpWebRuntime();
+  } catch (error) {
+    return disableMcp("web_runtime_unavailable", error);
+  }
+
   let token: string;
   try {
     token = createSessionToken();
@@ -63,7 +69,7 @@ function initializeMcpHttpServer(token: string): McpHttpServerResult {
   };
   const handler = createMcpHttpHandler({
     token,
-    paperReadTool: createPaperReadTool(),
+    url: info.url,
   });
 
   const endpointHandler = async (

@@ -134,33 +134,21 @@ function ToolTrace({
     now !== undefined
       ? Math.max(0, now - item.startedAt)
       : item.durationMs;
-  const status =
-    item.status === "running"
-      ? getString("sidebar-trace-tool-running")
-      : item.status === "failed"
-        ? getString("sidebar-trace-tool-failed")
-        : item.status === "interrupted"
-          ? getString("sidebar-status-interrupted")
-          : getString("sidebar-trace-tool-completed");
   return (
     <details className="zp-trace-item zp-trace-tool" data-status={item.status}>
       <summary className="zp-trace-tool-header">
         <Icon name="tool" size={13} />
-        <code className="zp-trace-tool-name">{item.name}</code>
-        <span className="zp-trace-tool-meta">
-          {durationMs === undefined ? status : formatDuration(durationMs)}
+        <span className="zp-trace-tool-kind">
+          {item.kind === "mcp" || item.server === "zopilot"
+            ? "zopilot"
+            : "codex"}
         </span>
-        {item.status !== "running" ? (
-          <Icon
-            className="zp-trace-tool-status-icon"
-            name={
-              item.status === "failed" || item.status === "interrupted"
-                ? "close"
-                : "check"
-            }
-            size={12}
-          />
-        ) : null}
+        <code className="zp-trace-tool-name">{item.name}</code>
+        {durationMs === undefined ? null : (
+          <span className="zp-trace-tool-meta">
+            {formatDuration(durationMs)}
+          </span>
+        )}
       </summary>
       <div className="zp-trace-tool-body">
         <ToolPayloads item={item} />

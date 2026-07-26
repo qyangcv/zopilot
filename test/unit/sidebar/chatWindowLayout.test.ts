@@ -154,4 +154,17 @@ describe("chat window layout styles", function () {
     assert.include(source, 'doc.addEventListener("mouseover"');
     assert.include(source, "TOOLTIP_DELAY_MS = 450");
   });
+
+  it("keeps tool duration next to the shrinkable tool name", function () {
+    const css = readFileSync(
+      resolve("addon/content/styles/sidebar-messages.css"),
+      "utf8",
+    );
+
+    assert.match(
+      css,
+      /\.zp-trace-tool-kind\s*\{[^}]*flex:\s*0 0 auto;[^}]*max-width:\s*35%;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/su,
+    );
+    assert.match(css, /\.zp-trace-tool-name\s*\{[^}]*flex:\s*0 1 auto;/su);
+  });
 });

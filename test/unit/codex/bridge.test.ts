@@ -98,6 +98,12 @@ describe("CodexBridge", function () {
     assert.strictEqual(start.params.model, "gpt-5.6-terra");
     assert.strictEqual(start.params.reasoningEffort, "high");
     assert.strictEqual(start.params.effort, "high");
+    assert.strictEqual(start.params.approvalPolicy, "never");
+    assert.deepEqual(start.params.sandboxPolicy, {
+      type: "readOnly",
+      networkAccess: false,
+    });
+    assert.notEqual(start.params.cwd, "/Users/test");
 
     bridge.respond(start.id, { turn: { id: "turn-a" } });
     bridge.notify("item/agentMessage/delta", {
@@ -243,6 +249,67 @@ describe("CodexBridge", function () {
     assert.equal(toolEvents[0]?.blockId, toolEvents[1]?.blockId);
   });
 
+  it("keeps Codex tool parameters out of stable tool names", async function () {
+    const bridge = createBridgeHarness();
+    bridge.cacheThread("conv-tools");
+    const events: Array<Record<string, unknown>> = [];
+    const promise = bridge.instance.sendPrompt("Question", {
+      conversation: createConversation("conv-tools"),
+      onEvent: (event) =>
+        events.push(event as unknown as Record<string, unknown>),
+    });
+    await bridge.flush();
+
+    const start = bridge.requests[0];
+    bridge.respond(start.id, { turn: { id: "turn-tools" } });
+    bridge.notify("item/completed", {
+      threadId: "thread-conv-tools",
+      turnId: "turn-tools",
+      item: {
+        id: "web-a",
+        type: "webSearch",
+        query: "DeepSeek-R1 paper arXiv official",
+        action: {
+          type: "search",
+          query: "DeepSeek-R1 paper arXiv official",
+          queries: null,
+        },
+        results: [],
+      },
+    });
+    bridge.notify("item/completed", {
+      threadId: "thread-conv-tools",
+      turnId: "turn-tools",
+      item: {
+        id: "command-a",
+        type: "commandExecution",
+        command: "rg Figure paper.txt",
+        status: "completed",
+        aggregatedOutput: "Figure 1",
+      },
+    });
+    bridge.notify("item/agentMessage/delta", {
+      threadId: "thread-conv-tools",
+      turnId: "turn-tools",
+      delta: "Answer",
+    });
+    bridge.notify("turn/completed", {
+      threadId: "thread-conv-tools",
+      turn: { id: "turn-tools", status: "completed" },
+    });
+
+    await promise;
+    const tools = events.filter((event) => event.type === "tool.completed");
+    assert.deepEqual(
+      tools.map((event) => event.name),
+      ["web_search", "command"],
+    );
+    assert.include(String(tools[0]?.arguments), "DeepSeek-R1 paper");
+    assert.include(String(tools[1]?.arguments), "rg Figure paper.txt");
+    assert.notInclude(String(tools[0]?.name), "DeepSeek-R1");
+    assert.notInclude(String(tools[1]?.name), "rg Figure");
+  });
+
   it("opens new Codex threads with paper_read developer instructions", async function () {
     const bridge = createBridgeHarness();
     const conversation = createConversation("conv-new");
@@ -254,6 +321,8 @@ describe("CodexBridge", function () {
     const threadStart = bridge.requests[0];
     assert.strictEqual(threadStart.method, "thread/start");
     assert.strictEqual(threadStart.params.ephemeral, false);
+    assert.strictEqual(threadStart.params.approvalPolicy, "never");
+    assert.strictEqual(threadStart.params.sandbox, "read-only");
     assert.include(
       String(threadStart.params.developerInstructions),
       "paper_read",
@@ -332,6 +401,44 @@ describe("CodexBridge", function () {
     });
     bridge.respond(request.id, {});
     await promise;
+  });
+
+  it("declines unexpected write and MCP elicitation approvals", async function () {
+    const instance = new CodexBridge();
+    const responses: unknown[] = [];
+    const bridge = instance as unknown as {
+      transport: { send(message: unknown): Promise<void> };
+      rejectServerRequest(message: {
+        id: number;
+        method: string;
+        params?: Record<string, unknown>;
+      }): void;
+    };
+    bridge.transport = {
+      async send(message) {
+        responses.push(message);
+      },
+    };
+
+    bridge.rejectServerRequest({
+      id: 1,
+      method: "item/commandExecution/requestApproval",
+    });
+    bridge.rejectServerRequest({
+      id: 2,
+      method: "item/fileChange/requestApproval",
+    });
+    bridge.rejectServerRequest({
+      id: 3,
+      method: "mcpServer/elicitation/request",
+    });
+    await Promise.resolve();
+
+    assert.deepEqual(responses, [
+      { id: 1, result: { decision: "decline" } },
+      { id: 2, result: { decision: "decline" } },
+      { id: 3, result: { action: "decline" } },
+    ]);
   });
 
   it("demultiplexes concurrent turn notifications by thread and turn", async function () {

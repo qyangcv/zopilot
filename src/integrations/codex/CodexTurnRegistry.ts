@@ -1,4 +1,12 @@
-import type { AgentContentPhase } from "../../domain/agent/trace";
+import {
+  formatToolTraceValue,
+  sanitizeToolTraceText,
+} from "../../application/agent/toolTraceSanitizer";
+import type {
+  AgentContentPhase,
+  AgentToolKind,
+  AgentToolStatus,
+} from "../../domain/agent/trace";
 import type {
   AgentStreamEvent,
   AgentStreamEventInput,
@@ -112,6 +120,15 @@ class CodexTurnRegistry {
       turn.reject(normalized);
     }
     this.turns.clear();
+  }
+
+  showDeclinedRequest(params: JsonValue | undefined, method: string): void {
+    const turn = this.findForNotification(params);
+    this.emit(turn, {
+      type: "notice.upsert",
+      blockId: nextSyntheticId(turn, "declined"),
+      text: `Codex request was declined by Zopilot's read-only policy: ${method}`,
+    });
   }
 
   handleNotification(message: JsonRpcMessage): void {
@@ -395,6 +412,8 @@ class CodexTurnRegistry {
       ...tool,
       result: parseToolResult(itemType, item),
       error: parseToolError(item),
+      status: parseToolStatus(item),
+      durationMs: numberProperty(item, "durationMs"),
     });
     turn.anonymousBlockIds.delete(channel);
     logger.debug(
@@ -544,15 +563,17 @@ function getContentPhase(
 }
 
 function isOperationalItem(type: string): boolean {
-  return [
-    "mcpToolCall",
-    "dynamicToolCall",
-    "collabToolCall",
-    "commandExecution",
-    "fileChange",
-    "webSearch",
-    "imageView",
-  ].includes(type);
+  return (
+    [
+      "mcpToolCall",
+      "dynamicToolCall",
+      "collabAgentToolCall",
+      "commandExecution",
+      "fileChange",
+      "webSearch",
+      "imageView",
+    ].includes(type) || /ToolCall$/.test(type)
+  );
 }
 
 function getItemChannel(itemType: string): string {
@@ -568,30 +589,43 @@ function parseToolItem(
   item: JsonRecord,
 ): {
   blockId: string;
+  kind: AgentToolKind;
   name: string;
   server?: string;
   arguments?: string;
 } {
-  const name =
-    stringProperty(item, "tool") ||
-    stringProperty(item, "command") ||
-    stringProperty(item, "query") ||
-    (itemType === "fileChange" ? "file_change" : undefined) ||
-    (itemType === "imageView" ? "view_image" : undefined) ||
-    itemType;
+  const name = getToolName(itemType, item);
   const argumentValue =
     item.arguments ??
     item.command ??
-    item.query ??
+    (itemType === "webSearch" ? item.action || item.query : item.query) ??
     item.changes ??
     item.action ??
     item.path;
   return {
     blockId: itemId,
+    kind: toolKindFromItemType(itemType),
     name,
     server: stringProperty(item, "server"),
     arguments: formatJson(argumentValue),
   };
+}
+
+function getToolName(itemType: string, item: JsonRecord): string {
+  const tool = stringProperty(item, "tool");
+  if (tool) return tool;
+  switch (itemType) {
+    case "commandExecution":
+      return "command";
+    case "fileChange":
+      return "file_change";
+    case "webSearch":
+      return "web_search";
+    case "imageView":
+      return "view_image";
+    default:
+      return itemType;
+  }
 }
 
 function parseToolResult(
@@ -600,17 +634,62 @@ function parseToolResult(
 ): string | undefined {
   const value =
     item.result ??
+    item.results ??
     item.aggregatedOutput ??
     item.output ??
+    item.contentItems ??
+    item.agentsStates ??
     (itemType === "fileChange" ? item.changes : undefined);
   return formatJson(value);
 }
 
 function parseToolError(item: JsonRecord): string | undefined {
   const error = item.error;
-  if (typeof error === "string") return error;
+  if (typeof error === "string") return sanitizeToolTraceText(error);
   const record = asRecord(error);
-  return stringProperty(record, "message") || formatJson(error);
+  const explicit = stringProperty(record, "message") || formatJson(error);
+  if (explicit) return explicit;
+  const exitCode = numberProperty(item, "exitCode");
+  if (exitCode !== undefined && exitCode !== 0) {
+    return `Command exited with code ${exitCode}.`;
+  }
+  const status = stringProperty(item, "status");
+  if (status === "declined") return "Declined by Zopilot's read-only policy.";
+  return status === "failed" ? "Tool execution failed." : undefined;
+}
+
+function parseToolStatus(item: JsonRecord): AgentToolStatus | undefined {
+  const status = stringProperty(item, "status");
+  if (status === "failed" || status === "declined") return "failed";
+  if (status === "interrupted") return status;
+  if (
+    numberProperty(item, "exitCode") &&
+    numberProperty(item, "exitCode") !== 0
+  ) {
+    return "failed";
+  }
+  return status === "completed" ? "completed" : undefined;
+}
+
+function toolKindFromItemType(itemType: string): AgentToolKind {
+  switch (itemType) {
+    case "mcpToolCall":
+      return "mcp";
+    case "dynamicToolCall":
+      return "dynamic";
+    case "collabAgentToolCall":
+      return "collaboration";
+    case "commandExecution":
+      return "command";
+    case "fileChange":
+      return "file-change";
+    case "webSearch":
+      return "web-search";
+    case "imageView":
+      return "image-view";
+    default:
+      return "generic";
+  }
 }
 
 function extractText(value: JsonValue | undefined): string {
@@ -626,9 +705,7 @@ function extractText(value: JsonValue | undefined): string {
 }
 
 function formatJson(value: JsonValue | undefined): string | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value === "string") return value;
-  return JSON.stringify(value, null, 2);
+  return formatToolTraceValue(value);
 }
 
 function asRecord(value: JsonValue | undefined): JsonRecord | undefined {
@@ -643,6 +720,16 @@ function stringProperty(
 ): string | undefined {
   const property = value?.[key];
   return typeof property === "string" ? property : undefined;
+}
+
+function numberProperty(
+  value: JsonRecord | undefined,
+  key: string,
+): number | undefined {
+  const property = value?.[key];
+  return typeof property === "number" && Number.isFinite(property)
+    ? property
+    : undefined;
 }
 
 function nextSyntheticId(

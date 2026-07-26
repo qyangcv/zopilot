@@ -4,6 +4,7 @@ import type {
   AgentPromptInput,
   ProviderProfileWithSecret,
 } from "../../../domain/agent/types";
+import type { ZopilotMcpConnection } from "../../mcp/connection";
 import { isRecord } from "../../../runtime/json/guards";
 import type { JsonValue } from "../../../runtime/json/types";
 
@@ -11,6 +12,8 @@ type TurnStartParams = {
   runId: string;
   profile: ProviderProfileWithSecret;
   input: AgentPromptInput;
+  mcp?: ZopilotMcpConnection;
+  mcpDiagnostic?: string;
 };
 
 type ModelListParams = { profile: ProviderProfileWithSecret };
@@ -39,6 +42,13 @@ function parseTurnStartParams(params: JsonValue | undefined): TurnStartParams {
     runId: params.runId,
     profile: params.profile as unknown as ProviderProfileWithSecret,
     input: params.input as unknown as AgentPromptInput,
+    mcp: isRecord(params.mcp)
+      ? (params.mcp as unknown as ZopilotMcpConnection)
+      : undefined,
+    mcpDiagnostic:
+      typeof params.mcpDiagnostic === "string"
+        ? params.mcpDiagnostic
+        : undefined,
   };
 }
 

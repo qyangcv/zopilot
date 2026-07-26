@@ -160,11 +160,12 @@ function formatContextForTool(context: BuiltContext): string {
     lines.push(
       [
         `Evidence ${index + 1}`,
+        `sourceId=${item.sourceId}`,
+        item.page !== undefined ? `page=${item.page}` : "",
         item.type === "artifact" && item.label ? `label=${item.label}` : "",
         item.sectionPath.length
           ? `section=${item.sectionPath.join(" > ")}`
           : "",
-        item.imagePath ? `image=${item.imagePath}` : "",
       ]
         .filter(Boolean)
         .join(" | "),

@@ -72,6 +72,7 @@ pref-provider-diagnostic-missing-codex-cli = Codex CLI is not installed or its e
 pref-provider-diagnostic-codex-not-signed-in = Codex CLI is not signed in.
 pref-provider-diagnostic-profile-incomplete = The provider configuration is incomplete.
 pref-provider-diagnostic-byok-runtime-unavailable = The BYOK runtime is unavailable. Install Node.js or restart Zotero.
+pref-provider-diagnostic-node-version-unsupported = BYOK requires Node.js 22 or newer. Upgrade Node.js and restart Zotero.
 pref-provider-diagnostic-invalid-api-key = The API key is missing or invalid.
 pref-provider-diagnostic-unauthorized = The provider rejected the API key.
 pref-provider-diagnostic-model-not-found = The selected model was not found by the provider.

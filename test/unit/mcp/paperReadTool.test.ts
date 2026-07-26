@@ -1,144 +1,101 @@
 import { assert } from "chai";
-import { createPaperReadTool } from "../../../src/integrations/mcp/tools/paperRead.ts";
+import {
+  PaperReadService,
+  PAPER_READ_MAX_SOURCES,
+} from "../../../src/application/document/PaperReadService.ts";
+import type { BuiltContext } from "../../../src/document/types.ts";
 import {
   PAPER_BINDING_MISSING_MESSAGE,
   type BoundWorkspaceScope,
 } from "../../../src/integrations/mcp/workspaceBinding.ts";
-import type { BuiltContext } from "../../../src/document/types.ts";
 
-describe("paper_read MCP tool", function () {
-  it("exposes the paper_read definition as a read-only context facade", function () {
-    const tool = createTool(createContext("ready"));
-
-    assert.equal(tool.definition.name, "paper_read");
-    assert.equal(
-      tool.definition.inputSchema.properties?.sourceIds?.maxItems,
-      10,
-    );
-    assert.include(tool.definition.description, "material cache");
-    assert.isTrue(tool.definition.annotations?.readOnlyHint);
-  });
-
-  it("calls the context builder with the bound workspace and returns traceable context", async function () {
-    let observedQuestion = "";
-    let observedScope: BoundWorkspaceScope | undefined;
-    const tool = createPaperReadTool({
-      contextBuilder: {
-        async build(input) {
-          observedQuestion = input.question || "";
-          observedScope = input.scope;
-          return createContext("ready");
-        },
-      },
-    });
-
-    const result = await tool.call(
-      {
-        question: "Explain Figure 2",
-      },
-      { workspaceScope: createScope() },
+describe("PaperReadService", function () {
+  it("returns traceable text and structured evidence without local paths", async function () {
+    const service = createService(createContext("ready"));
+    const result = await service.read(
+      { question: "Explain Figure 2" },
+      { workspaceScope: createScope(), acceptsImages: true },
     );
 
     assert.isFalse(result.isError);
-    assert.equal(observedQuestion, "Explain Figure 2");
-    assert.equal(observedScope?.workspaceKey, "item:1:PAPER-A");
-    assert.include(result.content[0].text, "Workspace: item item:1:PAPER-A");
-    assert.include(result.content[0].text, "Evidence 1");
-    assert.include(result.content[0].text, "label=Figure 2");
-    assert.notInclude(result.content[0].text, "page=5");
-    assert.include(result.content[0].text, "image=/cache/assets/page-0005.png");
-    assert.notInclude(result.content[0].text, "Parser warning");
-    assert.notInclude(result.content[0].text, "Markdown extraction failed");
-    assert.notProperty(result, "structuredContent");
+    assert.include(result.text, "sourceId=1-PDF");
+    assert.include(result.text, "page=5");
+    assert.include(result.text, "label=Figure 2");
+    assert.notInclude(result.text, "/cache/");
+    assert.equal(result.structuredContent.evidence[0].page, 5);
+    assert.equal(result.images.length, 1);
+    assert.equal(result.images[0].mimeType, "image/png");
   });
 
-  it("returns an error when paper_read has no bound workspace", async function () {
-    const tool = createTool(createContext("not_bound"));
-
-    const result = await tool.call(
-      {
-        question: "What is the method?",
-      },
-      { paperBindingError: PAPER_BINDING_MISSING_MESSAGE },
+  it("only returns page images for an explicit locator and image-capable client", async function () {
+    const context = createContext("ready");
+    const service = createService(context);
+    const noImages = await service.read(
+      { question: "Explain Figure 2" },
+      { workspaceScope: createScope(), acceptsImages: false },
+    );
+    const general = await createService({
+      ...context,
+      query: { ...context.query, locator: undefined },
+    }).read(
+      { question: "Summarize the paper" },
+      { workspaceScope: createScope(), acceptsImages: true },
     );
 
-    assert.isTrue(result.isError);
-    assert.equal(result.content[0].text, PAPER_BINDING_MISSING_MESSAGE);
+    assert.deepEqual(noImages.images, []);
+    assert.deepEqual(general.images, []);
   });
 
-  it("returns a source selection error for workspaces without a default PDF", async function () {
-    const tool = createTool(createContext("no_source"));
-
-    const result = await tool.call(
-      {
-        question: "What is the method?",
-      },
-      { workspaceScope: { ...createScope(), defaultSource: undefined } },
+  it("deduplicates page images and returns at most three", async function () {
+    const context = createContext("ready");
+    const first = context.evidence[0];
+    context.evidence = [
+      first,
+      { ...first, artifactId: "duplicate", imagePath: first.imagePath },
+      { ...first, artifactId: "figure-3", imagePath: "/cache/page-3.png" },
+      { ...first, artifactId: "figure-4", imagePath: "/cache/page-4.png" },
+      { ...first, artifactId: "figure-5", imagePath: "/cache/page-5.png" },
+    ];
+    const result = await createService(context).read(
+      { question: "Compare the figures" },
+      { workspaceScope: createScope(), acceptsImages: true },
     );
 
-    assert.isTrue(result.isError);
-    assert.include(result.content[0].text, "no selected PDF source");
+    assert.lengthOf(result.images, 3);
+    assert.equal(new Set(result.images.map((image) => image.path)).size, 3);
   });
 
-  it("returns material pipeline failures as tool errors", async function () {
-    const tool = createTool(createContext("material_error"));
-
-    const result = await tool.call(
-      {
-        question: "What is Table 1?",
-      },
-      { workspaceScope: createScope() },
-    );
-
-    assert.isTrue(result.isError);
-    assert.include(result.content[0].text, "PDF material pipeline failed");
-    assert.include(result.content[0].text, "PyMuPDF4LLM");
+  it("maps not_bound to a tool error", async function () {
+    await assertErrorStatus("not_bound");
   });
 
-  it("passes validated selected sourceIds to the context builder", async function () {
-    const source = createSourceRef("1-PDF-B", "Paper B");
-    let observedSources = 0;
-    const tool = createPaperReadTool({
-      sourceUniverse: {
-        async resolveSources() {
-          return [source];
-        },
-        async resolveSelectedPdfSources() {
-          return [source];
-        },
-      },
-      contextBuilder: {
-        async build(input) {
-          observedSources = input.sources?.length || 0;
-          return createContext("ready");
-        },
-      },
-    });
+  it("maps no_source to a tool error", async function () {
+    await assertErrorStatus("no_source");
+  });
 
-    const result = await tool.call(
-      {
-        question: "Compare methods",
-        sourceIds: ["1-PDF-B"],
-      },
-      { workspaceScope: createScope() },
+  it("maps material_error to a tool error", async function () {
+    await assertErrorStatus("material_error");
+  });
+
+  it("keeps no_match as a successful, empty evidence result", async function () {
+    const result = await createService(createContext("no_match")).read(
+      { question: "Unknown topic" },
+      { workspaceScope: createScope(), acceptsImages: true },
     );
-
     assert.isFalse(result.isError);
-    assert.equal(observedSources, 1);
+    assert.deepEqual(result.structuredContent.evidence, []);
   });
 
-  it("validates selected item PDFs against every PDF attachment", async function () {
-    const alternate = createSourceRef("1-PDF-B", "Supplement.pdf");
-    let usedSelectedPdfResolver = false;
+  it("passes selected workspace PDFs to the context builder", async function () {
+    const selected = createSourceRef("1-PDF-B", "Supplement");
     let observedSourceId = "";
-    const tool = createPaperReadTool({
+    const service = new PaperReadService({
       sourceUniverse: {
         async resolveSources() {
-          return [createSourceRef("1-PDF-A", "Main.pdf")];
+          return [];
         },
         async resolveSelectedPdfSources() {
-          usedSelectedPdfResolver = true;
-          return [alternate];
+          return [selected];
         },
       },
       contextBuilder: {
@@ -149,164 +106,60 @@ describe("paper_read MCP tool", function () {
       },
     });
 
-    const result = await tool.call(
-      {
-        question: "Read the supplement",
-        sourceIds: ["1-PDF-B"],
-      },
-      { workspaceScope: createScope() },
+    const result = await service.read(
+      { sourceIds: [selected.sourceId] },
+      { workspaceScope: createScope(), acceptsImages: false },
     );
-
     assert.isFalse(result.isError);
-    assert.isTrue(usedSelectedPdfResolver);
-    assert.equal(observedSourceId, alternate.sourceId);
+    assert.equal(observedSourceId, selected.sourceId);
+    assert.equal(PAPER_READ_MAX_SOURCES, 10);
   });
 
-  it("validates sibling PDFs selected from a collection item tree", async function () {
-    const alternate = createSourceRef("1-PDF-B", "Supplement.pdf");
-    let observedWorkspaceType = "";
-    const tool = createPaperReadTool({
+  it("rejects selected PDFs outside the bound workspace", async function () {
+    const service = new PaperReadService({
       sourceUniverse: {
         async resolveSources() {
-          return [createSourceRef("1-PDF-A", "Paper A")];
-        },
-        async resolveSelectedPdfSources(workspace, sourceIds) {
-          observedWorkspaceType = workspace.workspaceType;
-          assert.deepEqual(sourceIds, ["1-PDF-B"]);
-          return [alternate];
-        },
-      },
-      contextBuilder: {
-        async build(input) {
-          assert.equal(input.sources?.[0]?.sourceId, alternate.sourceId);
-          return createContext("ready");
-        },
-      },
-    });
-
-    const result = await tool.call(
-      {
-        question: "Read the supplement",
-        sourceIds: ["1-PDF-B"],
-      },
-      {
-        workspaceScope: {
-          ...createScope(),
-          workspaceKey: "collection:1:COLL",
-          workspaceType: "collection",
-          collectionKey: "COLL",
-        },
-      },
-    );
-
-    assert.isFalse(result.isError);
-    assert.equal(observedWorkspaceType, "collection");
-  });
-
-  it("rejects selected sourceIds outside the bound workspace", async function () {
-    const tool = createPaperReadTool({
-      sourceUniverse: {
-        async resolveSources() {
-          return [createSourceRef("1-PDF-A", "Paper A")];
+          return [];
         },
         async resolveSelectedPdfSources() {
           return [];
         },
       },
-      contextBuilder: {
-        async build() {
-          return createContext("ready");
-        },
-      },
     });
-
-    const result = await tool.call(
-      {
-        question: "Compare methods",
-        sourceIds: ["1-PDF-B"],
-      },
-      { workspaceScope: createScope() },
+    const result = await service.read(
+      { sourceIds: ["1-OTHER"] },
+      { workspaceScope: createScope(), acceptsImages: false },
     );
-
     assert.isTrue(result.isError);
-    assert.include(result.content[0].text, "outside the current workspace");
-  });
-
-  it("rejects unsupported paper_read input fields", async function () {
-    const tool = createTool(createContext("ready"));
-
-    try {
-      await tool.call(
-        {
-          itemId: 1,
-        },
-        { workspaceScope: createScope() },
-      );
-      assert.fail("Expected invalid input to fail");
-    } catch (error) {
-      assert.include(
-        String(error),
-        "paper_read input contains unsupported field: itemId",
-      );
-    }
-  });
-
-  it("rejects more selected PDFs than the shared context limit", async function () {
-    const sources = Array.from({ length: 11 }, (_, index) =>
-      createSourceRef(`source-${index}`, `Paper ${index}`),
-    );
-    const tool = createPaperReadTool({
-      sourceUniverse: {
-        async resolveSources() {
-          return [];
-        },
-        async resolveSelectedPdfSources() {
-          return sources;
-        },
-      },
-      contextBuilder: {
-        async build() {
-          return createContext("ready");
-        },
-      },
-    });
-
-    try {
-      await tool.call(
-        { sourceIds: sources.map((source) => source.sourceId) },
-        { workspaceScope: createScope() },
-      );
-      assert.fail("Expected the source limit to be enforced");
-    } catch (error) {
-      assert.include(
-        String(error),
-        "paper_read.sourceIds must be an array of up to 10 strings.",
-      );
-    }
+    assert.equal(result.structuredContent.status, "invalid_source");
+    assert.include(result.text, "outside the current workspace");
   });
 });
 
-function createTool(context: BuiltContext) {
-  return createPaperReadTool({
+async function assertErrorStatus(
+  status: "not_bound" | "no_source" | "material_error",
+): Promise<void> {
+  const result = await createService(createContext(status)).read(
+    { question: "Read the paper" },
+    {
+      workspaceScope: status === "not_bound" ? undefined : createScope(),
+      bindingError:
+        status === "not_bound" ? PAPER_BINDING_MISSING_MESSAGE : undefined,
+      acceptsImages: true,
+    },
+  );
+  assert.isTrue(result.isError);
+  assert.equal(result.structuredContent.status, status);
+}
+
+function createService(context: BuiltContext): PaperReadService {
+  return new PaperReadService({
     contextBuilder: {
       async build() {
         return context;
       },
     },
   });
-}
-
-function createSourceRef(sourceId: string, title: string) {
-  return {
-    sourceId,
-    paperKey: `1:${title.replace(/\s+/g, "-").toUpperCase()}`,
-    libraryID: 1,
-    parentItemID: 30,
-    parentItemKey: title.replace(/\s+/g, "-").toUpperCase(),
-    attachmentItemID: 31,
-    attachmentKey: sourceId.slice(2),
-    title,
-  };
 }
 
 function createScope(): BoundWorkspaceScope {
@@ -324,8 +177,29 @@ function createScope(): BoundWorkspaceScope {
   };
 }
 
+function createSourceRef(sourceId: string, title: string) {
+  return {
+    sourceId,
+    paperKey: `1:${title}`,
+    libraryID: 1,
+    parentItemID: 30,
+    parentItemKey: title,
+    attachmentItemID: 31,
+    attachmentKey: sourceId,
+    title,
+  };
+}
+
 function createContext(status: BuiltContext["status"]): BuiltContext {
-  const base: BuiltContext = {
+  const warnings =
+    status === "not_bound"
+      ? [PAPER_BINDING_MISSING_MESSAGE]
+      : status === "no_source"
+        ? ["The current workspace has no selected PDF source."]
+        : status === "material_error"
+          ? ["PDF material pipeline failed."]
+          : [];
+  return {
     status,
     workspace: {
       key: "item:1:PAPER-A",
@@ -355,41 +229,24 @@ function createContext(status: BuiltContext["status"]): BuiltContext {
       locator: { type: "figure", value: "2" },
       includeReferences: false,
     },
-    evidence: [],
-    warnings: ["Markdown extraction failed; page text extraction was used."],
-  };
-
-  if (status === "not_bound") {
-    return { ...base, warnings: [PAPER_BINDING_MISSING_MESSAGE] };
-  }
-  if (status === "no_source") {
-    return {
-      ...base,
-      warnings: ["The current workspace has no selected PDF source."],
-    };
-  }
-  if (status === "material_error") {
-    return {
-      ...base,
-      warnings: ["PyMuPDF4LLM failed to parse the PDF."],
-    };
-  }
-  return {
-    ...base,
-    evidence: [
-      {
-        type: "artifact",
-        sourceId: "1-PDF",
-        artifactId: "1-PDF:figure:2",
-        chunkId: "1-PDF:chunk:3",
-        label: "Figure 2",
-        page: 5,
-        sectionPath: ["Experiments"],
-        imagePath: "/cache/assets/page-0005.png",
-        score: 1.8,
-        reasons: ["exact artifact locator"],
-        text: "Caption: Figure 2 summarizes the retrieval pipeline.",
-      },
-    ],
+    evidence:
+      status === "ready"
+        ? [
+            {
+              type: "artifact",
+              sourceId: "1-PDF",
+              artifactId: "1-PDF:figure:2",
+              chunkId: "1-PDF:chunk:3",
+              label: "Figure 2",
+              page: 5,
+              sectionPath: ["Experiments"],
+              imagePath: "/cache/assets/page-0005.png",
+              score: 1.8,
+              reasons: ["exact artifact locator"],
+              text: "Figure 2 summarizes the retrieval pipeline.",
+            },
+          ]
+        : [],
+    warnings,
   };
 }

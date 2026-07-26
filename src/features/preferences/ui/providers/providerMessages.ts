@@ -10,6 +10,7 @@ const DIAGNOSTIC_MESSAGE_IDS: Record<AgentDiagnosticCode, FluentMessageId> = {
   codex_not_signed_in: "pref-provider-diagnostic-codex-not-signed-in",
   provider_profile_incomplete: "pref-provider-diagnostic-profile-incomplete",
   byok_runtime_unavailable: "pref-provider-diagnostic-byok-runtime-unavailable",
+  node_version_unsupported: "pref-provider-diagnostic-node-version-unsupported",
   invalid_api_key: "pref-provider-diagnostic-invalid-api-key",
   provider_unauthorized: "pref-provider-diagnostic-unauthorized",
   model_not_found: "pref-provider-diagnostic-model-not-found",
