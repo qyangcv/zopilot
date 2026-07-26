@@ -20,7 +20,7 @@ const CODEX_CAPABILITIES: AgentCapabilities = {
 const OPENAI_COMPATIBLE_BASELINE_CAPABILITIES: AgentCapabilities = {
   streaming: true,
   tools: true,
-  images: false,
+  images: true,
   cancellation: true,
   modelListing: true,
   reasoning: true,
@@ -39,5 +39,6 @@ function createCapabilities(
   return {
     ...base,
     ...overrides,
+    images: true,
   };
 }

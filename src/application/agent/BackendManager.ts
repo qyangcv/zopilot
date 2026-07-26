@@ -24,7 +24,10 @@ let managerShutdownPromise: Promise<void> | undefined;
 const logger = createLogger("agent.backends");
 
 class AgentBackendManager {
-  private readonly backends = new Map<string, AgentBackend>();
+  private readonly backends = new Map<
+    string,
+    { backend: AgentBackend; profile: ProviderProfile & { apiKey?: string } }
+  >();
   private readonly listeners = new Set<BackendManagerListener>();
   private readonly disposeProfileSubscription: () => void;
   private disposePromise?: Promise<void>;
@@ -122,7 +125,7 @@ class AgentBackendManager {
     const backends = Array.from(this.backends.values());
     this.backends.clear();
     this.disposePromise = Promise.allSettled(
-      backends.map(async (backend) => {
+      backends.map(async ({ backend }) => {
         await backend.dispose();
       }),
     ).then((results) => {
@@ -136,15 +139,19 @@ class AgentBackendManager {
   }
 
   private getBackend(profileId: string): AgentBackend {
-    const cached = this.backends.get(profileId);
-    if (cached) {
-      return cached;
-    }
     const profile =
       getProviderProfileStore().getProfile(profileId) ||
       getProviderProfileStore().getActiveProfile();
+    const cached = this.backends.get(profile.id);
+    if (cached && sameRuntimeProfile(cached.profile, profile)) {
+      return cached.backend;
+    }
+    if (cached) {
+      void cached.backend.dispose();
+      this.backends.delete(profile.id);
+    }
     const backend = createBackendForProfile(profile);
-    this.backends.set(profile.id, backend);
+    this.backends.set(profile.id, { backend, profile });
     return backend;
   }
 
@@ -157,14 +164,40 @@ class AgentBackendManager {
 
   private pruneBackends(profiles: ProviderProfile[]): void {
     const ids = new Set(profiles.map((profile) => profile.id));
-    for (const [id, backend] of this.backends) {
+    for (const [id, cached] of this.backends) {
       if (ids.has(id)) {
         continue;
       }
-      void backend.dispose();
+      void cached.backend.dispose();
       this.backends.delete(id);
     }
   }
+}
+
+function sameRuntimeProfile(
+  previous: ProviderProfile & { apiKey?: string },
+  next: ProviderProfile & { apiKey?: string },
+): boolean {
+  if (previous.apiKey !== next.apiKey) return false;
+  return (
+    JSON.stringify(runtimeProfileConfig(previous)) ===
+    JSON.stringify(runtimeProfileConfig(next))
+  );
+}
+
+function runtimeProfileConfig(profile: ProviderProfile) {
+  return {
+    id: profile.id,
+    kind: profile.kind,
+    providerId: profile.providerId,
+    displayName: profile.displayName,
+    baseURL: profile.baseURL,
+    models: profile.models,
+    capabilities: profile.capabilities,
+    timeoutMs: profile.timeoutMs,
+    retryCount: profile.retryCount,
+    enabled: profile.enabled,
+  };
 }
 
 function getAgentBackendManager(): AgentBackendManager {

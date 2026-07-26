@@ -4,6 +4,7 @@ import {
   createCodexProviderProfile,
   createProviderProfile,
   isModelVisible,
+  normalizeAgentModelEntry,
 } from "../../domain/agent/modelCatalog";
 import type {
   AgentCapabilities,
@@ -121,7 +122,12 @@ class ProviderProfileStore {
       return undefined;
     }
     const current = normalizeStoredProfile(stored[index]);
-    const models = patch.models || current.models;
+    const endpointChanged =
+      patch.baseURL !== undefined && patch.baseURL !== current.baseURL;
+    const models = resetImageInputRejections(
+      (patch.models || current.models).map(normalizeAgentModelEntry),
+      endpointChanged,
+    );
     const visibleModels = models.filter(isModelVisible);
     const next: StoredProviderProfile = {
       ...current,
@@ -225,6 +231,28 @@ class ProviderProfileStore {
       this.updateProvider(profileId, { models });
     }
     this.resolveHiddenSelectedModel(profile, modelId, models);
+    return true;
+  }
+
+  markModelImageInputRejected(profileId: string, modelId: string): boolean {
+    const profile = this.getSnapshot().profiles.find(
+      (item) => item.id === profileId,
+    );
+    if (!profile || profile.kind === "codex-cli") return false;
+    const model = profile.models.find((item) => item.id === modelId);
+    if (!model || model.imageInputRejected === true) {
+      return false;
+    }
+    this.updateProvider(profileId, {
+      models: profile.models.map((item) =>
+        item.id === modelId
+          ? {
+              ...item,
+              imageInputRejected: true,
+            }
+          : item,
+      ),
+    });
     return true;
   }
 
@@ -366,7 +394,14 @@ function mergeDiscoveredModels(
   const merged = discovered.map((model) => {
     const existing = currentById.get(model.id);
     return setModelVisible(
-      model,
+      {
+        ...model,
+        imageInputRejected:
+          model.imageInputRejected === true ||
+          existing?.imageInputRejected === true
+            ? true
+            : undefined,
+      },
       existing ? isModelVisible(existing) : newModelsVisible,
     );
   });
@@ -374,6 +409,17 @@ function mergeDiscoveredModels(
     merged[0] = setModelVisible(merged[0], true);
   }
   return merged;
+}
+
+function resetImageInputRejections(
+  models: AgentModelEntry[],
+  reset: boolean,
+): AgentModelEntry[] {
+  if (!reset) return models;
+  return models.map((model) => {
+    const { imageInputRejected: _rejected, ...rest } = model;
+    return rest;
+  });
 }
 
 function setModelVisible(

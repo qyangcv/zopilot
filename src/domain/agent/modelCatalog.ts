@@ -15,7 +15,9 @@ export {
   isModelVisible,
   isProviderId,
   modelFromId,
+  normalizeAgentModelEntry,
   resolveProviderId,
+  shouldAttemptImageDelivery,
 };
 export type { ProviderDefinition };
 
@@ -109,7 +111,7 @@ function createCodexProviderProfile(
     status?: ProviderProfile["status"];
   } = {},
 ): ProviderProfile {
-  const models = input.models || [];
+  const models = (input.models || []).map(normalizeAgentModelEntry);
   const visibleModels = models.filter(isModelVisible);
   const provider = getProviderDefinition("codex");
   return {
@@ -144,10 +146,7 @@ function createProviderProfile(input: {
 }): ProviderProfile {
   const provider = getProviderDefinition(input.providerId);
   const models = input.models?.length
-    ? input.models.map((model) => ({
-        ...modelFromId(model.id),
-        ...(model.visible === false ? { visible: false } : {}),
-      }))
+    ? input.models.map(normalizeAgentModelEntry)
     : input.defaultModel
       ? [modelFromId(input.defaultModel)]
       : [];
@@ -182,6 +181,46 @@ function modelFromId(id: string): AgentModelEntry {
     supportedReasoningEfforts,
     defaultReasoningEffort: "medium",
   };
+}
+
+function normalizeAgentModelEntry(
+  model: Partial<AgentModelEntry> & {
+    id: string;
+  },
+): AgentModelEntry {
+  const fallback = modelFromId(model.id);
+  const cleanModel = Object.fromEntries(
+    Object.entries(model).filter(
+      ([key]) =>
+        key !== "imageSupport" &&
+        key !== "imageSupportSource" &&
+        key !== "imageSupportObservedAt",
+    ),
+  ) as typeof model;
+  return {
+    ...fallback,
+    ...cleanModel,
+    displayName:
+      typeof model.displayName === "string" ? model.displayName : fallback.id,
+    supportedReasoningEfforts: Array.isArray(model.supportedReasoningEfforts)
+      ? model.supportedReasoningEfforts.filter(
+          (effort): effort is string => typeof effort === "string",
+        )
+      : fallback.supportedReasoningEfforts,
+    imageInputRejected: model.imageInputRejected === true ? true : undefined,
+  };
+}
+
+function shouldAttemptImageDelivery(
+  profile: ProviderProfile,
+  modelId: string | undefined,
+): boolean {
+  if (profile.kind !== "openai-compatible") return true;
+  const model =
+    profile.models.find((entry) => entry.id === modelId) ||
+    profile.models.find((entry) => entry.id === profile.defaultModel) ||
+    profile.models.find(isModelVisible);
+  return model?.imageInputRejected !== true;
 }
 
 function resolveProviderId(baseURL: string | undefined): AgentProviderId {

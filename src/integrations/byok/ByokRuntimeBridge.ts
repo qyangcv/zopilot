@@ -48,11 +48,15 @@ import {
 } from "./messageParsing";
 import { getNestedValue } from "../../runtime/json/accessors";
 import { loadSubprocessModule } from "../../platform/gecko";
+import { parseRetrievalQuery } from "../../document/retrieval/queryParser";
+import { getProviderProfileStore } from "../../application/providers/ProviderProfileService";
+import { shouldAttemptImageDelivery } from "../../domain/agent/modelCatalog";
 
 export { ByokRuntimeBridge, getByokRuntimeBridge, shutdownByokRuntimeBridge };
 
 type ByokRuntimeBridgeOptions = {
   buildMcpConnection?: typeof buildZopilotMcpConnection;
+  markImageInputRejected?: (profileId: string, modelId: string) => void;
   prepareAttachments?: LocalAttachmentPreparer["prepare"];
 };
 
@@ -64,6 +68,7 @@ type ActiveTurn = {
   callbacks: AgentPromptCallbacks;
   eventSequence: number;
   runId: string;
+  providerProfileId: string;
   streamLengths: Map<string, number>;
   syntheticIdSequence: number;
 };
@@ -136,6 +141,7 @@ class ByokRuntimeBridge {
       callbacks,
       eventSequence: 0,
       runId,
+      providerProfileId: profile.id,
       streamLengths: new Map(),
       syntheticIdSequence: 0,
     };
@@ -147,6 +153,7 @@ class ByokRuntimeBridge {
       runId,
     });
     try {
+      const allowImages = shouldAttemptImageDelivery(profile, input.model);
       const preparedLocalAttachments = input.localAttachments?.length
         ? await (
             this.options.prepareAttachments ||
@@ -157,13 +164,26 @@ class ByokRuntimeBridge {
           )({
             attachments: input.localAttachments,
             prompt: input.prompt,
-            acceptsImages: profile.capabilities.images,
+            imagePolicy: allowImages ? "include" : "omit",
           })
         : undefined;
+      if (!allowImages && preparedLocalAttachments?.omittedImageCount) {
+        this.emit(activeTurn, {
+          type: "notice.upsert",
+          blockId: this.nextSyntheticId(activeTurn, "image-omitted"),
+          text: `当前模型或接口不支持图片输入，本轮 ${preparedLocalAttachments.omittedImageCount} 张图片未发送。`,
+        });
+      } else if (!allowImages && parseRetrievalQuery(input.prompt).locator) {
+        this.emit(activeTurn, {
+          type: "notice.upsert",
+          blockId: this.nextSyntheticId(activeTurn, "page-image-omitted"),
+          text: "当前模型或接口不支持图片输入，本轮只提供论文文本和页码。",
+        });
+      }
       const mcpResult = await (
         this.options.buildMcpConnection || buildZopilotMcpConnection
       )(input.conversation.metadata, {
-        acceptsImages: profile.capabilities.images,
+        acceptsImages: allowImages,
         timeoutMs: profile.timeoutMs,
       });
       const { localAttachments: _localAttachments, ...runtimeInput } = input;
@@ -531,6 +551,20 @@ class ByokRuntimeBridge {
             });
           }
           logger.warn("BYOK runtime warning", { warning, runId });
+        }
+        break;
+      }
+      case "model/imageInputRejected": {
+        const modelId = getNestedString(message.params, ["modelId"]);
+        if (activeTurn && modelId) {
+          (
+            this.options.markImageInputRejected ||
+            ((profileId, rejectedModelId) =>
+              getProviderProfileStore().markModelImageInputRejected(
+                profileId,
+                rejectedModelId,
+              ))
+          )(activeTurn.providerProfileId, modelId);
         }
         break;
       }

@@ -81,11 +81,30 @@ function parseOpenAIModelList(value: unknown): AgentModelEntry[] {
         item && typeof item === "object" && typeof (item as any).id === "string"
           ? (item as any).id
           : undefined;
-      return id ? modelFromId(id) : undefined;
+      if (!id) return undefined;
+      const model = modelFromId(id);
+      return providerRejectsImageInput(item)
+        ? { ...model, imageInputRejected: true }
+        : model;
     })
     .filter((item: AgentModelEntry | undefined): item is AgentModelEntry =>
       Boolean(item),
     );
+}
+
+function providerRejectsImageInput(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const modalities = readStringArray(value.input_modalities);
+  return Boolean(
+    modalities &&
+    !modalities.some((modality) => modality.toLowerCase() === "image"),
+  );
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : undefined;
 }
 
 export {
@@ -93,6 +112,7 @@ export {
   normalizeBaseURL,
   parseModelListParams,
   parseOpenAIModelList,
+  providerRejectsImageInput,
   parseTurnStartParams,
   validateProfile,
 };

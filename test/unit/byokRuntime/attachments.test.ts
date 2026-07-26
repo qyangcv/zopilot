@@ -15,26 +15,24 @@ describe("BYOK local attachments", function () {
     delete (globalThis as { IOUtils?: unknown }).IOUtils;
   });
 
-  it("blocks image attachments for a non-visual provider", async function () {
+  it("keeps image attachments while omitting model input", async function () {
     const preparer = new LocalAttachmentPreparer();
-    try {
-      await preparer.prepare({
-        attachments: [
-          {
-            id: "image-a",
-            kind: "image",
-            path: "/tmp/image.png",
-            filename: "image.png",
-            mimeType: "image/png",
-          },
-        ],
-        prompt: "Describe this",
-        acceptsImages: false,
-      });
-      assert.fail("Expected image input to be blocked");
-    } catch (error) {
-      assert.include(String(error), "does not support image input");
-    }
+    const result = await preparer.prepare({
+      attachments: [
+        {
+          id: "image-a",
+          kind: "image",
+          path: "/tmp/image.png",
+          filename: "image.png",
+          mimeType: "image/png",
+        },
+      ],
+      prompt: "Describe this",
+      imagePolicy: "omit",
+    });
+    assert.deepEqual(result.images, []);
+    assert.equal(result.omittedImageCount, 1);
+    assert.equal(result.validAttachmentCount, 1);
   });
 
   it("uses locally parsed PDF evidence and related page images", async function () {
@@ -53,7 +51,7 @@ describe("BYOK local attachments", function () {
         },
       ],
       prompt: "Explain Figure 2",
-      acceptsImages: true,
+      imagePolicy: "include",
     });
 
     assert.include(result.text, "file=paper.pdf");
@@ -199,6 +197,7 @@ function createTurnParams(path: string): TurnStartParams {
           },
         ],
         warnings: [],
+        omittedImageCount: 0,
         validAttachmentCount: 1,
       },
     },

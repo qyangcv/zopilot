@@ -7,9 +7,13 @@ import {
 import { readFile, stat } from "node:fs/promises";
 import { aisdk } from "@openai/agents-extensions/ai-sdk";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { isModelVisible } from "../../../domain/agent/modelCatalog";
+import {
+  isModelVisible,
+  shouldAttemptImageDelivery,
+} from "../../../domain/agent/modelCatalog";
 import { buildCodexDeveloperInstructions } from "../../../application/agent/prompt/developerInstructions";
 import { buildStatelessAgentPrompt } from "../../../application/agent/prompt/contextAssembler";
+import { parseRetrievalQuery } from "../../../document/retrieval/queryParser";
 import {
   formatToolTraceValue,
   sanitizeToolTraceJson,
@@ -31,11 +35,18 @@ import {
 
 type UnknownRecord = Record<string, unknown>;
 type ByokAgentRunnerOptions = {
+  connectMcp?: typeof connectMcpServers;
   notify: (method: string, params?: JsonValue) => void;
+  runAgent?: typeof run;
 };
+type BufferedNotification = { method: string; params?: JsonValue };
 
 class ByokAgentRunner {
   private readonly abortControllers = new Map<string, AbortController>();
+  private readonly notificationBuffers = new Map<
+    string,
+    BufferedNotification[]
+  >();
 
   constructor(private readonly options: ByokAgentRunnerOptions) {}
 
@@ -81,6 +92,52 @@ class ByokAgentRunner {
 
   async startTurn(params: TurnStartParams): Promise<AgentRunResult> {
     validateProfile(params.profile);
+    const modelId =
+      params.input.model ||
+      params.profile.defaultModel ||
+      params.profile.models.find(isModelVisible)?.id;
+    if (!modelId) throw new Error("No model selected for this provider.");
+    const allowImages = shouldAttemptImageDelivery(params.profile, modelId);
+    const maySendImages =
+      allowImages &&
+      (Boolean(params.input.preparedLocalAttachments?.images.length) ||
+        Boolean(
+          params.mcp?.acceptsImages &&
+          parseRetrievalQuery(params.input.prompt).locator,
+        ));
+    const bufferFirstAttempt = maySendImages;
+    if (bufferFirstAttempt) this.notificationBuffers.set(params.runId, []);
+
+    try {
+      const first = await this.runAttempt(params, allowImages);
+      if (bufferFirstAttempt) this.flushNotifications(params.runId);
+      return first;
+    } catch (error) {
+      if (maySendImages && isUnsupportedImageError(error)) {
+        this.discardNotifications(params.runId);
+        this.notify("model/imageInputRejected", {
+          runId: params.runId,
+          modelId,
+        });
+        this.notify("warning", {
+          runId: params.runId,
+          message: unsupportedImageNotice(params),
+        });
+        const retry = await this.runAttempt(params, false);
+        return retry;
+      }
+      if (bufferFirstAttempt) this.flushNotifications(params.runId);
+      throw error;
+    } finally {
+      this.discardNotifications(params.runId);
+    }
+  }
+
+  private async runAttempt(
+    params: TurnStartParams,
+    allowImages: boolean,
+  ): Promise<AgentRunResult> {
+    validateProfile(params.profile);
     const controller = new AbortController();
     this.abortControllers.set(params.runId, controller);
     let startupTimedOut = false;
@@ -114,7 +171,12 @@ class ByokAgentRunner {
         ? new MCPServerStreamableHttp({
             url: params.mcp.url,
             name: params.mcp.serverName,
-            requestInit: { headers: params.mcp.headers },
+            requestInit: {
+              headers: withImageCapabilityHeader(
+                params.mcp.headers,
+                allowImages,
+              ),
+            },
             timeout: params.mcp.timeoutMs,
             customDataExtractor: (context) => ({
               serverName: context.serverName,
@@ -127,20 +189,22 @@ class ByokAgentRunner {
         : undefined;
       if (mcp && params.profile.capabilities.tools) {
         try {
-          managedMcpServers = await connectMcpServers([mcp], {
+          managedMcpServers = await (
+            this.options.connectMcp || connectMcpServers
+          )([mcp], {
             connectTimeoutMs: 10000,
             closeTimeoutMs: 5000,
             dropFailed: true,
             strict: false,
           });
           for (const error of managedMcpServers.errors.values()) {
-            this.options.notify("warning", {
+            this.notify("warning", {
               runId: params.runId,
               message: `Zopilot paper tools are unavailable: ${error.message}`,
             });
           }
         } catch (error) {
-          this.options.notify("warning", {
+          this.notify("warning", {
             runId: params.runId,
             message: `Zopilot paper tools are unavailable: ${
               error instanceof Error ? error.message : String(error)
@@ -148,13 +212,13 @@ class ByokAgentRunner {
           });
         }
       } else if (mcp && !params.profile.capabilities.tools) {
-        this.options.notify("warning", {
+        this.notify("warning", {
           runId: params.runId,
           message:
             "Zopilot paper tools are unavailable because the selected provider profile does not support tools.",
         });
       } else if (params.mcpDiagnostic) {
-        this.options.notify("warning", {
+        this.notify("warning", {
           runId: params.runId,
           message: `Zopilot paper tools are unavailable: ${params.mcpDiagnostic}`,
         });
@@ -192,18 +256,21 @@ class ByokAgentRunner {
       });
       for (const warning of params.input.preparedLocalAttachments?.warnings ||
         []) {
-        this.options.notify("warning", {
+        this.notify("warning", {
           runId: params.runId,
           message: warning,
         });
       }
-      const agentInput = await buildAgentInput(params, (warning) =>
-        this.options.notify("warning", {
-          runId: params.runId,
-          message: warning,
-        }),
+      const agentInput = await buildAgentInput(
+        params,
+        (warning) =>
+          this.notify("warning", {
+            runId: params.runId,
+            message: warning,
+          }),
+        allowImages,
       );
-      const stream = await run(agent, agentInput, {
+      const stream = await (this.options.runAgent || run)(agent, agentInput, {
         stream: true,
         signal: controller.signal,
         maxTurns: null,
@@ -226,7 +293,7 @@ class ByokAgentRunner {
               currentResponse,
               `${responseTexts.get(currentResponse) || ""}${delta}`,
             );
-            this.options.notify("item/agentMessage/delta", {
+            this.notify("item/agentMessage/delta", {
               runId: params.runId,
               itemId: `response-${currentResponse}-message`,
               phase: "candidate",
@@ -323,7 +390,7 @@ class ByokAgentRunner {
     switch (part.type) {
       case "reasoning-delta":
         if (typeof part.delta === "string") {
-          this.options.notify("item/reasoning/delta", {
+          this.notify("item/reasoning/delta", {
             runId,
             itemId,
             kind: "content",
@@ -344,7 +411,7 @@ class ByokAgentRunner {
         break;
       case "tool-input-delta":
         if (typeof part.delta === "string") {
-          this.options.notify("item/tool/argumentsDelta", {
+          this.notify("item/tool/argumentsDelta", {
             runId,
             toolCallId: itemId,
             delta: part.delta,
@@ -369,7 +436,7 @@ class ByokAgentRunner {
       case "stream-start":
         if (Array.isArray(part.warnings)) {
           for (const warning of part.warnings) {
-            this.options.notify("warning", {
+            this.notify("warning", {
               runId,
               message: formatUnknown(warning),
             });
@@ -395,7 +462,7 @@ class ByokAgentRunner {
     if (name === "message_output_created") {
       const text = extractTextParts(rawItem.content);
       if (text) {
-        this.options.notify("item/agentMessage/completed", {
+        this.notify("item/agentMessage/completed", {
           runId,
           itemId: `response-${responseIndex}-message`,
           phase: "candidate",
@@ -408,7 +475,7 @@ class ByokAgentRunner {
       const text = extractTextParts(rawItem.rawContent || rawItem.content);
       if (text) {
         const rawId = typeof rawItem.id === "string" ? rawItem.id : "reasoning";
-        this.options.notify("item/reasoning/completed", {
+        this.notify("item/reasoning/completed", {
           runId,
           itemId: `response-${responseIndex}-${rawId}`,
           kind: "content",
@@ -451,7 +518,7 @@ class ByokAgentRunner {
         customData?.isError === true
           ? result || `${toolName} failed`
           : undefined;
-      this.options.notify("item/tool/completed", {
+      this.notify("item/tool/completed", {
         runId,
         toolCallId: callId,
         kind: "mcp",
@@ -482,7 +549,7 @@ class ByokAgentRunner {
   ): void {
     if (startedToolCalls.has(callId)) return;
     startedToolCalls.add(callId);
-    this.options.notify("item/tool/started", {
+    this.notify("item/tool/started", {
       runId,
       toolCallId: callId,
       kind: "mcp",
@@ -492,6 +559,122 @@ class ByokAgentRunner {
       ...(argumentsText ? { arguments: argumentsText } : {}),
     });
   }
+
+  private notify(method: string, params?: JsonValue): void {
+    const runId = asRecord(params)?.runId;
+    const buffer =
+      typeof runId === "string"
+        ? this.notificationBuffers.get(runId)
+        : undefined;
+    if (buffer) {
+      buffer.push({ method, params });
+      return;
+    }
+    this.options.notify(method, params);
+  }
+
+  private flushNotifications(runId: string): void {
+    const buffer = this.notificationBuffers.get(runId);
+    this.notificationBuffers.delete(runId);
+    for (const notification of buffer || []) {
+      this.options.notify(notification.method, notification.params);
+    }
+  }
+
+  private discardNotifications(runId: string): void {
+    this.notificationBuffers.delete(runId);
+  }
+}
+
+function withImageCapabilityHeader(
+  headers: Record<string, string>,
+  allowImages: boolean,
+): Record<string, string> {
+  const next = Object.fromEntries(
+    Object.entries(headers).filter(
+      ([name]) => name.toLowerCase() !== "x-zopilot-accepts-images",
+    ),
+  );
+  next["X-Zopilot-Accepts-Images"] = allowImages ? "true" : "false";
+  return next;
+}
+
+function isUnsupportedImageError(error: unknown): boolean {
+  const text = collectErrorText(error).toLowerCase();
+  const rejectsImageJson =
+    /\bunknown variant\b[\s\S]*\b(image|input_image|image_url)\b/.test(text) ||
+    /\b(deserialize|deserialise|json body|message content)\b[\s\S]*\b(image|input_image|image_url)\b/.test(
+      text,
+    );
+  const status = findHttpStatus(error);
+  if (status === undefined) return rejectsImageJson;
+  if (status !== 400 && status !== 422) return false;
+  if (
+    /\b(content[_ -]?policy|moderation|safety|too large|file size|dimensions?|resolution|image size|image bytes)\b/.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  const mentionsImage =
+    /\b(image|images|image_url|input_image|vision|multimodal)\b/.test(text);
+  const saysUnsupported =
+    /\b(unsupported|not supported|does not support|doesn't support|not accept|only text|text-only|invalid content type)\b/.test(
+      text,
+    ) || rejectsImageJson;
+  return mentionsImage && saysUnsupported;
+}
+
+function unsupportedImageNotice(params: TurnStartParams): string {
+  const imageCount =
+    params.input.preparedLocalAttachments?.images.filter(
+      (image) => image.page === undefined,
+    ).length || 0;
+  if (imageCount > 0) {
+    return `当前模型或接口不支持图片输入，本轮 ${imageCount} 张图片未发送。`;
+  }
+  return "当前模型或接口不支持图片输入，本轮只提供论文文本和页码。";
+}
+
+function findHttpStatus(value: unknown, depth = 0): number | undefined {
+  if (depth > 3 || !value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  for (const candidate of [record.status, record.statusCode]) {
+    const status =
+      typeof candidate === "number"
+        ? candidate
+        : typeof candidate === "string" && /^\d{3}$/.test(candidate)
+          ? Number(candidate)
+          : undefined;
+    if (status !== undefined) return status;
+  }
+  for (const key of ["cause", "response", "error", "data"]) {
+    const status = findHttpStatus(record[key], depth + 1);
+    if (status !== undefined) return status;
+  }
+  return undefined;
+}
+
+function collectErrorText(error: unknown, depth = 0): string {
+  if (depth > 3 || error === undefined || error === null) return "";
+  if (typeof error === "string") return error;
+  if (typeof error !== "object") return String(error);
+  const record = error as Record<string, unknown>;
+  return [
+    error instanceof Error ? error.message : "",
+    ...[
+      "message",
+      "code",
+      "param",
+      "body",
+      "data",
+      "responseBody",
+      "cause",
+      "response",
+    ].map((key) => collectErrorText(record[key], depth + 1)),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function asRecord(value: unknown): UnknownRecord | undefined {
@@ -586,6 +769,7 @@ function extractTextParts(value: unknown): string {
 async function buildAgentInput(
   params: TurnStartParams,
   onWarning: (message: string) => void,
+  allowImages = true,
 ) {
   const prepared = params.input.preparedLocalAttachments;
   const text = [
@@ -596,10 +780,11 @@ async function buildAgentInput(
       resolvedNoteContexts: params.input.resolvedNoteContexts,
     }),
     prepared?.text,
+    buildImageOmissionContext(params, allowImages),
   ]
     .filter(Boolean)
     .join("\n\n");
-  if (!prepared?.images.length) return text;
+  if (!allowImages || !prepared?.images.length) return text;
 
   const imageParts: Array<{
     type: "input_image";
@@ -654,6 +839,24 @@ async function buildAgentInput(
   ];
 }
 
+function buildImageOmissionContext(
+  params: TurnStartParams,
+  allowImages: boolean,
+): string | undefined {
+  if (allowImages) return undefined;
+  const prepared = params.input.preparedLocalAttachments;
+  const directImageCount =
+    (prepared?.omittedImageCount || 0) +
+    (prepared?.images.filter((image) => image.page === undefined).length || 0);
+  if (directImageCount > 0) {
+    return `[Zopilot delivery notice: ${directImageCount} user image attachment(s) were not sent. Do not claim to have seen or analyzed those images.]`;
+  }
+  if (parseRetrievalQuery(params.input.prompt).locator) {
+    return "[Zopilot delivery notice: Paper page images are unavailable for this turn. You may use paper text, captions, and page numbers, but do not claim visual inspection of a figure, table, equation, or page.]";
+  }
+  return undefined;
+}
+
 function detectImageMimeType(
   bytes: Uint8Array,
 ): "image/png" | "image/jpeg" | "image/webp" | "image/gif" | undefined {
@@ -684,5 +887,11 @@ function detectImageMimeType(
   return undefined;
 }
 
-export { ByokAgentRunner, buildAgentInput, detectImageMimeType };
+export {
+  ByokAgentRunner,
+  buildAgentInput,
+  detectImageMimeType,
+  isUnsupportedImageError,
+  withImageCapabilityHeader,
+};
 export type { ByokAgentRunnerOptions };

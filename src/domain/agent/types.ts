@@ -37,6 +37,7 @@ export type AgentModelEntry = {
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
   visible?: boolean;
+  imageInputRejected?: boolean;
 };
 
 export type ProviderConnectionStatus =
@@ -145,6 +146,7 @@ export type PreparedAttachmentImage = {
 export type PreparedLocalAttachments = {
   text?: string;
   images: PreparedAttachmentImage[];
+  omittedImageCount: number;
   warnings: string[];
   validAttachmentCount: number;
 };

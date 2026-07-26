@@ -14,7 +14,15 @@ describe("provider profile codec", function () {
           preset: "deepseek",
           displayName: "Legacy DeepSeek",
           baseURL: "https://api.deepseek.com",
-          models: [{ id: "deepseek-chat", displayName: "DeepSeek Chat" }],
+          models: [
+            {
+              id: "deepseek-chat",
+              displayName: "DeepSeek Chat",
+              imageSupport: "supported",
+              imageSupportSource: "runtime",
+              imageSupportObservedAt: "2026-07-26T00:00:00.000Z",
+            },
+          ],
           hasApiKey: true,
           status: "connected",
           capabilities: {},
@@ -29,6 +37,10 @@ describe("provider profile codec", function () {
     assert.equal(profiles[0]?.id, "deepseek.legacy");
     assert.equal(profiles[0]?.providerId, "deepseek");
     assert.equal(profiles[0]?.models[0]?.id, "deepseek-chat");
+    assert.isUndefined(profiles[0]?.models[0]?.imageInputRejected);
+    assert.notProperty(profiles[0]?.models[0] || {}, "imageSupport");
+    assert.notProperty(profiles[0]?.models[0] || {}, "imageSupportSource");
+    assert.isTrue(profiles[0]?.capabilities.images);
     assert.notProperty(profiles[0] as object, "hasApiKey");
     assert.notProperty(
       toStoredProviderProfile({ ...profiles[0]!, hasApiKey: true }),

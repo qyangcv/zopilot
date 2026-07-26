@@ -76,7 +76,7 @@ describe("ProviderProfileStore", function () {
     assert.equal(store.getProfile(profile.id)?.apiKey, "sk-test-secret");
   });
 
-  it("updates and deletes BYOK profiles with Codex fallback", function () {
+  it("updates and deletes BYOK profiles", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
       providerId: "minimax",
@@ -96,7 +96,6 @@ describe("ProviderProfileStore", function () {
     assert.equal(store.getProfile(profile.id)?.apiKey, "secret-b");
 
     store.deleteProvider(profile.id);
-    assert.equal(store.getSnapshot().activeProviderId, "codex-cli.default");
     assert.isUndefined(store.getProfile(profile.id));
   });
 
@@ -304,6 +303,66 @@ describe("ProviderProfileStore", function () {
     const models = store.getProfile(profile.id)?.models || [];
     assert.isTrue(models[0]?.visible !== false);
     assert.isFalse(models[1]?.visible);
+  });
+
+  it("preserves an image rejection on refresh and clears it after an endpoint change", function () {
+    const store = new ProviderProfileStore();
+    const profile = store.createProvider({
+      providerId: "custom",
+      apiKey: "secret-a",
+      baseURL: "https://provider.example/v1",
+      models: [
+        {
+          id: "model-a",
+          displayName: "Model A",
+          supportedReasoningEfforts: [],
+        },
+      ],
+    });
+
+    assert.isTrue(store.markModelImageInputRejected(profile.id, "model-a"));
+    store.updateProviderFromDiscovery(profile.id, {
+      status: "connected",
+      models: [
+        {
+          id: "model-a",
+          displayName: "Model A",
+          supportedReasoningEfforts: [],
+        },
+      ],
+    });
+    assert.deepInclude(store.getProfile(profile.id)?.models[0] || {}, {
+      imageInputRejected: true,
+    });
+
+    store.updateProvider(profile.id, {
+      baseURL: "https://provider.example/v2",
+    });
+    assert.isUndefined(
+      store.getProfile(profile.id)?.models[0]?.imageInputRejected,
+    );
+  });
+
+  it("keeps a negative image result when refreshed metadata is inconclusive", function () {
+    const current = [
+      {
+        id: "model-a",
+        displayName: "Model A",
+        imageInputRejected: true,
+        supportedReasoningEfforts: [],
+      },
+    ];
+    const discovered = [
+      {
+        id: "model-a",
+        displayName: "Model A",
+        supportedReasoningEfforts: [],
+      },
+    ];
+
+    assert.deepInclude(mergeDiscoveredModels(current, discovered, false)[0], {
+      imageInputRejected: true,
+    });
   });
 
   it("uses global pref branches, coalesces writes, and unregisters the final subscription", async function () {

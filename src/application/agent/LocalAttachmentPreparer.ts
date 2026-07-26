@@ -43,28 +43,26 @@ class LocalAttachmentPreparer {
   async prepare(input: {
     attachments: LocalAttachmentRef[];
     prompt: string;
-    acceptsImages: boolean;
+    imagePolicy: "include" | "omit";
   }): Promise<PreparedLocalAttachments> {
     const attachments = input.attachments.slice(0, MAX_LOCAL_ATTACHMENTS);
-    if (
-      !input.acceptsImages &&
-      attachments.some((attachment) => attachment.kind === "image")
-    ) {
-      throw new Error(
-        "The selected model does not support image input. Choose an image-capable model before sending image attachments.",
-      );
-    }
     const warnings: string[] = [];
     const directImages: PreparedAttachmentImage[] = [];
     const materials: Material[] = [];
     let totalImageBytes = 0;
     let validAttachmentCount = 0;
+    let omittedImageCount = 0;
 
     for (const originalAttachment of attachments) {
       const attachment = {
         ...originalAttachment,
         path: normalizeLocalPath(originalAttachment.path),
       };
+      if (attachment.kind === "image" && input.imagePolicy === "omit") {
+        omittedImageCount += 1;
+        validAttachmentCount += 1;
+        continue;
+      }
       try {
         const stat = await geckoIO.stat(attachment.path);
         const size = stat.size;
@@ -128,9 +126,10 @@ class LocalAttachmentPreparer {
       0,
       MAX_PDF_CONTEXT_CHARS,
     );
-    const pageImages = input.acceptsImages
-      ? selectPageImages(evidence, materials, plan.locator !== undefined)
-      : [];
+    const pageImages =
+      input.imagePolicy === "include"
+        ? selectPageImages(evidence, materials, plan.locator !== undefined)
+        : [];
     const availableSlots = Math.max(0, MAX_MODEL_IMAGES - directImages.length);
     const images = [
       ...directImages,
@@ -148,6 +147,7 @@ class LocalAttachmentPreparer {
     return {
       text: pdfText || undefined,
       images,
+      omittedImageCount,
       warnings,
       validAttachmentCount,
     };
