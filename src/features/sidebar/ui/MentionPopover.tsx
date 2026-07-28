@@ -1,12 +1,16 @@
 import { useEffect, useRef, type ReactElement } from "react";
 import { getString } from "../../../app/localization";
-import type { PaperSourceRef } from "../../../domain/conversation";
+import {
+  isStandalonePaper,
+  type PaperSourceRef,
+} from "../../../domain/conversation";
 import {
   PopupList,
   PopupRow,
   PopupSurface,
 } from "../../../ui/primitives/index";
 import { Icon } from "./Icon";
+import { ITEM_CONTEXT_ICONS } from "./itemContextIcons";
 
 export function MentionPopover({
   activeIndex,
@@ -55,7 +59,15 @@ export function MentionPopover({
             className="zp-mention-option"
             disabled={disabled}
             icon={
-              <Icon className="zp-mention-icon" name="paperMention" size={14} />
+              <Icon
+                className="zp-mention-icon"
+                name={
+                  isStandalonePaper(source)
+                    ? ITEM_CONTEXT_ICONS.pdf
+                    : "paperMention"
+                }
+                size={14}
+              />
             }
             id={`zp-mention-option-${index}`}
             key={source.sourceId}

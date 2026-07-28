@@ -1279,7 +1279,7 @@ describe("SidebarApp", function () {
     assert.notInclude(oneDigitHtml, "data-compact");
   });
 
-  it("renders compact paper mention candidates with FileText icons", function () {
+  it("distinguishes regular papers and standalone PDFs in mention candidates", function () {
     const html = renderToStaticMarkup(
       <MentionPopover
         activeIndex={0}
@@ -1295,6 +1295,14 @@ describe("SidebarApp", function () {
             year: "2026",
             creators: ["Ada Lovelace"],
           },
+          {
+            sourceId: "source-pdf",
+            paperKey: "1:PDF",
+            libraryID: 1,
+            attachmentItemID: 12,
+            attachmentKey: "PDF",
+            title: "Standalone.pdf",
+          },
         ]}
         disabled={false}
         onActiveIndexChange={() => undefined}
@@ -1304,7 +1312,9 @@ describe("SidebarApp", function () {
     );
 
     assert.include(html, 'data-icon-name="paperMention"');
+    assert.include(html, 'data-icon-name="file"');
     assert.include(html, "Paper A");
+    assert.include(html, "Standalone.pdf");
     assert.notInclude(html, "2026");
     assert.notInclude(html, "Ada Lovelace");
     assert.notInclude(html, "zp-mention-meta");

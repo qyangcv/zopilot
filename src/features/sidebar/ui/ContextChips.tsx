@@ -26,6 +26,7 @@ export function ContextChips({
   expandedMentionSourceId?: string;
   itemContext?: {
     expanded: boolean;
+    kind?: "item" | "pdf";
     title: string;
   };
   mentions?: SourceMention[];
@@ -46,9 +47,15 @@ export function ContextChips({
         <CompactContextChip
           ariaLabel={getString("sidebar-item-context-open")}
           expanded={itemContext.expanded}
-          icon="workspaceItem"
+          icon={
+            itemContext.kind === "pdf"
+              ? ITEM_CONTEXT_ICONS.pdf
+              : "workspaceItem"
+          }
           label={itemContext.title}
-          onActivate={onOpenItemContext}
+          onActivate={
+            itemContext.kind === "pdf" ? undefined : onOpenItemContext
+          }
           title={itemContext.title}
         />
       ) : null}
@@ -58,7 +65,11 @@ export function ContextChips({
           key={mention.id}
           label={mention.title}
           expanded={expandedMentionSourceId === mention.sourceId}
-          onActivate={onOpenMention ? () => onOpenMention(mention) : undefined}
+          onActivate={
+            onOpenMention && mention.parentItemKey
+              ? () => onOpenMention(mention)
+              : undefined
+          }
           onRemove={
             onRemoveMention ? () => onRemoveMention(mention.id) : undefined
           }

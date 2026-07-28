@@ -1,6 +1,7 @@
 import type {
   ConversationMessage,
   ConversationMetadata,
+  PaperIdentity,
 } from "../../../domain/conversation";
 import { createLogger } from "../../logging/logger";
 import { isAgentTraceItem } from "../../../domain/agent/trace";
@@ -29,8 +30,37 @@ function isConversationMetadata(value: unknown): value is ConversationMetadata {
       (Array.isArray(item.collectionPath) &&
         item.collectionPath.every((entry) => typeof entry === "string"))) &&
     (item.itemKey === undefined || typeof item.itemKey === "string") &&
+    (item.defaultSource === undefined || isPaperIdentity(item.defaultSource)) &&
+    (item.migration === undefined || isConversationMigration(item.migration)) &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
+  );
+}
+
+function isConversationMigration(value: unknown): boolean {
+  const item = value as {
+    kind?: unknown;
+    status?: unknown;
+    sourceWorkspaceKey?: unknown;
+    sourceConversationIds?: unknown;
+    sourceConversationId?: unknown;
+    targetConversationId?: unknown;
+  };
+  if (item?.kind === "standalone-pdf-backup") {
+    return (
+      typeof item.sourceWorkspaceKey === "string" &&
+      typeof item.sourceConversationId === "string"
+    );
+  }
+  return (
+    Boolean(item) &&
+    item.kind === "standalone-pdf-merge" &&
+    (item.status === "prepared" || item.status === "complete") &&
+    typeof item.sourceWorkspaceKey === "string" &&
+    Array.isArray(item.sourceConversationIds) &&
+    item.sourceConversationIds.every((id) => typeof id === "string") &&
+    (item.targetConversationId === undefined ||
+      typeof item.targetConversationId === "string")
   );
 }
 
@@ -95,12 +125,36 @@ function isSourceMention(value: unknown): boolean {
     typeof item.sourceId === "string" &&
     typeof item.paperKey === "string" &&
     typeof item.libraryID === "number" &&
-    (item.parentItemID === undefined ||
-      typeof item.parentItemID === "number") &&
-    typeof item.parentItemKey === "string" &&
+    isParentReference(item.parentItemID, item.parentItemKey) &&
     typeof item.attachmentItemID === "number" &&
     typeof item.attachmentKey === "string" &&
     typeof item.title === "string"
+  );
+}
+
+function isPaperIdentity(value: unknown): value is PaperIdentity {
+  const item = value as Partial<Record<keyof PaperIdentity, unknown>>;
+  return (
+    Boolean(item) &&
+    typeof item.paperKey === "string" &&
+    typeof item.libraryID === "number" &&
+    isParentReference(item.parentItemID, item.parentItemKey) &&
+    typeof item.attachmentItemID === "number" &&
+    typeof item.attachmentKey === "string" &&
+    typeof item.title === "string"
+  );
+}
+
+function isParentReference(
+  parentItemID: unknown,
+  parentItemKey: unknown,
+): boolean {
+  if (parentItemID === undefined && parentItemKey === undefined) {
+    return true;
+  }
+  return (
+    (parentItemID === undefined || typeof parentItemID === "number") &&
+    typeof parentItemKey === "string"
   );
 }
 

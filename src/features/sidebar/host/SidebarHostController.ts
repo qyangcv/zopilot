@@ -443,6 +443,7 @@ class SidebarHostController {
       this.viewState.sourceCandidates.find(
         (candidate) =>
           candidate.libraryID === source.libraryID &&
+          Boolean(candidate.parentItemKey) &&
           candidate.parentItemKey === source.parentItemKey,
       );
     if (

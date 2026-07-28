@@ -104,7 +104,9 @@ function createPaperBindingHeaders(
     if (source.parentItemID !== undefined) {
       headers[PAPER_BINDING_HEADERS.parentItemID] = String(source.parentItemID);
     }
-    headers[PAPER_BINDING_HEADERS.parentItemKey] = source.parentItemKey;
+    if (source.parentItemKey) {
+      headers[PAPER_BINDING_HEADERS.parentItemKey] = source.parentItemKey;
+    }
     headers[PAPER_BINDING_HEADERS.paperTitle] = source.title;
     headers[PAPER_BINDING_HEADERS.attachmentItemID] = String(
       source.attachmentItemID,
@@ -217,6 +219,12 @@ function parsePaperBindingHeaders(
     : undefined;
   if (parentItemID && !parentItemID.ok) {
     return parentItemID;
+  }
+  if (rawParentItemID && !parentItemKey) {
+    return {
+      ok: false,
+      error: "Incomplete Zopilot source parent binding headers.",
+    };
   }
 
   return {

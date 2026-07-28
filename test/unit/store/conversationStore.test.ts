@@ -467,6 +467,137 @@ describe("ConversationStore", function () {
     assert.isUndefined(reloaded?.messages[0]?.mentions);
   });
 
+  it("merges standalone PDF history into a new parent workspace conversation", async function () {
+    const standalone = createItemWorkspaceIdentity({
+      paperKey: "1:PDF",
+      libraryID: 1,
+      attachmentItemID: 11,
+      attachmentKey: "PDF",
+      title: "Standalone.pdf",
+    });
+    const parented = createItemWorkspaceIdentity({
+      paperKey: "1:PARENT",
+      libraryID: 1,
+      parentItemID: 10,
+      parentItemKey: "PARENT",
+      attachmentItemID: 11,
+      attachmentKey: "PDF",
+      title: "Parent paper",
+    });
+    const store = new ConversationStore(rootDir);
+
+    let archivedSource = await store.createWorkspaceConversation(standalone);
+    archivedSource = await store.addMessage(archivedSource.metadata, {
+      role: "user",
+      text: "Archived standalone question",
+    });
+    await store.archiveWorkspaceConversation(archivedSource.metadata);
+    await waitForTimestampTick();
+    const activeSource = await store.createWorkspaceConversation(standalone);
+    await store.addMessage(activeSource.metadata, {
+      role: "user",
+      text: "Active standalone question",
+    });
+    await waitForTimestampTick();
+    let parent = await store.createWorkspaceConversation(parented);
+    parent = await store.addMessage(parent.metadata, {
+      role: "user",
+      text: "Parent question",
+    });
+    await store.updateCodexThreadId(parent.metadata, "old-parent-thread");
+
+    await store.migrateStandaloneWorkspace(parented);
+
+    const merged = await store.getLatestWorkspaceConversation(
+      parented.workspaceKey,
+    );
+    const backups = await store.listArchivedWorkspaceConversations(
+      parented.workspaceKey,
+    );
+    assert.deepEqual(
+      merged?.messages.map((message) => message.text),
+      [
+        "Archived standalone question",
+        "Active standalone question",
+        "Parent question",
+      ],
+    );
+    assert.equal(merged?.metadata.migration?.kind, "standalone-pdf-merge");
+    assert.isUndefined(merged?.metadata.codexThreadId);
+    assert.equal(merged?.metadata.defaultSource?.parentItemKey, "PARENT");
+    assert.lengthOf(backups, 3);
+    assert.isNull(
+      await store.getLatestWorkspaceConversation(standalone.workspaceKey),
+    );
+
+    const mergedID = merged?.metadata.id;
+    await store.migrateStandaloneWorkspace(parented);
+    assert.equal(
+      (await store.getLatestWorkspaceConversation(parented.workspaceKey))
+        ?.metadata.id,
+      mergedID,
+    );
+  });
+
+  it("keeps the standalone workspace retryable when migration cleanup fails", async function () {
+    const standalone = createItemWorkspaceIdentity({
+      paperKey: "1:PDF-RETRY",
+      libraryID: 1,
+      attachmentItemID: 31,
+      attachmentKey: "PDF-RETRY",
+      title: "Retry.pdf",
+    });
+    const parented = createItemWorkspaceIdentity({
+      paperKey: "1:PARENT-RETRY",
+      libraryID: 1,
+      parentItemID: 30,
+      parentItemKey: "PARENT-RETRY",
+      attachmentItemID: 31,
+      attachmentKey: "PDF-RETRY",
+      title: "Retry parent",
+    });
+    const store = new ConversationStore(rootDir);
+    const source = await store.createWorkspaceConversation(standalone);
+    await store.addMessage(source.metadata, {
+      role: "user",
+      text: "Retry migration",
+    });
+    const originalRemove = IOUtils.remove.bind(IOUtils);
+    let failCleanup = true;
+    IOUtils.remove = async (path, options) => {
+      if (
+        failCleanup &&
+        path.includes(encodePathSegment(standalone.workspaceKey))
+      ) {
+        failCleanup = false;
+        throw new Error("cleanup failed");
+      }
+      await originalRemove(path, options);
+    };
+
+    await assertRejects(
+      () => store.migrateStandaloneWorkspace(parented),
+      "cleanup failed",
+    );
+    assert.isNotNull(
+      await store.getLatestWorkspaceConversation(standalone.workspaceKey),
+    );
+    const mergedBeforeRetry = await store.getLatestWorkspaceConversation(
+      parented.workspaceKey,
+    );
+
+    await store.migrateStandaloneWorkspace(parented);
+
+    assert.isNull(
+      await store.getLatestWorkspaceConversation(standalone.workspaceKey),
+    );
+    assert.equal(
+      (await store.getLatestWorkspaceConversation(parented.workspaceKey))
+        ?.metadata.id,
+      mergedBeforeRetry?.metadata.id,
+    );
+  });
+
   it("fails loudly on invalid conversation metadata", async function () {
     const paper = createPaper("1:AAA", "AAA", "Paper A");
     const workspace = createItemWorkspaceIdentity(paper);
@@ -632,7 +763,10 @@ function installFileMocks(): void {
     readJSON: async (path) => JSON.parse(await readFile(path, "utf8")),
     readUTF8: async (path) => readFile(path, "utf8"),
     remove: async (path, options) => {
-      await rm(path, { force: Boolean(options?.ignoreAbsent) });
+      await rm(path, {
+        force: Boolean(options?.ignoreAbsent),
+        recursive: Boolean(options?.recursive),
+      });
     },
     writeUTF8: async (path, text) => {
       await writeFile(path, text, "utf8");

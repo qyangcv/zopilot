@@ -11,7 +11,7 @@ import { ProviderBrandIcon } from "../../../ui/ProviderBrandIcon";
 function Message({
   busy,
   copiedId,
-  itemContextTitle,
+  itemContext,
   message,
   onCopy,
   onEdit,
@@ -20,7 +20,10 @@ function Message({
 }: {
   busy: boolean;
   copiedId: string | null;
-  itemContextTitle?: string;
+  itemContext?: {
+    kind: "item" | "pdf";
+    title: string;
+  };
   message: SidebarMessageView;
   onCopy: (message: SidebarMessageView) => void;
   onEdit: (message: SidebarMessageView) => void;
@@ -29,10 +32,8 @@ function Message({
 }): ReactElement {
   const isAssistant = message.role === "assistant";
   const completedAt = message.completedAt;
-  const messageMentions = itemContextTitle ? [] : message.mentions || [];
-  const messageNoteContexts = itemContextTitle
-    ? []
-    : message.noteContexts || [];
+  const messageMentions = itemContext ? [] : message.mentions || [];
+  const messageNoteContexts = itemContext ? [] : message.noteContexts || [];
 
   return (
     <article
@@ -80,7 +81,7 @@ function Message({
               />
             ) : null}
           </div>
-        ) : itemContextTitle ||
+        ) : itemContext ||
           message.localAttachments?.length ||
           message.mentions?.length ||
           message.noteContexts?.length ? (
@@ -89,8 +90,12 @@ function Message({
               attachments={message.localAttachments}
               className="zp-message-attachments"
               itemContext={
-                itemContextTitle
-                  ? { expanded: false, title: itemContextTitle }
+                itemContext
+                  ? {
+                      expanded: false,
+                      kind: itemContext.kind,
+                      title: itemContext.title,
+                    }
                   : undefined
               }
               mentions={messageMentions}

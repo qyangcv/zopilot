@@ -9,6 +9,9 @@ type ZoteroItemLike = Zotero.Item & {
   id: number;
   key: string;
   libraryID: number;
+  deleted?: boolean;
+  parentItemID?: number | false;
+  parentItemKey?: string | false;
   parentItem?: Zotero.Item;
   attachmentFilename?: string;
   getField?: (field: string) => string;
@@ -30,6 +33,7 @@ type ZoteroCollectionKeyLike = Zotero.Collection & {
 
 export {
   createPaperSourceRef,
+  createPaperSourceRefFromAttachmentWithZotero,
   createPaperSourceRefForAttachmentWithZotero,
   createPaperSourceRefWithZotero,
   dedupeSources,
@@ -53,6 +57,9 @@ function createPaperSourceRefWithZotero(
   zotero: typeof Zotero,
 ): PaperSourceRef | null {
   const item = rawItem as ZoteroItemLike;
+  if (isStandalonePdfAttachment(item) && !item.deleted && item.libraryID > 0) {
+    return createStandalonePaperSourceRef(item, zotero);
+  }
   if (!item.isRegularItem?.()) {
     return null;
   }
@@ -66,6 +73,31 @@ function createPaperSourceRefWithZotero(
     zotero,
   );
   return source ? { ...source, title: getItemTitle(item) } : null;
+}
+
+function createPaperSourceRefFromAttachmentWithZotero(
+  rawAttachment: Zotero.Item,
+  zotero: typeof Zotero,
+): PaperSourceRef | null {
+  const attachment = rawAttachment as ZoteroItemLike;
+  if (
+    attachment.deleted ||
+    !attachment.isAttachment?.() ||
+    !attachment.isPDFAttachment?.()
+  ) {
+    return null;
+  }
+  if (isStandalonePdfAttachment(attachment)) {
+    return createStandalonePaperSourceRef(attachment, zotero);
+  }
+  const rawParent =
+    attachment.parentItem ||
+    zotero.Items.get(
+      (attachment.parentItemID || attachment.parentItemKey) as number | string,
+    );
+  return rawParent
+    ? createPaperSourceRefForAttachmentWithZotero(rawParent, attachment, zotero)
+    : null;
 }
 
 function createPaperSourceRefForAttachmentWithZotero(
@@ -97,6 +129,22 @@ function createPaperSourceRefForAttachmentWithZotero(
     creators: getCreators(item),
     year: getYear(item),
     collectionKeys: getCollectionKeys(item, zotero),
+  };
+}
+
+function createStandalonePaperSourceRef(
+  attachment: ZoteroItemLike,
+  zotero: typeof Zotero,
+): PaperSourceRef {
+  const title = getAttachmentTitle(attachment);
+  return {
+    sourceId: createSourceId(attachment.libraryID, attachment.key),
+    paperKey: `${attachment.libraryID}:${attachment.key}`,
+    libraryID: attachment.libraryID,
+    attachmentItemID: attachment.id,
+    attachmentKey: attachment.key,
+    title,
+    collectionKeys: getCollectionKeys(attachment, zotero),
   };
 }
 
@@ -150,6 +198,16 @@ function getItemTitle(item: ZoteroItemLike): string {
 
 function getAttachmentTitle(item: ZoteroItemLike): string {
   return item.getField?.("title") || item.attachmentFilename || item.key;
+}
+
+function isStandalonePdfAttachment(item: ZoteroItemLike): boolean {
+  return Boolean(
+    item.isAttachment?.() &&
+    item.isPDFAttachment?.() &&
+    !item.parentItem &&
+    !item.parentItemID &&
+    !item.parentItemKey,
+  );
 }
 
 function getCreators(item: ZoteroItemLike): string[] {

@@ -1,7 +1,4 @@
-import type {
-  SourceMention,
-  WorkspaceIdentity,
-} from "../../../domain/conversation";
+import type { WorkspaceIdentity } from "../../../domain/conversation";
 import { ZoteroCollectionRepository } from "./ZoteroCollectionRepository";
 
 type ZoteroRegularItem = Zotero.Item & {
@@ -11,7 +8,7 @@ type ZoteroRegularItem = Zotero.Item & {
   isRegularItem?: () => boolean;
 };
 
-class ZoteroWorkspaceParentScope {
+class ZoteroWorkspaceItemScope {
   private readonly collections: ZoteroCollectionRepository;
 
   constructor(zotero: typeof Zotero) {
@@ -49,6 +46,12 @@ class ZoteroWorkspaceParentScope {
   async resolveAllowedItemKeys(
     workspace: WorkspaceIdentity,
   ): Promise<ReadonlySet<string> | undefined> {
+    return this.resolveAllowedRootItemKeys(workspace);
+  }
+
+  async resolveAllowedRootItemKeys(
+    workspace: WorkspaceIdentity,
+  ): Promise<ReadonlySet<string> | undefined> {
     if (workspace.workspaceType === "library") {
       return undefined;
     }
@@ -73,27 +76,6 @@ class ZoteroWorkspaceParentScope {
         .map((item) => item.key),
     );
   }
-
-  async resolveSelectedParentKeys(
-    workspace: WorkspaceIdentity,
-    mentions: SourceMention[],
-  ): Promise<ReadonlySet<string>> {
-    const allowedParentKeys = await this.resolveAllowedParentKeys(workspace);
-    if (workspace.workspaceType === "item") {
-      return allowedParentKeys || new Set();
-    }
-    const selectedParentKeys = new Set(
-      mentions
-        .filter((mention) => mention.libraryID === workspace.libraryID)
-        .map((mention) => mention.parentItemKey),
-    );
-    if (!allowedParentKeys) {
-      return selectedParentKeys;
-    }
-    return new Set(
-      [...selectedParentKeys].filter((key) => allowedParentKeys.has(key)),
-    );
-  }
 }
 
-export { ZoteroWorkspaceParentScope };
+export { ZoteroWorkspaceItemScope };

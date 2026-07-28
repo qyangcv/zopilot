@@ -1,4 +1,5 @@
 import type {
+  Conversation,
   ConversationMessage,
   ConversationMetadata,
 } from "../../../domain/conversation";
@@ -78,6 +79,18 @@ class ConversationRepository {
       .map((line) => parseConversationMessage(line, path));
   }
 
+  async readWorkspaceConversations(
+    workspaceKey: string,
+  ): Promise<Conversation[]> {
+    const metadata = await this.listWorkspaceMetadata(workspaceKey);
+    return Promise.all(
+      metadata.map(async (item) => ({
+        metadata: item,
+        messages: await this.readMessages(item),
+      })),
+    );
+  }
+
   async writeConversation(
     metadata: ConversationMetadata,
     messages: ConversationMessage[],
@@ -98,6 +111,14 @@ class ConversationRepository {
       getConversationMetadataPath(this.rootDir, metadata),
       metadata,
     );
+  }
+
+  async removeWorkspace(workspaceKey: string): Promise<void> {
+    const dir = getConversationWorkspaceDir(this.rootDir, workspaceKey);
+    await geckoIO.remove(dir, {
+      ignoreAbsent: true,
+      recursive: true,
+    });
   }
 
   private async readMetadata(path: string): Promise<ConversationMetadata> {

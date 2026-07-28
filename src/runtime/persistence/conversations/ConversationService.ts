@@ -7,14 +7,25 @@ import type {
 import { getDefaultConversationRootDir } from "./paths";
 import { ConversationRepository } from "./ConversationRepository";
 import { createTimestampId } from "../../ids/timestampId";
+import { StandaloneWorkspaceMigration } from "./StandaloneWorkspaceMigration";
 
 export { ConversationStore, getConversationStore };
 
 class ConversationStore {
   private readonly repository: ConversationRepository;
+  private readonly standaloneWorkspaceMigration: StandaloneWorkspaceMigration;
 
   constructor(rootDir = getDefaultConversationRootDir()) {
     this.repository = new ConversationRepository(rootDir);
+    this.standaloneWorkspaceMigration = new StandaloneWorkspaceMigration(
+      this.repository,
+    );
+  }
+
+  async migrateStandaloneWorkspace(
+    workspace: WorkspaceIdentity,
+  ): Promise<void> {
+    await this.standaloneWorkspaceMigration.run(workspace);
   }
 
   async getOrCreateLatestWorkspaceConversation(
@@ -276,6 +287,7 @@ class ConversationStore {
       currentSource?.paperKey === source?.paperKey &&
       currentSource?.title === source?.title &&
       currentSource?.parentItemID === source?.parentItemID &&
+      currentSource?.parentItemKey === source?.parentItemKey &&
       currentSource?.attachmentItemID === source?.attachmentItemID &&
       currentSource?.attachmentKey === source?.attachmentKey
     ) {

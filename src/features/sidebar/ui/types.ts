@@ -52,6 +52,7 @@ export type SidebarContextView = {
   paperKey?: string;
   parentItemKey?: string;
   attachmentKey?: string;
+  standalonePdf?: boolean;
 };
 
 export type SidebarCollectionOption = {

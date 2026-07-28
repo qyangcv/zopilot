@@ -298,10 +298,7 @@ function scopeToWorkspace(scope: WorkspaceQueryScope): WorkspaceIdentity {
           paperKey: scope.defaultSource.paperKey,
           libraryID: scope.defaultSource.libraryID,
           parentItemID: scope.defaultSource.parentItemID,
-          parentItemKey:
-            scope.defaultSource.parentItemKey ||
-            scope.defaultSource.paperKey.split(":").at(-1) ||
-            scope.defaultSource.paperKey,
+          parentItemKey: scope.defaultSource.parentItemKey,
           attachmentItemID: scope.defaultSource.attachmentItemID,
           attachmentKey: scope.defaultSource.attachmentKey,
           title: scope.defaultSource.title || scope.workspaceLabel,

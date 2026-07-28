@@ -9,9 +9,12 @@ import type {
 import { parseSourceId } from "../../../domain/sourceIdentity";
 import { getString } from "../../../app/localization";
 import { getZoteroGlobal } from "../environment";
-import { createPaperSourceRefForAttachmentWithZotero } from "./items";
+import {
+  createPaperSourceRefForAttachmentWithZotero,
+  createPaperSourceRefWithZotero,
+} from "./items";
 import { loadCachedZoteroItem, loadZoteroItem } from "./ZoteroItemLookup";
-import { ZoteroWorkspaceParentScope } from "./ZoteroWorkspaceParentScope";
+import { ZoteroWorkspaceItemScope } from "./ZoteroWorkspaceItemScope";
 
 type ZoteroContextItem = Zotero.Item & {
   id: number;
@@ -34,10 +37,10 @@ type ZoteroContextItem = Zotero.Item & {
 };
 
 class ZoteroItemContextCatalog {
-  private readonly parentScope: ZoteroWorkspaceParentScope;
+  private readonly itemScope: ZoteroWorkspaceItemScope;
 
   constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {
-    this.parentScope = new ZoteroWorkspaceParentScope(zotero);
+    this.itemScope = new ZoteroWorkspaceItemScope(zotero);
   }
 
   async getTree(input: {
@@ -88,8 +91,8 @@ class ZoteroItemContextCatalog {
     if (!sourceIds.length) {
       return [];
     }
-    const allowedParentKeys =
-      await this.parentScope.resolveAllowedParentKeys(workspace);
+    const allowedRootItemKeys =
+      await this.itemScope.resolveAllowedRootItemKeys(workspace);
     const parentCache = new Map<
       string,
       Promise<ZoteroContextItem | undefined>
@@ -123,19 +126,29 @@ class ZoteroItemContextCatalog {
           },
         );
         if (
-          !parent ||
-          !parent.isRegularItem?.() ||
-          parent.deleted ||
-          parent.libraryID !== workspace.libraryID ||
-          (allowedParentKeys && !allowedParentKeys.has(parent.key))
+          parent &&
+          (!parent.isRegularItem?.() ||
+            parent.deleted ||
+            parent.libraryID !== workspace.libraryID)
         ) {
           return undefined;
         }
-        const source = createPaperSourceRefForAttachmentWithZotero(
-          parent,
-          attachment,
-          this.zotero,
-        );
+        const root = parent || attachment;
+        if (
+          root.libraryID !== workspace.libraryID ||
+          (allowedRootItemKeys && !allowedRootItemKeys.has(root.key))
+        ) {
+          return undefined;
+        }
+        const filePath = await getAvailableFilePath(attachment);
+        if (!filePath) return undefined;
+        const source = parent
+          ? createPaperSourceRefForAttachmentWithZotero(
+              parent,
+              attachment,
+              this.zotero,
+            )
+          : createPaperSourceRefWithZotero(attachment, undefined, this.zotero);
         return source?.sourceId === sourceId ? source : undefined;
       }),
     );
@@ -262,6 +275,17 @@ class ZoteroItemContextCatalog {
       selectable: true,
       note: reference,
     };
+  }
+}
+
+async function getAvailableFilePath(
+  item: ZoteroContextItem,
+): Promise<string | undefined> {
+  try {
+    const path = await item.getFilePathAsync?.();
+    return typeof path === "string" && path ? path : undefined;
+  } catch {
+    return undefined;
   }
 }
 

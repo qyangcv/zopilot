@@ -232,6 +232,7 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.deepEqual(getProps(chips).attachments, [attachment]);
     assert.deepEqual(getProps(chips).itemContext, {
       expanded: false,
+      kind: "item",
       title: "Paper",
     });
     assert.deepEqual(getProps(chips).mentions, []);
@@ -405,6 +406,40 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.isUndefined(
       findElement(editor, (element) => element.type === MentionPopover),
     );
+  });
+
+  it("renders a standalone Reader source as a fixed PDF chip", function () {
+    const editor = ComposerEditor({
+      bindings: createBindings({
+        activeMentionIndex: 0,
+        candidates: [],
+        move: () => undefined,
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      state: {
+        composerEnabled: true,
+        context: {
+          attachmentKey: "PDF",
+          hostContextKind: "reader",
+          label: "Standalone.pdf",
+          standalonePdf: true,
+          workspaceType: "item",
+        },
+      } as SidebarState,
+    });
+    const chips = findElement(
+      editor,
+      (element) => element.type === ContextChips,
+    );
+
+    assert.isDefined(chips);
+    assert.deepEqual(getProps(chips).itemContext, {
+      expanded: false,
+      kind: "pdf",
+      title: "Standalone.pdf",
+    });
+    assert.isUndefined(getProps(chips).onOpenItemContext);
   });
 
   it("uses item-tree chips for collection and library in both surfaces", function () {

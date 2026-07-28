@@ -55,13 +55,17 @@ function ComposerEditor({
   const readerItemContextMode =
     state.context?.hostContextKind === "reader" &&
     state.context?.workspaceType === "item";
+  const standaloneReaderMode =
+    readerItemContextMode && Boolean(state.context.standalonePdf);
   const showItemContextChips = !readerItemContextMode;
   const chipMentions = showItemContextChips ? mentions : [];
   const chipNoteContexts = showItemContextChips ? noteContexts : [];
   const currentItemContext = readerItemContextMode
     ? {
-        expanded:
-          bindings.itemContextPickerOpen && !bindings.itemContextSourceId,
+        expanded: standaloneReaderMode
+          ? false
+          : bindings.itemContextPickerOpen && !bindings.itemContextSourceId,
+        kind: standaloneReaderMode ? ("pdf" as const) : ("item" as const),
         title:
           bindings.itemContextTree?.root.title || state.context?.label || "",
       }
@@ -93,7 +97,11 @@ function ComposerEditor({
               itemContext={currentItemContext}
               mentions={chipMentions}
               notes={chipNoteContexts}
-              onOpenItemContext={() => bindings.openItemContextPicker()}
+              onOpenItemContext={
+                standaloneReaderMode
+                  ? undefined
+                  : () => bindings.openItemContextPicker()
+              }
               onOpenMention={bindings.openItemContextPicker}
               onRemoveAttachment={removeLocalAttachment}
               onRemoveMention={removeMention}

@@ -47,10 +47,15 @@ function ConversationLog({
   syncStreamingScroll,
 }: ConversationLogProps): ReactElement {
   const showWelcome = state.composerEnabled && state.messages.length === 0;
-  const itemContextTitle =
+  const itemContext =
     state.context.hostContextKind === "reader" &&
     state.context.workspaceType === "item"
-      ? state.itemContextTree?.root.title || state.context.label
+      ? {
+          kind: state.context.standalonePdf
+            ? ("pdf" as const)
+            : ("item" as const),
+          title: state.itemContextTree?.root.title || state.context.label,
+        }
       : undefined;
   return (
     <main
@@ -89,7 +94,7 @@ function ConversationLog({
         <MemoMessage
           busy={state.busy}
           copiedId={copiedId}
-          itemContextTitle={itemContextTitle}
+          itemContext={itemContext}
           key={message.id}
           message={message}
           onCopy={onCopy}

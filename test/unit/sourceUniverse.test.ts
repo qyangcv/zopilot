@@ -23,6 +23,7 @@ type MockItem = {
   getAttachments?: () => number[];
   getCollections?: () => number[];
   getCreatorsJSON?: () => Array<{ firstName: string; lastName: string }>;
+  getFilePathAsync?: () => Promise<string | false>;
 };
 
 type MockCollection = {
@@ -281,8 +282,53 @@ describe("ZoteroSourceUniverse", function () {
     assert.equal(snapshot.libraryItemCount, 3);
     assert.deepEqual(
       snapshot.sources.map((source) => source.title),
-      ["Paper A"],
+      ["Paper A", "PDF-STANDALONE"],
     );
+  });
+
+  it("includes readable standalone PDFs in library and collection sources", async function () {
+    const standalone = createAttachment(20, "DGRR_aaai_cws", true);
+    const missing = {
+      ...createAttachment(21, "MISSING", true),
+      getFilePathAsync: async () => false,
+    };
+    const collection = createCollection(101, "DEV", "Dev", [standalone]);
+    installZoteroMock([standalone, missing], [collection]);
+    const universe = new ZoteroSourceUniverse();
+    const library = {
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      workspaceLabel: "Library 1",
+      workspaceTitle: "Library 1",
+      libraryID: 1,
+    };
+
+    const [librarySources, collectionSources] = await Promise.all([
+      universe.resolveSources(library),
+      universe.resolveSources({
+        ...library,
+        workspaceKey: "collection:1:DEV",
+        workspaceType: "collection" as const,
+        collectionKey: "DEV",
+      }),
+    ]);
+
+    for (const sources of [librarySources, collectionSources]) {
+      assert.deepEqual(
+        sources.map((source) => ({
+          attachmentKey: source.attachmentKey,
+          paperKey: source.paperKey,
+          parentItemKey: source.parentItemKey,
+        })),
+        [
+          {
+            attachmentKey: "DGRR_aaai_cws",
+            paperKey: "1:DGRR_aaai_cws",
+            parentItemKey: undefined,
+          },
+        ],
+      );
+    }
   });
 
   it("scopes library counts and sources to the active library ID", async function () {
@@ -376,6 +422,9 @@ function createAttachment(
     isRegularItem: () => false,
     isAttachment: () => true,
     isPDFAttachment: () => pdf,
+    getField: (field) => (field === "title" ? key : ""),
+    getFilePathAsync: async () => `/tmp/${key}.pdf`,
+    getCollections: () => [],
   };
 }
 
