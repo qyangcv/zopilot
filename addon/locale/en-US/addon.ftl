@@ -106,6 +106,7 @@ codex-diagnostic-permission-denied = Codex CLI permission denied
 codex-diagnostic-unknown-error = Codex connection diagnosis failed
 sidebar-codex-empty-response = Codex completed the turn without a final text response.
 sidebar-codex-error = Codex connection failed.
+sidebar-codex-paper-tools-unavailable = Paper tools unavailable; continuing without them.
 sidebar-copy-text = Copy text
 sidebar-edit-composer = Edit again
 sidebar-resend = Resend

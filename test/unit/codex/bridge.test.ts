@@ -3,14 +3,21 @@ import { buildCodexAppServerArguments } from "../../../src/integrations/codex/ap
 import { CodexBridge } from "../../../src/integrations/codex/CodexBridge.ts";
 import { shutdownMcpHttpServer } from "../../../src/integrations/mcp/httpServer.ts";
 import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
+import { configureLocaleFormatter } from "../../../src/app/localization.ts";
 
 describe("CodexBridge", function () {
   beforeEach(function () {
     installMcpMocks();
+    configureLocaleFormatter((id) =>
+      id === "sidebar-codex-paper-tools-unavailable"
+        ? "Paper tools unavailable; continuing without them."
+        : id,
+    );
   });
 
   afterEach(function () {
     shutdownMcpHttpServer();
+    configureLocaleFormatter(undefined);
     delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
   });
 
@@ -380,6 +387,7 @@ describe("CodexBridge", function () {
     ]);
     assert.equal(mcpServer.startup_timeout_sec, 10);
     assert.equal(mcpServer.tool_timeout_sec, 60);
+    assert.notProperty(mcpServer, "required");
 
     bridge.respond(threadStart.id, { thread: { id: "thread-new" } });
     await bridge.flush();
@@ -405,6 +413,59 @@ describe("CodexBridge", function () {
       text: "Answer",
       status: "completed",
     });
+  });
+
+  it("shows a non-blocking notice when Zopilot MCP registration fails", async function () {
+    const bridge = createBridgeHarness();
+    const events: Array<Record<string, unknown>> = [];
+    const promise = bridge.instance.sendPrompt("Question", {
+      conversation: createConversation("conv-mcp-failure"),
+      onEvent: (event) =>
+        events.push(event as unknown as Record<string, unknown>),
+    });
+    await bridge.flush();
+
+    const threadStart = bridge.requests[0];
+    assert.strictEqual(threadStart.method, "thread/start");
+    bridge.notify("mcpServer/startupStatus/updated", {
+      threadId: "thread-mcp-failure",
+      name: "zopilot",
+      status: "failed",
+      error: "HTTP 502",
+      failureReason: null,
+    });
+    bridge.respond(threadStart.id, {
+      thread: { id: "thread-mcp-failure" },
+    });
+    await bridge.flush();
+
+    const turnStart = bridge.requests.find(
+      (request) => request.method === "turn/start",
+    );
+    assert.isDefined(turnStart);
+    bridge.respond(turnStart!.id, { turn: { id: "turn-mcp-failure" } });
+    bridge.notify("item/agentMessage/delta", {
+      threadId: "thread-mcp-failure",
+      turnId: "turn-mcp-failure",
+      delta: "Answer without paper tools",
+    });
+    bridge.notify("turn/completed", {
+      threadId: "thread-mcp-failure",
+      turn: { id: "turn-mcp-failure", status: "completed" },
+    });
+
+    assert.equal((await promise).text, "Answer without paper tools");
+    assert.deepInclude(
+      events.find((event) => event.type === "notice.upsert"),
+      {
+        type: "notice.upsert",
+        text: "Paper tools unavailable; continuing without them.",
+      },
+    );
+    assert.include(
+      events.map((event) => event.type),
+      "turn.completed",
+    );
   });
 
   it("interrupts a specific turn by threadId and turnId", async function () {

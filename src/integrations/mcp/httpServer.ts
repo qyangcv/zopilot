@@ -2,13 +2,13 @@ import { createLogger } from "../../runtime/logging/logger";
 import { createMcpHttpHandler } from "./httpHandler";
 import { ZoteroServerEndpointRegistry } from "../zotero/compat/serverEndpointRegistry";
 import { installMcpWebRuntime } from "./webRuntime";
+import { ZOPILOT_MCP_SERVER_NAME } from "./constants";
 export { createMcpHttpHandler } from "./httpHandler";
 
 export { MCP_ENDPOINT_PATH, shutdownMcpHttpServer, startMcpHttpServer };
 
 const MCP_ENDPOINT_PATH = "/zopilot/mcp";
 const DEFAULT_ZOTERO_HTTP_PORT = 23119;
-const SERVER_NAME = "zopilot";
 
 type McpHttpServerInfo = {
   status: "ready";
@@ -63,7 +63,7 @@ function initializeMcpHttpServer(token: string): McpHttpServerResult {
   const port = getZoteroHttpPort();
   const info: McpHttpServerInfo = {
     status: "ready",
-    name: SERVER_NAME,
+    name: ZOPILOT_MCP_SERVER_NAME,
     url: `http://127.0.0.1:${port}${MCP_ENDPOINT_PATH}`,
     token,
   };

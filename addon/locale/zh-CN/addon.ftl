@@ -90,6 +90,7 @@ codex-diagnostic-permission-denied = Codex CLI permission denied
 codex-diagnostic-unknown-error = Codex connection diagnosis failed
 sidebar-codex-empty-response = Codex 已完成本轮请求，但没有返回最终文本。
 sidebar-codex-error = Codex 连接失败。
+sidebar-codex-paper-tools-unavailable = 论文工具不可用，将继续回答。
 sidebar-copy-text = 复制文本
 sidebar-edit-composer = 重新编辑
 sidebar-resend = 重新发送

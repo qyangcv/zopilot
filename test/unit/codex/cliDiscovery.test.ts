@@ -88,6 +88,21 @@ describe("Codex CLI discovery", function () {
     );
   });
 
+  it("bypasses proxies for the local Codex MCP connection", async function () {
+    const environment = await buildCodexSubprocessEnvironment(
+      createSubprocess({
+        NO_PROXY: "example.com, localhost",
+        no_proxy: "internal.test,example.com",
+      }),
+    );
+
+    assert.equal(
+      environment.NO_PROXY,
+      "example.com,localhost,internal.test,127.0.0.1,::1",
+    );
+    assert.equal(environment.no_proxy, environment.NO_PROXY);
+  });
+
   it("merges login shell PATH before the GUI environment PATH", async function () {
     existingPaths.add("/bin/zsh");
 

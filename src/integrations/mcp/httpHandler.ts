@@ -15,9 +15,10 @@ import {
   type McpHttpRequest,
   type McpHttpResponse,
 } from "./httpTransport";
+import { ZOPILOT_MCP_SERVER_NAME } from "./constants";
 
 const SERVER_INFO = {
-  name: "zopilot",
+  name: ZOPILOT_MCP_SERVER_NAME,
   title: "Zopilot",
   version: "0.7.8",
 };

@@ -189,6 +189,7 @@ export type FluentMessageId =
   | 'sidebar-close'
   | 'sidebar-codex-empty-response'
   | 'sidebar-codex-error'
+  | 'sidebar-codex-paper-tools-unavailable'
   | 'sidebar-codex-starting'
   | 'sidebar-codex-status-checking'
   | 'sidebar-codex-status-disconnected'

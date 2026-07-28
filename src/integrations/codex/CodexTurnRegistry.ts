@@ -17,6 +17,8 @@ import type {
 import type { JsonRpcMessage } from "../../runtime/json-rpc/protocol";
 import type { JsonValue } from "../../runtime/json/types";
 import { createLogger } from "../../runtime/logging/logger";
+import { getString } from "../../app/localization";
+import { ZOPILOT_MCP_SERVER_NAME } from "../mcp/constants";
 import type { CodexPromptResult } from "./types";
 import {
   formatServerError,
@@ -56,6 +58,7 @@ const logger = createLogger("codex.turns");
 
 class CodexTurnRegistry {
   private readonly turns = new Map<string, ActiveCodexTurn>();
+  private readonly unavailableMcpThreads = new Set<string>();
 
   add(turn: ActiveCodexTurn): void {
     this.turns.set(getTurnKey(turn), turn);
@@ -105,6 +108,7 @@ class CodexTurnRegistry {
         codexTurnId: turnId,
       },
     });
+    this.showPendingMcpNotice(turn);
   }
 
   reject(threadId: string, turnId: string | undefined, error: unknown): void {
@@ -123,6 +127,7 @@ class CodexTurnRegistry {
       turn.reject(normalized);
     }
     this.turns.clear();
+    this.unavailableMcpThreads.clear();
   }
 
   showDeclinedRequest(params: JsonValue | undefined, method: string): void {
@@ -196,10 +201,7 @@ class CodexTurnRegistry {
         break;
       }
       case "mcpServer/startupStatus/updated":
-        logger.debug(
-          "codex mcp startup status",
-          summarizeJsonForLog(message.params),
-        );
+        this.handleMcpStartupStatus(turn, message.params);
         break;
       default:
         if (getItem(message.params)) {
@@ -211,6 +213,42 @@ class CodexTurnRegistry {
         }
         break;
     }
+  }
+
+  private handleMcpStartupStatus(
+    turn: ActiveCodexTurn | undefined,
+    params: JsonValue | undefined,
+  ): void {
+    logger.debug("codex mcp startup status", summarizeJsonForLog(params));
+    const serverName = getNestedString(params, ["name"]);
+    const threadId = getNotificationThreadId(params);
+    const status = getNestedString(params, ["status"]);
+    if (serverName !== ZOPILOT_MCP_SERVER_NAME || !threadId) return;
+    if (status === "ready") {
+      this.unavailableMcpThreads.delete(threadId);
+      return;
+    }
+    if (status !== "failed") return;
+
+    this.unavailableMcpThreads.add(threadId);
+    logger.warn("zopilot mcp unavailable for codex thread", {
+      threadId,
+      status,
+      error: getNestedString(params, ["error"]),
+      failureReason: getNestedString(params, ["failureReason"]),
+    });
+    if (turn?.started) {
+      this.showPendingMcpNotice(turn);
+    }
+  }
+
+  private showPendingMcpNotice(turn: ActiveCodexTurn): void {
+    if (!this.unavailableMcpThreads.delete(turn.threadId)) return;
+    this.emit(turn, {
+      type: "notice.upsert",
+      blockId: nextSyntheticId(turn, "mcp-unavailable"),
+      text: getString("sidebar-codex-paper-tools-unavailable"),
+    });
   }
 
   private handleAgentMessageDelta(

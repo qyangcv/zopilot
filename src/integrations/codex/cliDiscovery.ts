@@ -28,6 +28,7 @@ const CODEX_BINARY_CANDIDATES = [
   "/usr/local/bin/codex",
 ] as const;
 const WINDOWS_CODEX_BINARY_NAMES = ["codex.cmd", "codex.exe"] as const;
+const LOOPBACK_NO_PROXY_HOSTS = ["127.0.0.1", "localhost", "::1"] as const;
 
 type CodexCommandSpec = {
   command: string;
@@ -38,7 +39,33 @@ type CodexCommandSpec = {
 async function buildCodexSubprocessEnvironment(
   subprocess: CodexDiscoverySubprocessModule,
 ): Promise<Record<string, string>> {
-  return buildSubprocessEnvironment(subprocess);
+  const environment = await buildSubprocessEnvironment(subprocess);
+  const inherited = subprocess.getEnvironment();
+  const noProxy = mergeNoProxyValues(
+    inherited.NO_PROXY,
+    inherited.no_proxy,
+    ...LOOPBACK_NO_PROXY_HOSTS,
+  );
+  return {
+    ...environment,
+    NO_PROXY: noProxy,
+    no_proxy: noProxy,
+  };
+}
+
+function mergeNoProxyValues(...values: Array<string | undefined>): string {
+  const entries: string[] = [];
+  const normalized = new Set<string>();
+  for (const value of values) {
+    for (const entry of value?.split(",") || []) {
+      const trimmed = entry.trim();
+      const key = trimmed.toLowerCase();
+      if (!trimmed || normalized.has(key)) continue;
+      normalized.add(key);
+      entries.push(trimmed);
+    }
+  }
+  return entries.join(",");
 }
 
 async function resolveCodexBinaryPath(
