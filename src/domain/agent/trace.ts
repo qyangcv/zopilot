@@ -44,6 +44,7 @@ export type AgentTraceItem =
       arguments?: string;
       progress?: string;
       result?: string;
+      resultTruncated?: boolean;
       structuredContent?: JsonValue;
       error?: string;
       status: AgentToolStatus;
@@ -86,6 +87,7 @@ export function isAgentTraceItem(value: unknown): value is AgentTraceItem {
       optionalString(item.arguments) &&
       optionalString(item.progress) &&
       optionalString(item.result) &&
+      optionalBoolean(item.resultTruncated) &&
       optionalJsonValue(item.structuredContent) &&
       optionalString(item.error) &&
       optionalNonNegativeNumber(item.startedAt) &&
@@ -136,6 +138,10 @@ function optionalToolKind(value: unknown): boolean {
 
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === "string";
+}
+
+function optionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === "boolean";
 }
 
 function optionalNonNegativeNumber(value: unknown): boolean {

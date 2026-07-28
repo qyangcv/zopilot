@@ -7,6 +7,18 @@ npm run release
 
 npm run build:pdf-helper
 
+## PDF helper
+
+开发环境与生产分发使用两条独立路径：
+
+- `npm run start` 会自动创建或复用
+  `.scaffold/pdf-helper-development/venv`，并直接运行
+  `helpers/pdf-helper/zopilot_pdf_helper.py`。修改 helper 源码不需要构建、
+  改版本或发布运行时归档；只有 `requirements.txt` 变化时才会重建 venv。
+- 生产 XPI 只使用 profile 中已安装的版本化 helper。helper 的输出契约或实现
+  发生需要用户更新的变化时，必须使用新的不可变版本，构建三个平台的归档并发布
+  manifest；不要覆盖同版本的远程资产。
+
 ## Commit message 写法
 
 Release body 会根据上一个 tag 到当前 tag 之间的 conventional commits 自动生成。

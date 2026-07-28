@@ -92,7 +92,7 @@ function buildSourceMentionBlock(mentions: SourceMention[]): string {
         paperKey: mention.paperKey,
       })),
     ),
-    "When using paper_read for this question, pass sourceIds exactly as listed above.",
+    "For Zopilot paper tools, pass one listed sourceId to get_outline or view_page, or pass the listed sourceIds to search. Read locators already identify their source.",
   ].join("\n");
 }
 

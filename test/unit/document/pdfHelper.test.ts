@@ -2,6 +2,7 @@ import { assert } from "chai";
 import {
   detectPdfHelperPlatform,
   PDF_HELPER_VERSION,
+  getPdfHelperCommand,
   getPdfHelperStatus,
   installPdfHelperDependency,
   removePdfHelperDependency,
@@ -17,6 +18,11 @@ describe("PDF helper", function () {
     delete (globalThis as unknown as { PathUtils?: unknown }).PathUtils;
     delete (globalThis as unknown as { Services?: unknown }).Services;
     delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
+    delete (globalThis as unknown as { __env__?: unknown }).__env__;
+    delete (globalThis as unknown as { __pdfHelperDevPython__?: unknown })
+      .__pdfHelperDevPython__;
+    delete (globalThis as unknown as { __pdfHelperDevScript__?: unknown })
+      .__pdfHelperDevScript__;
   });
 
   it("detects macOS arm64", function () {
@@ -79,8 +85,8 @@ describe("PDF helper", function () {
   it("reports an installed helper when the executable and version match", async function () {
     installRuntimeMocks({
       existingPaths: new Set([
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
       ]),
       version: PDF_HELPER_VERSION,
     });
@@ -93,12 +99,83 @@ describe("PDF helper", function () {
     assert.isFalse(status.needsUpdate);
     assert.equal(
       status.installDir,
-      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
+      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
     );
     assert.include(
       status.executablePath,
       "/bin/zopilot-pdf-helper/zopilot-pdf-helper",
     );
+  });
+
+  it("uses the local source helper in development", async function () {
+    const python = "/repo/.scaffold/pdf-helper-development/venv/bin/python";
+    const script = "/repo/helpers/pdf-helper/zopilot_pdf_helper.py";
+    (
+      globalThis as typeof globalThis & {
+        __env__: string;
+      }
+    ).__env__ = "development";
+    (
+      globalThis as typeof globalThis & {
+        __pdfHelperDevPython__: string;
+      }
+    ).__pdfHelperDevPython__ = python;
+    (
+      globalThis as typeof globalThis & {
+        __pdfHelperDevScript__: string;
+      }
+    ).__pdfHelperDevScript__ = script;
+    installRuntimeMocks({
+      existingPaths: new Set([python, script]),
+    });
+
+    const [status, command] = await Promise.all([
+      getPdfHelperStatus(),
+      getPdfHelperCommand(),
+    ]);
+
+    assert.equal(status.status, "installed");
+    if (status.status !== "installed") assert.fail("Expected installed status");
+    assert.isTrue(status.development);
+    assert.equal(status.executablePath, python);
+    assert.deepEqual(command, {
+      command: python,
+      argumentsPrefix: [script],
+    });
+  });
+
+  it("does not use production downloads when the dev helper is absent", async function () {
+    (
+      globalThis as typeof globalThis & {
+        __env__: string;
+      }
+    ).__env__ = "development";
+    (
+      globalThis as typeof globalThis & {
+        __pdfHelperDevPython__: string;
+      }
+    ).__pdfHelperDevPython__ = "/missing/python";
+    (
+      globalThis as typeof globalThis & {
+        __pdfHelperDevScript__: string;
+      }
+    ).__pdfHelperDevScript__ = "/missing/helper.py";
+    installRuntimeMocks();
+
+    const status = await getPdfHelperStatus();
+
+    assert.equal(status.status, "unsupported");
+    if (status.status !== "unsupported") {
+      assert.fail("Expected unsupported status");
+    }
+    assert.match(status.reason, /npm run start/);
+    let commandError: unknown;
+    try {
+      await getPdfHelperCommand();
+    } catch (error) {
+      commandError = error;
+    }
+    assert.match(String(commandError), /npm run start/);
   });
 
   it("reports not installed when the private helper is absent", async function () {
@@ -134,7 +211,7 @@ describe("PDF helper", function () {
   it("reports an incomplete helper when the latest install directory is empty", async function () {
     installRuntimeMocks({
       children: [
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
       ],
     });
 
@@ -178,7 +255,7 @@ describe("PDF helper", function () {
     const archiveBytes = new TextEncoder().encode("mock zip");
     const sha256 = await sha256Hex(archiveBytes);
     const finalExecutable =
-      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper";
+      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper";
     const existingPaths = new Set<string>();
     const writtenPaths: string[] = [];
     const extractedPaths: string[] = [];
@@ -194,8 +271,8 @@ describe("PDF helper", function () {
     });
     installNativeZipReaderMock({
       entries: [
-        "zopilot-pdf-helper-macos-arm64-v0.2.0/VERSION",
-        "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+        "zopilot-pdf-helper-macos-arm64-v0.3.0/VERSION",
+        "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
       ],
       existingPaths,
       extractedPaths,
@@ -276,7 +353,7 @@ describe("PDF helper", function () {
                   sha256,
                   size: archiveBytes.byteLength,
                   entrypoint:
-                    "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+                    "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
                 },
               ],
             }),
@@ -319,18 +396,18 @@ describe("PDF helper", function () {
       assert.isTrue(
         extractedPaths.some((path) =>
           path.endsWith(
-            "/zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+            "/zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
           ),
         ),
       );
       assert.lengthOf(movedPaths, 1);
       assert.match(
         movedPaths[0].source,
-        /^\/profile\/zopilot\/runtime\/pdf-helper\/\.installing-macos-arm64-\d+\/zopilot-pdf-helper-macos-arm64-v0\.2\.0$/,
+        /^\/profile\/zopilot\/runtime\/pdf-helper\/\.installing-macos-arm64-\d+\/zopilot-pdf-helper-macos-arm64-v0\.3\.0$/,
       );
       assert.equal(
         movedPaths[0].dest,
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.2.0",
+        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
       );
       assert.isTrue(existingPaths.has(finalExecutable));
       assert.deepEqual(permissions, [finalExecutable]);
@@ -357,8 +434,8 @@ describe("PDF helper", function () {
     });
     installNativeZipReaderMock({
       entries: [
-        "zopilot-pdf-helper-macos-arm64-v0.2.0/VERSION",
-        "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+        "zopilot-pdf-helper-macos-arm64-v0.3.0/VERSION",
+        "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
       ],
       existingPaths,
       extractedPaths: [],
@@ -448,6 +525,7 @@ function installRuntimeMocks({
       PathUtils: {
         profileDir: string;
         join(...parts: string[]): string;
+        parent(path: string): string | null;
       };
       IOUtils: {
         exists(path: string): Promise<boolean>;
@@ -467,6 +545,7 @@ function installRuntimeMocks({
       PathUtils: {
         profileDir: string;
         join(...parts: string[]): string;
+        parent(path: string): string | null;
       };
     }
   ).PathUtils = {
@@ -479,6 +558,11 @@ function installRuntimeMocks({
         throw new Error("Path segment contains a slash.");
       }
       return parts.join("/").replace(/\/+/g, "/");
+    },
+    parent(path) {
+      const normalized = path.replace(/\\/g, "/");
+      const index = normalized.lastIndexOf("/");
+      return index > 0 ? normalized.slice(0, index) : null;
     },
   };
   (
@@ -579,7 +663,7 @@ function mockPdfHelperFetch(
                 sha256,
                 size: archiveBytes.byteLength,
                 entrypoint:
-                  "zopilot-pdf-helper-macos-arm64-v0.2.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+                  "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
               },
             ],
           }),

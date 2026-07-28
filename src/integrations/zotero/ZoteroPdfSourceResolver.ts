@@ -41,6 +41,7 @@ class ZoteroPdfSourceResolver {
       libraryID: source.libraryID,
       attachmentItemID: source.attachmentItemID,
       attachmentKey: source.attachmentKey,
+      title: source.title,
     });
   }
 

@@ -1,6 +1,7 @@
 import type { JsonValue } from "../../runtime/json/types";
 
 const MAX_TOOL_TRACE_CHARS = 8000;
+const TOOL_TRACE_TRUNCATION_MARKER = "\n[truncated]";
 const SENSITIVE_KEY =
   /^(authorization|api[-_]?key|password|secret|token|access[-_]?token|refresh[-_]?token)$/i;
 const BASE64_DATA_URL = /data:image\/[^;,]+;base64,[a-z0-9+/=]+/gi;
@@ -10,9 +11,12 @@ const ABSOLUTE_PATH =
 const SENSITIVE_JSON_VALUE =
   /("(?:authorization|api[-_]?key|password|secret|token|access[-_]?token|refresh[-_]?token)"\s*:\s*)"[^"]*"/gi;
 
-function sanitizeToolTraceValue(value: unknown): unknown {
+function sanitizeToolTraceValue(
+  value: unknown,
+  options: { truncateStrings?: boolean } = {},
+): unknown {
   if (Array.isArray(value)) {
-    return value.map(sanitizeToolTraceValue);
+    return value.map((entry) => sanitizeToolTraceValue(entry, options));
   }
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
@@ -30,17 +34,29 @@ function sanitizeToolTraceValue(value: unknown): unknown {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [
         key,
-        SENSITIVE_KEY.test(key) ? "[redacted]" : sanitizeToolTraceValue(entry),
+        SENSITIVE_KEY.test(key)
+          ? "[redacted]"
+          : sanitizeToolTraceValue(entry, options),
       ]),
     );
   }
   if (typeof value === "string") {
-    return sanitizeToolTraceText(value);
+    return sanitizeToolTraceTextInternal(
+      value,
+      options.truncateStrings !== false,
+    );
   }
   return value;
 }
 
 function sanitizeToolTraceText(value: string): string {
+  return sanitizeToolTraceTextInternal(value, true);
+}
+
+function sanitizeToolTraceTextInternal(
+  value: string,
+  truncate: boolean,
+): string {
   const sanitized = value
     .replace(SENSITIVE_JSON_VALUE, '$1"[redacted]"')
     .replace(BASE64_DATA_URL, "[image data omitted]")
@@ -50,9 +66,13 @@ function sanitizeToolTraceText(value: string): string {
       (match) =>
         `${match.slice(0, 1).trim() ? match.slice(0, 1) : ""}[local path omitted]`,
     );
-  return sanitized.length <= MAX_TOOL_TRACE_CHARS
+  return !truncate || sanitized.length <= MAX_TOOL_TRACE_CHARS
     ? sanitized
-    : `${sanitized.slice(0, MAX_TOOL_TRACE_CHARS)}\n[truncated]`;
+    : `${sanitized.slice(0, MAX_TOOL_TRACE_CHARS)}${TOOL_TRACE_TRUNCATION_MARKER}`;
+}
+
+function isToolTraceTextTruncated(value: string | undefined): boolean {
+  return value?.endsWith(TOOL_TRACE_TRUNCATION_MARKER) === true;
 }
 
 function formatToolTraceValue(value: unknown): string | undefined {
@@ -66,7 +86,7 @@ function formatToolTraceValue(value: unknown): string | undefined {
 }
 
 function sanitizeToolTraceJson(value: unknown): JsonValue | undefined {
-  return toJsonValue(sanitizeToolTraceValue(value));
+  return toJsonValue(sanitizeToolTraceValue(value, { truncateStrings: false }));
 }
 
 function toJsonValue(value: unknown): JsonValue | undefined {
@@ -97,6 +117,7 @@ function toJsonValue(value: unknown): JsonValue | undefined {
 
 export {
   MAX_TOOL_TRACE_CHARS,
+  isToolTraceTextTruncated,
   formatToolTraceValue,
   sanitizeToolTraceJson,
   sanitizeToolTraceText,

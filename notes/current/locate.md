@@ -1,4 +1,5 @@
-- 提示注入：`paper_read` 的 MCP/BYOK 描述声明会返回 locator/page，工具结果还输出 `page=N` 与带页码的目录。
+- 提示注入：`get_outline` 和 `search` 返回可传给 `read` 的 locator；
+  `read` 输出 `page=N`，`view_page` 返回明确的 PDF 物理页。
 - 文本解析：`readerNavigation.ts` 从助手正文识别 `p. N`、`page N`、`第 N 页` 和 `annotation: KEY`，最多生成 4 个 locator。
 - 数据链路：`viewModel.ts` 将 locator 写入 `SidebarMessageView.locators`，再经 `ConversationLog` 和 `SidebarActions` 传到消息组件。
 - 界面呈现：`Message.tsx` 在回答 footer 渲染页码按钮，样式为 `.zp-locator-chip`，tooltip 由中英文本地化配置提供。

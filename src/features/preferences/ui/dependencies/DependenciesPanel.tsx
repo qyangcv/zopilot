@@ -27,7 +27,10 @@ function DependenciesPanel({
   const showInstall = helper?.status === "not-installed";
   const showUpdate = helper?.status === "outdated";
   const showInstalling = state.status === "installing";
-  const showRemove = Boolean(helper?.hasInstallCandidate);
+  const showRemove = Boolean(
+    helper?.hasInstallCandidate &&
+    !(helper.status === "installed" && helper.development),
+  );
 
   return (
     <section className="zp-pref-page">

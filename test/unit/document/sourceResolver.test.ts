@@ -68,7 +68,7 @@ describe("ZoteroPdfSourceResolver", function () {
       libraryID: 1,
       attachmentItemID: 10,
       attachmentKey: "PDF-A",
-      title: "Parent Title",
+      title: "Stored Workspace Title",
       filePath: "/tmp/paper-a.pdf",
       mtime: 123,
       size: 456,

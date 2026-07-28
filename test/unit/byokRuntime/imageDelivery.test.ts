@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ByokAgentRunner,
+  createByokMcpServer,
   isUnsupportedImageError,
   withImageCapabilityHeader,
 } from "../../../src/integrations/byok/runtime/ByokAgentRunner.ts";
@@ -11,6 +12,24 @@ import { parseOpenAIModelList } from "../../../src/integrations/byok/runtime/req
 import type { TurnStartParams } from "../../../src/integrations/byok/runtime/requestValidation.ts";
 
 describe("BYOK image delivery", function () {
+  it("uses structured MCP results as the canonical model output", function () {
+    const server = createByokMcpServer(
+      {
+        url: "http://127.0.0.1/zopilot/mcp",
+        serverName: "zopilot",
+        headers: {
+          Authorization: "Bearer test-token",
+          "X-Zopilot-MCP-Accepts-Images": "1",
+        },
+        acceptsImages: true,
+        timeoutMs: 30_000,
+      },
+      false,
+    );
+
+    assert.isTrue(server.useStructuredContent);
+  });
+
   it("only trusts explicit input modalities and never guesses from names", function () {
     const models = parseOpenAIModelList({
       data: [

@@ -40,12 +40,17 @@ describe("Codex MCP config", function () {
     delete getTestGlobals().Zotero;
   });
 
-  it("builds a thread/start mcp_servers config for paper_read", async function () {
+  it("enables the four Zopilot paper tools", async function () {
     const config = await buildCodexMcpServersConfig(createConversation());
     const server = config["zopilot"] as unknown as McpServerConfig;
 
     assert.equal(server.url, `http://127.0.0.1:23124${MCP_ENDPOINT_PATH}`);
-    assert.deepEqual(server.enabled_tools, ["paper_read"]);
+    assert.deepEqual(server.enabled_tools, [
+      "get_outline",
+      "search",
+      "read",
+      "view_page",
+    ]);
     assert.match(server.http_headers.Authorization, /^Bearer /);
     assert.equal(server.http_headers["X-Zopilot-Conversation-ID"], "conv-a");
     assert.equal(

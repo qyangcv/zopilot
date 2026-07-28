@@ -1,5 +1,6 @@
 import {
   formatToolTraceValue,
+  isToolTraceTextTruncated,
   sanitizeToolTraceJson,
   sanitizeToolTraceText,
 } from "../../application/agent/toolTraceSanitizer";
@@ -409,10 +410,12 @@ class CodexTurnRegistry {
       this.emit(turn, { type: "tool.started", ...tool });
       return;
     }
+    const result = parseToolResult(itemType, item);
     this.emit(turn, {
       type: "tool.completed",
       ...tool,
-      result: parseToolResult(itemType, item),
+      result,
+      ...(isToolTraceTextTruncated(result) ? { resultTruncated: true } : {}),
       structuredContent: parseToolStructuredContent(itemType, item),
       error: parseToolError(item),
       status: parseToolStatus(item),

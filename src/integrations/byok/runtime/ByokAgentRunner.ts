@@ -23,6 +23,7 @@ import type {
   AgentModelEntry,
   AgentRunResult,
 } from "../../../domain/agent/types";
+import type { ZopilotMcpConnection } from "../../mcp/connection";
 import type { JsonValue } from "../../../runtime/json/types";
 import {
   configuredModels,
@@ -168,24 +169,7 @@ class ByokAgentRunner {
       | undefined;
     try {
       const mcp = params.mcp
-        ? new MCPServerStreamableHttp({
-            url: params.mcp.url,
-            name: params.mcp.serverName,
-            requestInit: {
-              headers: withImageCapabilityHeader(
-                params.mcp.headers,
-                allowImages,
-              ),
-            },
-            timeout: params.mcp.timeoutMs,
-            customDataExtractor: (context) => ({
-              serverName: context.serverName,
-              toolName: context.toolName,
-              isError: context.isError === true,
-              structuredContent: context.structuredContent || null,
-              resultMeta: context.resultMeta || null,
-            }),
-          })
+        ? createByokMcpServer(params.mcp, allowImages)
         : undefined;
       if (mcp && params.profile.capabilities.tools) {
         try {
@@ -857,6 +841,28 @@ function buildImageOmissionContext(
   return undefined;
 }
 
+function createByokMcpServer(
+  connection: ZopilotMcpConnection,
+  allowImages: boolean,
+): MCPServerStreamableHttp {
+  return new MCPServerStreamableHttp({
+    url: connection.url,
+    name: connection.serverName,
+    requestInit: {
+      headers: withImageCapabilityHeader(connection.headers, allowImages),
+    },
+    timeout: connection.timeoutMs,
+    useStructuredContent: true,
+    customDataExtractor: (context) => ({
+      serverName: context.serverName,
+      toolName: context.toolName,
+      isError: context.isError === true,
+      structuredContent: context.structuredContent || null,
+      resultMeta: context.resultMeta || null,
+    }),
+  });
+}
+
 function detectImageMimeType(
   bytes: Uint8Array,
 ): "image/png" | "image/jpeg" | "image/webp" | "image/gif" | undefined {
@@ -890,6 +896,7 @@ function detectImageMimeType(
 export {
   ByokAgentRunner,
   buildAgentInput,
+  createByokMcpServer,
   detectImageMimeType,
   isUnsupportedImageError,
   withImageCapabilityHeader,

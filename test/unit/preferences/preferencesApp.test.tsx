@@ -419,6 +419,25 @@ describe("PreferencesApp", function () {
     assert.include(html, 'data-l10n-id="zopilot-pref-dependencies-remove"');
   });
 
+  it("does not offer to remove the source-managed development helper", function () {
+    const html = renderToStaticMarkup(
+      <DependenciesPanel
+        onCheck={() => undefined}
+        onInstall={() => undefined}
+        onRemove={() => undefined}
+        state={{
+          status: "ready",
+          helper: {
+            ...TEST_DEPENDENCY_STATE.helper,
+            development: true,
+          },
+        }}
+      />,
+    );
+
+    assert.notInclude(html, 'data-l10n-id="zopilot-pref-dependencies-remove"');
+  });
+
   it("renders a focusable single-line code scroller without actions", function () {
     const html = renderToStaticMarkup(
       <PreferenceCodeScroller

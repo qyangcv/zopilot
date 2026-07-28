@@ -324,7 +324,7 @@ describe("CodexBridge", function () {
     assert.notInclude(String(tools[1]?.name), "rg Figure");
   });
 
-  it("opens new Codex threads with paper_read developer instructions", async function () {
+  it("opens new Codex threads with multi-tool paper instructions", async function () {
     const bridge = createBridgeHarness();
     const conversation = createConversation("conv-new");
     const promise = bridge.instance.sendPrompt("Question", {
@@ -339,7 +339,7 @@ describe("CodexBridge", function () {
     assert.strictEqual(threadStart.params.sandbox, "read-only");
     assert.include(
       String(threadStart.params.developerInstructions),
-      "paper_read",
+      "get_outline",
     );
     const mcpServer = (
       threadStart.params.config as {
@@ -372,7 +372,12 @@ describe("CodexBridge", function () {
       "conv-new-pdf",
     );
     assert.equal(mcpServer.http_headers["X-Zopilot-Library-ID"], "1");
-    assert.deepEqual(mcpServer.enabled_tools, ["paper_read"]);
+    assert.deepEqual(mcpServer.enabled_tools, [
+      "get_outline",
+      "search",
+      "read",
+      "view_page",
+    ]);
     assert.equal(mcpServer.startup_timeout_sec, 10);
     assert.equal(mcpServer.tool_timeout_sec, 60);
 

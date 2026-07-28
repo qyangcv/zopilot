@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform as platform_module
 
-DEFAULT_HELPER_VERSION = "0.2.0"
+DEFAULT_HELPER_VERSION = "0.3.0"
 PDF_HELPER_PACKAGE_NAME = "zopilot-pdf-helper"
 SUPPORTED_PLATFORMS = ("macos-arm64", "macos-x64", "windows-x64")
 

@@ -2,11 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { JsonValue } from "../../runtime/json/types";
 import { createLogger } from "../../runtime/logging/logger";
-import type { PaperReadService } from "../../application/document/PaperReadService";
+import type { PaperToolsService } from "../../application/document/PaperToolsService";
 import {
-  registerPaperReadTool,
-  type RegisterPaperReadToolOptions,
-} from "./paperReadAdapter";
+  registerPaperTools,
+  type RegisterPaperToolsOptions,
+} from "./paperToolsAdapter";
 import {
   errorResponse,
   fromWebResponse,
@@ -25,8 +25,8 @@ const mcpLogger = createLogger("mcp.http");
 
 type McpHttpHandlerOptions = {
   token: string;
-  paperReadService?: PaperReadService;
-  readFile?: RegisterPaperReadToolOptions["readFile"];
+  paperToolsService?: PaperToolsService;
+  readFile?: RegisterPaperToolsOptions["readFile"];
   logger?: McpHttpLogCallback;
   url?: string;
 };
@@ -50,8 +50,8 @@ function createMcpHttpHandler(options: McpHttpHandlerOptions) {
       }
 
       const server = new McpServer(SERVER_INFO);
-      registerPaperReadTool(server, {
-        service: options.paperReadService,
+      registerPaperTools(server, {
+        service: options.paperToolsService,
         readFile: options.readFile,
       });
       const transport = new WebStandardStreamableHTTPServerTransport({

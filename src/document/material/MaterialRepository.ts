@@ -1,4 +1,5 @@
 import { buildChunksAndArtifacts } from "./chunker";
+import { parseMaterialBlock, parseMaterialOutline } from "./materialCodec";
 import { waitForSubprocessResult } from "../../runtime/process/subprocess";
 import type {
   Material,
@@ -8,7 +9,7 @@ import type {
   MaterialPage,
   SourceIdentity,
 } from "../types";
-import { ensurePdfHelperExecutable } from "../pdf-helper/index";
+import { getPdfHelperCommand } from "../pdf-helper/index";
 import { createLogger } from "../../runtime/logging/logger";
 import { encodePathSegment } from "../../runtime/persistence/pathCodec";
 import { throwIfAborted } from "../../runtime/cancellation";
@@ -16,8 +17,11 @@ import { geckoIO, geckoPath, loadSubprocessModule } from "../../platform/gecko";
 
 export { MaterialRepository, MATERIAL_SCHEMA_VERSION, MATERIAL_PARSER_VERSION };
 
-const MATERIAL_SCHEMA_VERSION = 1;
-const MATERIAL_PARSER_VERSION = "zopilot-pdf-helper-0.2.0";
+const MATERIAL_SCHEMA_VERSION = 3;
+const MATERIAL_PARSER_VERSION = "pymupdf4llm-1.28.0-ir1";
+const MATERIAL_PARSER_NAME = "Zopilot PDF Helper/PyMuPDF4LLM";
+const EXTRACTOR_NAME = "PyMuPDF4LLM";
+const EXTRACTOR_VERSION = "1.28.0";
 
 const logger = createLogger("document.materialCache");
 
@@ -55,7 +59,11 @@ class MaterialRepository {
     const manifest = await this.readManifestIfFresh(dir, source);
     throwIfAborted(signal);
     if (manifest) {
-      return this.readMaterial(dir, manifest);
+      const currentManifest = { ...manifest, source };
+      if (!sameSourceMetadata(manifest.source, source)) {
+        await this.writeJSON(this.getManifestPath(dir), currentManifest);
+      }
+      return this.readMaterial(dir, currentManifest);
     }
     return this.build(source, dir, signal);
   }
@@ -85,7 +93,7 @@ class MaterialRepository {
       }
       const manifest: MaterialManifest = {
         schemaVersion: MATERIAL_SCHEMA_VERSION,
-        parser: "Zopilot PDF Helper/PyMuPDF",
+        parser: MATERIAL_PARSER_NAME,
         parserVersion: MATERIAL_PARSER_VERSION,
         source,
         builtAt: new Date().toISOString(),
@@ -101,9 +109,16 @@ class MaterialRepository {
     const markdown = await geckoIO.readUTF8(geckoPath.join(dir, "paper.md"));
     const text = await geckoIO.readUTF8(geckoPath.join(dir, "paper.txt"));
     const pages = await this.readPages(dir);
+    const blocks = (
+      await this.readJSONL<unknown>(geckoPath.join(dir, "blocks.jsonl"))
+    ).map(parseMaterialBlock);
+    const outline = parseMaterialOutline(
+      await geckoIO.readJSON(geckoPath.join(dir, "outline.json")),
+    );
     const { chunks, artifacts } = buildChunksAndArtifacts({
       sourceId: source.sourceId,
-      markdown,
+      blocks,
+      outline,
       pages,
     });
     await this.writeJSONL(geckoPath.join(dir, "chunks.jsonl"), chunks);
@@ -111,7 +126,7 @@ class MaterialRepository {
 
     const manifest: MaterialManifest = {
       schemaVersion: MATERIAL_SCHEMA_VERSION,
-      parser: "Zopilot PDF Helper/PyMuPDF",
+      parser: MATERIAL_PARSER_NAME,
       parserVersion: MATERIAL_PARSER_VERSION,
       source,
       builtAt: new Date().toISOString(),
@@ -126,6 +141,8 @@ class MaterialRepository {
       markdown,
       text,
       pages,
+      blocks,
+      outline,
       chunks,
       artifacts,
     };
@@ -137,10 +154,10 @@ class MaterialRepository {
     signal?: AbortSignal,
   ): Promise<{ pageCount: number; warnings: string[] }> {
     const subprocess = this.getSubprocess();
-    const executable = await ensurePdfHelperExecutable();
+    const helper = await getPdfHelperCommand();
     const proc = await subprocess.call({
-      command: executable,
-      arguments: [filePath, dir],
+      command: helper.command,
+      arguments: [...helper.argumentsPrefix, filePath, dir],
       environment: {
         PYTHONNOUSERSITE: "1",
       },
@@ -158,7 +175,20 @@ class MaterialRepository {
     }
     const output = (await geckoIO.readJSON(
       geckoPath.join(dir, "parser-output.json"),
-    )) as { pageCount?: unknown; warnings?: unknown };
+    )) as {
+      extractor?: unknown;
+      extractorVersion?: unknown;
+      pageCount?: unknown;
+      warnings?: unknown;
+    };
+    if (
+      output.extractor !== EXTRACTOR_NAME ||
+      output.extractorVersion !== EXTRACTOR_VERSION
+    ) {
+      throw new Error(
+        `Unsupported PDF extractor: ${String(output.extractor)} ${String(output.extractorVersion)}`,
+      );
+    }
     return {
       pageCount: typeof output.pageCount === "number" ? output.pageCount : 0,
       warnings: Array.isArray(output.warnings)
@@ -194,21 +224,30 @@ class MaterialRepository {
     dir: string,
     manifest: MaterialManifest,
   ): Promise<Material> {
-    const [markdown, text, pages, chunks, artifacts] = await Promise.all([
-      geckoIO.readUTF8(geckoPath.join(dir, "paper.md")),
-      geckoIO.readUTF8(geckoPath.join(dir, "paper.txt")),
-      this.readPages(dir),
-      this.readJSONL<MaterialChunk>(geckoPath.join(dir, "chunks.jsonl")),
-      geckoIO.readJSON(geckoPath.join(dir, "artifacts.json")) as Promise<
-        MaterialArtifact[]
-      >,
-    ]);
+    const [markdown, text, pages, blocks, outline, chunks, artifacts] =
+      await Promise.all([
+        geckoIO.readUTF8(geckoPath.join(dir, "paper.md")),
+        geckoIO.readUTF8(geckoPath.join(dir, "paper.txt")),
+        this.readPages(dir),
+        this.readJSONL<unknown>(geckoPath.join(dir, "blocks.jsonl")).then(
+          (items) => items.map(parseMaterialBlock),
+        ),
+        geckoIO
+          .readJSON(geckoPath.join(dir, "outline.json"))
+          .then(parseMaterialOutline),
+        this.readJSONL<MaterialChunk>(geckoPath.join(dir, "chunks.jsonl")),
+        geckoIO.readJSON(geckoPath.join(dir, "artifacts.json")) as Promise<
+          MaterialArtifact[]
+        >,
+      ]);
     return {
       dir,
       manifest,
       markdown,
       text,
       pages,
+      blocks,
+      outline,
       chunks,
       artifacts,
     };
@@ -265,5 +304,23 @@ function getDefaultMaterialRootDir(): string {
     "zopilot",
     "materials",
     "sources",
+  );
+}
+
+function sameSourceMetadata(
+  left: SourceIdentity,
+  right: SourceIdentity,
+): boolean {
+  return (
+    left.sourceId === right.sourceId &&
+    left.paperKey === right.paperKey &&
+    left.libraryID === right.libraryID &&
+    left.attachmentItemID === right.attachmentItemID &&
+    left.attachmentKey === right.attachmentKey &&
+    left.title === right.title &&
+    left.filePath === right.filePath &&
+    left.mtime === right.mtime &&
+    left.size === right.size &&
+    left.pdfHash === right.pdfHash
   );
 }

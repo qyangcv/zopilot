@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { pageRangeContains } from "../pageRange";
 
-export { retrieveContextCandidates };
+export { retrieveContextCandidates, searchMaterial };
 
 type SearchDoc = {
   id: string;
@@ -26,6 +26,7 @@ const RRF_K = 60;
 function retrieveContextCandidates(
   material: Material,
   plan: QueryPlan,
+  limit = 10,
 ): RetrievalCandidate[] {
   const chunkById = new Map(material.chunks.map((chunk) => [chunk.id, chunk]));
   const index = buildIndex(material);
@@ -107,7 +108,23 @@ function retrieveContextCandidates(
         right.score - left.score || left.firstRank - right.firstRank,
     );
 
-  return applyMmr(ranked, 10);
+  return applyMmr(ranked, limit);
+}
+
+function searchMaterial(
+  material: Material,
+  query: string,
+  limit: number,
+): RetrievalCandidate[] {
+  return retrieveContextCandidates(
+    material,
+    {
+      query,
+      intent: "general",
+      includeReferences: true,
+    },
+    limit,
+  );
 }
 
 function buildIndex(material: Material): Document<SearchDoc> {

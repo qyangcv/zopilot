@@ -34,6 +34,7 @@ import type {
 import { buildZopilotMcpConnection } from "../mcp/connection";
 import { LocalAttachmentPreparer } from "../../application/agent/LocalAttachmentPreparer";
 import {
+  isToolTraceTextTruncated,
   sanitizeToolTraceJson,
   sanitizeToolTraceText,
 } from "../../application/agent/toolTraceSanitizer";
@@ -516,6 +517,9 @@ class ByokRuntimeBridge {
             "tool",
             true,
           );
+          const result = sanitizeOptionalTraceText(
+            getNestedString(message.params, ["result"]),
+          );
           this.emit(activeTurn, {
             type: "tool.completed",
             blockId,
@@ -526,9 +530,10 @@ class ByokRuntimeBridge {
             arguments: sanitizeOptionalTraceText(
               getNestedString(message.params, ["arguments"]),
             ),
-            result: sanitizeOptionalTraceText(
-              getNestedString(message.params, ["result"]),
-            ),
+            result,
+            ...(isToolTraceTextTruncated(result)
+              ? { resultTruncated: true }
+              : {}),
             structuredContent: sanitizeToolTraceJson(
               getNestedValue(message.params, ["structuredContent"]),
             ),

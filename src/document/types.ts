@@ -56,6 +56,44 @@ export type MaterialPage = {
   imagePath?: string;
 };
 
+export type MaterialBlockType =
+  | "title"
+  | "heading"
+  | "paragraph"
+  | "list"
+  | "caption"
+  | "table"
+  | "equation"
+  | "footnote"
+  | "figure"
+  | "other";
+
+export type MaterialBlock = {
+  id: string;
+  page: number;
+  index: number;
+  type: MaterialBlockType;
+  text: string;
+  bbox?: [number, number, number, number];
+  headingLevel?: number;
+};
+
+export type MaterialOutlineEntry = {
+  id: string;
+  title: string;
+  level: number;
+  page: number;
+  blockId?: string;
+  provenance: "embedded" | "inferred";
+};
+
+export type MaterialOutline = {
+  status: "ready" | "partial" | "unavailable";
+  provenance: "embedded" | "inferred" | "mixed" | "unavailable";
+  entries: MaterialOutlineEntry[];
+  warnings: string[];
+};
+
 export type MaterialArtifactType = "figure" | "table" | "equation" | "page";
 
 export type MaterialArtifact = {
@@ -88,6 +126,7 @@ export type MaterialChunk = {
   pageStart?: number;
   pageEnd?: number;
   text: string;
+  blockIds: string[];
   artifactIds: string[];
 };
 
@@ -97,6 +136,8 @@ export type Material = {
   markdown: string;
   text: string;
   pages: MaterialPage[];
+  blocks: MaterialBlock[];
+  outline: MaterialOutline;
   chunks: MaterialChunk[];
   artifacts: MaterialArtifact[];
 };

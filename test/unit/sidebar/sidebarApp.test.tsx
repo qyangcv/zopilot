@@ -504,7 +504,7 @@ describe("SidebarApp", function () {
     assert.include(html, "sidebar-trace-tool-result");
     assert.include(html, "sidebar-trace-tool-risk");
     assert.include(html, "sidebar-trace-tool-risk-read-only");
-    assert.include(html, "sidebar-trace-tool-structured-result");
+    assert.notInclude(html, "sidebar-trace-tool-structured-result");
     assert.include(html, "&quot;page&quot;: 5");
     assert.include(html, 'data-status="running"');
     assert.include(html, 'data-status="failed"');

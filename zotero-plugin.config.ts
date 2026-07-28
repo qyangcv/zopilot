@@ -1,5 +1,38 @@
 import { defineConfig } from "zotero-plugin-scaffold";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import pkg from "./package.json";
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const developmentPdfHelperPython =
+  process.platform === "win32"
+    ? path.join(
+        rootDir,
+        ".scaffold",
+        "pdf-helper-development",
+        "venv",
+        "Scripts",
+        "python.exe",
+      )
+    : path.join(
+        rootDir,
+        ".scaffold",
+        "pdf-helper-development",
+        "venv",
+        "bin",
+        "python",
+      );
+const runtimeDefines = {
+  __env__: `"${process.env.NODE_ENV}"`,
+  __pdfHelperDevPython__: JSON.stringify(
+    process.env.NODE_ENV === "development" ? developmentPdfHelperPython : "",
+  ),
+  __pdfHelperDevScript__: JSON.stringify(
+    process.env.NODE_ENV === "development"
+      ? path.join(rootDir, "helpers", "pdf-helper", "zopilot_pdf_helper.py")
+      : "",
+  ),
+};
 
 export default defineConfig({
   source: ["src", "addon"],
@@ -29,15 +62,14 @@ export default defineConfig({
     esbuildOptions: [
       {
         entryPoints: ["src/app/index.ts"],
-        define: {
-          __env__: `"${process.env.NODE_ENV}"`,
-        },
+        define: runtimeDefines,
         bundle: true,
         target: "firefox115",
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
       },
       {
         entryPoints: ["src/features/sidebar/windowRuntime.tsx"],
+        define: runtimeDefines,
         bundle: true,
         format: "iife",
         target: "firefox115",
@@ -45,6 +77,7 @@ export default defineConfig({
       },
       {
         entryPoints: ["src/features/preferences/mountPreferencesApp.ts"],
+        define: runtimeDefines,
         bundle: true,
         format: "iife",
         target: "firefox115",

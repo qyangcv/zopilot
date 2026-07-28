@@ -117,6 +117,13 @@ function createPdfMaterial(): Material {
     markdown: "",
     text: "",
     pages: [{ page: 2, text: "Figure 2 result", imagePath: "/tmp/page-2.png" }],
+    blocks: [],
+    outline: {
+      status: "unavailable",
+      provenance: "unavailable",
+      entries: [],
+      warnings: [],
+    },
     chunks: [
       {
         id: "chunk-2",
@@ -127,6 +134,7 @@ function createPdfMaterial(): Material {
         pageStart: 2,
         pageEnd: 2,
         text: "Figure 2 result",
+        blockIds: [],
         artifactIds: ["figure-2"],
       },
     ],

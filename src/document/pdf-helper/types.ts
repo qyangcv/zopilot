@@ -36,6 +36,7 @@ type PdfHelperStatus =
       installDir: string;
       executablePath: string;
       manifestUrl: string;
+      development?: true;
     }
   | {
       status: "not-installed";

@@ -1,6 +1,8 @@
 import { assert } from "chai";
 import {
   formatToolTraceValue,
+  isToolTraceTextTruncated,
+  sanitizeToolTraceJson,
   sanitizeToolTraceText,
 } from "../../../src/application/agent/toolTraceSanitizer.ts";
 
@@ -24,5 +26,18 @@ describe("tool trace sanitizer", function () {
     const result = sanitizeToolTraceText("x ".repeat(9000));
     assert.isAtMost(result.length, 8020);
     assert.include(result, "[truncated]");
+    assert.isTrue(isToolTraceTextTruncated(result));
+    assert.isFalse(isToolTraceTextTruncated("complete"));
+  });
+
+  it("keeps sanitized structured results complete for trace auditing", function () {
+    const longText = "evidence ".repeat(2_000);
+    const result = sanitizeToolTraceJson({
+      text: longText,
+      token: "private",
+    }) as { text: string; token: string };
+
+    assert.equal(result.text, longText);
+    assert.equal(result.token, "[redacted]");
   });
 });

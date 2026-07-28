@@ -173,6 +173,10 @@ function ToolProgress({ item }: { item: ToolTraceItem }): ReactElement | null {
 }
 
 function ToolPayloadValues({ item }: { item: ToolTraceItem }): ReactElement {
+  const canonicalResult =
+    item.structuredContent === undefined
+      ? item.result
+      : JSON.stringify(item.structuredContent, null, 2);
   return (
     <>
       {item.arguments ? (
@@ -187,16 +191,14 @@ function ToolPayloadValues({ item }: { item: ToolTraceItem }): ReactElement {
           value={formatToolRisk(item.risk)}
         />
       ) : null}
-      {item.result ? (
+      {canonicalResult ? (
         <TracePayloadValue
-          label={getString("sidebar-trace-tool-result")}
-          value={item.result}
-        />
-      ) : null}
-      {item.structuredContent !== undefined ? (
-        <TracePayloadValue
-          label={getString("sidebar-trace-tool-structured-result")}
-          value={JSON.stringify(item.structuredContent, null, 2)}
+          label={getString(
+            item.structuredContent === undefined && item.resultTruncated
+              ? "sidebar-trace-tool-result-truncated"
+              : "sidebar-trace-tool-result",
+          )}
+          value={canonicalResult}
         />
       ) : null}
       {item.error ? (

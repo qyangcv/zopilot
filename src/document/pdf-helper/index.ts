@@ -1,6 +1,11 @@
 import { SUPPORTED_PDF_HELPER_PLATFORMS } from "../../runtime/platform/host";
 import { PDF_HELPER_MANIFEST_URL, PDF_HELPER_VERSION } from "./constants";
 import { installPdfHelper } from "./installer";
+import {
+  getDevelopmentPdfHelperCommand,
+  isDevelopmentPdfHelper,
+  type PdfHelperCommand,
+} from "./development";
 import { detectPdfHelperPlatform, selectPdfHelperArtifact } from "./manifest";
 import {
   getInstalledPdfHelperExecutablePath,
@@ -32,14 +37,28 @@ async function ensurePdfHelperExecutable(
   }
 }
 
+async function getPdfHelperCommand(
+  onProgress?: (progress: PdfHelperInstallProgress) => void,
+): Promise<PdfHelperCommand> {
+  if (isDevelopmentPdfHelper()) {
+    return getDevelopmentPdfHelperCommand();
+  }
+  return {
+    command: await ensurePdfHelperExecutable(onProgress),
+    argumentsPrefix: [],
+  };
+}
+
 async function installPdfHelperDependency(
   onProgress?: (progress: PdfHelperInstallProgress) => void,
 ): Promise<PdfHelperStatus> {
+  if (isDevelopmentPdfHelper()) return getPdfHelperStatus();
   await ensurePdfHelperExecutable(onProgress);
   return getPdfHelperStatus();
 }
 
 async function removePdfHelperDependency(): Promise<PdfHelperStatus> {
+  if (isDevelopmentPdfHelper()) return getPdfHelperStatus();
   await removePdfHelperRuntimeDir();
   return getPdfHelperStatus();
 }
@@ -47,6 +66,7 @@ async function removePdfHelperDependency(): Promise<PdfHelperStatus> {
 async function updatePdfHelperDependency(
   onProgress?: (progress: PdfHelperInstallProgress) => void,
 ): Promise<PdfHelperStatus> {
+  if (isDevelopmentPdfHelper()) return getPdfHelperStatus();
   await removePdfHelperRuntimeDir();
   await ensurePdfHelperExecutable(onProgress);
   return getPdfHelperStatus();
@@ -58,6 +78,7 @@ export {
   PDF_HELPER_VERSION,
   detectPdfHelperPlatform,
   ensurePdfHelperExecutable,
+  getPdfHelperCommand,
   getPdfHelperStatus,
   getInstalledPdfHelperExecutablePath,
   installPdfHelperDependency,
@@ -68,4 +89,5 @@ export {
   type PdfHelperManifest,
   type PdfHelperInstallProgress,
   type PdfHelperStatus,
+  type PdfHelperCommand,
 };

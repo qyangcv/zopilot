@@ -607,11 +607,11 @@ function createToolScenario(): ReplayScenario {
       type: "tool.started",
       sequence: sequence++,
       blockId: "call-a",
-      name: "paper_read",
+      name: "search",
       server: "zopilot",
     },
   });
-  const argumentsText = '{"question":"What evidence supports the method?"}';
+  const argumentsText = '{"query":"evidence supporting the method"}';
   [...argumentsText].forEach((character, index) => {
     steps.push({
       at: 320 + index * 3,
@@ -646,7 +646,7 @@ function createToolScenario(): ReplayScenario {
       type: "tool.completed",
       sequence: sequence++,
       blockId: "call-a",
-      name: "paper_read",
+      name: "search",
       arguments: argumentsText,
       result: "Evidence from sections 2–4.",
     },

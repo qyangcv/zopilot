@@ -7,11 +7,19 @@ import {
 } from "./constants";
 import { compareVersions, parseHelperInstallDirVersion } from "./paths";
 import type { PdfHelperStatus } from "./types";
+import {
+  getDevelopmentPdfHelperStatusPaths,
+  isDevelopmentPdfHelper,
+  isDevelopmentPdfHelperReady,
+} from "./development";
 import { geckoIO, geckoPath } from "../../platform/gecko";
 
 type PdfHelperInstallCandidate = { path: string; version?: string };
 
 async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
+  if (isDevelopmentPdfHelper()) {
+    return getDevelopmentPdfHelperStatus();
+  }
   const installCandidates = await getPdfHelperInstallCandidates();
   const candidateSummary = await summarizeInstallCandidates(installCandidates);
   try {
@@ -63,6 +71,57 @@ async function getPdfHelperStatus(): Promise<PdfHelperStatus> {
       hasInstallCandidate: installCandidates.length > 0,
       needsUpdate: installCandidates.length > 0,
       installCandidateDirs: installCandidates.map((item) => item.path),
+      installDir: getPdfHelperRuntimeDir(),
+      executablePath: "",
+      manifestUrl: PDF_HELPER_MANIFEST_URL,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function getDevelopmentPdfHelperStatus(): Promise<PdfHelperStatus> {
+  try {
+    const platform = detectPdfHelperPlatform();
+    const paths = getDevelopmentPdfHelperStatusPaths();
+    if (!(await isDevelopmentPdfHelperReady())) {
+      return {
+        status: "unsupported",
+        version: PDF_HELPER_VERSION,
+        latestVersion: PDF_HELPER_VERSION,
+        hasInstallCandidate: false,
+        needsUpdate: false,
+        installCandidateDirs: [],
+        installDir: paths.rootDir,
+        executablePath: paths.python,
+        manifestUrl: PDF_HELPER_MANIFEST_URL,
+        reason:
+          "The development PDF helper is unavailable. Run npm run start " +
+          "to prepare its local Python environment.",
+      };
+    }
+    return {
+      status: "installed",
+      platform,
+      version: PDF_HELPER_VERSION,
+      latestVersion: PDF_HELPER_VERSION,
+      installedVersion: PDF_HELPER_VERSION,
+      installedVersionState: "current",
+      hasInstallCandidate: true,
+      needsUpdate: false,
+      installCandidateDirs: [paths.rootDir],
+      installDir: paths.rootDir,
+      executablePath: paths.python,
+      manifestUrl: PDF_HELPER_MANIFEST_URL,
+      development: true,
+    };
+  } catch (error) {
+    return {
+      status: "unsupported",
+      version: PDF_HELPER_VERSION,
+      latestVersion: PDF_HELPER_VERSION,
+      hasInstallCandidate: false,
+      needsUpdate: false,
+      installCandidateDirs: [],
       installDir: getPdfHelperRuntimeDir(),
       executablePath: "",
       manifestUrl: PDF_HELPER_MANIFEST_URL,

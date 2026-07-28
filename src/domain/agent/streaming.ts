@@ -95,6 +95,7 @@ export type AgentStreamEvent =
       server?: string;
       arguments?: string;
       result?: string;
+      resultTruncated?: boolean;
       structuredContent?: import("../../runtime/json/types").JsonValue;
       error?: string;
       status?: AgentToolStatus;
@@ -152,6 +153,7 @@ export type RunningTurnToolBlock = {
   arguments?: string;
   progress?: string;
   result?: string;
+  resultTruncated?: boolean;
   structuredContent?: import("../../runtime/json/types").JsonValue;
   error?: string;
   status: AgentToolStatus;
