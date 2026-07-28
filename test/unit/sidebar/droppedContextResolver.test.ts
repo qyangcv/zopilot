@@ -32,7 +32,7 @@ describe("ZoteroDroppedContextResolver", function () {
         ["source", "PDF-A"],
         ["source", "PDF-B"],
         ["local-attachment", "figure.png"],
-        ["local-attachment", "standalone.pdf"],
+        ["source", "PDF-TOP"],
         ["note", "NOTE-CHILD"],
         ["note", "NOTE-TOP"],
       ],
@@ -61,7 +61,7 @@ describe("ZoteroDroppedContextResolver", function () {
     assert.deepEqual(result.map(candidateIdentity), [
       "note:NOTE-CHILD",
       "note:NOTE-TOP",
-      "local:standalone.pdf",
+      "source:PDF-TOP",
     ]);
     assert.deepEqual(outsideResult.map(candidateIdentity), ["source:PDF-C"]);
   });

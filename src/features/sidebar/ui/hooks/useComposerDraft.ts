@@ -130,7 +130,7 @@ function useComposerDraft(
   const selectedContextCount = countItemContextSelections(
     mentions,
     noteContexts,
-    Boolean(readerItemContextMode && workspaceItemContextTree),
+    Boolean(readerItemContextMode && state.context.attachmentKey),
   );
   const mentionPicker = useMentionPicker({
     currentSourceId,

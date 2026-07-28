@@ -10,7 +10,7 @@ import { getZoteroGlobal } from "../../../integrations/zotero/environment";
 import type { SidebarDropPayload } from "../../../integrations/zotero/compat/dragData";
 import { ZoteroCollectionRepository } from "../../../integrations/zotero/sources/ZoteroCollectionRepository";
 import {
-  createPaperSourceRefForAttachmentWithZotero,
+  createPaperSourceRefFromAttachmentWithZotero,
   createPaperSourceRefWithZotero,
 } from "../../../integrations/zotero/sources/items";
 import { loadZoteroItem } from "../../../integrations/zotero/sources/ZoteroItemLookup";
@@ -169,18 +169,11 @@ class ZoteroDroppedContextResolver {
     if (!path) return undefined;
 
     if (attachment.isPDFAttachment?.()) {
-      if (parent) {
-        const source = createPaperSourceRefForAttachmentWithZotero(
-          parent,
-          attachment,
-          this.zotero,
-        );
-        return source ? { kind: "source", source } : undefined;
-      }
-      const local = createLocalAttachmentRef(path);
-      return local?.kind === "pdf"
-        ? { kind: "local-attachment", attachment: local }
-        : undefined;
+      const source = createPaperSourceRefFromAttachmentWithZotero(
+        attachment,
+        this.zotero,
+      );
+      return source ? { kind: "source", source } : undefined;
     }
 
     const local = createLocalAttachmentRef(path);

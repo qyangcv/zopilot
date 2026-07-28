@@ -1,4 +1,5 @@
 import { getString } from "../../../app/localization";
+import { isStandalonePaper } from "../../../domain/conversation";
 import type { SidebarMessageView, SidebarState } from "../ui/types";
 import { loadPromptViews } from "../prompts/promptStore";
 import { createConversationMessages, createSessionView } from "./viewModel";
@@ -43,6 +44,7 @@ function projectSidebarState(
         paperKey: source?.paperKey,
         parentItemKey: source?.parentItemKey,
         attachmentKey: source?.attachmentKey,
+        standalonePdf: source ? isStandalonePaper(source) : undefined,
       },
       composerEnabled: true,
       messages: pdfHelperNotice ? [...messages, pdfHelperNotice] : messages,

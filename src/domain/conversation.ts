@@ -9,7 +9,7 @@ type PaperIdentity = {
   paperKey: string;
   libraryID: number;
   parentItemID?: number;
-  parentItemKey: string;
+  parentItemKey?: string;
   attachmentItemID: number;
   attachmentKey: string;
   title: string;
@@ -28,7 +28,7 @@ type SourceMention = {
   paperKey: string;
   libraryID: number;
   parentItemID?: number;
-  parentItemKey: string;
+  parentItemKey?: string;
   attachmentItemID: number;
   attachmentKey: string;
   title: string;
@@ -122,6 +122,19 @@ type ConversationMetadata = WorkspaceIdentity & {
   providerProfileId?: string;
   latestPreview?: string;
   archived?: boolean;
+  migration?:
+    | {
+        kind: "standalone-pdf-merge";
+        status: "prepared" | "complete";
+        sourceWorkspaceKey: string;
+        sourceConversationIds: string[];
+        targetConversationId?: string;
+      }
+    | {
+        kind: "standalone-pdf-backup";
+        sourceWorkspaceKey: string;
+        sourceConversationId: string;
+      };
 };
 
 type ConversationMessage = {
@@ -161,9 +174,21 @@ function createItemWorkspaceIdentity(paper: PaperIdentity): WorkspaceIdentity {
     libraryID: paper.libraryID,
     workspaceLabel: paper.title,
     workspaceTitle: paper.title,
-    itemKey: paper.parentItemKey,
+    itemKey: getPaperRootItemKey(paper),
     defaultSource: paper,
   };
+}
+
+function getPaperRootItemID(paper: PaperIdentity): number {
+  return paper.parentItemID ?? paper.attachmentItemID;
+}
+
+function getPaperRootItemKey(paper: PaperIdentity): string {
+  return paper.parentItemKey || paper.attachmentKey;
+}
+
+function isStandalonePaper(paper: PaperIdentity): boolean {
+  return paper.parentItemID === undefined && paper.parentItemKey === undefined;
 }
 
 function createLibraryWorkspaceIdentity(input: {
@@ -203,6 +228,9 @@ export {
   createCollectionWorkspaceIdentity,
   createItemWorkspaceIdentity,
   createLibraryWorkspaceIdentity,
+  getPaperRootItemID,
+  getPaperRootItemKey,
+  isStandalonePaper,
 };
 export type {
   Conversation,

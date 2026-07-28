@@ -4,6 +4,11 @@ import type {
   WorkspaceIdentity,
 } from "../../../domain/conversation";
 import {
+  getPaperRootItemID,
+  getPaperRootItemKey,
+  isStandalonePaper,
+} from "../../../domain/conversation";
+import {
   ZoteroCollectionRepository,
   type SourceUniverseCollectionOption,
 } from "./ZoteroCollectionRepository";
@@ -83,10 +88,16 @@ class ZoteroSourceCatalog {
     currentSource?: PaperIdentity,
   ): Promise<PaperSourceRef | null> {
     const parent = this.zotero.Items.get(
-      paper.parentItemID || paper.parentItemKey,
+      getPaperRootItemID(paper) || getPaperRootItemKey(paper),
     );
-    return parent
-      ? createPaperSourceRefWithZotero(parent, currentSource, this.zotero)
+    if (!parent) return null;
+    const source = createPaperSourceRefWithZotero(
+      parent,
+      currentSource,
+      this.zotero,
+    );
+    return source && (await this.isAvailableStandaloneSource(parent, source))
+      ? source
       : null;
   }
 
@@ -94,14 +105,41 @@ class ZoteroSourceCatalog {
     items: Zotero.Item[],
     currentSource?: PaperIdentity,
   ): Promise<PaperSourceRef[]> {
-    const sources = items
-      .map((item) =>
-        createPaperSourceRefWithZotero(item, currentSource, this.zotero),
+    const sources = (
+      await Promise.all(
+        items.map(async (item) => {
+          const source = createPaperSourceRefWithZotero(
+            item,
+            currentSource,
+            this.zotero,
+          );
+          return source &&
+            (await this.isAvailableStandaloneSource(item, source))
+            ? source
+            : null;
+        }),
       )
-      .filter((item): item is PaperSourceRef => Boolean(item));
+    ).filter((item): item is PaperSourceRef => Boolean(item));
     return dedupeSources(sources).sort((left, right) =>
       left.title.localeCompare(right.title),
     );
+  }
+
+  private async isAvailableStandaloneSource(
+    item: Zotero.Item,
+    source: PaperSourceRef,
+  ): Promise<boolean> {
+    if (!isStandalonePaper(source)) return true;
+    try {
+      const path = await (
+        item as Zotero.Item & {
+          getFilePathAsync?: () => Promise<string | false | null | undefined>;
+        }
+      ).getFilePathAsync?.();
+      return typeof path === "string" && Boolean(path);
+    } catch {
+      return false;
+    }
   }
 }
 

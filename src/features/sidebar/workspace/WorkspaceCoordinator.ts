@@ -170,8 +170,10 @@ class WorkspaceCoordinator {
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity | null;
   }): Promise<void> {
+    const conversationStore = getConversationStore();
+    await conversationStore.migrateStandaloneWorkspace(input.workspace);
     const conversation =
-      await getConversationStore().getOrCreateLatestWorkspaceConversation(
+      await conversationStore.getOrCreateLatestWorkspaceConversation(
         input.workspace,
       );
     if (!this.options.canCommitSelection(input.token)) {

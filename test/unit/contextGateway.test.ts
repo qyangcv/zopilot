@@ -119,6 +119,29 @@ describe("ZoteroContextGateway", function () {
     assert.equal(workspace?.workspaceLabel, "Paper Title");
     assert.equal(workspace?.defaultSource?.attachmentKey, "PDF");
   });
+
+  it("uses a standalone PDF attachment as its own item workspace", async function () {
+    const attachment = createItem({
+      id: 10,
+      key: "PDF-STANDALONE",
+      getField: (field) => (field === "title" ? "DGRR_aaai_cws" : ""),
+      isAttachment: () => true,
+      isPDFAttachment: () => true,
+    });
+    installZoteroMock({
+      items: [attachment],
+      readers: [createReader(attachment.id)],
+    });
+    const gateway = new ZoteroContextGateway(createReaderWindow());
+
+    const workspace = await gateway.getActiveWorkspace();
+
+    assert.equal(workspace?.workspaceKey, "item:1:PDF-STANDALONE");
+    assert.equal(workspace?.itemKey, "PDF-STANDALONE");
+    assert.equal(workspace?.workspaceLabel, "DGRR_aaai_cws");
+    assert.isUndefined(workspace?.defaultSource?.parentItemID);
+    assert.isUndefined(workspace?.defaultSource?.parentItemKey);
+  });
 });
 
 async function requireScope(

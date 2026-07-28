@@ -121,6 +121,40 @@ describe("ZoteroItemContextCatalog", function () {
     );
     assert.deepEqual(outsideSources, []);
   });
+
+  it("validates a readable standalone PDF as a root source without a tree", async function () {
+    const standalone = createStandaloneAttachment(
+      30,
+      "PDF-STANDALONE",
+      "/tmp/standalone.pdf",
+    );
+    const catalog = new ZoteroItemContextCatalog(
+      createZoteroMock([standalone]),
+    );
+    const libraryWorkspace = {
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      libraryID: 1,
+      workspaceLabel: "My Library",
+      workspaceTitle: "My Library",
+    };
+    const source = (
+      await catalog.resolveSelectedPdfSources(libraryWorkspace, [
+        "1-PDF-STANDALONE",
+      ])
+    )[0];
+
+    assert.equal(source?.paperKey, "1:PDF-STANDALONE");
+    assert.isUndefined(source?.parentItemKey);
+    assert.isDefined(source);
+    if (!source) return;
+    assert.isUndefined(
+      await catalog.getTree({
+        workspace: createItemWorkspaceIdentity(source),
+        currentSource: source,
+      }),
+    );
+  });
 });
 
 type MockItem = {
@@ -186,6 +220,24 @@ function createAttachment(
   };
 }
 
+function createStandaloneAttachment(
+  id: number,
+  key: string,
+  path: string | false,
+): MockItem {
+  return {
+    id,
+    key,
+    libraryID: 1,
+    attachmentFilename: `${key}.pdf`,
+    getField: (field) => (field === "title" ? key : ""),
+    getFilePathAsync: async () => path,
+    getCollections: () => [],
+    isAttachment: () => true,
+    isPDFAttachment: () => true,
+  };
+}
+
 function createNote(id: number, key: string, title: string): MockItem {
   return {
     id,
@@ -240,7 +292,13 @@ function createZoteroMock(items: MockItem[]): typeof Zotero {
             libraryID: 1,
             name: "Reading",
             getChildItems() {
-              return items.filter((item) => item.isRegularItem?.());
+              return items.filter(
+                (item) =>
+                  item.isRegularItem?.() ||
+                  (item.isAttachment?.() &&
+                    !item.parentItemID &&
+                    !item.parentItemKey),
+              );
             },
             getChildCollections() {
               return [];

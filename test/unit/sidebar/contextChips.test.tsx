@@ -73,6 +73,35 @@ describe("ContextChips", function () {
     assert.notMatch(html, /<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/);
   });
 
+  it("renders standalone PDFs as non-expandable PDF chips", function () {
+    const html = renderToStaticMarkup(
+      <ContextChips
+        itemContext={{
+          expanded: false,
+          kind: "pdf",
+          title: "Standalone.pdf",
+        }}
+        mentions={[
+          {
+            id: "mention-standalone",
+            sourceId: "1-PDF",
+            paperKey: "1:PDF",
+            libraryID: 1,
+            attachmentItemID: 2,
+            attachmentKey: "PDF",
+            title: "Standalone.pdf",
+          },
+        ]}
+        onOpenItemContext={() => undefined}
+        onOpenMention={() => undefined}
+      />,
+    );
+
+    assert.equal(count(html, 'data-icon-name="file"'), 2);
+    assert.notInclude(html, "zp-context-chip-trigger");
+    assert.notInclude(html, 'aria-haspopup="tree"');
+  });
+
   it("uses the item-tree PDF and note icons for matching chips", function () {
     const html = renderToStaticMarkup(
       <ContextChips

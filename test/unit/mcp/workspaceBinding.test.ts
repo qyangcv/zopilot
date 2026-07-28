@@ -21,6 +21,31 @@ describe("workspace binding codec", function () {
       );
     }
   });
+
+  it("round-trips a standalone PDF without parent headers", function () {
+    const conversation = createConversationMetadata();
+    conversation.workspaceKey = "item:1:PDF";
+    conversation.workspaceType = "item";
+    conversation.itemKey = "PDF";
+    conversation.defaultSource = {
+      paperKey: "1:PDF",
+      libraryID: 1,
+      attachmentItemID: 11,
+      attachmentKey: "PDF",
+      title: "Standalone.pdf",
+    };
+
+    const headers = createPaperBindingHeaders(conversation);
+    const parsed = parsePaperBindingHeaders(headers);
+
+    assert.notProperty(headers, "X-Zopilot-Parent-Item-ID");
+    assert.notProperty(headers, "X-Zopilot-Parent-Item-Key");
+    assert.isTrue(parsed.ok);
+    if (parsed.ok) {
+      assert.isUndefined(parsed.value.defaultSource?.parentItemID);
+      assert.isUndefined(parsed.value.defaultSource?.parentItemKey);
+    }
+  });
 });
 
 function createConversationMetadata(): ConversationMetadata {

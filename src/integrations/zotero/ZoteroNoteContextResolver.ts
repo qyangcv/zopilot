@@ -10,7 +10,7 @@ import {
   loadCachedZoteroItem,
   loadZoteroItem,
 } from "./sources/ZoteroItemLookup";
-import { ZoteroWorkspaceParentScope } from "./sources/ZoteroWorkspaceParentScope";
+import { ZoteroWorkspaceItemScope } from "./sources/ZoteroWorkspaceItemScope";
 
 type ZoteroNoteItem = Zotero.Item & {
   id: number;
@@ -32,10 +32,10 @@ type ZoteroNoteParentItem = Zotero.Item & {
 };
 
 class ZoteroNoteContextResolver {
-  private readonly parentScope: ZoteroWorkspaceParentScope;
+  private readonly itemScope: ZoteroWorkspaceItemScope;
 
   constructor(private readonly zotero: typeof Zotero = getZoteroGlobal()) {
-    this.parentScope = new ZoteroWorkspaceParentScope(zotero);
+    this.itemScope = new ZoteroWorkspaceItemScope(zotero);
   }
 
   async resolveAll(
@@ -47,8 +47,8 @@ class ZoteroNoteContextResolver {
       return [];
     }
     const [allowedParentKeys, allowedItemKeys] = await Promise.all([
-      this.parentScope.resolveAllowedParentKeys(workspace),
-      this.parentScope.resolveAllowedItemKeys(workspace),
+      this.itemScope.resolveAllowedParentKeys(workspace),
+      this.itemScope.resolveAllowedItemKeys(workspace),
     ]);
     const parentCache = new Map<
       string,
