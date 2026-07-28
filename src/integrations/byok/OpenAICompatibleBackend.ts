@@ -3,7 +3,10 @@ import {
   createDiagnostic,
   normalizeBackendError,
 } from "../../domain/agent/errors";
-import { isModelVisible } from "../../domain/agent/modelCatalog";
+import {
+  isModelVisible,
+  toAgentModelEntry,
+} from "../../domain/agent/modelCatalog";
 import type {
   AgentBackend,
   AgentCancelInput,
@@ -61,7 +64,9 @@ class OpenAICompatibleAgentsBackend implements AgentBackend {
     if (validation) {
       throw new Error(validation.message);
     }
-    return getByokRuntimeBridge().listModels(this.profile);
+    return (await getByokRuntimeBridge().listModels(this.profile)).map(
+      toAgentModelEntry,
+    );
   }
 
   async sendPrompt(

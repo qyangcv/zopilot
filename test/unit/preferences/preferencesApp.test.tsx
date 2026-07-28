@@ -1,6 +1,9 @@
 import { assert } from "chai";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ProviderProfile } from "../../../src/domain/agent/types.ts";
+import type {
+  DiscoveredAgentModel,
+  ProviderProfile,
+} from "../../../src/domain/agent/types.ts";
 import { DependenciesPanel } from "../../../src/features/preferences/ui/dependencies/DependenciesPanel.tsx";
 import { PreferenceCodeScroller } from "../../../src/features/preferences/ui/PreferenceCodeScroller.tsx";
 import { findNextPreferenceSection } from "../../../src/features/preferences/ui/PreferenceSectionNavigation.tsx";
@@ -13,6 +16,7 @@ import {
   AddProviderForm,
   updateSelectedModelIds,
 } from "../../../src/features/preferences/ui/providers/AddProviderForm.tsx";
+import { ModelCatalogPicker } from "../../../src/features/preferences/ui/providers/ModelCatalogPicker.tsx";
 import { toggleProviderExpansion } from "../../../src/features/preferences/ui/providers/ProviderPanel.tsx";
 import { PromptPanel } from "../../../src/features/preferences/ui/prompts/PromptPanel.tsx";
 import { getPromptModeAfterSave } from "../../../src/features/preferences/ui/prompts/usePromptEditor.ts";
@@ -232,6 +236,9 @@ describe("PreferencesApp", function () {
 
     assert.include(html, "zp-pref-provider-model-step");
     assert.include(html, "zp-pref-provider-model-area");
+    assert.include(html, "zp-pref-provider-credential-step");
+    assert.include(html, "zp-pref-provider-credentials");
+    assert.notInclude(html, "data-loaded");
     assert.notInclude(html, "zp-pref-provider-create-actions");
     assert.notInclude(html, "zp-pref-button-primary");
     assert.notInclude(html, 'data-l10n-id="zopilot-pref-provider-step-add"');
@@ -255,6 +262,51 @@ describe("PreferencesApp", function () {
       ),
       ["deepseek-v4-flash"],
     );
+  });
+
+  it("renders an unselected, author-grouped model catalog", function () {
+    const models: DiscoveredAgentModel[] = [
+      {
+        authorSlug: "anthropic",
+        catalogOrder: 0,
+        contextLength: 200_000,
+        displayName: "Anthropic: Claude Sonnet",
+        id: "anthropic/claude-sonnet",
+        inputModalities: ["text", "image"],
+        isFree: false,
+        outputModalities: ["text"],
+        pricing: { completion: "0.000015", prompt: "0.000003" },
+        supportedParameters: ["reasoning", "tools"],
+        supportedReasoningEfforts: ["low", "high"],
+      },
+      {
+        authorSlug: "google",
+        catalogOrder: 1,
+        displayName: "Google: Gemini Flash",
+        id: "google/gemini-flash:free",
+        inputModalities: ["text"],
+        isFree: true,
+        outputModalities: ["text"],
+        supportedParameters: ["tools"],
+        supportedReasoningEfforts: [],
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <ModelCatalogPicker
+        models={models}
+        onSelectedModelIdsChange={() => undefined}
+        selectedModelIds={[]}
+      />,
+    );
+
+    assert.include(html, "zp-pref-model-authors");
+    assert.include(html, "Anthropic");
+    assert.include(html, "Google");
+    assert.include(html, "Anthropic: Claude Sonnet");
+    assert.include(html, "anthropic/claude-sonnet");
+    assert.include(html, 'data-l10n-id="zopilot-pref-provider-model-price"');
+    assert.include(html, 'data-l10n-id="zopilot-pref-provider-model-vision"');
+    assert.notInclude(html, 'checked=""');
   });
 
   it("renders prompt list mode without the editor form", function () {

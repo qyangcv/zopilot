@@ -3,7 +3,17 @@ import type { AgentDiagnosticCode } from "../../../../domain/agent/types";
 import type { FluentMessageId } from "../../../../../typings/i10n";
 import { localized, type LocalizedMessage } from "../../localization";
 
-export { providerDiagnosticMessage, providerErrorMessage };
+export {
+  providerDiagnosticMessage,
+  providerErrorMessage,
+  providerErrorPresentation,
+};
+export type { ProviderErrorPresentation };
+
+type ProviderErrorPresentation = {
+  message: LocalizedMessage;
+  placement: "api-key" | "form";
+};
 
 const DIAGNOSTIC_MESSAGE_IDS: Record<AgentDiagnosticCode, FluentMessageId> = {
   missing_codex_cli: "pref-provider-diagnostic-missing-codex-cli",
@@ -30,10 +40,20 @@ function providerDiagnosticMessage(
 }
 
 function providerErrorMessage(error: unknown): LocalizedMessage {
+  return providerErrorPresentation(error).message;
+}
+
+function providerErrorPresentation(error: unknown): ProviderErrorPresentation {
   const diagnostic = normalizeBackendError(error);
-  return providerDiagnosticMessage(
+  const code =
     diagnostic.code === "stream_interrupted"
       ? "provider_timeout"
-      : diagnostic.code,
-  );
+      : diagnostic.code;
+  return {
+    message: providerDiagnosticMessage(code),
+    placement:
+      code === "invalid_api_key" || code === "provider_unauthorized"
+        ? "api-key"
+        : "form",
+  };
 }

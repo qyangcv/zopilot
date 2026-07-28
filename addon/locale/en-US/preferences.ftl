@@ -16,12 +16,46 @@ pref-provider-add = Add
 pref-provider-step-credentials = 1. URL and API key
 pref-provider-kind = Provider
 pref-provider-base-url = Base URL
-pref-provider-base-url-hint = The preset is editable for regional, plan-specific, proxy, or custom endpoints.
 pref-provider-api-key = API key
 pref-provider-list-models = List models
 pref-provider-listing-models = Listing models…
 pref-provider-step-models = 2. Select models
 pref-provider-models-query-first = List the available models before adding the provider.
+pref-provider-model-search =
+    .placeholder = Search models or IDs
+    .aria-label = Search models or IDs
+pref-provider-model-sort =
+    .aria-label = Sort models
+pref-provider-model-sort-popular = Popular
+pref-provider-model-sort-name = Name
+pref-provider-model-sort-newest = Newest
+pref-provider-model-sort-price = Lowest price
+pref-provider-model-sort-context = Largest context
+pref-provider-model-free-only = Free only
+pref-provider-model-authors =
+    .aria-label = Model authors
+pref-provider-model-author-all = All
+pref-provider-model-author-selected = Selected
+pref-provider-model-results =
+    { $count ->
+        [one] { $count } model
+       *[other] { $count } models
+    }
+pref-provider-model-select-shown = Select all
+pref-provider-model-clear-shown = Deselect all
+pref-provider-model-no-results = No models match these filters.
+pref-provider-model-selected-count =
+    { $count ->
+        [one] { $count } model selected
+       *[other] { $count } models selected
+    }
+pref-provider-model-clear-all = Clear all
+pref-provider-model-free = Free
+pref-provider-model-price = Input/output { $price } per 1M
+pref-provider-model-context = { $context } context
+pref-provider-model-tools = Tools
+pref-provider-model-vision = Vision
+pref-provider-model-reasoning = Reasoning
 pref-provider-step-add = 3. Add provider
 pref-provider-models-empty = This provider returned no available models.
 pref-provider-added = Provider added.

@@ -12,10 +12,10 @@ import {
 } from "./runtime/nodeDiscovery";
 import { getHomeDir } from "../../runtime/platform/host";
 import type {
-  AgentModelEntry,
   AgentPromptCallbacks,
   AgentPromptInput,
   AgentRunResult,
+  DiscoveredAgentModel,
   ProviderProfileWithSecret,
 } from "../../domain/agent/types";
 import type {
@@ -120,14 +120,14 @@ class ByokRuntimeBridge {
 
   async listModels(
     profile: ProviderProfileWithSecret,
-  ): Promise<AgentModelEntry[]> {
+  ): Promise<DiscoveredAgentModel[]> {
     await this.start();
     const result = await this.request(
       "model/list",
       { profile: sanitizeProfileForRuntime(profile) },
       profile.timeoutMs,
     );
-    return Array.isArray(result) ? (result as AgentModelEntry[]) : [];
+    return Array.isArray(result) ? (result as DiscoveredAgentModel[]) : [];
   }
 
   async sendPrompt(

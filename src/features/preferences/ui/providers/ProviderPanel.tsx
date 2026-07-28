@@ -3,6 +3,7 @@ import { useState, type ReactElement } from "react";
 import type {
   AgentModelEntry,
   AgentProviderId,
+  DiscoveredAgentModel,
   ProviderProfile,
 } from "../../../../domain/agent/types";
 import { PageHeader, T } from "../PreferenceChrome";
@@ -24,7 +25,7 @@ type ProviderPanelProps = {
     providerId: Exclude<AgentProviderId, "codex">;
     baseURL: string;
     apiKey: string;
-  }) => Promise<AgentModelEntry[]>;
+  }) => Promise<DiscoveredAgentModel[]>;
   onReadApiKey: (profileId: string) => string;
   onSetModelVisibility: (
     profileId: string,

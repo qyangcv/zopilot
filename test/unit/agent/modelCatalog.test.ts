@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   PROVIDER_CATALOG,
@@ -7,6 +7,10 @@ import {
   getProviderDefinition,
   resolveProviderId,
 } from "../../../src/domain/agent/modelCatalog.ts";
+
+const iconDirectory = fileURLToPath(
+  new URL("../../../addon/content/icons/providers/", import.meta.url),
+);
 
 describe("provider catalog", function () {
   it("contains exactly the selectable built-in providers", function () {
@@ -44,6 +48,21 @@ describe("provider catalog", function () {
           ),
         ),
         `Missing icon asset for ${provider.id}`,
+      );
+    }
+  });
+
+  it("keeps external SVG colors independent of the host color scheme", function () {
+    const iconFiles = readdirSync(iconDirectory).filter((file) =>
+      file.endsWith(".svg"),
+    );
+
+    for (const iconFile of iconFiles) {
+      const source = readFileSync(`${iconDirectory}/${iconFile}`, "utf8");
+      assert.notInclude(
+        source,
+        "currentColor",
+        `${iconFile} cannot inherit color when loaded as an external image`,
       );
     }
   });

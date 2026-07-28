@@ -94,7 +94,27 @@ describe("ByokRuntimeServer", function () {
       requestedURLs.push(url);
       return url.endsWith("/key")
         ? new Response(JSON.stringify({ data: { label: "test" } }))
-        : new Response(JSON.stringify({ data: [{ id: "model-a" }] }));
+        : new Response(
+            JSON.stringify({
+              data: [
+                {
+                  architecture: {
+                    input_modalities: ["text", "image"],
+                    output_modalities: ["text"],
+                  },
+                  context_length: 200_000,
+                  created: 1_700_000_000,
+                  id: "anthropic/model-a",
+                  name: "Anthropic: Model A",
+                  pricing: {
+                    completion: "0.00001",
+                    prompt: "0.000003",
+                  },
+                  supported_parameters: ["reasoning", "tools"],
+                },
+              ],
+            }),
+          );
     };
 
     harness.send({
@@ -108,17 +128,28 @@ describe("ByokRuntimeServer", function () {
 
     assert.deepEqual(requestedURLs, [
       "https://provider.example/v1/key",
-      "https://provider.example/v1/models",
+      "https://provider.example/v1/models?output_modalities=text&supported_parameters=tools&sort=most-popular",
     ]);
     const response = harness.messages[0] as {
       id: number;
-      result: Array<{ id: string }>;
+      result: Array<{
+        authorSlug?: string;
+        contextLength?: number;
+        displayName: string;
+        id: string;
+        inputModalities: string[];
+        supportedParameters: string[];
+      }>;
     };
     assert.equal(response.id, 4);
-    assert.deepEqual(
-      response.result.map((model) => model.id),
-      ["model-a"],
-    );
+    assert.deepInclude(response.result[0], {
+      authorSlug: "anthropic",
+      contextLength: 200_000,
+      displayName: "Anthropic: Model A",
+      id: "anthropic/model-a",
+      inputModalities: ["text", "image"],
+      supportedParameters: ["reasoning", "tools"],
+    });
   });
 
   it("reports malformed JSON and unsupported methods without stopping", async function () {

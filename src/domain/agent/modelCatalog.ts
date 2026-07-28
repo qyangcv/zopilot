@@ -18,6 +18,7 @@ export {
   normalizeAgentModelEntry,
   resolveProviderId,
   shouldAttemptImageDelivery,
+  toAgentModelEntry,
 };
 export type { ProviderDefinition };
 
@@ -189,25 +190,39 @@ function normalizeAgentModelEntry(
   },
 ): AgentModelEntry {
   const fallback = modelFromId(model.id);
-  const cleanModel = Object.fromEntries(
-    Object.entries(model).filter(
-      ([key]) =>
-        key !== "imageSupport" &&
-        key !== "imageSupportSource" &&
-        key !== "imageSupportObservedAt",
-    ),
-  ) as typeof model;
+  const supportedReasoningEfforts = Array.isArray(
+    model.supportedReasoningEfforts,
+  )
+    ? model.supportedReasoningEfforts.filter(
+        (effort): effort is string => typeof effort === "string",
+      )
+    : fallback.supportedReasoningEfforts;
+  const requestedReasoningEffort =
+    typeof model.defaultReasoningEffort === "string"
+      ? model.defaultReasoningEffort
+      : fallback.defaultReasoningEffort;
   return {
-    ...fallback,
-    ...cleanModel,
+    id: fallback.id,
     displayName:
       typeof model.displayName === "string" ? model.displayName : fallback.id,
-    supportedReasoningEfforts: Array.isArray(model.supportedReasoningEfforts)
-      ? model.supportedReasoningEfforts.filter(
-          (effort): effort is string => typeof effort === "string",
-        )
-      : fallback.supportedReasoningEfforts,
+    supportedReasoningEfforts,
+    defaultReasoningEffort: supportedReasoningEfforts.includes(
+      requestedReasoningEffort || "",
+    )
+      ? requestedReasoningEffort
+      : supportedReasoningEfforts[0],
+    visible: model.visible === false ? false : undefined,
     imageInputRejected: model.imageInputRejected === true ? true : undefined,
+  };
+}
+
+function toAgentModelEntry(model: AgentModelEntry): AgentModelEntry {
+  return {
+    defaultReasoningEffort: model.defaultReasoningEffort,
+    displayName: model.displayName,
+    id: model.id,
+    imageInputRejected: model.imageInputRejected,
+    supportedReasoningEfforts: model.supportedReasoningEfforts,
   };
 }
 

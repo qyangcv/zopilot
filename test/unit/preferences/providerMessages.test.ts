@@ -2,6 +2,7 @@ import { assert } from "chai";
 import {
   providerDiagnosticMessage,
   providerErrorMessage,
+  providerErrorPresentation,
 } from "../../../src/features/preferences/ui/providers/providerMessages.ts";
 import { dependencyErrorMessage } from "../../../src/features/preferences/ui/dependencies/dependencyMessages.ts";
 import { promptErrorMessage } from "../../../src/features/preferences/ui/prompts/promptMessages.ts";
@@ -23,6 +24,20 @@ describe("provider preference messages", function () {
     assert.deepEqual(providerErrorMessage(new Error("unexpected failure")), {
       id: "pref-provider-diagnostic-unknown-error",
     });
+  });
+
+  it("places authentication failures beside the API key", function () {
+    assert.deepEqual(providerErrorPresentation(new Error("401 Unauthorized")), {
+      message: { id: "pref-provider-diagnostic-unauthorized" },
+      placement: "api-key",
+    });
+    assert.deepEqual(
+      providerErrorPresentation(new Error("request timed out")),
+      {
+        message: { id: "pref-provider-diagnostic-timeout" },
+        placement: "form",
+      },
+    );
   });
 
   it("normalizes dependency failures by category and operation", function () {

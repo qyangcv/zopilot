@@ -1,16 +1,21 @@
 import { LoaderCircle, Plus, RotateCcw } from "lucide-react";
 import { useId, useMemo, useState, type ReactElement } from "react";
-import type { AgentModelEntry } from "../../../../domain/agent/types";
-import type { AgentProviderId } from "../../../../domain/agent/types";
+import type {
+  AgentModelEntry,
+  AgentProviderId,
+  DiscoveredAgentModel,
+} from "../../../../domain/agent/types";
 import {
   PROVIDER_CATALOG,
   getProviderDefinition,
 } from "../../../../domain/agent/modelCatalog";
 import { localized, type LocalizedMessage } from "../../localization";
 import { LocalizedMessageText, T } from "../PreferenceChrome";
-import { providerErrorMessage } from "./providerMessages";
+import { providerErrorPresentation } from "./providerMessages";
 import { SingleSelect } from "../../../../ui/primitives/index";
 import { ProviderBrandIcon } from "../../../../ui/ProviderBrandIcon";
+import { ModelCatalogPicker } from "./ModelCatalogPicker";
+import { toAgentModelEntry } from "./modelSelection";
 
 type AddProviderFormProps = {
   onCancel: () => void;
@@ -25,7 +30,7 @@ type AddProviderFormProps = {
     providerId: Exclude<AgentProviderId, "codex">;
     baseURL: string;
     apiKey: string;
-  }) => Promise<AgentModelEntry[]>;
+  }) => Promise<DiscoveredAgentModel[]>;
   onCreated: () => void;
 };
 
@@ -41,6 +46,7 @@ function updateSelectedModelIds(
 
 function AddProviderForm(props: AddProviderFormProps): ReactElement {
   const providerLabelId = `zp-provider-label-${useId().replaceAll(":", "")}`;
+  const apiKeyErrorId = `zp-api-key-error-${useId().replaceAll(":", "")}`;
   const selectableProviders = PROVIDER_CATALOG.filter(
     (provider) => provider.selectable,
   );
@@ -50,12 +56,16 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
     getProviderDefinition("openrouter").defaultBaseURL || "",
   );
   const [apiKey, setApiKey] = useState("");
-  const [models, setModels] = useState<AgentModelEntry[]>([]);
+  const [models, setModels] = useState<DiscoveredAgentModel[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [message, setMessage] = useState<LocalizedMessage>();
+  const [apiKeyMessage, setApiKeyMessage] = useState<LocalizedMessage>();
   const selectedEntries = useMemo(
-    () => models.filter((model) => selectedModels.includes(model.id)),
+    () =>
+      models
+        .filter((model) => selectedModels.includes(model.id))
+        .map(toAgentModelEntry),
     [models, selectedModels],
   );
   const canList = Boolean(baseURL.trim() && apiKey.trim());
@@ -65,9 +75,15 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
     setModels([]);
     setSelectedModels([]);
   };
+  const resetDiscovery = () => {
+    resetModels();
+    setApiKeyMessage(undefined);
+    setMessage(undefined);
+  };
   const listModels = async () => {
     if (!canList) return;
     setLoadingModels(true);
+    setApiKeyMessage(undefined);
     setMessage(undefined);
     try {
       const nextModels = await props.onListModels({
@@ -76,13 +92,18 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
         apiKey,
       });
       setModels(nextModels);
-      setSelectedModels(nextModels.map((model) => model.id));
+      setSelectedModels([]);
       setMessage(
         nextModels.length ? undefined : localized("pref-provider-models-empty"),
       );
     } catch (error) {
       resetModels();
-      setMessage(providerErrorMessage(error));
+      const presentation = providerErrorPresentation(error);
+      if (presentation.placement === "api-key") {
+        setApiKeyMessage(presentation.message);
+      } else {
+        setMessage(presentation.message);
+      }
     } finally {
       setLoadingModels(false);
     }
@@ -122,11 +143,11 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
         </button>
       </div>
       <div className="zp-pref-provider-steps">
-        <section className="zp-pref-provider-step">
+        <section className="zp-pref-provider-step zp-pref-provider-credential-step">
           <h4>
             <T id="pref-provider-step-credentials" />
           </h4>
-          <div className="zp-pref-form-grid">
+          <div className="zp-pref-form-grid zp-pref-provider-credentials">
             <div className="zp-pref-form-field">
               <span id={providerLabelId}>
                 <T id="pref-provider-kind" />
@@ -142,7 +163,7 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
                   setBaseURL(
                     getProviderDefinition(nextProviderId).defaultBaseURL || "",
                   );
-                  resetModels();
+                  resetDiscovery();
                 }}
                 options={selectableProviders.map((provider) => ({
                   icon: <ProviderBrandIcon brand={provider.id} size={16} />,
@@ -161,24 +182,32 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
                 value={baseURL}
                 onChange={(event) => {
                   setBaseURL(event.currentTarget.value);
-                  resetModels();
+                  resetDiscovery();
                 }}
               />
-              <span className="zp-pref-muted zp-pref-url-hint">
-                <T id="pref-provider-base-url-hint" />
-              </span>
             </label>
-            <label>
+            <label data-invalid={apiKeyMessage ? true : undefined}>
               <T id="pref-provider-api-key" />
               <input
+                aria-describedby={apiKeyMessage ? apiKeyErrorId : undefined}
+                aria-invalid={apiKeyMessage ? true : undefined}
                 autoComplete="off"
                 type="password"
                 value={apiKey}
                 onChange={(event) => {
                   setApiKey(event.currentTarget.value);
-                  resetModels();
+                  resetDiscovery();
                 }}
               />
+              {apiKeyMessage ? (
+                <span
+                  className="zp-pref-field-error"
+                  id={apiKeyErrorId}
+                  role="alert"
+                >
+                  <LocalizedMessageText message={apiKeyMessage} />
+                </span>
+              ) : null}
             </label>
           </div>
           <button
@@ -205,25 +234,16 @@ function AddProviderForm(props: AddProviderFormProps): ReactElement {
           <h4>
             <T id="pref-provider-step-models" />
           </h4>
-          <div className="zp-pref-provider-model-area">
+          <div
+            className="zp-pref-provider-model-area"
+            data-loaded={models.length ? true : undefined}
+          >
             {models.length ? (
-              <div className="zp-pref-model-checklist">
-                {models.map((model) => (
-                  <label key={model.id}>
-                    <input
-                      checked={selectedModels.includes(model.id)}
-                      type="checkbox"
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setSelectedModels((current) =>
-                          updateSelectedModelIds(current, model.id, checked),
-                        );
-                      }}
-                    />
-                    <span>{model.displayName}</span>
-                  </label>
-                ))}
-              </div>
+              <ModelCatalogPicker
+                models={models}
+                onSelectedModelIdsChange={setSelectedModels}
+                selectedModelIds={selectedModels}
+              />
             ) : (
               <p className="zp-pref-muted">
                 <T id="pref-provider-models-query-first" />

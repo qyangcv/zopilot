@@ -29,6 +29,7 @@ import {
   configuredModels,
   normalizeBaseURL,
   parseOpenAIModelList,
+  parseOpenRouterModelList,
   validateProfile,
   type ModelListParams,
   type TurnStartParams,
@@ -72,7 +73,13 @@ class ByokAgentRunner {
           );
         }
       }
-      const response = await fetch(`${baseURL}/models`, {
+      const modelListURL = new URL(`${baseURL}/models`);
+      if (params.profile.providerId === "openrouter") {
+        modelListURL.searchParams.set("output_modalities", "text");
+        modelListURL.searchParams.set("supported_parameters", "tools");
+        modelListURL.searchParams.set("sort", "most-popular");
+      }
+      const response = await fetch(modelListURL, {
         headers,
         signal: controller.signal,
       });
@@ -84,7 +91,11 @@ class ByokAgentRunner {
           `Provider model list failed: ${response.status} ${response.statusText}`,
         );
       }
-      const models = parseOpenAIModelList(await response.json());
+      const responseBody = await response.json();
+      const models =
+        params.profile.providerId === "openrouter"
+          ? parseOpenRouterModelList(responseBody)
+          : parseOpenAIModelList(responseBody);
       return models.length ? models : configuredModels(params.profile);
     } finally {
       clearTimeout(timer);

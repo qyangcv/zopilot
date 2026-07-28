@@ -8,7 +8,10 @@ import {
   isUnsupportedImageError,
   withImageCapabilityHeader,
 } from "../../../src/integrations/byok/runtime/ByokAgentRunner.ts";
-import { parseOpenAIModelList } from "../../../src/integrations/byok/runtime/requestValidation.ts";
+import {
+  parseOpenAIModelList,
+  parseOpenRouterModelList,
+} from "../../../src/integrations/byok/runtime/requestValidation.ts";
 import type { TurnStartParams } from "../../../src/integrations/byok/runtime/requestValidation.ts";
 
 describe("BYOK image delivery", function () {
@@ -47,6 +50,29 @@ describe("BYOK image delivery", function () {
         ["text-only", true],
         ["generic-modalities", undefined],
         ["vision-in-name-only", undefined],
+      ],
+    );
+  });
+
+  it("reads OpenRouter image support from the architecture object", function () {
+    const models = parseOpenRouterModelList({
+      data: [
+        {
+          architecture: { input_modalities: ["text", "image"] },
+          id: "author/vision",
+        },
+        {
+          architecture: { input_modalities: ["text"] },
+          id: "author/text-only",
+        },
+      ],
+    });
+
+    assert.deepEqual(
+      models.map((model) => [model.id, model.imageInputRejected]),
+      [
+        ["author/vision", undefined],
+        ["author/text-only", true],
       ],
     );
   });

@@ -4,7 +4,7 @@ import { normalizeBackendError } from "../../../../domain/agent/errors";
 import { createProviderProfile } from "../../../../domain/agent/modelCatalog";
 import { getProviderProfileStore } from "../../../../application/providers/ProviderProfileService";
 import type {
-  AgentModelEntry,
+  DiscoveredAgentModel,
   ProviderProfile,
   ProviderProfileInput,
 } from "../../../../domain/agent/types";
@@ -37,7 +37,7 @@ function useProviderProfiles(): {
     providerId: ProviderProfileInput["providerId"];
     baseURL: string;
     apiKey: string;
-  }) => Promise<AgentModelEntry[]>;
+  }) => Promise<DiscoveredAgentModel[]>;
 } {
   const [state, setState] = useState<ProviderProfilesState>(() => ({
     ...getProviderProfileStore().getSnapshot(),

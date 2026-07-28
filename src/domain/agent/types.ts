@@ -40,6 +40,29 @@ export type AgentModelEntry = {
   imageInputRejected?: boolean;
 };
 
+export type DiscoveredModelPricing = {
+  prompt?: string;
+  completion?: string;
+  request?: string;
+};
+
+/**
+ * Ephemeral metadata returned by provider discovery. Catalog fields are used to
+ * help users choose models and are deliberately excluded from saved profiles.
+ */
+export type DiscoveredAgentModel = AgentModelEntry & {
+  authorSlug?: string;
+  catalogOrder: number;
+  contextLength?: number;
+  createdAt?: number;
+  expirationDate?: string;
+  inputModalities: string[];
+  isFree: boolean;
+  outputModalities: string[];
+  pricing?: DiscoveredModelPricing;
+  supportedParameters: string[];
+};
+
 export type ProviderConnectionStatus =
   | "unchecked"
   | "checking"
