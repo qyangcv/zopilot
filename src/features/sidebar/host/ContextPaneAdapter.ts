@@ -90,6 +90,24 @@ class ContextPaneDeckAdapter {
     this.hostState = undefined;
   }
 
+  collapse(): boolean {
+    const contextPane = (
+      this.win as Window & {
+        ZoteroContextPane?: { collapsed?: boolean };
+      }
+    ).ZoteroContextPane;
+    if (!contextPane || typeof contextPane.collapsed !== "boolean") {
+      return false;
+    }
+    try {
+      contextPane.collapsed = true;
+      this.hostState = undefined;
+      return contextPane.collapsed === true;
+    } catch {
+      return false;
+    }
+  }
+
   getPanel(): Element | undefined {
     return this.panel?.ownerDocument === this.win.document &&
       this.panel.isConnected

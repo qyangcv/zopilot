@@ -550,14 +550,19 @@ class SidebarHostController {
     this.focusComposer();
   }
 
-  private closeZopilotPane(options: { restoreItemPane?: boolean } = {}): void {
+  private closeZopilotPane(
+    options: {
+      restoreItemPane?: boolean;
+      collapseActiveHost?: boolean;
+    } = {},
+  ): void {
     this.open = false;
     this.streamScheduler.setVisible(false);
     this.selectionToken++;
     this.displayState = { kind: "closed", token: this.selectionToken };
     this.sessions.hidePopover();
     this.updateViewState({ busy: false, composerEnabled: false });
-    this.surface.close(Boolean(options.restoreItemPane));
+    this.surface.close(options);
     this.renderDisplayState();
     this.scheduleFrame(() => {
       this.win.dispatchEvent(new this.win.Event("resize"));
@@ -635,7 +640,11 @@ class SidebarHostController {
     const actions = createSidebarActions({
       archiveSession: (conversation) =>
         void this.sessions.archiveSession(conversation),
-      close: () => this.setOpen(false),
+      close: () =>
+        this.closeZopilotPane({
+          restoreItemPane: true,
+          collapseActiveHost: true,
+        }),
       createNewSession: () => void this.sessions.createNewSession(),
       getItemContextTree: (source) => this.getItemContextTree(source),
       resolveDroppedContext: (input) => this.resolveDroppedContext(input),

@@ -94,6 +94,7 @@ class SidebarSurface {
         : this.libraryAdapter.getPanel();
     return Boolean(
       this.activeKind === kind &&
+      (kind !== "library" || this.libraryAdapter.isPaneVisible()) &&
       panel?.isConnected &&
       this.deckPanel === panel &&
       this.deckHost?.isAttachedTo(panel),
@@ -122,6 +123,11 @@ class SidebarSurface {
   ensureMounted(): void {
     this.deckAdapter.mount();
     this.libraryAdapter.mount();
+    if (this.activeKind === "library" && !this.libraryAdapter.isPaneVisible()) {
+      this.libraryAdapter.deactivate();
+      this.requestDeactivation("library");
+      return;
+    }
     if (
       this.options.isOpen() &&
       this.activeKind &&
@@ -161,7 +167,8 @@ class SidebarSurface {
     if (
       this.activeKind === "library" &&
       this.deckPanel === mountedPanel &&
-      mountedPanel?.isConnected
+      mountedPanel?.isConnected &&
+      this.libraryAdapter.isPaneVisible()
     ) {
       this.libraryAdapter.ensureActiveSelection();
       this.ensureDeckHost(mountedPanel);
@@ -181,16 +188,29 @@ class SidebarSurface {
     this.activatePanel("library", panel);
   }
 
-  close(restoreItemPane = false): void {
-    if (restoreItemPane) {
+  close(
+    options: {
+      restoreItemPane?: boolean;
+      collapseActiveHost?: boolean;
+    } = {},
+  ): void {
+    const activeKind = this.activeKind;
+    if (options.restoreItemPane) {
       this.deckAdapter.restoreNativePanel();
       this.libraryAdapter.selectNative();
     }
     this.activeKind = undefined;
     this.deckPanel = undefined;
-    if (restoreItemPane) {
+    if (options.restoreItemPane) {
       this.deckAdapter.restoreHostState();
       this.libraryAdapter.restoreHostState();
+    }
+    if (
+      options.collapseActiveHost &&
+      activeKind === "reader" &&
+      !this.deckAdapter.collapse()
+    ) {
+      logger.warn("failed to collapse Zotero context pane");
     }
   }
 

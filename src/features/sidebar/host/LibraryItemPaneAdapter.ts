@@ -89,6 +89,11 @@ class LibraryItemPaneAdapter {
       : undefined;
   }
 
+  isPaneVisible(): boolean {
+    const probe = probeLibraryItemPane(this.win.document);
+    return probe.available && !isItemPaneCollapsed(probe.itemPane);
+  }
+
   ensurePanel(): Element | undefined {
     const probe = this.mount();
     if (!probe.available) return undefined;
@@ -338,6 +343,14 @@ function selectPanel(probe: LibraryItemPaneProbeSuccess, panel: Element): void {
   }
   const index = Array.prototype.indexOf.call(probe.deck.children, panel);
   if (index >= 0) probe.deck.selectedIndex = index;
+}
+
+function isItemPaneCollapsed(
+  itemPane: LibraryItemPaneProbeSuccess["itemPane"],
+): boolean {
+  return (
+    itemPane.collapsed === true || itemPane.getAttribute("collapsed") === "true"
+  );
 }
 
 export { LIBRARY_PANEL_ID, LibraryItemPaneAdapter };
