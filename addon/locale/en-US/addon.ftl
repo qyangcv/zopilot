@@ -130,6 +130,7 @@ sidebar-workspace-expand-all = Expand all levels
 sidebar-workspace-collapse-all = Collapse all levels
 sidebar-mention-limit = Up to 10 sources per message
 sidebar-context-remove = Remove context
+sidebar-thread-source-unavailable = This paper is no longer available in the current workspace and will not be sent to the model.
 sidebar-item-context-empty = No matching attachments or notes
 sidebar-item-context-default-source = Default source
 sidebar-item-context-open = Open item context

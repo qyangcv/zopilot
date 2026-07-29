@@ -14,6 +14,7 @@ import type {
   CodexPromptResult,
 } from "./types";
 import type { JsonValue } from "../../runtime/json/types";
+import { isRecord } from "../../runtime/json/guards";
 import { parseModelList, toError } from "./messageParsing";
 import { getPref } from "../../runtime/preferences/prefs";
 import { createLogger } from "../../runtime/logging/logger";
@@ -25,6 +26,7 @@ import type {
 import { CodexTurnRegistry, type ActiveCodexTurn } from "./CodexTurnRegistry";
 import { CodexThreadManager } from "./CodexThreadManager";
 import { geckoIO, geckoPath, loadSubprocessModule } from "../../platform/gecko";
+import type { ProviderBinding, ThreadTurn } from "../../domain/thread";
 
 type CodexSubprocessProcess = StdioSubprocess;
 type CodexSubprocessModule = StdioSubprocessModule<CodexSubprocessProcess>;
@@ -126,7 +128,8 @@ class CodexBridge {
     prompt: string,
     options: CodexPromptOptions,
   ): Promise<CodexPromptResult> {
-    const threadId = await this.threads.ensure(options.conversation);
+    const opened = await this.threads.ensure(options.run, options.onCheckpoint);
+    const threadId = opened.threadId;
 
     const turnPromise = new Promise<CodexPromptResult>((resolve, reject) => {
       const activeTurn: ActiveCodexTurn = {
@@ -142,6 +145,8 @@ class CodexBridge {
         streamLengths: new Map(),
         syntheticIdSequence: 0,
         threadId,
+        threadSequence: options.run.sequence,
+        checkpoint: opened.checkpoint,
       };
       this.activeTurns.add(activeTurn);
     });
@@ -185,6 +190,41 @@ class CodexBridge {
       this.activeTurns.reject(threadId, undefined, error);
       return turnPromise;
     }
+  }
+
+  async readTurn(
+    binding: ProviderBinding,
+    turn: ThreadTurn,
+  ): Promise<
+    | { status: "completed" | "interrupted"; text: string }
+    | { status: "unknown" }
+  > {
+    await this.start();
+    const result = (await this.request("thread/read", {
+      threadId: binding.externalThreadId,
+      includeTurns: true,
+    })) as {
+      thread?: {
+        turns?: Array<{
+          id?: string;
+          status?: string;
+          items?: JsonValue[];
+        }>;
+      };
+    };
+    const providerTurn = result?.thread?.turns?.find(
+      (item) => item.id === turn.execution.providerTurnId,
+    );
+    if (
+      providerTurn?.status !== "completed" &&
+      providerTurn?.status !== "interrupted"
+    ) {
+      return { status: "unknown" };
+    }
+    return {
+      status: providerTurn.status,
+      text: readCodexTurnText(providerTurn.items || []),
+    };
   }
 
   private async startProcess(): Promise<void> {
@@ -339,6 +379,33 @@ function getCodexRuntimeDir(): string {
   } catch {
     return "/tmp/zopilot/codex-runtime";
   }
+}
+
+function readCodexTurnText(items: JsonValue[]): string {
+  return items
+    .flatMap((item) => {
+      if (!isRecord(item)) return [];
+      if (item.type === "agentMessage" && typeof item.text === "string") {
+        return [item.text];
+      }
+      if (
+        item.type !== "message" ||
+        item.role !== "assistant" ||
+        !Array.isArray(item.content)
+      ) {
+        return [];
+      }
+      return item.content.flatMap((content) =>
+        isRecord(content) &&
+        content.type === "output_text" &&
+        typeof content.text === "string"
+          ? [content.text]
+          : [],
+      );
+    })
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 }
 
 let sharedBridge: CodexBridge | undefined;

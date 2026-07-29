@@ -112,9 +112,7 @@ class AgentBackendManager {
   }
 
   async cancelTurn(input: AgentCancelInput): Promise<void> {
-    const profileId = input.legacy?.codexThreadId
-      ? "codex-cli.default"
-      : input.providerProfileId || this.getActiveProfile().id;
+    const profileId = input.providerProfileId || this.getActiveProfile().id;
     await this.getBackend(profileId).cancelTurn(input);
   }
 

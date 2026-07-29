@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import { buildCodexMcpServersConfig } from "../../../src/integrations/codex/mcpConfig.ts";
-import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
+import type { ThreadRunInput } from "../../../src/domain/thread.ts";
 import {
   MCP_ENDPOINT_PATH,
   shutdownMcpHttpServer,
@@ -41,7 +41,7 @@ describe("Codex MCP config", function () {
   });
 
   it("enables the four Zopilot paper tools", async function () {
-    const config = await buildCodexMcpServersConfig(createConversation());
+    const config = await buildCodexMcpServersConfig(createRun());
     const server = config["zopilot"] as unknown as McpServerConfig;
 
     assert.equal(server.url, `http://127.0.0.1:23124${MCP_ENDPOINT_PATH}`);
@@ -59,9 +59,11 @@ describe("Codex MCP config", function () {
     );
     assert.equal(server.http_headers["X-Zopilot-Workspace-Type"], "item");
     assert.equal(server.http_headers["X-Zopilot-Workspace-Label"], "Paper A");
-    assert.equal(server.http_headers["X-Zopilot-Paper-Key"], "1:PAPER-A");
-    assert.equal(server.http_headers["X-Zopilot-Attachment-Item-ID"], "10");
-    assert.equal(server.http_headers["X-Zopilot-Attachment-Key"], "PDF-A");
+    assert.deepEqual(
+      JSON.parse(server.http_headers["X-Zopilot-Thread-Sources"]),
+      createRun().context.sources,
+    );
+    assert.equal(server.http_headers["X-Zopilot-Primary-Source-ID"], "1-PDF-A");
     assert.equal(server.http_headers["X-Zopilot-Library-ID"], "1");
     assert.equal(server.startup_timeout_sec, 10);
     assert.equal(server.tool_timeout_sec, 60);
@@ -76,7 +78,7 @@ describe("Codex MCP config", function () {
     getTestGlobals().Zotero!.Server.Endpoints[MCP_ENDPOINT_PATH] =
       ExistingEndpoint;
 
-    const config = await buildCodexMcpServersConfig(createConversation());
+    const config = await buildCodexMcpServersConfig(createRun());
 
     assert.deepEqual(config, {});
     assert.strictEqual(
@@ -90,7 +92,7 @@ describe("Codex MCP config", function () {
       throw new Error("HTTP server preferences unavailable");
     };
 
-    const config = await buildCodexMcpServersConfig(createConversation());
+    const config = await buildCodexMcpServersConfig(createRun());
 
     assert.deepEqual(config, {});
     assert.notProperty(
@@ -117,25 +119,39 @@ function getTestGlobals(): TestGlobals {
   return globalThis as unknown as TestGlobals;
 }
 
-function createConversation(): ConversationMetadata {
+function createRun(): ThreadRunInput {
   return {
-    id: "conv-a",
-    scope: "workspace",
-    workspaceKey: "item:1:PAPER-A",
-    workspaceType: "item",
-    workspaceLabel: "Paper A",
-    workspaceTitle: "Paper A",
-    libraryID: 1,
-    defaultSource: {
-      paperKey: "1:PAPER-A",
+    threadId: "conv-a",
+    turnId: "turn-a",
+    sequence: 1,
+    prompt: "Question",
+    history: [],
+    providerProfileId: "codex-cli.default",
+    workspace: {
+      id: "conv-a",
+      workspaceKey: "item:1:PAPER-A",
+      workspaceType: "item",
+      workspaceLabel: "Paper A",
+      workspaceTitle: "Paper A",
       libraryID: 1,
-      parentItemKey: "PAPER-A",
-      attachmentItemID: 10,
-      attachmentKey: "PDF-A",
-      title: "Paper A",
+      itemKey: "PAPER-A",
     },
-    label: "Paper A",
-    createdAt: "2026-06-13T00:00:00.000Z",
-    updatedAt: "2026-06-13T00:00:00.000Z",
+    context: {
+      sources: [
+        {
+          sourceId: "1-PDF-A",
+          paperKey: "1:PAPER-A",
+          libraryID: 1,
+          parentItemKey: "PAPER-A",
+          attachmentItemID: 10,
+          attachmentKey: "PDF-A",
+          title: "Paper A",
+        },
+      ],
+      selectedSources: [],
+      primarySourceId: "1-PDF-A",
+      noteContexts: [],
+      localAttachments: [],
+    },
   };
 }

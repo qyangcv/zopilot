@@ -6,7 +6,7 @@ import type {
   WorkspaceType,
 } from "../../../domain/conversation";
 import { createItemWorkspaceIdentity } from "../../../domain/conversation";
-import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
+import { getThreadStore } from "../../../runtime/persistence/threads/ThreadService";
 import { getString } from "../../../app/localization";
 import { createLogger } from "../../../runtime/logging/logger";
 import { ZoteroContextGateway } from "../../../integrations/zotero/ZoteroContextGateway";
@@ -170,7 +170,7 @@ class WorkspaceCoordinator {
     workspace: WorkspaceIdentity;
     currentSource?: PaperIdentity | null;
   }): Promise<void> {
-    const conversationStore = getConversationStore();
+    const conversationStore = getThreadStore();
     await conversationStore.migrateStandaloneWorkspace(input.workspace);
     const conversation =
       await conversationStore.getOrCreateLatestWorkspaceConversation(

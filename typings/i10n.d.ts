@@ -251,6 +251,7 @@ export type FluentMessageId =
   | 'sidebar-status-error'
   | 'sidebar-status-interrupted'
   | 'sidebar-stop'
+  | 'sidebar-thread-source-unavailable'
   | 'sidebar-title'
   | 'sidebar-toggle-tooltip'
   | 'sidebar-trace-collapsed'

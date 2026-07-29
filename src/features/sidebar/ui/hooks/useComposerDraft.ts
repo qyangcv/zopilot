@@ -20,6 +20,7 @@ import {
   removeMentionFromComposerContext,
 } from "../droppedContext";
 import { ComposerTextSession } from "../composerDraftText";
+import { createTimestampId } from "../../../../runtime/ids/timestampId";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
 
@@ -44,6 +45,14 @@ type ItemContextPickerState =
   | { kind: "workspace" }
   | { kind: "source"; sourceId: string; tree?: ItemContextTree };
 
+type PendingComposerSubmission = {
+  id: string;
+  sourceText: string;
+  mentions: SourceMention[];
+  noteContexts: NoteContextRef[];
+  localAttachments: LocalAttachmentRef[];
+};
+
 function useComposerDraft(
   actions: SidebarActions,
   state: SidebarState,
@@ -65,6 +74,9 @@ function useComposerDraft(
   const mentionsRef = useRef(mentions);
   const noteContextsRef = useRef(noteContexts);
   const localAttachmentsRef = useRef(localAttachments);
+  const pendingSubmissionRef = useRef<PendingComposerSubmission | undefined>(
+    undefined,
+  );
   const bottomDockRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -127,6 +139,7 @@ function useComposerDraft(
     if (composerScopeRef.current === composerScope) return;
     const initialScope = !composerScopeRef.current;
     composerScopeRef.current = composerScope;
+    pendingSubmissionRef.current = undefined;
     if (initialScope) {
       setHasDraftText(false);
     } else {
@@ -215,6 +228,33 @@ function useComposerDraft(
   };
   draftPublisherRef.current = (text, cursor) => updateDraft(text, cursor);
 
+  useEffect(() => {
+    const result = state.submissionResult;
+    const pending = pendingSubmissionRef.current;
+    if (!result || !pending || result.id !== pending.id) return;
+    pendingSubmissionRef.current = undefined;
+    if (
+      result.status !== "accepted" ||
+      textSession.read().text !== pending.sourceText ||
+      !hasSameIds(mentionsRef.current, pending.mentions) ||
+      !hasSameIds(noteContextsRef.current, pending.noteContexts) ||
+      !hasSameIds(localAttachmentsRef.current, pending.localAttachments)
+    ) {
+      return;
+    }
+    textSession.replaceAll("", { refocus: false });
+    setHasDraftText(false);
+    mentionsRef.current = [];
+    setMentions([]);
+    noteContextsRef.current = [];
+    setNoteContexts([]);
+    localAttachmentsRef.current = [];
+    setLocalAttachments([]);
+    itemContextLoadTokenRef.current += 1;
+    setItemContextPicker({ kind: "closed" });
+    setMentionQuery(null);
+  }, [setMentionQuery, state.submissionResult, textSession]);
+
   const submit = (
     text?: string,
     nextMentions = mentions,
@@ -230,6 +270,7 @@ function useComposerDraft(
         !effectiveNoteContexts.length &&
         !nextLocalAttachments.length) ||
       state.busy ||
+      pendingSubmissionRef.current ||
       !state.composerEnabled
     ) {
       return;
@@ -238,23 +279,24 @@ function useComposerDraft(
       noteContextsRef.current = [...effectiveNoteContexts];
       setNoteContexts([...effectiveNoteContexts]);
     }
+    const submittedMentions = [...nextMentions];
+    const submittedNoteContexts = [...effectiveNoteContexts];
+    const submittedLocalAttachments = [...nextLocalAttachments];
+    const id = createTimestampId("submission");
+    pendingSubmissionRef.current = {
+      id,
+      sourceText,
+      mentions: submittedMentions,
+      noteContexts: submittedNoteContexts,
+      localAttachments: submittedLocalAttachments,
+    };
     actions.submitPrompt({
+      id,
       text: trimmed || SELECTED_CONTEXT_PROMPT,
-      mentions: nextMentions,
-      noteContexts: effectiveNoteContexts,
-      localAttachments: nextLocalAttachments,
+      mentions: submittedMentions,
+      noteContexts: submittedNoteContexts,
+      localAttachments: submittedLocalAttachments,
     });
-    textSession.replaceAll("", { refocus: false });
-    setHasDraftText(false);
-    mentionsRef.current = [];
-    setMentions([]);
-    noteContextsRef.current = [];
-    setNoteContexts([]);
-    localAttachmentsRef.current = [];
-    setLocalAttachments([]);
-    itemContextLoadTokenRef.current += 1;
-    setItemContextPicker({ kind: "closed" });
-    setMentionQuery(null);
   };
 
   const replaceDraftText = (text: string, cursor = text.length) => {
@@ -542,3 +584,13 @@ function useComposerDraft(
 }
 
 export { useComposerDraft };
+
+function hasSameIds(
+  current: Array<{ id: string }>,
+  submitted: Array<{ id: string }>,
+): boolean {
+  return (
+    current.length === submitted.length &&
+    current.every((item, index) => item.id === submitted[index]?.id)
+  );
+}

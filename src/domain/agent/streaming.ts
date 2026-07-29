@@ -1,4 +1,3 @@
-import type { AgentRunResult } from "./types";
 import type { ProviderBrand } from "./providerBrand";
 import type {
   AgentContentPhase,
@@ -25,7 +24,6 @@ export type AgentStreamEvent =
       providerProfileId: string;
       runId: string;
       turnId?: string;
-      legacy?: AgentRunResult["legacy"];
     })
   | (AgentStreamEventBase & {
       type: "turn.interruptRequested";

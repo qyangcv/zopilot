@@ -20,6 +20,7 @@ import { createLogger } from "../../runtime/logging/logger";
 import { getString } from "../../app/localization";
 import { ZOPILOT_MCP_SERVER_NAME } from "../mcp/constants";
 import type { CodexPromptResult } from "./types";
+import type { ProviderCheckpoint } from "../../domain/thread";
 import {
   formatServerError,
   getNestedBoolean,
@@ -49,6 +50,8 @@ type ActiveCodexTurn = {
   streamLengths: Map<string, number>;
   syntheticIdSequence: number;
   threadId: string;
+  threadSequence: number;
+  checkpoint: ProviderCheckpoint;
   turnId?: string;
 };
 
@@ -103,10 +106,6 @@ class CodexTurnRegistry {
       providerProfileId: turn.providerProfileId,
       runId: turn.threadId,
       turnId,
-      legacy: {
-        codexThreadId: turn.threadId,
-        codexTurnId: turnId,
-      },
     });
     this.showPendingMcpNotice(turn);
   }
@@ -555,6 +554,10 @@ class CodexTurnRegistry {
         turn.turnId || getNestedString(params, ["turn", "id"]) || undefined,
       text,
       status: status === "interrupted" ? "interrupted" : "completed",
+      checkpoint: {
+        ...turn.checkpoint,
+        syncedThroughSequence: turn.threadSequence,
+      },
     });
   }
 

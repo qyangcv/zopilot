@@ -180,21 +180,25 @@ function createTurnParams(path: string): TurnStartParams {
       status: "connected",
     },
     input: {
-      conversation: {
-        metadata: {
-          id: "conv-a",
-          scope: "workspace",
-          workspaceKey: "library:1",
-          workspaceType: "library",
-          workspaceLabel: "Library",
-          workspaceTitle: "Library",
-          libraryID: 1,
-          label: "Conversation",
-          createdAt: "2026-07-26T00:00:00.000Z",
-          updatedAt: "2026-07-26T00:00:00.000Z",
-        },
-        messages: [],
+      threadId: "conv-a",
+      turnId: "turn-a",
+      sequence: 1,
+      history: [],
+      context: {
+        sources: [],
+        selectedSources: [],
+        noteContexts: [],
+        localAttachments: [],
       },
+      workspace: {
+        id: "conv-a",
+        workspaceKey: "library:1",
+        workspaceType: "library",
+        workspaceLabel: "Library",
+        workspaceTitle: "Library",
+        libraryID: 1,
+      },
+      providerProfileId: "provider-a",
       prompt: "Describe the image",
       preparedLocalAttachments: {
         images: [

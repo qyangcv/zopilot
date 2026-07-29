@@ -31,7 +31,6 @@ type RunningTurnRecord = {
   contentOrder: string[];
   desyncedAppendKeys: Set<string>;
   lastSequence: number;
-  legacy?: AgentRunResult["legacy"];
   lifecycle: RunningTurnLifecycle;
   messageId: string;
   model?: string;
@@ -265,7 +264,6 @@ class RunningTurnStore {
       providerProfileId: result.providerProfileId,
       runId: result.runId,
       turnId: result.turnId,
-      legacy: result.legacy,
     });
     const interrupted =
       result.status === "interrupted" ||
@@ -325,7 +323,6 @@ class RunningTurnStore {
     providerProfileId?: string;
     runId?: string;
     turnId?: string;
-    legacy?: AgentRunResult["legacy"];
   } {
     const turn = this.turns.get(conversationId);
     return {
@@ -333,7 +330,6 @@ class RunningTurnStore {
       providerProfileId: turn?.providerProfileId,
       runId: turn?.runId,
       turnId: turn?.turnId,
-      legacy: turn?.legacy,
     };
   }
 
@@ -731,13 +727,11 @@ function updateRunIdentity(
     turn.backendId !== event.backendId ||
     turn.providerProfileId !== event.providerProfileId ||
     turn.runId !== event.runId ||
-    turn.turnId !== event.turnId ||
-    turn.legacy !== event.legacy;
+    turn.turnId !== event.turnId;
   turn.backendId = event.backendId;
   turn.providerProfileId = event.providerProfileId;
   turn.runId = event.runId;
   turn.turnId = event.turnId;
-  turn.legacy = event.legacy;
   return changed;
 }
 

@@ -1,7 +1,4 @@
-import type {
-  PaperSourceRef,
-  WorkspaceIdentity,
-} from "../../domain/conversation";
+import type { PaperSourceRef } from "../../domain/conversation";
 import { MaterialRepository } from "../../document/material/MaterialRepository";
 import type {
   Material,
@@ -9,7 +6,6 @@ import type {
   WorkspaceQueryScope,
 } from "../../document/types";
 import { ZoteroPdfSourceResolver } from "../../integrations/zotero/ZoteroPdfSourceResolver";
-import { ZoteroSourceUniverse } from "../../integrations/zotero/ZoteroWorkspaceService";
 import { throwIfAborted } from "../../runtime/cancellation";
 
 export {
@@ -28,12 +24,7 @@ class PaperToolError extends Error {
   }
 }
 
-type SourceUniverse = Pick<ZoteroSourceUniverse, "resolveSelectedPdfSources">;
-
 type SourceResolver = {
-  resolveDefaultSource(
-    scope: WorkspaceQueryScope,
-  ): Promise<SourceIdentity | null>;
   resolveSourceRef(source: PaperSourceRef): Promise<SourceIdentity | null>;
 };
 
@@ -42,13 +33,11 @@ type MaterialCache = {
 };
 
 type PaperMaterialResolverOptions = {
-  sourceUniverse?: SourceUniverse;
   sourceResolver?: SourceResolver;
   materialCache?: MaterialCache;
 };
 
 class PaperMaterialResolver {
-  private sourceUniverse?: SourceUniverse;
   private sourceResolver?: SourceResolver;
   private materialCache?: MaterialCache;
 
@@ -124,17 +113,14 @@ class PaperMaterialResolver {
     sourceIds: string[],
     signal?: AbortSignal,
   ): Promise<SourceIdentity[]> {
-    const refs = await this.getSourceUniverse().resolveSelectedPdfSources(
-      scopeToWorkspace(scope),
-      sourceIds,
+    const refById = new Map(
+      scope.sources.map((source) => [source.sourceId, source]),
     );
-    throwIfAborted(signal);
-    const refById = new Map(refs.map((source) => [source.sourceId, source]));
     const invalid = sourceIds.filter((sourceId) => !refById.has(sourceId));
     if (invalid.length) {
       throw new PaperToolError(
         "invalid_source",
-        `Selected source is outside the current workspace: ${invalid.join(", ")}`,
+        `Selected source is outside the current turn context: ${invalid.join(", ")}`,
       );
     }
 
@@ -159,15 +145,14 @@ class PaperMaterialResolver {
     scope: WorkspaceQueryScope,
     signal?: AbortSignal,
   ): Promise<SourceIdentity[]> {
-    const source = await this.getSourceResolver().resolveDefaultSource(scope);
+    const reference =
+      scope.sources.find(
+        (source) => source.sourceId === scope.primarySourceId,
+      ) || scope.sources.at(-1);
+    if (!reference) return [];
+    const source = await this.getSourceResolver().resolveSourceRef(reference);
     throwIfAborted(signal);
     return source ? [source] : [];
-  }
-
-  private getSourceUniverse(): SourceUniverse {
-    this.sourceUniverse ??=
-      this.options.sourceUniverse || new ZoteroSourceUniverse();
-    return this.sourceUniverse;
   }
 
   private getSourceResolver(): SourceResolver {
@@ -181,28 +166,4 @@ class PaperMaterialResolver {
       this.options.materialCache || new MaterialRepository();
     return this.materialCache;
   }
-}
-
-function scopeToWorkspace(scope: WorkspaceQueryScope): WorkspaceIdentity {
-  return {
-    workspaceKey: scope.workspaceKey,
-    workspaceType: scope.workspaceType,
-    workspaceLabel: scope.workspaceLabel,
-    workspaceTitle: scope.workspaceLabel,
-    libraryID: scope.libraryID,
-    collectionKey: scope.collectionKey,
-    collectionPath: scope.collectionPath,
-    itemKey: scope.itemKey,
-    defaultSource: scope.defaultSource
-      ? {
-          paperKey: scope.defaultSource.paperKey,
-          libraryID: scope.defaultSource.libraryID,
-          parentItemID: scope.defaultSource.parentItemID,
-          parentItemKey: scope.defaultSource.parentItemKey,
-          attachmentItemID: scope.defaultSource.attachmentItemID,
-          attachmentKey: scope.defaultSource.attachmentKey,
-          title: scope.defaultSource.title || scope.workspaceLabel,
-        }
-      : undefined,
-  };
 }

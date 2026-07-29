@@ -1,4 +1,4 @@
-import type { ConversationMetadata } from "../../domain/conversation";
+import type { ThreadRunInput } from "../../domain/thread";
 import { createPaperBindingHeaders } from "./workspaceBinding";
 import { startMcpHttpServer } from "./httpServer";
 
@@ -24,7 +24,7 @@ type ZopilotMcpConnectionResult =
     };
 
 async function buildZopilotMcpConnection(
-  conversation: ConversationMetadata,
+  binding: Pick<ThreadRunInput, "workspace" | "context">,
   options: {
     acceptsImages: boolean;
     timeoutMs: number;
@@ -39,7 +39,7 @@ async function buildZopilotMcpConnection(
       serverName: server.name,
       headers: {
         Authorization: `Bearer ${server.token}`,
-        ...createPaperBindingHeaders(conversation, {
+        ...createPaperBindingHeaders(binding, {
           acceptsImages: options.acceptsImages,
         }),
       },

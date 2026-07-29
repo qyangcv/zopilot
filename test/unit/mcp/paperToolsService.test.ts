@@ -155,36 +155,25 @@ describe("PaperToolsService", function () {
     );
   });
 
-  it("validates selected sources against the bound workspace", async function () {
-    const service = createService({ selectedSourceIds: [] });
+  it("validates selected sources against the bound turn snapshot", async function () {
+    const service = createService();
     await assertRejected(
       () =>
         service.search(
           { query: "method", sourceIds: ["1-OTHER"], limit: 4 },
           { workspaceScope: createScope(), acceptsImages: true },
         ),
-      /outside the current workspace/,
+      /outside the current turn context/,
     );
   });
 });
 
 function createService(
-  options: { selectedSourceIds?: string[]; material?: Material } = {},
+  options: { material?: Material } = {},
 ): PaperToolsService {
   const source = options.material?.manifest.source || createSource();
   return new PaperToolsService({
-    sourceUniverse: {
-      async resolveSelectedPdfSources(_workspace, sourceIds) {
-        const allowed = options.selectedSourceIds ?? [source.sourceId];
-        return sourceIds
-          .filter((sourceId) => allowed.includes(sourceId))
-          .map(() => createSourceRef());
-      },
-    },
     sourceResolver: {
-      async resolveDefaultSource() {
-        return source;
-      },
       async resolveSourceRef() {
         return source;
       },
@@ -204,12 +193,8 @@ function createScope(): WorkspaceQueryScope {
     workspaceType: "item",
     workspaceLabel: "Paper A",
     libraryID: 1,
-    defaultSource: {
-      paperKey: "1:PAPER-A",
-      libraryID: 1,
-      attachmentItemID: 10,
-      attachmentKey: "PDF-A",
-    },
+    sources: [createSourceRef()],
+    primarySourceId: "1-PDF-A",
   };
 }
 

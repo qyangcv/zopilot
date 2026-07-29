@@ -77,6 +77,10 @@ export type SidebarSessionView = {
 export type SidebarSessionStatus = "running" | "unread";
 export type SidebarSessionMode = "history" | "archive";
 export type SidebarPresentation = "sidebar" | "window";
+export type SidebarSubmissionResult = {
+  id: string;
+  status: "accepted" | "rejected";
+};
 
 export type SidebarPromptView = {
   id: string;
@@ -114,11 +118,13 @@ export type SidebarState = {
   collectionOptions: SidebarCollectionOption[];
   prompts: SidebarPromptView[];
   reloading: boolean;
+  submissionResult?: SidebarSubmissionResult;
 };
 
 export type SidebarStreamingSnapshot = RunningTurnSnapshot;
 
 export type SidebarPromptSubmission = {
+  id: string;
   text: string;
   mentions: SourceMention[];
   noteContexts?: NoteContextRef[];

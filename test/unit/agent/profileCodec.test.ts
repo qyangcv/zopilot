@@ -20,6 +20,7 @@ describe("provider profile codec", function () {
             {
               id: "deepseek-chat",
               displayName: "DeepSeek Chat",
+              contextLength: 128_000,
               imageInputRejected: true,
               imageSupport: "supported",
               imageSupportSource: "runtime",
@@ -45,6 +46,7 @@ describe("provider profile codec", function () {
     assert.equal(profiles[0]?.id, "deepseek.legacy");
     assert.equal(profiles[0]?.providerId, "deepseek");
     assert.equal(profiles[0]?.models[0]?.id, "deepseek-chat");
+    assert.equal(profiles[0]?.models[0]?.contextLength, 128_000);
     assert.lengthOf(profiles[0]?.models || [], 1);
     assert.equal(profiles[0]?.defaultModel, "deepseek-chat");
     assert.notProperty(profiles[0]?.models[0] || {}, "imageInputRejected");
@@ -52,10 +54,12 @@ describe("provider profile codec", function () {
     assert.notProperty(profiles[0]?.models[0] || {}, "imageSupportSource");
     assert.isTrue(profiles[0]?.capabilities.images);
     assert.notProperty(profiles[0] as object, "hasApiKey");
-    assert.notProperty(
-      toStoredProviderProfile({ ...profiles[0]!, hasApiKey: true }),
-      "hasApiKey",
-    );
+    const stored = toStoredProviderProfile({
+      ...profiles[0]!,
+      hasApiKey: true,
+    });
+    assert.notProperty(stored, "hasApiKey");
+    assert.equal(stored.models[0]?.contextLength, 128_000);
   });
 
   it("ignores malformed provider preference payloads", function () {

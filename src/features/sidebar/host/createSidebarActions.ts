@@ -1,5 +1,5 @@
 import type { WorkspaceType } from "../../../domain/conversation";
-import type { SidebarActions, SidebarPromptSubmission } from "../ui/types";
+import type { SidebarActions } from "../ui/types";
 
 type SidebarActionHandlers = {
   archiveSession: SidebarActions["archiveSession"];
@@ -19,7 +19,7 @@ type SidebarActionHandlers = {
   selectModel: (model: string) => void;
   selectModelEffort: (model: string, effort: string) => void;
   selectWorkspaceMode: (type: WorkspaceType) => void;
-  submitPrompt: (submission: SidebarPromptSubmission) => void;
+  submitPrompt: SidebarActions["submitPrompt"];
   switchSession: SidebarActions["switchSession"];
   toggleArchivedSessions: () => void;
   toggleSessions: () => void;

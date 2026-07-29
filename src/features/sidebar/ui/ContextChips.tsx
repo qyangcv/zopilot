@@ -63,7 +63,11 @@ export function ContextChips({
         <CompactContextChip
           icon={ITEM_CONTEXT_ICONS.pdf}
           key={mention.id}
-          label={mention.title}
+          label={
+            mention.availability === "unavailable"
+              ? `${mention.title} ⚠`
+              : mention.title
+          }
           expanded={expandedMentionSourceId === mention.sourceId}
           onActivate={
             onOpenMention && mention.parentItemKey
@@ -73,7 +77,11 @@ export function ContextChips({
           onRemove={
             onRemoveMention ? () => onRemoveMention(mention.id) : undefined
           }
-          title={mention.title}
+          title={
+            mention.availability === "unavailable"
+              ? getString("sidebar-thread-source-unavailable")
+              : mention.title
+          }
         />
       ))}
       {notes.map((note) => (

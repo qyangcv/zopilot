@@ -1,6 +1,5 @@
 import { assert } from "chai";
 import { ZoteroPdfSourceResolver } from "../../../src/integrations/zotero/ZoteroPdfSourceResolver.ts";
-import type { WorkspaceQueryScope } from "../../../src/document/types.ts";
 import type { PaperSourceRef } from "../../../src/domain/conversation.ts";
 
 type MockItem = {
@@ -33,7 +32,7 @@ describe("ZoteroPdfSourceResolver", function () {
     delete (globalThis as unknown as { IOUtils?: MockIOUtils }).IOUtils;
   });
 
-  it("resolves the default PDF source with attachment metadata", async function () {
+  it("resolves a snapshot PDF source with attachment metadata", async function () {
     const bytes = new Uint8Array([1, 2, 3]);
     const parent = createItem({
       id: 20,
@@ -56,8 +55,8 @@ describe("ZoteroPdfSourceResolver", function () {
       },
     });
 
-    const source = await new ZoteroPdfSourceResolver().resolveDefaultSource(
-      createScope({
+    const source = await new ZoteroPdfSourceResolver().resolveSourceRef(
+      createSourceRef({
         title: "Stored Workspace Title",
       }),
     );
@@ -115,8 +114,8 @@ describe("ZoteroPdfSourceResolver", function () {
     installZoteroMock([attachment]);
     installIOMock({});
 
-    const source = await new ZoteroPdfSourceResolver().resolveDefaultSource(
-      createScope(),
+    const source = await new ZoteroPdfSourceResolver().resolveSourceRef(
+      createSourceRef(),
     );
 
     assert.isNull(source);
@@ -138,35 +137,13 @@ describe("ZoteroPdfSourceResolver", function () {
     });
 
     try {
-      await new ZoteroPdfSourceResolver().resolveDefaultSource(createScope());
+      await new ZoteroPdfSourceResolver().resolveSourceRef(createSourceRef());
       assert.fail("expected mismatched attachment to throw");
     } catch (error) {
       assert.match(String(error), /no longer matches this thread/);
     }
   });
 });
-
-function createScope(
-  patch: Partial<WorkspaceQueryScope["defaultSource"]> = {},
-): WorkspaceQueryScope {
-  return {
-    conversationId: "conv-a",
-    workspaceKey: "item:1:PAPER-A",
-    workspaceType: "item",
-    workspaceLabel: "Paper A",
-    libraryID: 1,
-    defaultSource: {
-      paperKey: "1:PAPER-A",
-      libraryID: 1,
-      parentItemID: 20,
-      parentItemKey: "PAPER-A",
-      attachmentItemID: 10,
-      attachmentKey: "PDF-A",
-      title: "Paper A",
-      ...patch,
-    },
-  };
-}
 
 function createSourceRef(patch: Partial<PaperSourceRef> = {}): PaperSourceRef {
   return {

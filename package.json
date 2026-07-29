@@ -30,7 +30,7 @@
     "build:pdf-helper:windows-x64": "python scripts/build-pdf-helper.py --platform windows-x64",
     "build:pdf-helper:manifest": "python3 scripts/merge-pdf-helper-manifest.py",
     "check:api": "node scripts/check-api-boundaries.mjs",
-    "release:pdf-helper": "gh workflow run pdf-helper.yml --ref dist",
+    "release:pdf-helper": "gh workflow run pdf-helper.yml",
     "lint:check": "prettier --check . && eslint . && npm run check:api",
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",

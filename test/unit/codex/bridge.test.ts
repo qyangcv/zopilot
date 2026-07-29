@@ -2,7 +2,7 @@ import { assert } from "chai";
 import { buildCodexAppServerArguments } from "../../../src/integrations/codex/appServerConfig.ts";
 import { CodexBridge } from "../../../src/integrations/codex/CodexBridge.ts";
 import { shutdownMcpHttpServer } from "../../../src/integrations/mcp/httpServer.ts";
-import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
+import type { ThreadRunInput } from "../../../src/domain/thread.ts";
 import { configureLocaleFormatter } from "../../../src/app/localization.ts";
 
 describe("CodexBridge", function () {
@@ -90,10 +90,9 @@ describe("CodexBridge", function () {
 
   it("sends selected model and reasoning effort to turn/start", async function () {
     const bridge = createBridgeHarness();
-    bridge.cacheThread("conv-a");
-    const conversation = createConversation("conv-a");
+    const run = createRun("conv-a", "thread-conv-a");
     const promise = bridge.instance.sendPrompt("Question", {
-      conversation,
+      run,
       model: "gpt-5.6-terra",
       effort: "high",
     });
@@ -133,10 +132,9 @@ describe("CodexBridge", function () {
 
   it("does not apply the turn/start deadline to an active turn", async function () {
     const bridge = createBridgeHarness();
-    bridge.cacheThread("conv-long");
     bridge.setTurnStartTimeoutMs(5);
     const promise = bridge.instance.sendPrompt("Question", {
-      conversation: createConversation("conv-long"),
+      run: createRun("conv-long", "thread-conv-long"),
     });
     await bridge.flush();
 
@@ -158,11 +156,10 @@ describe("CodexBridge", function () {
 
   it("streams reasoning, commentary, MCP tools, and final answer separately", async function () {
     const bridge = createBridgeHarness();
-    bridge.cacheThread("conv-trace");
     const events: Array<Record<string, unknown>> = [];
     const promise = bridge.instance.sendPrompt("Question", {
       backendId: "codex-cli.default",
-      conversation: createConversation("conv-trace"),
+      run: createRun("conv-trace", "thread-conv-trace"),
       providerProfileId: "codex-cli.default",
       onEvent: (event) => events.push(event),
     });
@@ -272,10 +269,9 @@ describe("CodexBridge", function () {
 
   it("keeps Codex tool parameters out of stable tool names", async function () {
     const bridge = createBridgeHarness();
-    bridge.cacheThread("conv-tools");
     const events: Array<Record<string, unknown>> = [];
     const promise = bridge.instance.sendPrompt("Question", {
-      conversation: createConversation("conv-tools"),
+      run: createRun("conv-tools", "thread-conv-tools"),
       onEvent: (event) =>
         events.push(event as unknown as Record<string, unknown>),
     });
@@ -333,9 +329,9 @@ describe("CodexBridge", function () {
 
   it("opens new Codex threads with multi-tool paper instructions", async function () {
     const bridge = createBridgeHarness();
-    const conversation = createConversation("conv-new");
+    const run = createRun("conv-new");
     const promise = bridge.instance.sendPrompt("Question", {
-      conversation,
+      run,
     });
     await bridge.flush();
 
@@ -372,11 +368,13 @@ describe("CodexBridge", function () {
       "item:1:conv-new",
     );
     assert.equal(mcpServer.http_headers["X-Zopilot-Workspace-Type"], "item");
-    assert.equal(mcpServer.http_headers["X-Zopilot-Paper-Key"], "1:conv-new");
-    assert.equal(mcpServer.http_headers["X-Zopilot-Attachment-Item-ID"], "1");
+    assert.deepEqual(
+      JSON.parse(mcpServer.http_headers["X-Zopilot-Thread-Sources"]),
+      run.context.sources,
+    );
     assert.equal(
-      mcpServer.http_headers["X-Zopilot-Attachment-Key"],
-      "conv-new-pdf",
+      mcpServer.http_headers["X-Zopilot-Primary-Source-ID"],
+      run.context.primarySourceId,
     );
     assert.equal(mcpServer.http_headers["X-Zopilot-Library-ID"], "1");
     assert.deepEqual(mcpServer.enabled_tools, [
@@ -419,7 +417,7 @@ describe("CodexBridge", function () {
     const bridge = createBridgeHarness();
     const events: Array<Record<string, unknown>> = [];
     const promise = bridge.instance.sendPrompt("Question", {
-      conversation: createConversation("conv-mcp-failure"),
+      run: createRun("conv-mcp-failure"),
       onEvent: (event) =>
         events.push(event as unknown as Record<string, unknown>),
     });
@@ -523,13 +521,11 @@ describe("CodexBridge", function () {
 
   it("demultiplexes concurrent turn notifications by thread and turn", async function () {
     const bridge = createBridgeHarness();
-    bridge.cacheThread("conv-a");
-    bridge.cacheThread("conv-b");
     const first = bridge.instance.sendPrompt("First", {
-      conversation: createConversation("conv-a"),
+      run: createRun("conv-a", "thread-conv-a"),
     });
     const second = bridge.instance.sendPrompt("Second", {
-      conversation: createConversation("conv-b"),
+      run: createRun("conv-b", "thread-conv-b"),
     });
     await bridge.flush();
 
@@ -584,16 +580,12 @@ function createBridgeHarness(): {
   flush: () => Promise<void>;
   respond: (id: number, result: unknown) => void;
   notify: (method: string, params: unknown) => void;
-  cacheThread: (conversationId: string) => void;
   setTurnStartTimeoutMs: (timeoutMs: number) => void;
 } {
   const instance = new CodexBridge();
   const bridge = instance as unknown as {
     start: () => Promise<void>;
     getTurnStartTimeoutMs: () => number;
-    threads: {
-      threads: Map<string, string>;
-    };
     process: unknown;
     getTransport: () => {
       handleLine: (line: string) => void;
@@ -605,7 +597,21 @@ function createBridgeHarness(): {
   bridge.process = {
     stdin: {
       write: async (line: string) => {
-        requests.push(JSON.parse(line) as JsonRpcTestRequest);
+        const request = JSON.parse(line) as JsonRpcTestRequest;
+        if (request.method === "thread/resume") {
+          queueMicrotask(() =>
+            bridge.getTransport().handleLine(
+              JSON.stringify({
+                id: request.id,
+                result: {
+                  thread: { id: request.params.threadId },
+                },
+              }),
+            ),
+          );
+          return;
+        }
+        requests.push(request);
       },
       close: async () => undefined,
     },
@@ -621,9 +627,6 @@ function createBridgeHarness(): {
     },
     notify: (method, params) => {
       bridge.getTransport().handleLine(JSON.stringify({ method, params }));
-    },
-    cacheThread: (conversationId) => {
-      bridge.threads.threads.set(conversationId, `thread-${conversationId}`);
     },
     setTurnStartTimeoutMs: (timeoutMs) => {
       bridge.getTurnStartTimeoutMs = () => timeoutMs;
@@ -642,25 +645,55 @@ function installMcpMocks(): void {
   };
 }
 
-function createConversation(id: string): ConversationMetadata {
-  return {
-    id,
-    scope: "workspace",
-    workspaceKey: `item:1:${id}`,
-    workspaceType: "item",
-    workspaceLabel: id,
-    workspaceTitle: id,
+function createRun(id: string, externalThreadId?: string): ThreadRunInput {
+  const source = {
+    sourceId: `zotero:1:${id}-pdf`,
+    paperKey: `1:${id}`,
     libraryID: 1,
-    defaultSource: {
-      paperKey: `1:${id}`,
-      libraryID: 1,
-      parentItemKey: id,
-      attachmentItemID: 1,
-      attachmentKey: `${id}-pdf`,
-      title: id,
+    parentItemKey: id,
+    attachmentItemID: 1,
+    attachmentKey: `${id}-pdf`,
+    title: id,
+  };
+  return {
+    threadId: id,
+    turnId: `zopilot-turn-${id}`,
+    sequence: 1,
+    prompt: "Question",
+    history: [],
+    context: {
+      sources: [source],
+      selectedSources: [],
+      primarySourceId: source.sourceId,
+      noteContexts: [],
+      localAttachments: [],
     },
-    label: id,
-    createdAt: "2026-06-13T00:00:00.000Z",
-    updatedAt: "2026-06-13T00:00:00.000Z",
+    workspace: {
+      id,
+      workspaceKey: `item:1:${id}`,
+      workspaceType: "item",
+      workspaceLabel: id,
+      workspaceTitle: id,
+      libraryID: 1,
+      defaultSource: {
+        paperKey: `1:${id}`,
+        libraryID: 1,
+        parentItemKey: id,
+        attachmentItemID: 1,
+        attachmentKey: `${id}-pdf`,
+        title: id,
+      },
+    },
+    providerProfileId: "codex-cli.default",
+    binding: externalThreadId
+      ? {
+          threadId: id,
+          adapterKey: "codex-cli",
+          externalThreadId,
+          syncedThroughSequence: 0,
+          state: "clean",
+          updatedAt: "2026-06-13T00:00:00.000Z",
+        }
+      : undefined,
   };
 }

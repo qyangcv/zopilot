@@ -114,6 +114,7 @@ sidebar-workspace-expand-all = 展开所有层级
 sidebar-workspace-collapse-all = 折叠所有层级
 sidebar-mention-limit = 每条消息最多选择 10 个 source
 sidebar-context-remove = 移除上下文
+sidebar-thread-source-unavailable = 该论文在当前工作区中已不可用，不会传给模型。
 sidebar-item-context-empty = 没有匹配的附件或笔记
 sidebar-item-context-default-source = 默认来源
 sidebar-item-context-open = 打开条目上下文

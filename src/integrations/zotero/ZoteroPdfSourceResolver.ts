@@ -1,4 +1,3 @@
-import type { WorkspaceQueryScope } from "../../document/types";
 import type { SourceIdentity } from "../../document/types";
 import type { PaperSourceRef } from "../../domain/conversation";
 import { createSourceId } from "../../domain/sourceIdentity";
@@ -28,23 +27,6 @@ type ZoteroPdfAttachment = {
 };
 
 class ZoteroPdfSourceResolver {
-  async resolveDefaultSource(
-    scope: WorkspaceQueryScope,
-  ): Promise<SourceIdentity | null> {
-    const source = scope.defaultSource;
-    if (!source) {
-      return null;
-    }
-
-    return resolvePdfSourceIdentity({
-      paperKey: source.paperKey,
-      libraryID: source.libraryID,
-      attachmentItemID: source.attachmentItemID,
-      attachmentKey: source.attachmentKey,
-      title: source.title,
-    });
-  }
-
   async resolveSourceRef(
     source: PaperSourceRef,
   ): Promise<SourceIdentity | null> {

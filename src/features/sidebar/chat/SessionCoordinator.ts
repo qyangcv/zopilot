@@ -2,7 +2,7 @@ import type {
   Conversation,
   WorkspaceIdentity,
 } from "../../../domain/conversation";
-import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
+import { getThreadStore } from "../../../runtime/persistence/threads/ThreadService";
 import { createLogger } from "../../../runtime/logging/logger";
 import type {
   SidebarSessionMode,
@@ -289,7 +289,7 @@ class SidebarSessionCoordinator {
   }
 
   private get store(): SidebarSessionStore {
-    return this.options.store || getConversationStore();
+    return this.options.store || getThreadStore();
   }
 
   private async loadNavigationSessions(workspaceKey: string): Promise<void> {

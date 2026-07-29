@@ -15,9 +15,8 @@ import type {
 import { createCapabilities } from "../../domain/agent/capabilities";
 import { createDiagnostic } from "../../domain/agent/errors";
 import {
+  buildCurrentTurnPrompt,
   buildPromptWithLocalAttachments,
-  buildPromptWithResolvedNoteContexts,
-  buildPromptWithSourceRefs,
 } from "../../application/agent/prompt/contextAssembler";
 import { loadSubprocessModule } from "../../platform/gecko";
 
@@ -70,22 +69,20 @@ class CodexCliBackend implements AgentBackend {
   ): Promise<AgentRunResult> {
     const result = await getCodexBridge().sendPrompt(
       buildPromptWithLocalAttachments(
-        buildPromptWithSourceRefs(
-          buildPromptWithResolvedNoteContexts(
-            input.prompt,
-            input.resolvedNoteContexts || [],
-          ),
-          input.mentions || [],
-        ),
-        input.localAttachments || [],
+        buildCurrentTurnPrompt({
+          run: input,
+          resolvedNoteContexts: input.resolvedNoteContexts,
+        }),
+        input.context.localAttachments,
       ),
       {
         backendId: this.id,
         providerProfileId: this.profile.id,
-        conversation: input.conversation.metadata,
+        run: input,
         model: input.model,
         effort: input.reasoningEffort,
         onEvent: callbacks.onEvent,
+        onCheckpoint: callbacks.onCheckpoint,
       },
     );
     return {
@@ -95,16 +92,13 @@ class CodexCliBackend implements AgentBackend {
       turnId: result.turnId,
       text: result.text,
       status: result.status,
-      legacy: {
-        codexThreadId: result.threadId,
-        codexTurnId: result.turnId,
-      },
+      checkpoint: result.checkpoint,
     };
   }
 
   async cancelTurn(input: AgentCancelInput): Promise<void> {
-    const threadId = input.legacy?.codexThreadId || input.runId;
-    const turnId = input.legacy?.codexTurnId || input.turnId;
+    const threadId = input.runId;
+    const turnId = input.turnId;
     if (!threadId || !turnId) {
       return;
     }

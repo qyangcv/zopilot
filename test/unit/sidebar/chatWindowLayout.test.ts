@@ -45,6 +45,17 @@ describe("chat window layout styles", function () {
     assert.include(inputRule, "max-height: 72px");
     assert.include(inputRule, "overflow-y: auto");
     assert.include(inputRule, "scrollbar-gutter: stable");
+    assert.notMatch(
+      inputRule,
+      /\bfont\s*:\s*(?:caption|icon|menu|message-box|small-caption|status-bar)\b/,
+      "the native editor must not resolve a CSS system-font shorthand",
+    );
+    assert.match(
+      inputRule,
+      /font-family:\s*"Helvetica Neue", Arial/,
+      "the native editor must start with public font families",
+    );
+    assert.notMatch(inputRule, /\b(?:system-ui|-apple-system)\b/);
     assert.notMatch(focusRule, /\b(?:height|max-height|overflow)\s*:/);
   });
 

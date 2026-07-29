@@ -23,15 +23,8 @@ export type WorkspaceQueryScope = {
   collectionKey?: string;
   collectionPath?: string[];
   itemKey?: string;
-  defaultSource?: {
-    paperKey: string;
-    libraryID: number;
-    parentItemID?: number;
-    parentItemKey?: string;
-    attachmentItemID: number;
-    attachmentKey: string;
-    title?: string;
-  };
+  sources: PaperSourceRef[];
+  primarySourceId?: string;
 };
 
 export type MaterialManifest = {

@@ -6,6 +6,7 @@ npm run build
 npm run release
 
 npm run build:pdf-helper
+npm run release:pdf-helper
 
 ## PDF helper
 

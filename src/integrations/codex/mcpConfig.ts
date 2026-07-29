@@ -1,14 +1,14 @@
 import type { JsonValue } from "../../runtime/json/types";
-import type { ConversationMetadata } from "../../domain/conversation";
+import type { ThreadRunInput } from "../../domain/thread";
 import { buildZopilotMcpConnection } from "../mcp/connection";
 import { ZOPILOT_PAPER_TOOL_NAMES } from "../../application/document/PaperTools";
 
 export { buildCodexMcpServersConfig };
 
 async function buildCodexMcpServersConfig(
-  conversation: ConversationMetadata,
+  run: Pick<ThreadRunInput, "workspace" | "context">,
 ): Promise<Record<string, JsonValue>> {
-  const result = await buildZopilotMcpConnection(conversation, {
+  const result = await buildZopilotMcpConnection(run, {
     acceptsImages: true,
     timeoutMs: 60000,
   });

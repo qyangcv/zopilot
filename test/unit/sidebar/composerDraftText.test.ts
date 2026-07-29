@@ -111,6 +111,30 @@ describe("sidebar composer native text session", function () {
     assert.equal(fixture.control.value, "three");
     assert.equal(fixture.calls.filter((call) => call[0] === "focus").length, 1);
   });
+
+  it("cancels a delayed refocus when native input wins the race", function () {
+    const fixture = createFixture("old");
+
+    fixture.session.replaceAll("Prompt-3");
+    fixture.scheduler.runNext();
+    const callCountBeforeNativeInput = fixture.calls.length;
+
+    fixture.control.value = "";
+    fixture.control.selectionStart = 0;
+    fixture.control.selectionEnd = 0;
+    fixture.session.handleNativeInput(fixture.control);
+    fixture.scheduler.runAll();
+
+    assert.deepEqual(fixture.changes, [
+      ["Prompt-3", 8],
+      ["", 0],
+    ]);
+    assert.deepEqual(
+      fixture.calls.slice(callCountBeforeNativeInput),
+      [],
+      "an obsolete script task must not focus or rewrite selection after native input",
+    );
+  });
 });
 
 function createFixture(initialValue: string) {

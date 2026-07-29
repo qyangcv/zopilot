@@ -1,16 +1,18 @@
+import { getString } from "../../../app/localization";
 import { getAgentBackendManager } from "../../../application/agent/BackendManager";
 import { getProviderProfileStore } from "../../../application/providers/ProviderProfileService";
-import type { AgentRunResult } from "../../../domain/agent/types";
 import { resolveProviderBrand } from "../../../domain/agent/providerBrand";
 import type { AgentStreamEvent } from "../../../domain/agent/streaming";
+import type { AgentRunResult } from "../../../domain/agent/types";
 import type { Conversation } from "../../../domain/conversation";
-import { createTimestampId } from "../../../runtime/ids/timestampId";
-import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
-import { getString } from "../../../app/localization";
-import { formatBackendError } from "./formatBackendError";
-import { createLogger } from "../../../runtime/logging/logger";
-import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
+import { sourceToMention } from "../../../domain/thread";
 import { ZoteroNoteContextResolver } from "../../../integrations/zotero/ZoteroNoteContextResolver";
+import { ZoteroSourceUniverse } from "../../../integrations/zotero/ZoteroWorkspaceService";
+import { createTimestampId } from "../../../runtime/ids/timestampId";
+import { createLogger } from "../../../runtime/logging/logger";
+import { getThreadStore } from "../../../runtime/persistence/threads/ThreadService";
+import type { SidebarPromptSubmission, SidebarState } from "../ui/types";
+import { formatBackendError } from "./formatBackendError";
 import {
   RunningTurnStore,
   type RunningTurnApplyResult,
@@ -19,6 +21,7 @@ import {
 import { StreamRenderScheduler } from "./StreamRenderScheduler";
 
 const logger = createLogger("sidebar.turns");
+const STREAM_PERSIST_INTERVAL_MS = 500;
 
 type TurnCoordinatorOptions = {
   turnStore: RunningTurnStore;
@@ -42,61 +45,114 @@ type TurnCoordinatorOptions = {
 };
 
 type ActiveTurnExecution = {
-  conversation: Conversation;
   conversationId: string;
+  threadTurnId: string;
   runningTurn: RunningTurnHandle;
   finalization?: Promise<void>;
 };
 
 class TurnCoordinator {
   private noteContextResolver?: ZoteroNoteContextResolver;
+  private sourceUniverse?: ZoteroSourceUniverse;
   private readonly activeExecutions = new Map<string, ActiveTurnExecution>();
+  private readonly snapshotTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
   private shutdownPromise?: Promise<void>;
   private shuttingDown = false;
 
   constructor(private readonly options: TurnCoordinatorOptions) {}
 
-  async submitPrompt(submission: SidebarPromptSubmission): Promise<void> {
-    if (this.shuttingDown) return;
+  async submitPrompt(submission: SidebarPromptSubmission): Promise<boolean> {
+    if (this.shuttingDown) return false;
     const promptText = submission.text.trim();
-    if (!promptText) return;
-    const noteContexts = submission.noteContexts || [];
+    if (!promptText) return false;
 
-    let conversation = await this.options.getReadyConversation();
-    if (!conversation) return;
-    if (this.options.turnStore.has(conversation.metadata.id)) return;
-    if (!(await this.options.ensurePromptReady(conversation))) return;
-    this.options.clearPromptNotice(conversation.metadata.id);
-
-    conversation = await getConversationStore().addMessage(
-      conversation.metadata,
-      {
-        role: "user",
-        text: promptText,
-        mentions: submission.mentions,
-        noteContexts,
-        localAttachments: submission.localAttachments,
-      },
-    );
-    this.options.setReadyConversation(conversation);
-    if (this.options.areSessionsOpen()) this.options.refreshSessions();
+    const currentConversation = await this.options.getReadyConversation();
+    if (!currentConversation) return false;
+    const conversationId = currentConversation.metadata.id;
+    if (this.options.turnStore.has(conversationId)) return false;
+    if (!(await this.options.ensurePromptReady(currentConversation))) {
+      return false;
+    }
+    this.options.clearPromptNotice(conversationId);
 
     const viewState = this.options.getViewState();
     const selectedProfile =
       getProviderProfileStore().getProfile(viewState.selectedProviderId) ||
       getAgentBackendManager().getActiveProfile();
-    const conversationId = conversation.metadata.id;
+    const assistantMessageId = createTimestampId("msg");
+    const model =
+      viewState.selectedModel || selectedProfile.defaultModel || undefined;
+    const contextLength = selectedProfile.models.find(
+      (item) => item.id === model,
+    )?.contextLength;
+
+    const sourceIds = [
+      ...currentConversation.metadata.activeSources.map(
+        (source) => source.sourceId,
+      ),
+      ...(submission.mentions || []).map((source) => source.sourceId),
+    ].filter((sourceId, index, all) => all.indexOf(sourceId) === index);
+    let availableSourceIds: string[] = [];
+    try {
+      availableSourceIds = sourceIds.length
+        ? (
+            await this.getSourceUniverse().resolveSelectedPdfSources(
+              currentConversation.metadata,
+              sourceIds,
+            )
+          ).map((source) => source.sourceId)
+        : [];
+    } catch (error) {
+      logger.warn("failed to validate persistent thread sources", {
+        conversationId,
+        error: String(error),
+      });
+    }
+
+    let begun;
+    try {
+      begun = await getThreadStore().beginTurn(currentConversation.metadata, {
+        assistantMessageId,
+        prompt: promptText,
+        mentions: submission.mentions,
+        noteContexts: submission.noteContexts,
+        localAttachments: submission.localAttachments,
+        execution: {
+          backendId: selectedProfile.id,
+          backendKind: selectedProfile.kind,
+          providerProfileId: selectedProfile.id,
+          providerBrand: resolveProviderBrand(selectedProfile),
+          model,
+          reasoningEffort: viewState.selectedReasoningEffort,
+          capabilitySnapshot: selectedProfile.capabilities,
+        },
+        contextLength,
+        availableSourceIds,
+      });
+    } catch (error) {
+      logger.error("failed to create canonical thread turn", error, {
+        conversationId,
+      });
+      return false;
+    }
+
+    this.options.setReadyConversation(begun.conversation);
+    if (this.options.areSessionsOpen()) this.options.refreshSessions();
+
     const runningTurn = this.options.turnStore.create({
       conversationId,
-      messageId: createTimestampId("msg"),
-      model: viewState.selectedModel,
+      messageId: assistantMessageId,
+      model,
       reasoningEffort: viewState.selectedReasoningEffort,
-      providerProfileId: viewState.selectedProviderId,
+      providerProfileId: selectedProfile.id,
       providerBrand: resolveProviderBrand(selectedProfile),
     });
     const execution: ActiveTurnExecution = {
-      conversation,
       conversationId,
+      threadTurnId: begun.turn.id,
       runningTurn,
     };
     this.activeExecutions.set(conversationId, execution);
@@ -104,63 +160,69 @@ class TurnCoordinator {
     if (this.options.areSessionsOpen()) this.options.refreshSessions();
     this.options.streamScheduler.publishActive();
 
-    try {
-      const resolvedNoteContexts = noteContexts.length
-        ? await this.getNoteContextResolver().resolveAll(
-            conversation.metadata,
-            noteContexts,
-            submission.mentions,
-          )
-        : [];
-      const result = await getAgentBackendManager().sendPrompt(
-        {
-          providerProfileId: runningTurn.providerProfileId,
-          conversation,
-          prompt: promptText,
-          model: runningTurn.model,
-          reasoningEffort: runningTurn.reasoningEffort,
-          mentions: submission.mentions,
-          resolvedNoteContexts,
-          localAttachments: submission.localAttachments,
-        },
-        {
-          onEvent: (event) => this.handleEvent(conversationId, event),
-        },
-      );
-      if (execution.finalization) {
-        await execution.finalization;
-        return;
+    const runProviderTurn = async () => {
+      try {
+        const noteContexts = submission.noteContexts || [];
+        const effectiveMentions = begun.runInput.context.sources.map((source) =>
+          sourceToMention(source, begun.turn.id),
+        );
+        const resolvedNoteContexts = noteContexts.length
+          ? await this.getNoteContextResolver().resolveAll(
+              begun.runInput.workspace,
+              noteContexts,
+              effectiveMentions,
+            )
+          : [];
+        const result = await getAgentBackendManager().sendPrompt(
+          {
+            ...begun.runInput,
+            resolvedNoteContexts,
+          },
+          {
+            onEvent: (event) => this.handleEvent(conversationId, event),
+            onCheckpoint: (checkpoint) =>
+              getThreadStore().saveCheckpoint(conversationId, checkpoint),
+          },
+        );
+        if (execution.finalization) {
+          await execution.finalization;
+          return;
+        }
+        this.reconcileResult(conversationId, result);
+        this.options.markBackendHealthy(result.providerProfileId, model);
+        await this.finalizeExecution(execution, () =>
+          this.persistCompletedTurn(execution, result),
+        );
+      } catch (error) {
+        if (execution.finalization) {
+          await execution.finalization;
+          return;
+        }
+        logger.error("agent backend sendPrompt failed", error, {
+          conversationId,
+          workspaceKey: begun.conversation.metadata.workspaceKey,
+          ...this.options.turnStore.getRunIdentity(conversationId),
+        });
+        await this.options.refreshBackendDiagnostic(
+          error,
+          runningTurn.providerProfileId,
+          runningTurn.model,
+        );
+        this.reconcileFailure(conversationId, error);
+        await this.finalizeExecution(execution, () =>
+          this.persistFailedTurn(execution, error),
+        );
+      } finally {
+        if (!this.shuttingDown) this.updateRunningState();
       }
-      this.reconcileResult(conversationId, result);
-      this.options.markBackendHealthy(
-        result.providerProfileId,
-        runningTurn.model,
-      );
-      await this.finalizeExecution(execution, () =>
-        this.persistCompletedTurn(conversation, runningTurn, result),
-      );
-    } catch (error) {
-      if (execution.finalization) {
-        await execution.finalization;
-        return;
-      }
-      logger.error("agent backend sendPrompt failed", error, {
+    };
+    void runProviderTurn().catch((error) => {
+      logger.error("turn execution finalization failed", error, {
         conversationId,
-        workspaceKey: conversation.metadata.workspaceKey,
-        ...this.options.turnStore.getRunIdentity(conversationId),
+        threadTurnId: execution.threadTurnId,
       });
-      await this.options.refreshBackendDiagnostic(
-        error,
-        runningTurn.providerProfileId,
-        runningTurn.model,
-      );
-      this.reconcileFailure(conversationId, error);
-      await this.finalizeExecution(execution, () =>
-        this.persistFailedTurn(conversation, runningTurn, error),
-      );
-    } finally {
-      if (!this.shuttingDown) this.updateRunningState();
-    }
+    });
+    return true;
   }
 
   prepareForShutdown(): Promise<void> {
@@ -192,14 +254,13 @@ class TurnCoordinator {
 
   private requestBackendCancel(conversationId: string): void {
     const identity = this.options.turnStore.getRunIdentity(conversationId);
-    if (!identity.runId && !identity.legacy?.codexThreadId) return;
+    if (!identity.runId) return;
     void getAgentBackendManager()
       .cancelTurn({
         conversationId,
         providerProfileId: identity.providerProfileId,
         runId: identity.runId,
         turnId: identity.turnId,
-        legacy: identity.legacy,
       })
       .catch((error) => {
         logger.error("agent backend cancel failed", error, {
@@ -223,11 +284,7 @@ class TurnCoordinator {
           this.reconcileFailure(execution.conversationId, error);
         }
         return this.finalizeExecution(execution, () =>
-          this.persistFailedTurn(
-            execution.conversation,
-            execution.runningTurn,
-            error,
-          ),
+          this.persistFailedTurn(execution, error),
         );
       },
     );
@@ -263,6 +320,23 @@ class TurnCoordinator {
   private handleEvent(conversationId: string, event: AgentStreamEvent): void {
     const result = this.options.turnStore.apply(conversationId, event);
     this.scheduleAppliedChange(conversationId, result);
+    const execution = this.activeExecutions.get(conversationId);
+    if (event.type === "turn.started" && execution) {
+      void getThreadStore()
+        .markTurnRunning(
+          conversationId,
+          execution.threadTurnId,
+          event.runId,
+          event.turnId,
+        )
+        .catch((error) => {
+          logger.error("failed to persist provider run reference", error, {
+            conversationId,
+            threadTurnId: execution.threadTurnId,
+          });
+        });
+    }
+    if (result.changed) this.scheduleSnapshotPersistence(conversationId);
     if (
       event.type === "turn.started" &&
       this.options.turnStore.getLifecycle(conversationId) === "interrupting"
@@ -281,6 +355,34 @@ class TurnCoordinator {
     });
   }
 
+  private scheduleSnapshotPersistence(conversationId: string): void {
+    if (this.snapshotTimers.has(conversationId)) return;
+    const timer = setTimeout(() => {
+      this.snapshotTimers.delete(conversationId);
+      void this.persistSnapshot(conversationId);
+    }, STREAM_PERSIST_INTERVAL_MS);
+    this.snapshotTimers.set(conversationId, timer);
+  }
+
+  private async persistSnapshot(conversationId: string): Promise<void> {
+    const execution = this.activeExecutions.get(conversationId);
+    if (!execution) return;
+    const projection = this.options.turnStore.getProjection(conversationId);
+    try {
+      await getThreadStore().persistTurnSnapshot(
+        conversationId,
+        execution.threadTurnId,
+        projection.finalText,
+        projection.trace.length ? projection.trace : undefined,
+      );
+    } catch (error) {
+      logger.error("failed to persist streaming turn snapshot", error, {
+        conversationId,
+        threadTurnId: execution.threadTurnId,
+      });
+    }
+  }
+
   private reconcileResult(
     conversationId: string,
     result: AgentRunResult,
@@ -294,7 +396,6 @@ class TurnCoordinator {
         providerProfileId: result.providerProfileId,
         runId: result.runId,
         turnId: result.turnId,
-        legacy: result.legacy,
       });
     }
     const lifecycle = this.options.turnStore.getLifecycle(conversationId);
@@ -334,90 +435,68 @@ class TurnCoordinator {
   }
 
   private async persistCompletedTurn(
-    conversation: Conversation,
-    runningTurn: RunningTurnHandle,
+    execution: ActiveTurnExecution,
     result: AgentRunResult,
   ): Promise<Conversation> {
-    const conversationId = conversation.metadata.id;
-    const projection = this.options.turnStore.getProjection(conversationId);
-    const finalText = projection.finalText;
-    const identity = this.options.turnStore.getRunIdentity(conversationId);
-    const metadata = await getConversationStore().updateBackendMetadata(
-      conversation.metadata,
+    const projection = this.options.turnStore.getProjection(
+      execution.conversationId,
+    );
+    const identity = this.options.turnStore.getRunIdentity(
+      execution.conversationId,
+    );
+    const lifecycle = this.options.turnStore.getLifecycle(
+      execution.conversationId,
+    );
+    return getThreadStore().completeTurn(
+      execution.conversationId,
+      execution.threadTurnId,
       {
-        backendId: result.backendId,
-        providerProfileId: result.providerProfileId,
-        codexThreadId: result.legacy?.codexThreadId,
+        status:
+          lifecycle === "interrupted" || result.status === "interrupted"
+            ? "interrupted"
+            : "completed",
+        text: projection.finalText || result.text,
+        trace: projection.trace.length ? projection.trace : undefined,
+        runId: result.runId || identity.runId,
+        providerTurnId: result.turnId || identity.turnId,
+        checkpoint: result.checkpoint,
       },
     );
-    const profile =
-      getProviderProfileStore().getProfile(result.providerProfileId) ||
-      getAgentBackendManager().getActiveProfile();
-    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
-    return getConversationStore().addMessage(metadata, {
-      id: runningTurn.messageId,
-      role: "assistant",
-      text: finalText,
-      status:
-        lifecycle === "interrupted" || result.status === "interrupted"
-          ? "interrupted"
-          : "complete",
-      completedAt: new Date().toISOString(),
-      codexThreadId: result.legacy?.codexThreadId,
-      codexTurnId: result.legacy?.codexTurnId,
-      backendId: result.backendId,
-      backendKind: profile.kind,
-      providerProfileId: result.providerProfileId,
-      providerBrand: resolveProviderBrand(profile),
-      backendRunId: result.runId || identity.runId,
-      backendTurnId: result.turnId || identity.turnId,
-      capabilitySnapshot: profile.capabilities,
-      model: runningTurn.model,
-      reasoningEffort: runningTurn.reasoningEffort,
-      trace: projection.trace.length ? projection.trace : undefined,
-    });
   }
 
   private async persistFailedTurn(
-    conversation: Conversation,
-    runningTurn: RunningTurnHandle,
+    execution: ActiveTurnExecution,
     error: unknown,
   ): Promise<Conversation> {
-    const conversationId = conversation.metadata.id;
-    const projection = this.options.turnStore.getProjection(conversationId);
-    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
+    const projection = this.options.turnStore.getProjection(
+      execution.conversationId,
+    );
+    const lifecycle = this.options.turnStore.getLifecycle(
+      execution.conversationId,
+    );
     const interrupted = lifecycle === "interrupted";
-    const identity = this.options.turnStore.getRunIdentity(conversationId);
-    const profile = identity.providerProfileId
-      ? getProviderProfileStore().getProfile(identity.providerProfileId)
-      : undefined;
-    return getConversationStore().addMessage(conversation.metadata, {
-      id: runningTurn.messageId,
-      role: "assistant",
-      text: interrupted
-        ? projection.finalText || getString("sidebar-status-interrupted")
-        : combineFailedTurnText(
-            projection.finalText,
-            formatBackendError(error),
-          ),
-      status: interrupted ? "interrupted" : "error",
-      completedAt: new Date().toISOString(),
-      backendId: identity.backendId,
-      backendKind:
-        profile?.kind || getAgentBackendManager().getActiveProfile().kind,
-      providerProfileId: identity.providerProfileId,
-      providerBrand: resolveProviderBrand(
-        profile || getAgentBackendManager().getActiveProfile(),
-      ),
-      backendRunId: identity.runId,
-      backendTurnId: identity.turnId,
-      model: runningTurn.model,
-      reasoningEffort: runningTurn.reasoningEffort,
-      trace: projection.trace.length ? projection.trace : undefined,
-    });
+    return getThreadStore().failTurn(
+      execution.conversationId,
+      execution.threadTurnId,
+      {
+        text: interrupted
+          ? projection.finalText || getString("sidebar-status-interrupted")
+          : combineFailedTurnText(
+              projection.finalText,
+              formatBackendError(error),
+            ),
+        trace: projection.trace.length ? projection.trace : undefined,
+        interrupted,
+        errorCode: interrupted ? "interrupted" : "provider_error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
 
   private finish(conversationId: string, conversation: Conversation): void {
+    const timer = this.snapshotTimers.get(conversationId);
+    if (timer) clearTimeout(timer);
+    this.snapshotTimers.delete(conversationId);
     const active = this.options.getActiveConversationId() === conversationId;
     const lifecycle = this.options.turnStore.getLifecycle(conversationId);
     this.options.turnStore.remove(conversationId);
@@ -437,6 +516,11 @@ class TurnCoordinator {
   private getNoteContextResolver(): ZoteroNoteContextResolver {
     this.noteContextResolver ??= new ZoteroNoteContextResolver();
     return this.noteContextResolver;
+  }
+
+  private getSourceUniverse(): ZoteroSourceUniverse {
+    this.sourceUniverse ??= new ZoteroSourceUniverse();
+    return this.sourceUniverse;
   }
 }
 

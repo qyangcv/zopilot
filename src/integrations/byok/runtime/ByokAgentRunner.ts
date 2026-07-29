@@ -1,15 +1,18 @@
 import {
   Agent,
   MCPServerStreamableHttp,
+  assistant,
   connectMcpServers,
   run,
+  user,
+  type AgentInputItem,
 } from "@openai/agents";
 import { readFile, stat } from "node:fs/promises";
 import { aisdk } from "@openai/agents-extensions/ai-sdk";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { isModelVisible } from "../../../domain/agent/modelCatalog";
 import { buildCodexDeveloperInstructions } from "../../../application/agent/prompt/developerInstructions";
-import { buildStatelessAgentPrompt } from "../../../application/agent/prompt/contextAssembler";
+import { buildCurrentTurnPrompt } from "../../../application/agent/prompt/contextAssembler";
 import { parseRetrievalQuery } from "../../../document/retrieval/queryParser";
 import {
   formatToolTraceValue,
@@ -31,6 +34,7 @@ import {
   type ModelListParams,
   type TurnStartParams,
 } from "./requestValidation";
+import { SnapshotSession } from "./SnapshotSession";
 
 type UnknownRecord = Record<string, unknown>;
 type ByokAgentRunnerOptions = {
@@ -96,6 +100,11 @@ class ByokAgentRunner {
 
   async startTurn(params: TurnStartParams): Promise<AgentRunResult> {
     validateProfile(params.profile);
+    this.notify("turn/started", {
+      runId: params.runId,
+      backendId: params.profile.id,
+      providerProfileId: params.profile.id,
+    });
     return this.runAttempt(params, params.profile.capabilities.images);
   }
 
@@ -219,10 +228,15 @@ class ByokAgentRunner {
           }),
         allowImages,
       );
+      const session = new SnapshotSession(
+        params.input.threadId,
+        buildSessionHistory(params.input.history),
+      );
       const stream = await (this.options.runAgent || run)(agent, agentInput, {
         stream: true,
         signal: controller.signal,
         maxTurns: null,
+        session,
       });
       for await (const event of stream) {
         markResponseStarted();
@@ -623,13 +637,11 @@ async function buildAgentInput(
 ) {
   const prepared = params.input.preparedLocalAttachments;
   const text = [
-    buildStatelessAgentPrompt({
-      conversation: params.input.conversation,
-      prompt: params.input.prompt,
-      mentions: params.input.mentions,
+    buildCurrentTurnPrompt({
+      run: params.input,
       resolvedNoteContexts: params.input.resolvedNoteContexts,
+      attachmentText: prepared?.text,
     }),
-    prepared?.text,
     buildImageOmissionContext(params, allowImages),
   ]
     .filter(Boolean)
@@ -687,6 +699,15 @@ async function buildAgentInput(
       ],
     },
   ];
+}
+
+function buildSessionHistory(
+  history: TurnStartParams["input"]["history"],
+): AgentInputItem[] {
+  return history.flatMap((item) => [
+    user(item.userText),
+    assistant(item.assistantText),
+  ]);
 }
 
 function buildImageOmissionContext(

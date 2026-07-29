@@ -6,7 +6,10 @@ import {
   unregisterAllSidebars,
   unregisterSidebar,
 } from "../features/sidebar/host/SidebarHostController";
-import { shutdownCodexBridge } from "../integrations/codex/CodexBridge";
+import {
+  getCodexBridge,
+  shutdownCodexBridge,
+} from "../integrations/codex/CodexBridge";
 import {
   migrateLegacyProviderPrefs,
   shutdownProviderProfileStore,
@@ -18,6 +21,10 @@ import {
   startMcpHttpServer,
 } from "../integrations/mcp/httpServer";
 import { createLogger } from "../runtime/logging/logger";
+import {
+  getThreadStore,
+  shutdownThreadStore,
+} from "../runtime/persistence/threads/ThreadService";
 
 type ZoteroPluginRegistry = typeof Zotero & Record<string, unknown>;
 
@@ -33,6 +40,10 @@ async function onStartup(): Promise<void> {
 
   initLocale();
   migrateLegacyProviderPrefs();
+  await getThreadStore().initialize();
+  await getThreadStore().recoverInFlightTurns({
+    readCodexTurn: (binding, turn) => getCodexBridge().readTurn(binding, turn),
+  });
 
   registerPreferencePane();
 
@@ -76,6 +87,7 @@ async function performShutdown(): Promise<void> {
     Promise.resolve().then(() => unregisterAllSidebars()),
     Promise.resolve().then(() => shutdownMcpHttpServer()),
     Promise.resolve().then(() => shutdownProviderProfileStore()),
+    shutdownThreadStore(),
   ]);
   logCleanupFailures(singletonResults);
   delete (Zotero as ZoteroPluginRegistry)[addon.data.config.addonInstance];

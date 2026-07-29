@@ -305,7 +305,14 @@
   background: transparent;
   color: CanvasText;
   padding: 12px 12px 9px;
-  font: menu;
+  /*
+   * Cocoa IME asks Gecko for attributed text while handling native edit
+   * commands. CSS system fonts can resolve to hidden .SF* PostScript names,
+   * which must not be passed back through NSFont fontWithName:. Keep the text
+   * control on public font families so that path is safe in every host window.
+   */
+  font-family:
+    "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 13px;
   line-height: 1.45;
 }

@@ -209,6 +209,12 @@ function normalizeAgentModelEntry(
     id: fallback.id,
     displayName:
       typeof model.displayName === "string" ? model.displayName : fallback.id,
+    contextLength:
+      typeof model.contextLength === "number" &&
+      Number.isFinite(model.contextLength) &&
+      model.contextLength > 0
+        ? model.contextLength
+        : undefined,
     supportedReasoningEfforts,
     defaultReasoningEffort: supportedReasoningEfforts.includes(
       requestedReasoningEffort || "",
@@ -221,6 +227,7 @@ function normalizeAgentModelEntry(
 
 function toAgentModelEntry(model: AgentModelEntry): AgentModelEntry {
   return {
+    contextLength: model.contextLength,
     defaultReasoningEffort: model.defaultReasoningEffort,
     displayName: model.displayName,
     id: model.id,

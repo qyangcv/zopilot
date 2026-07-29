@@ -32,7 +32,10 @@ type SourceMention = {
   attachmentItemID: number;
   attachmentKey: string;
   title: string;
+  availability?: "available" | "unavailable";
 };
+
+type ThreadSource = Omit<SourceMention, "id">;
 
 type NoteContextRef = {
   id: string;
@@ -117,9 +120,9 @@ type ConversationMetadata = WorkspaceIdentity & {
   label: string;
   createdAt: string;
   updatedAt: string;
-  codexThreadId?: string;
-  backendId?: string;
-  providerProfileId?: string;
+  revision: number;
+  activeSources: ThreadSource[];
+  primarySourceId?: string;
   latestPreview?: string;
   archived?: boolean;
   migration?:
@@ -144,14 +147,10 @@ type ConversationMessage = {
   text: string;
   createdAt: string;
   completedAt?: string;
-  codexThreadId?: string;
-  codexTurnId?: string;
   backendId?: string;
   backendKind?: "codex-cli" | "openai-compatible";
   providerProfileId?: string;
   providerBrand?: ProviderBrand;
-  backendRunId?: string;
-  backendTurnId?: string;
   capabilitySnapshot?: Record<string, boolean>;
   status: ConversationMessageStatus;
   model?: string;
@@ -246,6 +245,7 @@ export type {
   PaperSourceRef,
   ResolvedNoteContext,
   SourceMention,
+  ThreadSource,
   WorkspaceIdentity,
   WorkspaceType,
 };

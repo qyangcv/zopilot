@@ -7,7 +7,7 @@ import {
   RunContext,
 } from "@openai/agents";
 import { PaperToolsService } from "../../../src/application/document/PaperToolsService.ts";
-import type { ConversationMetadata } from "../../../src/domain/conversation.ts";
+import type { ThreadWorkspaceBinding } from "../../../src/integrations/mcp/workspaceBinding.ts";
 import type { Material, SourceIdentity } from "../../../src/document/types.ts";
 import { createMcpHttpHandler } from "../../../src/integrations/mcp/httpServer.ts";
 import { createPaperBindingHeaders } from "../../../src/integrations/mcp/workspaceBinding.ts";
@@ -281,15 +281,7 @@ function createHandler(
 function createPaperToolsService(): PaperToolsService {
   const source = createSource();
   return new PaperToolsService({
-    sourceUniverse: {
-      async resolveSelectedPdfSources(_workspace, sourceIds) {
-        return sourceIds.includes(source.sourceId) ? [createSourceRef()] : [];
-      },
-    },
     sourceResolver: {
-      async resolveDefaultSource() {
-        return source;
-      },
       async resolveSourceRef() {
         return source;
       },
@@ -353,26 +345,24 @@ function assertStandardToolError(response: { body?: string }): void {
   assert.isTrue(body.error?.code === -32602 || body.result?.isError === true);
 }
 
-function createConversation(): ConversationMetadata {
+function createConversation(): ThreadWorkspaceBinding {
   return {
-    id: "conv-a",
-    scope: "workspace",
-    workspaceKey: "item:1:PAPER-A",
-    workspaceType: "item",
-    workspaceLabel: "Paper A",
-    workspaceTitle: "Paper A",
-    libraryID: 1,
-    defaultSource: {
-      paperKey: "1:PAPER-A",
+    workspace: {
+      id: "conv-a",
+      workspaceKey: "item:1:PAPER-A",
+      workspaceType: "item",
+      workspaceLabel: "Paper A",
+      workspaceTitle: "Paper A",
       libraryID: 1,
-      parentItemKey: "PAPER-A",
-      attachmentItemID: 10,
-      attachmentKey: "PDF-A",
-      title: "Paper A",
+      itemKey: "PAPER-A",
     },
-    label: "Paper A",
-    createdAt: "2026-06-13T00:00:00.000Z",
-    updatedAt: "2026-06-13T00:00:00.000Z",
+    context: {
+      sources: [createSourceRef()],
+      selectedSources: [],
+      primarySourceId: "1-PDF-A",
+      noteContexts: [],
+      localAttachments: [],
+    },
   };
 }
 

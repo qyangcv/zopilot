@@ -1,18 +1,25 @@
+import type { PaperIdentity } from "../../../domain/conversation";
 import type {
-  ConversationMessage,
-  ConversationMetadata,
-  PaperIdentity,
-} from "../../../domain/conversation";
+  LegacyConversationMessage,
+  LegacyConversationMetadata,
+  LegacyPaperConversationMetadata,
+} from "./legacyTypes";
 import { createLogger } from "../../logging/logger";
 import { isAgentTraceItem } from "../../../domain/agent/trace";
 import { isProviderBrand } from "../../../domain/agent/providerBrand";
 
-export { isConversationMetadata, parseConversationMessage };
+export {
+  isConversationMetadata,
+  parseConversationMessage,
+  parseConversationMetadata,
+};
 
 const logger = createLogger("store.conversation");
 
-function isConversationMetadata(value: unknown): value is ConversationMetadata {
-  const item = value as Partial<ConversationMetadata>;
+function isConversationMetadata(
+  value: unknown,
+): value is LegacyConversationMetadata {
+  const item = value as Partial<LegacyConversationMetadata>;
   return (
     Boolean(item) &&
     item.scope === "workspace" &&
@@ -34,6 +41,63 @@ function isConversationMetadata(value: unknown): value is ConversationMetadata {
     (item.migration === undefined || isConversationMigration(item.migration)) &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
+  );
+}
+
+function parseConversationMetadata(
+  value: unknown,
+): LegacyConversationMetadata | undefined {
+  if (isConversationMetadata(value)) return value;
+  if (!isPaperConversationMetadata(value)) return undefined;
+  return {
+    workspaceKey: `item:${value.paperKey}`,
+    workspaceType: "item",
+    libraryID: value.libraryID,
+    workspaceLabel: value.title,
+    workspaceTitle: value.title,
+    itemKey: value.parentItemKey || value.attachmentKey,
+    defaultSource: {
+      paperKey: value.paperKey,
+      libraryID: value.libraryID,
+      parentItemID: value.parentItemID,
+      parentItemKey: value.parentItemKey,
+      attachmentItemID: value.attachmentItemID,
+      attachmentKey: value.attachmentKey,
+      title: value.title,
+    },
+    id: value.id,
+    scope: "workspace",
+    label: value.label,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    latestPreview: value.latestPreview,
+    archived: value.archived,
+    codexThreadId: value.codexThreadId,
+    backendId: value.backendId,
+    providerProfileId: value.providerProfileId,
+  };
+}
+
+function isPaperConversationMetadata(
+  value: unknown,
+): value is LegacyPaperConversationMetadata {
+  const item = value as Partial<LegacyPaperConversationMetadata>;
+  return (
+    Boolean(item) &&
+    item.scope === "paper" &&
+    typeof item.id === "string" &&
+    typeof item.label === "string" &&
+    typeof item.createdAt === "string" &&
+    typeof item.updatedAt === "string" &&
+    isPaperIdentity(value) &&
+    (item.latestPreview === undefined ||
+      typeof item.latestPreview === "string") &&
+    (item.archived === undefined || typeof item.archived === "boolean") &&
+    (item.codexThreadId === undefined ||
+      typeof item.codexThreadId === "string") &&
+    (item.backendId === undefined || typeof item.backendId === "string") &&
+    (item.providerProfileId === undefined ||
+      typeof item.providerProfileId === "string")
   );
 }
 
@@ -64,8 +128,10 @@ function isConversationMigration(value: unknown): boolean {
   );
 }
 
-function isConversationMessage(value: unknown): value is ConversationMessage {
-  const item = value as Partial<ConversationMessage>;
+function isConversationMessage(
+  value: unknown,
+): value is LegacyConversationMessage {
+  const item = value as Partial<LegacyConversationMessage>;
   return (
     Boolean(item) &&
     typeof item.id === "string" &&
@@ -118,6 +184,7 @@ function isSourceMention(value: unknown): boolean {
     attachmentItemID?: unknown;
     attachmentKey?: unknown;
     title?: unknown;
+    availability?: unknown;
   };
   return (
     Boolean(item) &&
@@ -128,7 +195,10 @@ function isSourceMention(value: unknown): boolean {
     isParentReference(item.parentItemID, item.parentItemKey) &&
     typeof item.attachmentItemID === "number" &&
     typeof item.attachmentKey === "string" &&
-    typeof item.title === "string"
+    typeof item.title === "string" &&
+    (item.availability === undefined ||
+      item.availability === "available" ||
+      item.availability === "unavailable")
   );
 }
 
@@ -205,7 +275,7 @@ function isLocalAttachmentRef(value: unknown): boolean {
 function parseConversationMessage(
   line: string,
   path: string,
-): ConversationMessage {
+): LegacyConversationMessage {
   let raw: unknown;
   try {
     raw = JSON.parse(line) as unknown;

@@ -92,6 +92,49 @@ describe("BYOK image delivery", function () {
     );
   });
 
+  it("initializes one Agents SDK Session from canonical history", async function () {
+    const fixture = await createImageTurn();
+    fixture.params.input.history = [
+      {
+        sequence: 1,
+        userText: "Earlier question",
+        assistantText: "Earlier answer",
+        status: "completed",
+      },
+    ];
+    fixture.params.input.prompt = "Current question";
+    let modelInput: unknown;
+    let sessionItems: unknown[] = [];
+    const runner = new ByokAgentRunner({
+      connectMcp: (async () => ({
+        active: [],
+        errors: new Map(),
+        close: async () => undefined,
+      })) as any,
+      notify: () => undefined,
+      runAgent: (async (_agent, input, options) => {
+        modelInput = input;
+        assert.equal(options.session.constructor.name, "SnapshotSession");
+        sessionItems = await options.session.getItems();
+        return createStream("Answer", undefined, "Answer");
+      }) as any,
+    });
+
+    try {
+      await runner.startTurn(fixture.params);
+      assert.deepEqual(
+        sessionItems.map((item: any) => item.role),
+        ["user", "assistant"],
+      );
+      assert.include(JSON.stringify(sessionItems), "Earlier question");
+      assert.include(JSON.stringify(sessionItems), "Earlier answer");
+      assert.equal(count(JSON.stringify(modelInput), "Current question"), 1);
+      assert.notInclude(JSON.stringify(modelInput), "Earlier question");
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   it("streams locator turns before the provider attempt completes", async function () {
     const fixture = await createImageTurn();
     const notifications: Array<{ method: string; params?: any }> = [];
@@ -259,21 +302,25 @@ async function createImageTurn(): Promise<{
       status: "connected",
     },
     input: {
-      conversation: {
-        metadata: {
-          id: "conversation-a",
-          scope: "workspace",
-          workspaceKey: "library:1",
-          workspaceType: "library",
-          workspaceLabel: "Library",
-          workspaceTitle: "Library",
-          libraryID: 1,
-          label: "Conversation",
-          createdAt: "2026-07-26T00:00:00.000Z",
-          updatedAt: "2026-07-26T00:00:00.000Z",
-        },
-        messages: [],
+      threadId: "conversation-a",
+      turnId: "turn-a",
+      sequence: 1,
+      history: [],
+      context: {
+        sources: [],
+        selectedSources: [],
+        noteContexts: [],
+        localAttachments: [],
       },
+      workspace: {
+        id: "conversation-a",
+        workspaceKey: "library:1",
+        workspaceType: "library",
+        workspaceLabel: "Library",
+        workspaceTitle: "Library",
+        libraryID: 1,
+      },
+      providerProfileId: "provider-a",
       prompt: "Describe the image",
       preparedLocalAttachments: {
         images: [{ filename: "image.png", path, mimeType: "image/png" }],
@@ -294,4 +341,8 @@ async function createImageTurn(): Promise<{
     params,
     cleanup: () => rm(dir, { force: true, recursive: true }),
   };
+}
+
+function count(value: string, needle: string): number {
+  return value.split(needle).length - 1;
 }

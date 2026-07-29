@@ -112,6 +112,7 @@ describe("preference model selection", function () {
     assert.equal(formatModelContext(128_000), "128K");
     assert.equal(formatModelPrice(models[0]), "$2 / $10");
     assert.deepEqual(toAgentModelEntry(models[0]), {
+      contextLength: 1_000_000,
       defaultReasoningEffort: undefined,
       displayName: "Google: Gemini Pro",
       id: "google/gemini-pro",

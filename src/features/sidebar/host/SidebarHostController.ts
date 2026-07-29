@@ -386,7 +386,19 @@ class SidebarHostController {
   private async submitPromptAsync(
     submission: SidebarPromptSubmission,
   ): Promise<void> {
-    await this.turnCoordinator.submitPrompt(submission);
+    let accepted = false;
+    try {
+      accepted = await this.turnCoordinator.submitPrompt(submission);
+    } catch (error) {
+      logger.error("failed to submit sidebar prompt", error);
+    }
+    if (this.destroyed) return;
+    this.updateViewState({
+      submissionResult: {
+        id: submission.id,
+        status: accepted ? "accepted" : "rejected",
+      },
+    });
   }
 
   private interruptActiveTurn(): void {

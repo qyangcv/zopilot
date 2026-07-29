@@ -50,6 +50,8 @@ import {
 import { getNestedValue } from "../../runtime/json/accessors";
 import { loadSubprocessModule } from "../../platform/gecko";
 import { parseRetrievalQuery } from "../../document/retrieval/queryParser";
+import { buildCurrentTurnPrompt } from "../../application/agent/prompt/contextAssembler";
+import { projectThreadHistory } from "../../application/agent/prompt/historyProjector";
 
 export { ByokRuntimeBridge, getByokRuntimeBridge, shutdownByokRuntimeBridge };
 
@@ -63,8 +65,10 @@ type ByokSubprocessModule = StdioSubprocessModule<ByokSubprocessProcess>;
 
 type ActiveTurn = {
   anonymousBlockIds: Map<string, string>;
+  backendId: string;
   callbacks: AgentPromptCallbacks;
   eventSequence: number;
+  providerProfileId: string;
   runId: string;
   streamLengths: Map<string, number>;
   syntheticIdSequence: number;
@@ -135,22 +139,18 @@ class ByokRuntimeBridge {
     const runId = createRunId();
     const activeTurn: ActiveTurn = {
       anonymousBlockIds: new Map(),
+      backendId: profile.id,
       callbacks,
       eventSequence: 0,
+      providerProfileId: profile.id,
       runId,
       streamLengths: new Map(),
       syntheticIdSequence: 0,
     };
     this.activeTurns.set(runId, activeTurn);
-    this.emit(activeTurn, {
-      type: "turn.started",
-      backendId: profile.id,
-      providerProfileId: profile.id,
-      runId,
-    });
     try {
       const allowImages = profile.capabilities.images;
-      const preparedLocalAttachments = input.localAttachments?.length
+      const preparedLocalAttachments = input.context.localAttachments.length
         ? await (
             this.options.prepareAttachments ||
             ((prepareInput) => {
@@ -158,7 +158,7 @@ class ByokRuntimeBridge {
               return this.attachmentPreparer.prepare(prepareInput);
             })
           )({
-            attachments: input.localAttachments,
+            attachments: input.context.localAttachments,
             prompt: input.prompt,
             imagePolicy: allowImages ? "include" : "omit",
           })
@@ -178,20 +178,33 @@ class ByokRuntimeBridge {
       }
       const mcpResult = await (
         this.options.buildMcpConnection || buildZopilotMcpConnection
-      )(input.conversation.metadata, {
+      )(input, {
         acceptsImages: allowImages,
         timeoutMs: profile.timeoutMs,
       });
-      const { localAttachments: _localAttachments, ...runtimeInput } = input;
+      const modelId = input.model || profile.defaultModel;
+      const contextLength = profile.models.find(
+        (model) => model.id === modelId,
+      )?.contextLength;
+      const runtimeInput: AgentPromptInput = {
+        ...input,
+        history: projectThreadHistory({
+          history: input.history,
+          contextLength,
+          currentInput: buildCurrentTurnPrompt({
+            run: input,
+            resolvedNoteContexts: input.resolvedNoteContexts,
+            attachmentText: preparedLocalAttachments?.text,
+          }),
+        }),
+        ...(preparedLocalAttachments ? { preparedLocalAttachments } : {}),
+      };
       const result = await this.request(
         "turn/start",
         {
           runId,
           profile: sanitizeProfileForRuntime(profile),
-          input: {
-            ...runtimeInput,
-            ...(preparedLocalAttachments ? { preparedLocalAttachments } : {}),
-          },
+          input: runtimeInput,
           ...(mcpResult.status === "ready"
             ? { mcp: mcpResult.connection }
             : { mcpDiagnostic: mcpResult.diagnostic.message }),
@@ -315,6 +328,21 @@ class ByokRuntimeBridge {
     const runId = getRunId(message.params);
     const activeTurn = runId ? this.activeTurns.get(runId) : undefined;
     switch (message.method) {
+      case "turn/started": {
+        if (activeTurn) {
+          this.emit(activeTurn, {
+            type: "turn.started",
+            backendId:
+              getNestedString(message.params, ["backendId"]) ||
+              activeTurn.backendId,
+            providerProfileId:
+              getNestedString(message.params, ["providerProfileId"]) ||
+              activeTurn.providerProfileId,
+            runId: activeTurn.runId,
+          });
+        }
+        break;
+      }
       case "item/agentMessage/delta": {
         const delta = getNestedString(message.params, ["delta"]);
         if (activeTurn && delta) {

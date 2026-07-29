@@ -1,9 +1,5 @@
-import type {
-  Conversation,
-  LocalAttachmentRef,
-  ResolvedNoteContext,
-  SourceMention,
-} from "../conversation";
+import type { ResolvedNoteContext } from "../conversation";
+import type { ProviderCheckpoint, ThreadRunInput } from "../thread";
 import type { AgentStreamEvent } from "./streaming";
 
 export type AgentBackendKind = "codex-cli" | "openai-compatible";
@@ -36,6 +32,7 @@ export type AgentModelEntry = {
   displayName: string;
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  contextLength?: number;
   visible?: boolean;
 };
 
@@ -140,21 +137,11 @@ export type AgentRunResult = {
   turnId?: string;
   text: string;
   status: "completed" | "interrupted";
-  legacy?: {
-    codexThreadId?: string;
-    codexTurnId?: string;
-  };
+  checkpoint?: ProviderCheckpoint;
 };
 
-export type AgentPromptInput = {
-  providerProfileId?: string;
-  conversation: Conversation;
-  prompt: string;
-  model?: string;
-  reasoningEffort?: string | null;
-  mentions?: SourceMention[];
+export type AgentPromptInput = ThreadRunInput & {
   resolvedNoteContexts?: ResolvedNoteContext[];
-  localAttachments?: LocalAttachmentRef[];
   preparedLocalAttachments?: PreparedLocalAttachments;
 };
 
@@ -175,6 +162,7 @@ export type PreparedLocalAttachments = {
 
 export type AgentPromptCallbacks = {
   onEvent?: (event: AgentStreamEvent) => void;
+  onCheckpoint?: (checkpoint: ProviderCheckpoint) => Promise<void>;
 };
 
 export type AgentCancelInput = {
@@ -182,10 +170,6 @@ export type AgentCancelInput = {
   providerProfileId?: string;
   runId?: string;
   turnId?: string;
-  legacy?: {
-    codexThreadId?: string;
-    codexTurnId?: string;
-  };
 };
 
 export interface AgentBackend {

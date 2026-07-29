@@ -1,5 +1,9 @@
 import { buildCodexDeveloperInstructions } from "../../application/agent/prompt/developerInstructions";
-import type { ConversationMetadata } from "../../domain/conversation";
+import type {
+  ProviderCheckpoint,
+  ThreadHistoryItem,
+  ThreadRunInput,
+} from "../../domain/thread";
 import type { JsonValue } from "../../runtime/json/types";
 import { createLogger } from "../../runtime/logging/logger";
 import { buildCodexMcpServersConfig } from "./mcpConfig";
@@ -11,68 +15,108 @@ type CodexThreadManagerOptions = {
     params?: JsonValue,
   ) => Promise<JsonValue | undefined>;
   getCwd: () => string | undefined;
+  buildMcpServersConfig?: typeof buildCodexMcpServersConfig;
 };
 
+type OpenedCodexThread = {
+  threadId: string;
+  checkpoint: ProviderCheckpoint;
+};
+
+const CODEX_ADAPTER_KEY = "codex-cli";
 const logger = createLogger("codex.threads");
 
 class CodexThreadManager {
-  private readonly pending = new Map<string, Promise<string>>();
-  private readonly threads = new Map<string, string>();
+  private readonly pending = new Map<string, Promise<OpenedCodexThread>>();
 
   constructor(private readonly options: CodexThreadManagerOptions) {}
 
   clear(): void {
     this.pending.clear();
-    this.threads.clear();
   }
 
-  async ensure(conversation: ConversationMetadata): Promise<string> {
+  async ensure(
+    run: ThreadRunInput,
+    onCheckpoint?: (checkpoint: ProviderCheckpoint) => Promise<void>,
+  ): Promise<OpenedCodexThread> {
     await this.options.start();
-    const cached = this.threads.get(conversation.id);
-    if (cached) return cached;
-    const existing = this.pending.get(conversation.id);
+    const existing = this.pending.get(run.threadId);
     if (existing) return existing;
-    const promise = this.openConversation(conversation);
-    this.pending.set(conversation.id, promise);
+    const promise = this.openAndSynchronize(run, onCheckpoint);
+    this.pending.set(run.threadId, promise);
     try {
       return await promise;
     } finally {
-      this.pending.delete(conversation.id);
+      this.pending.delete(run.threadId);
     }
   }
 
-  private async openConversation(
-    conversation: ConversationMetadata,
-  ): Promise<string> {
-    if (conversation.codexThreadId) {
+  private async openAndSynchronize(
+    run: ThreadRunInput,
+    onCheckpoint?: (checkpoint: ProviderCheckpoint) => Promise<void>,
+  ): Promise<OpenedCodexThread> {
+    const binding =
+      run.binding?.adapterKey === CODEX_ADAPTER_KEY ? run.binding : undefined;
+    let threadId: string;
+    let syncedThroughSequence = 0;
+    let replacement = !binding || binding.state === "dirty";
+
+    if (binding && binding.state === "clean") {
       try {
-        return await this.open(
+        threadId = await this.open(
           "thread/resume",
-          { threadId: conversation.codexThreadId },
-          conversation,
-          conversation.codexThreadId,
+          { threadId: binding.externalThreadId },
+          run,
         );
+        if (threadId === binding.externalThreadId) {
+          syncedThroughSequence = binding.syncedThroughSequence;
+        } else {
+          replacement = true;
+        }
       } catch (error) {
+        replacement = true;
         logger.error(
-          "codex thread/resume failed; starting replacement thread",
+          "codex thread/resume failed; rebuilding a replacement thread",
           error,
           {
-            conversationId: conversation.id,
-            threadId: conversation.codexThreadId,
+            threadId: run.threadId,
+            externalThreadId: binding.externalThreadId,
           },
         );
+        threadId = await this.open("thread/start", { ephemeral: false }, run);
       }
+    } else {
+      threadId = await this.open("thread/start", { ephemeral: false }, run);
     }
-    return this.open("thread/start", { ephemeral: false }, conversation);
+
+    let checkpoint = createCheckpoint(threadId, syncedThroughSequence);
+    if (replacement) {
+      await onCheckpoint?.(checkpoint);
+    }
+
+    const missingHistory = run.history.filter(
+      (item) => item.sequence > syncedThroughSequence,
+    );
+    if (missingHistory.length) {
+      await this.options.request("thread/inject_items", {
+        threadId,
+        items: historyToCodexItems(missingHistory),
+      });
+      checkpoint = createCheckpoint(threadId, missingHistory.at(-1)!.sequence);
+      await onCheckpoint?.(checkpoint);
+    }
+
+    return { threadId, checkpoint };
   }
 
   private async open(
     method: "thread/start" | "thread/resume",
     extraParams: { [key: string]: JsonValue },
-    conversation: ConversationMetadata,
-    fallbackThreadId?: string,
+    run: ThreadRunInput,
   ): Promise<string> {
-    const mcpServers = await buildCodexMcpServersConfig(conversation);
+    const mcpServers = await (
+      this.options.buildMcpServersConfig || buildCodexMcpServersConfig
+    )(run);
     const params: { [key: string]: JsonValue } = {
       ...extraParams,
       approvalPolicy: "never",
@@ -84,18 +128,45 @@ class CodexThreadManager {
     if (cwd) params.cwd = cwd;
     logger.debug(`codex ${method} mcp config injected`, {
       servers: Object.keys(mcpServers),
+      threadId: run.threadId,
     });
     const result = (await this.options.request(method, params)) as {
       thread?: { id?: string };
     };
-    const threadId = result?.thread?.id || fallbackThreadId;
+    const threadId = result?.thread?.id;
     if (!threadId) {
       throw new Error(`Codex app-server did not return a ${method} thread id.`);
     }
-    this.threads.set(conversation.id, threadId);
     return threadId;
   }
 }
 
+function createCheckpoint(
+  externalThreadId: string,
+  syncedThroughSequence: number,
+): ProviderCheckpoint {
+  return {
+    adapterKey: CODEX_ADAPTER_KEY,
+    externalThreadId,
+    syncedThroughSequence,
+    state: "clean",
+  };
+}
+
+function historyToCodexItems(history: ThreadHistoryItem[]): JsonValue[] {
+  return history.flatMap((item) => [
+    {
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text: item.userText }],
+    },
+    {
+      type: "message",
+      role: "assistant",
+      content: [{ type: "output_text", text: item.assistantText }],
+    },
+  ]);
+}
+
 export { CodexThreadManager };
-export type { CodexThreadManagerOptions };
+export type { CodexThreadManagerOptions, OpenedCodexThread };

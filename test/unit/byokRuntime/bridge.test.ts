@@ -36,6 +36,11 @@ describe("ByokRuntimeBridge", function () {
 
     const request = harness.requests[0];
     const runId = String(request.params.runId);
+    harness.notify("turn/started", {
+      runId,
+      backendId: profile.id,
+      providerProfileId: profile.id,
+    });
     assert.deepInclude(events[0], {
       type: "turn.started",
       runId,
@@ -165,6 +170,41 @@ describe("ByokRuntimeBridge", function () {
     });
     await pending;
   });
+
+  it("reprojects history after resolved current-turn context is known", async function () {
+    const harness = createBridgeHarness();
+    const profile = createProfile();
+    profile.models[0]!.contextLength = 80;
+    const input = createPromptInput();
+    input.history = [
+      {
+        sequence: 1,
+        userText: "Earlier question ".repeat(20),
+        assistantText: "Earlier answer ".repeat(20),
+        status: "completed",
+      },
+    ];
+    input.resolvedNoteContexts = [
+      {
+        reference: {
+          id: "note-a",
+          libraryID: 1,
+          noteItemID: 10,
+          noteItemKey: "NOTE-A",
+          title: "Long note",
+          dateModified: "2026-07-29T00:00:00.000Z",
+        },
+        content: "note evidence ".repeat(30),
+      },
+    ];
+
+    const pending = harness.instance.sendPrompt(profile, input);
+    await flush();
+    const request = harness.requests[0];
+    assert.deepEqual((request.params.input as AgentPromptInput).history, []);
+    harness.respond(request.id, { text: "Answer", status: "completed" });
+    await pending;
+  });
 });
 
 type RpcRequest = {
@@ -272,21 +312,24 @@ function createProfile(): ProviderProfileWithSecret {
 
 function createPromptInput(): AgentPromptInput {
   return {
+    threadId: "conv-a",
+    turnId: "turn-a",
+    sequence: 1,
     providerProfileId: "provider-a",
-    conversation: {
-      metadata: {
-        id: "conv-a",
-        scope: "workspace",
-        workspaceKey: "item:1:paper-a",
-        workspaceType: "item",
-        workspaceLabel: "Paper A",
-        workspaceTitle: "Paper A",
-        libraryID: 1,
-        label: "Conversation A",
-        createdAt: "2026-07-10T00:00:00.000Z",
-        updatedAt: "2026-07-10T00:00:00.000Z",
-      },
-      messages: [],
+    history: [],
+    context: {
+      sources: [],
+      selectedSources: [],
+      noteContexts: [],
+      localAttachments: [],
+    },
+    workspace: {
+      id: "conv-a",
+      workspaceKey: "item:1:paper-a",
+      workspaceType: "item",
+      workspaceLabel: "Paper A",
+      workspaceTitle: "Paper A",
+      libraryID: 1,
     },
     prompt: "Question",
     model: "model-a",

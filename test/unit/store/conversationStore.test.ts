@@ -1,804 +1,655 @@
 import { assert } from "chai";
+import { createCapabilities } from "../../../src/domain/agent/capabilities.ts";
 import {
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-  mkdir,
-  rename,
-} from "fs/promises";
-import { existsSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
-import { ConversationStore } from "../../../src/runtime/persistence/conversations/ConversationService.ts";
-import {
-  createCollectionWorkspaceIdentity,
   createItemWorkspaceIdentity,
+  createLibraryWorkspaceIdentity,
   type PaperIdentity,
+  type SourceMention,
 } from "../../../src/domain/conversation.ts";
+import {
+  CODEX_ADAPTER_KEY,
+  ThreadStore,
+} from "../../../src/runtime/persistence/threads/ThreadService.ts";
+import { MemoryThreadRepository } from "../../../src/runtime/persistence/threads/ThreadRepository.ts";
+import { createSourceId } from "../../../src/domain/sourceIdentity.ts";
+import { cloneThread } from "../../../src/domain/thread.ts";
 
-let rootDir: string;
-const originalConsole = globalThis.console;
-const originalZotero = globalThis.Zotero;
+describe("ThreadStore", function () {
+  it("creates one latest thread when two windows open a workspace together", async function () {
+    const repository = new MemoryThreadRepository();
+    const store = createStore(repository);
+    const workspace = createLibraryWorkspaceIdentity({ libraryID: 1 });
 
-describe("ConversationStore", function () {
-  beforeEach(async function () {
-    rootDir = await mkdtemp(join(tmpdir(), "zp-conversations-"));
-    installFileMocks();
-    globalThis.console = {
-      ...originalConsole,
-      error: () => undefined,
-      warn: () => undefined,
-    };
-  });
-
-  afterEach(async function () {
-    globalThis.console = originalConsole;
-    restoreZoteroMock();
-    await rm(rootDir, { recursive: true, force: true });
-  });
-
-  it("persists workspace messages and keeps workspace histories isolated", async function () {
-    const paperA = createPaper("1:AAA", "AAA", "Paper A");
-    const paperB = createPaper("1:BBB", "BBB", "Paper B");
-    const workspaceA = createItemWorkspaceIdentity(paperA);
-    const workspaceB = createItemWorkspaceIdentity(paperB);
-    const store = new ConversationStore(rootDir);
-
-    let conversationA =
-      await store.getOrCreateLatestWorkspaceConversation(workspaceA);
-    conversationA = await store.addMessage(conversationA.metadata, {
-      role: "user",
-      text: "What is the method?",
-    });
-    const metadataA = await store.updateCodexThreadId(
-      conversationA.metadata,
-      "thread-a",
-    );
-    conversationA = await store.addMessage(metadataA, {
-      role: "assistant",
-      text: "The method is retrieval augmented QA.",
-      codexThreadId: "thread-a",
-      codexTurnId: "turn-a",
-    });
-
-    const conversationB =
-      await store.getOrCreateLatestWorkspaceConversation(workspaceB);
-    const reloadedStore = new ConversationStore(rootDir);
-    const reloadedA = await reloadedStore.getLatestWorkspaceConversation(
-      workspaceA.workspaceKey,
-    );
-    const reloadedB = await reloadedStore.getLatestWorkspaceConversation(
-      workspaceB.workspaceKey,
-    );
-
-    assert.strictEqual(reloadedA?.metadata.id, conversationA.metadata.id);
-    assert.strictEqual(reloadedA?.metadata.codexThreadId, "thread-a");
-    assert.deepEqual(
-      reloadedA?.messages.map((message) => [message.role, message.text]),
-      [
-        ["user", "What is the method?"],
-        ["assistant", "The method is retrieval augmented QA."],
-      ],
-    );
-    assert.strictEqual(reloadedB?.metadata.id, conversationB.metadata.id);
-    assert.lengthOf(reloadedB?.messages || [], 0);
-    assert.notStrictEqual(reloadedA?.metadata.id, reloadedB?.metadata.id);
-  });
-
-  it("uses a preallocated message id when persisting a completed turn", async function () {
-    const workspace = createItemWorkspaceIdentity(
-      createPaper("1:AAA", "AAA", "Paper A"),
-    );
-    const store = new ConversationStore(rootDir);
-    const conversation =
-      await store.getOrCreateLatestWorkspaceConversation(workspace);
-    const updated = await store.addMessage(conversation.metadata, {
-      id: "assistant-preallocated",
-      role: "assistant",
-      text: "Answer",
-    });
-
-    assert.equal(updated.messages[0]?.id, "assistant-preallocated");
-  });
-
-  it("clears a transient reader source when reopening a collection workspace", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const store = new ConversationStore(rootDir);
-    const readerWorkspace = createCollectionWorkspaceIdentity({
-      libraryID: 1,
-      collectionKey: "COLL",
-      label: "Collection",
-      defaultSource: paper,
-    });
-    const libraryWorkspace = createCollectionWorkspaceIdentity({
-      libraryID: 1,
-      collectionKey: "COLL",
-      label: "Collection",
-    });
-
-    const created =
-      await store.getOrCreateLatestWorkspaceConversation(readerWorkspace);
-    assert.equal(created.metadata.defaultSource?.paperKey, paper.paperKey);
-
-    const reopened =
-      await store.getOrCreateLatestWorkspaceConversation(libraryWorkspace);
-    assert.equal(reopened.metadata.id, created.metadata.id);
-    assert.isUndefined(reopened.metadata.defaultSource);
-  });
-
-  it("lists, activates, and archives sessions within one workspace", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const otherPaper = createPaper("1:BBB", "BBB", "Paper B");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const otherWorkspace = createItemWorkspaceIdentity(otherPaper);
-    const store = new ConversationStore(rootDir);
-
-    let first = await store.createWorkspaceConversation(workspace);
-    first = await store.addMessage(first.metadata, {
-      role: "user",
-      text: "First session question",
-    });
-    await waitForTimestampTick();
-    const second = await store.createWorkspaceConversation(workspace);
-    await store.createWorkspaceConversation(otherWorkspace);
-
-    let paperSessions = await store.listWorkspaceConversations(
-      workspace.workspaceKey,
-    );
-    assert.deepEqual(
-      paperSessions.map((conversation) => conversation.metadata.id),
-      [first.metadata.id],
-    );
-    assert.strictEqual(first.metadata.label, "First session question");
-
-    await waitForTimestampTick();
-    const activated = await store.activateWorkspaceConversation(first.metadata);
-    const latest = await store.getLatestWorkspaceConversation(
-      workspace.workspaceKey,
-    );
-    assert.strictEqual(latest?.metadata.id, activated.metadata.id);
-
-    await store.archiveWorkspaceConversation(activated.metadata);
-    paperSessions = await store.listWorkspaceConversations(
-      workspace.workspaceKey,
-    );
-    assert.deepEqual(
-      paperSessions.map((conversation) => conversation.metadata.id),
-      [],
-    );
-    await store.archiveWorkspaceConversation(second.metadata);
-    const archivedSessions = await store.listArchivedWorkspaceConversations(
-      workspace.workspaceKey,
-    );
-    assert.deepEqual(
-      archivedSessions.map((conversation) => conversation.metadata.id),
-      [activated.metadata.id],
-    );
-    assert.isTrue(archivedSessions[0]?.metadata.archived);
-    const restoredMetadata = await store.restoreWorkspaceConversation(
-      archivedSessions[0]!.metadata,
-    );
-    assert.isUndefined(restoredMetadata.archived);
-    paperSessions = await store.listWorkspaceConversations(
-      workspace.workspaceKey,
-    );
-    assert.deepEqual(
-      paperSessions.map((conversation) => conversation.metadata.id),
-      [activated.metadata.id],
-    );
-    assert.isUndefined(paperSessions[0]?.metadata.archived);
-    assert.deepEqual(
-      await store.listArchivedWorkspaceConversations(workspace.workspaceKey),
-      [],
-    );
-    const otherSessions = await store.listWorkspaceConversations(
-      otherWorkspace.workspaceKey,
-    );
-    assert.deepEqual(
-      otherSessions.map((conversation) => conversation.metadata.id),
-      [],
-    );
-    const otherArchivedSessions =
-      await store.listArchivedWorkspaceConversations(
-        otherWorkspace.workspaceKey,
-      );
-    assert.deepEqual(otherArchivedSessions, []);
-  });
-
-  it("orders history by the latest user message instead of activation time", async function () {
-    const workspace = createItemWorkspaceIdentity(
-      createPaper("1:AAA", "AAA", "Paper A"),
-    );
-    const store = new ConversationStore(rootDir);
-
-    let older = await store.createWorkspaceConversation(workspace);
-    older = await store.addMessage(older.metadata, {
-      role: "user",
-      text: "Older question",
-    });
-    await waitForTimestampTick();
-    let newer = await store.createWorkspaceConversation(workspace);
-    newer = await store.addMessage(newer.metadata, {
-      role: "user",
-      text: "Newer question",
-    });
-    await waitForTimestampTick();
-
-    await store.activateWorkspaceConversation(older.metadata);
-    const history = await store.listWorkspaceConversations(
-      workspace.workspaceKey,
-    );
-
-    assert.deepEqual(
-      history.map((conversation) => conversation.metadata.id),
-      [newer.metadata.id, older.metadata.id],
-    );
-  });
-
-  it("persists assistant completion metadata and interrupted status", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    const conversation = await store.createWorkspaceConversation(workspace);
-
-    await store.addMessage(conversation.metadata, {
-      role: "assistant",
-      text: "Partial answer",
-      status: "interrupted",
-      completedAt: "2026-06-13T07:30:00.000Z",
-      codexThreadId: "thread-a",
-      codexTurnId: "turn-a",
-      model: "gpt-5.5",
-      providerBrand: "codex",
-      reasoningEffort: "medium",
-      trace: [
-        {
-          id: "reasoning-a",
-          type: "reasoning",
-          kind: "summary",
-          text: "Checked the evidence",
-        },
-        {
-          id: "call-a",
-          type: "tool",
-          name: "paper_read",
-          status: "completed",
-          result: "Evidence",
-        },
-      ],
-    });
-
-    const reloaded = await new ConversationStore(
-      rootDir,
-    ).getLatestWorkspaceConversation(workspace.workspaceKey);
-    assert.strictEqual(reloaded?.messages[0]?.status, "interrupted");
-    assert.strictEqual(
-      reloaded?.messages[0]?.completedAt,
-      "2026-06-13T07:30:00.000Z",
-    );
-    assert.strictEqual(reloaded?.messages[0]?.model, "gpt-5.5");
-    assert.strictEqual(reloaded?.messages[0]?.providerBrand, "codex");
-    assert.strictEqual(reloaded?.messages[0]?.reasoningEffort, "medium");
-    assert.deepEqual(
-      reloaded?.messages[0]?.trace?.map((item) => item.type),
-      ["reasoning", "tool"],
-    );
-  });
-
-  it("persists structured source mentions on user messages", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    const conversation = await store.createWorkspaceConversation(workspace);
-
-    await store.addMessage(conversation.metadata, {
-      role: "user",
-      text: "Compare @Paper A",
-      mentions: [
-        {
-          id: "mention-a",
-          sourceId: "1-AAA-pdf",
-          paperKey: "1:AAA",
-          libraryID: 1,
-          parentItemID: 10,
-          parentItemKey: "AAA",
-          attachmentItemID: 11,
-          attachmentKey: "AAA-pdf",
-          title: "Paper A",
-        },
-      ],
-    });
-
-    const reloaded = await new ConversationStore(
-      rootDir,
-    ).getLatestWorkspaceConversation(workspace.workspaceKey);
-
-    assert.deepEqual(
-      reloaded?.messages[0]?.mentions?.map((item) => item.sourceId),
-      ["1-AAA-pdf"],
-    );
-  });
-
-  it("persists Zotero note references without storing note bodies", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    const conversation = await store.createWorkspaceConversation(workspace);
-
-    await store.addMessage(conversation.metadata, {
-      role: "user",
-      text: "Use my reading notes",
-      noteContexts: [
-        {
-          id: "note:1:NOTE-A",
-          libraryID: 1,
-          parentItemID: 10,
-          parentItemKey: "AAA",
-          noteItemID: 12,
-          noteItemKey: "NOTE-A",
-          title: "Reading notes",
-          dateModified: "2026-07-17 10:00:00",
-        },
-      ],
-    });
-
-    const reloaded = await new ConversationStore(
-      rootDir,
-    ).getLatestWorkspaceConversation(workspace.workspaceKey);
-
-    assert.deepEqual(reloaded?.messages[0]?.noteContexts, [
-      {
-        id: "note:1:NOTE-A",
-        libraryID: 1,
-        parentItemID: 10,
-        parentItemKey: "AAA",
-        noteItemID: 12,
-        noteItemKey: "NOTE-A",
-        title: "Reading notes",
-        dateModified: "2026-07-17 10:00:00",
-      },
+    const [left, right] = await Promise.all([
+      store.getOrCreateLatestWorkspaceConversation(workspace),
+      store.getOrCreateLatestWorkspaceConversation(workspace),
     ]);
-    assert.notInclude(JSON.stringify(reloaded), "note body");
+
+    assert.equal(left.metadata.id, right.metadata.id);
+    assert.equal(repository.state.threads.size, 1);
   });
 
-  it("persists top-level Zotero note references without parent metadata", async function () {
-    const workspace = createCollectionWorkspaceIdentity({
-      libraryID: 1,
-      collectionKey: "READING",
-      label: "Reading",
-    });
-    const store = new ConversationStore(rootDir);
-    const conversation = await store.createWorkspaceConversation(workspace);
-
-    await store.addMessage(conversation.metadata, {
-      role: "user",
-      text: "Use this standalone note",
-      noteContexts: [
-        {
-          id: "note:1:TOP",
-          libraryID: 1,
-          noteItemID: 31,
-          noteItemKey: "TOP",
-          title: "Standalone note",
-          dateModified: "2026-07-18 10:00:00",
-        },
-      ],
-    });
-
-    const reloaded = await new ConversationStore(
-      rootDir,
-    ).getLatestWorkspaceConversation(workspace.workspaceKey);
-
-    assert.deepEqual(reloaded?.messages[0]?.noteContexts, [
-      {
-        id: "note:1:TOP",
-        libraryID: 1,
-        noteItemID: 31,
-        noteItemKey: "TOP",
-        title: "Standalone note",
-        dateModified: "2026-07-18 10:00:00",
-      },
-    ]);
-  });
-
-  it("persists local attachment paths on user messages", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    const conversation = await store.createWorkspaceConversation(workspace);
-
-    await store.addMessage(conversation.metadata, {
-      role: "user",
-      text: "Read this figure",
-      localAttachments: [
-        {
-          id: "local-figure",
-          path: "/tmp/figure.png",
-          filename: "figure.png",
-          kind: "image",
-          mimeType: "image/png",
-        },
-      ],
-    });
-
-    const reloaded = await new ConversationStore(
-      rootDir,
-    ).getLatestWorkspaceConversation(workspace.workspaceKey);
-
-    assert.deepEqual(reloaded?.messages[0]?.localAttachments, [
-      {
-        id: "local-figure",
-        path: "/tmp/figure.png",
-        filename: "figure.png",
-        kind: "image",
-        mimeType: "image/png",
-      },
-    ]);
-  });
-
-  it("keeps old messages without mentions valid", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    await store.createWorkspaceConversation(workspace);
-    const { messagesPath } = await getConversationFilePaths(
-      workspace.workspaceKey,
+  it("clones thread state without relying on structuredClone", function () {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "structuredClone",
     );
-
-    await writeFile(
-      messagesPath,
-      `${JSON.stringify({
-        id: "msg-old",
-        conversationId: "conv-old",
-        role: "user",
-        text: "Old question",
-        createdAt: "2026-07-01T00:00:00.000Z",
-        status: "complete",
-      })}\n`,
-      "utf8",
-    );
-
-    const reloaded = await store.getLatestWorkspaceConversation(
-      workspace.workspaceKey,
-    );
-
-    assert.isUndefined(reloaded?.messages[0]?.mentions);
-  });
-
-  it("merges standalone PDF history into a new parent workspace conversation", async function () {
-    const standalone = createItemWorkspaceIdentity({
-      paperKey: "1:PDF",
-      libraryID: 1,
-      attachmentItemID: 11,
-      attachmentKey: "PDF",
-      title: "Standalone.pdf",
-    });
-    const parented = createItemWorkspaceIdentity({
-      paperKey: "1:PARENT",
-      libraryID: 1,
-      parentItemID: 10,
-      parentItemKey: "PARENT",
-      attachmentItemID: 11,
-      attachmentKey: "PDF",
-      title: "Parent paper",
-    });
-    const store = new ConversationStore(rootDir);
-
-    let archivedSource = await store.createWorkspaceConversation(standalone);
-    archivedSource = await store.addMessage(archivedSource.metadata, {
-      role: "user",
-      text: "Archived standalone question",
-    });
-    await store.archiveWorkspaceConversation(archivedSource.metadata);
-    await waitForTimestampTick();
-    const activeSource = await store.createWorkspaceConversation(standalone);
-    await store.addMessage(activeSource.metadata, {
-      role: "user",
-      text: "Active standalone question",
-    });
-    await waitForTimestampTick();
-    let parent = await store.createWorkspaceConversation(parented);
-    parent = await store.addMessage(parent.metadata, {
-      role: "user",
-      text: "Parent question",
-    });
-    await store.updateCodexThreadId(parent.metadata, "old-parent-thread");
-
-    await store.migrateStandaloneWorkspace(parented);
-
-    const merged = await store.getLatestWorkspaceConversation(
-      parented.workspaceKey,
-    );
-    const backups = await store.listArchivedWorkspaceConversations(
-      parented.workspaceKey,
-    );
-    assert.deepEqual(
-      merged?.messages.map((message) => message.text),
-      [
-        "Archived standalone question",
-        "Active standalone question",
-        "Parent question",
-      ],
-    );
-    assert.equal(merged?.metadata.migration?.kind, "standalone-pdf-merge");
-    assert.isUndefined(merged?.metadata.codexThreadId);
-    assert.equal(merged?.metadata.defaultSource?.parentItemKey, "PARENT");
-    assert.lengthOf(backups, 3);
-    assert.isNull(
-      await store.getLatestWorkspaceConversation(standalone.workspaceKey),
-    );
-
-    const mergedID = merged?.metadata.id;
-    await store.migrateStandaloneWorkspace(parented);
-    assert.equal(
-      (await store.getLatestWorkspaceConversation(parented.workspaceKey))
-        ?.metadata.id,
-      mergedID,
-    );
-  });
-
-  it("keeps the standalone workspace retryable when migration cleanup fails", async function () {
-    const standalone = createItemWorkspaceIdentity({
-      paperKey: "1:PDF-RETRY",
-      libraryID: 1,
-      attachmentItemID: 31,
-      attachmentKey: "PDF-RETRY",
-      title: "Retry.pdf",
-    });
-    const parented = createItemWorkspaceIdentity({
-      paperKey: "1:PARENT-RETRY",
-      libraryID: 1,
-      parentItemID: 30,
-      parentItemKey: "PARENT-RETRY",
-      attachmentItemID: 31,
-      attachmentKey: "PDF-RETRY",
-      title: "Retry parent",
-    });
-    const store = new ConversationStore(rootDir);
-    const source = await store.createWorkspaceConversation(standalone);
-    await store.addMessage(source.metadata, {
-      role: "user",
-      text: "Retry migration",
-    });
-    const originalRemove = IOUtils.remove.bind(IOUtils);
-    let failCleanup = true;
-    IOUtils.remove = async (path, options) => {
-      if (
-        failCleanup &&
-        path.includes(encodePathSegment(standalone.workspaceKey))
-      ) {
-        failCleanup = false;
-        throw new Error("cleanup failed");
+    try {
+      Object.defineProperty(globalThis, "structuredClone", {
+        configurable: true,
+        value: undefined,
+      });
+      const source = { nested: { values: ["a", "b"] } };
+      const cloned = cloneThread(source);
+      cloned.nested.values.push("c");
+      assert.deepEqual(source.nested.values, ["a", "b"]);
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(globalThis, "structuredClone", descriptor);
+      } else {
+        delete (globalThis as { structuredClone?: unknown }).structuredClone;
       }
-      await originalRemove(path, options);
-    };
+    }
+  });
 
-    await assertRejects(
-      () => store.migrateStandaloneWorkspace(parented),
-      "cleanup failed",
+  it("inherits accumulated paper context when a later turn has no mention", async function () {
+    const store = createStore();
+    const conversation = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1, label: "Library" }),
     );
-    assert.isNotNull(
-      await store.getLatestWorkspaceConversation(standalone.workspaceKey),
-    );
-    const mergedBeforeRetry = await store.getLatestWorkspaceConversation(
-      parented.workspaceKey,
-    );
+    const paperA = createMention("PDF-A", "Paper A");
+    const paperB = createMention("PDF-B", "Paper B");
 
-    await store.migrateStandaloneWorkspace(parented);
+    const first = await begin(store, conversation, {
+      prompt: "Compare these",
+      mentions: [paperA, paperB],
+      availableSourceIds: [paperA.sourceId, paperB.sourceId],
+    });
+    await store.completeTurn(conversation.metadata.id, first.turn.id, {
+      status: "completed",
+      text: "First answer",
+    });
+    const latest = await store.getConversation(conversation.metadata.id);
+    const second = await begin(store, latest!, {
+      prompt: "What about the method?",
+      availableSourceIds: [paperA.sourceId, paperB.sourceId],
+    });
 
-    assert.isNull(
-      await store.getLatestWorkspaceConversation(standalone.workspaceKey),
+    assert.deepEqual(
+      second.runInput.context.sources.map((source) => source.sourceId),
+      [paperA.sourceId, paperB.sourceId],
+    );
+    assert.equal(second.runInput.context.primarySourceId, paperB.sourceId);
+    assert.deepEqual(second.runInput.history, [
+      {
+        sequence: 1,
+        userText: "Compare these",
+        assistantText: "First answer",
+        status: "completed",
+      },
+    ]);
+  });
+
+  it("deduplicates selections and switches the primary source", async function () {
+    const store = createStore();
+    const workspace = createItemWorkspaceIdentity(createPaper("PDF-A", "A"));
+    const conversation = await store.createWorkspaceConversation(workspace);
+    const paperA = createMention("PDF-A", "A");
+    const paperB = createMention("PDF-B", "B");
+
+    const first = await begin(store, conversation, {
+      prompt: "Add both",
+      mentions: [paperB, paperA, paperB],
+      availableSourceIds: [paperA.sourceId, paperB.sourceId],
+    });
+    assert.deepEqual(
+      first.conversation.metadata.activeSources.map(
+        (source) => source.sourceId,
+      ),
+      [paperB.sourceId, paperA.sourceId],
+    );
+    assert.equal(first.conversation.metadata.primarySourceId, paperB.sourceId);
+    const stopped = await store.failTurn(
+      conversation.metadata.id,
+      first.turn.id,
+      {
+        text: "Stopped",
+        interrupted: true,
+        errorCode: "interrupted",
+        errorMessage: "Stopped",
+      },
+    );
+    const second = await begin(store, stopped, {
+      prompt: "Focus A",
+      mentions: [paperA],
+      availableSourceIds: [paperA.sourceId, paperB.sourceId],
+    });
+    assert.deepEqual(
+      second.conversation.metadata.activeSources.map(
+        (source) => source.sourceId,
+      ),
+      [paperB.sourceId, paperA.sourceId],
+    );
+    assert.equal(second.conversation.metadata.primarySourceId, paperA.sourceId);
+    await store.failTurn(conversation.metadata.id, second.turn.id, {
+      text: "Stopped",
+      interrupted: true,
+      errorCode: "interrupted",
+      errorMessage: "Stopped",
+    });
+  });
+
+  it("retains unavailable sources in the thread but excludes them from a turn", async function () {
+    const store = createStore();
+    const conversation = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
+    );
+    const available = createMention("PDF-A", "Available");
+    const missing = createMention("PDF-B", "Missing");
+    const begun = await begin(store, conversation, {
+      prompt: "Inspect both",
+      mentions: [available, missing],
+      availableSourceIds: [available.sourceId],
+    });
+
+    assert.deepEqual(
+      begun.conversation.metadata.activeSources.map((source) => [
+        source.sourceId,
+        source.availability,
+      ]),
+      [
+        [available.sourceId, "available"],
+        [missing.sourceId, "unavailable"],
+      ],
+    );
+    assert.deepEqual(
+      begun.runInput.context.sources.map((source) => source.sourceId),
+      [available.sourceId],
+    );
+  });
+
+  it("rejects two active turns in one thread while allowing other threads", async function () {
+    const store = createStore();
+    const workspace = createLibraryWorkspaceIdentity({ libraryID: 1 });
+    const firstThread = await store.createWorkspaceConversation(workspace);
+    const secondThread = await store.createWorkspaceConversation(workspace);
+
+    const sameThread = await Promise.allSettled([
+      begin(store, firstThread, { prompt: "One" }),
+      begin(store, firstThread, { prompt: "Two" }),
+    ]);
+    assert.equal(
+      sameThread.filter((result) => result.status === "fulfilled").length,
+      1,
     );
     assert.equal(
-      (await store.getLatestWorkspaceConversation(parented.workspaceKey))
-        ?.metadata.id,
-      mergedBeforeRetry?.metadata.id,
-    );
-  });
-
-  it("fails loudly on invalid conversation metadata", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    await store.createWorkspaceConversation(workspace);
-    const { metadataPath } = await getConversationFilePaths(
-      workspace.workspaceKey,
-    );
-
-    await writeFile(metadataPath, JSON.stringify({ id: "broken" }), "utf8");
-
-    await assertRejects(
-      () => store.getLatestWorkspaceConversation(workspace.workspaceKey),
-      "Invalid Zopilot conversation metadata",
-    );
-  });
-
-  it("ignores obsolete active-note metadata from older conversations", async function () {
-    const workspace = createItemWorkspaceIdentity(
-      createPaper("1:AAA", "AAA", "Paper A"),
-    );
-    const store = new ConversationStore(rootDir);
-    await store.createWorkspaceConversation(workspace);
-    const { metadataPath } = await getConversationFilePaths(
-      workspace.workspaceKey,
-    );
-    const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    metadata.activeNoteContexts = [{ id: "obsolete-note-reference" }];
-    await writeFile(metadataPath, JSON.stringify(metadata), "utf8");
-
-    const conversation = await store.getLatestWorkspaceConversation(
-      workspace.workspaceKey,
-    );
-
-    assert.equal(conversation?.metadata.workspaceKey, workspace.workspaceKey);
-  });
-
-  it("fails loudly on invalid conversation messages", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const store = new ConversationStore(rootDir);
-    const conversation = await store.createWorkspaceConversation(workspace);
-    await store.addMessage(conversation.metadata, {
-      role: "user",
-      text: "Question",
-    });
-    const { messagesPath } = await getConversationFilePaths(
-      workspace.workspaceKey,
-    );
-
-    await writeFile(messagesPath, JSON.stringify({ id: "broken" }), "utf8");
-
-    await assertRejects(
-      () => store.getLatestWorkspaceConversation(workspace.workspaceKey),
-      "Invalid Zopilot conversation message",
-    );
-  });
-
-  it("uses PathUtils.profileDir for the default conversation root", async function () {
-    const paper = createPaper("1:AAA", "AAA", "Paper A");
-    const workspace = createItemWorkspaceIdentity(paper);
-    const profileDir = join(rootDir, "profile");
-    let deprecatedProfileDirectoryCalled = false;
-    installZoteroProfileMock(profileDir, () => {
-      deprecatedProfileDirectoryCalled = true;
-      throw new Error("Deprecated getProfileDirectory should not be called.");
-    });
-    const store = new ConversationStore();
-
-    await store.createWorkspaceConversation(workspace);
-
-    const workspaceDir = join(
-      profileDir,
-      "zopilot",
-      "conversations",
-      "workspaces",
-      encodePathSegment(workspace.workspaceKey),
-    );
-    const files = await readdir(workspaceDir);
-    assert.isFalse(deprecatedProfileDirectoryCalled);
-    assert.lengthOf(
-      files.filter((file) => file.endsWith(".json")),
+      sameThread.filter((result) => result.status === "rejected").length,
       1,
     );
-    assert.lengthOf(
-      files.filter((file) => file.endsWith(".jsonl")),
-      1,
+    const other = await begin(store, secondThread, { prompt: "Other" });
+    assert.equal(other.turn.status, "pending");
+  });
+
+  it("preserves canonical history and Codex checkpoint across provider switches", async function () {
+    const store = createStore();
+    const conversation = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
     );
+    const codex = await begin(store, conversation, {
+      prompt: "Codex question",
+      backendKind: "codex-cli",
+      providerProfileId: "codex-cli.default",
+    });
+    await store.completeTurn(conversation.metadata.id, codex.turn.id, {
+      status: "completed",
+      text: "Codex answer",
+      checkpoint: {
+        adapterKey: CODEX_ADAPTER_KEY,
+        externalThreadId: "codex-thread",
+        syncedThroughSequence: 1,
+        state: "clean",
+      },
+    });
+
+    const afterCodex = await store.getConversation(conversation.metadata.id);
+    const byok = await begin(store, afterCodex!, {
+      prompt: "BYOK question",
+      providerProfileId: "byok-a",
+    });
+    assert.isUndefined(byok.runInput.binding);
+    assert.deepEqual(
+      byok.runInput.history.map((item) => item.userText),
+      ["Codex question"],
+    );
+    await store.completeTurn(conversation.metadata.id, byok.turn.id, {
+      status: "completed",
+      text: "BYOK answer",
+    });
+
+    const afterByok = await store.getConversation(conversation.metadata.id);
+    const resumed = await begin(store, afterByok!, {
+      prompt: "Back to Codex",
+      backendKind: "codex-cli",
+      providerProfileId: "codex-cli.default",
+    });
+    assert.equal(resumed.runInput.binding?.externalThreadId, "codex-thread");
+    assert.deepEqual(
+      resumed.runInput.history.map((item) => item.sequence),
+      [1, 2],
+    );
+  });
+
+  it("trims BYOK history by complete turns without dropping active papers", async function () {
+    const store = createStore();
+    let conversation = await store.createWorkspaceConversation(
+      createItemWorkspaceIdentity(createPaper("PDF-A", "Paper A")),
+    );
+    for (let index = 1; index <= 2; index += 1) {
+      const begun = await begin(store, conversation, {
+        prompt: `Question ${index} ${"x".repeat(120)}`,
+      });
+      conversation = await store.completeTurn(
+        conversation.metadata.id,
+        begun.turn.id,
+        {
+          status: "completed",
+          text: `Answer ${index} ${"y".repeat(120)}`,
+        },
+      );
+    }
+
+    const trimmed = await begin(store, conversation, {
+      prompt: "Current",
+      contextLength: 80,
+    });
+    assert.deepEqual(trimmed.runInput.history, []);
+    assert.lengthOf(trimmed.runInput.context.sources, 1);
+    assert.equal(trimmed.runInput.context.sources[0]?.attachmentKey, "PDF-A");
+  });
+
+  it("recovers pending and running BYOK turns without resending them", async function () {
+    const repository = new MemoryThreadRepository();
+    const store = createStore(repository);
+    const first = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
+    );
+    const pending = await begin(store, first, { prompt: "Pending" });
+    const second = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
+    );
+    const running = await begin(store, second, { prompt: "Running" });
+    await store.markTurnRunning(
+      second.metadata.id,
+      running.turn.id,
+      "byok-run",
+    );
+    await store.persistTurnSnapshot(
+      second.metadata.id,
+      running.turn.id,
+      "Partial",
+    );
+
+    const restarted = createStore(repository);
+    await restarted.recoverInFlightTurns();
+    const recoveredPending = repository.state.threads
+      .get(first.metadata.id)!
+      .turns.find((turn) => turn.id === pending.turn.id)!;
+    const recoveredRunning = repository.state.threads
+      .get(second.metadata.id)!
+      .turns.find((turn) => turn.id === running.turn.id)!;
+    assert.equal(recoveredPending.status, "failed");
+    assert.equal(recoveredPending.error?.code, "provider_not_started");
+    assert.equal(recoveredRunning.status, "interrupted");
+    assert.equal(recoveredRunning.assistantText, "Partial");
+  });
+
+  it("reconciles a completed Codex turn after restart", async function () {
+    const repository = new MemoryThreadRepository();
+    const store = createStore(repository);
+    const conversation = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
+    );
+    const begun = await begin(store, conversation, {
+      prompt: "Remote question",
+      backendKind: "codex-cli",
+      providerProfileId: "codex-cli.default",
+    });
+    await store.saveCheckpoint(conversation.metadata.id, {
+      adapterKey: CODEX_ADAPTER_KEY,
+      externalThreadId: "codex-thread",
+      syncedThroughSequence: 0,
+      state: "clean",
+    });
+    await store.markTurnRunning(
+      conversation.metadata.id,
+      begun.turn.id,
+      "codex-thread",
+      "codex-turn",
+    );
+
+    const restarted = createStore(repository);
+    await restarted.recoverInFlightTurns({
+      readCodexTurn: async (binding, turn) => {
+        assert.equal(binding.externalThreadId, "codex-thread");
+        assert.equal(turn.execution.providerTurnId, "codex-turn");
+        return { status: "completed", text: "Recovered answer" };
+      },
+    });
+
+    const thread = repository.state.threads.get(conversation.metadata.id)!;
+    assert.equal(thread.turns[0]?.status, "completed");
+    assert.equal(thread.turns[0]?.assistantText, "Recovered answer");
+    assert.equal(thread.bindings[0]?.syncedThroughSequence, 1);
+    assert.equal(thread.bindings[0]?.state, "clean");
+  });
+
+  it("interrupts an unverifiable Codex turn and dirties its binding", async function () {
+    const repository = new MemoryThreadRepository();
+    const store = createStore(repository);
+    const conversation = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
+    );
+    const begun = await begin(store, conversation, {
+      prompt: "Unknown remote state",
+      backendKind: "codex-cli",
+      providerProfileId: "codex-cli.default",
+    });
+    await store.saveCheckpoint(conversation.metadata.id, {
+      adapterKey: CODEX_ADAPTER_KEY,
+      externalThreadId: "codex-thread",
+      syncedThroughSequence: 0,
+      state: "clean",
+    });
+    await store.markTurnRunning(
+      conversation.metadata.id,
+      begun.turn.id,
+      "codex-thread",
+      "codex-turn",
+    );
+    await store.persistTurnSnapshot(
+      conversation.metadata.id,
+      begun.turn.id,
+      "Partial answer",
+    );
+
+    const restarted = createStore(repository);
+    await restarted.recoverInFlightTurns({
+      readCodexTurn: async () => ({ status: "unknown" }),
+    });
+
+    const thread = repository.state.threads.get(conversation.metadata.id)!;
+    assert.equal(thread.turns[0]?.status, "interrupted");
+    assert.equal(thread.turns[0]?.assistantText, "Partial answer");
+    assert.equal(thread.bindings[0]?.state, "dirty");
+    assert.equal(thread.bindings[0]?.syncedThroughSequence, 0);
+  });
+
+  it("projects completed history when switching between BYOK providers", async function () {
+    const store = createStore();
+    const conversation = await store.createWorkspaceConversation(
+      createLibraryWorkspaceIdentity({ libraryID: 1 }),
+    );
+    const first = await begin(store, conversation, {
+      prompt: "Question for A",
+      providerProfileId: "byok-a",
+    });
+    const completed = await store.completeTurn(
+      conversation.metadata.id,
+      first.turn.id,
+      {
+        status: "completed",
+        text: "Answer from A",
+      },
+    );
+
+    const second = await begin(store, completed, {
+      prompt: "Question for B",
+      providerProfileId: "byok-b",
+    });
+
+    assert.equal(second.runInput.providerProfileId, "byok-b");
+    assert.deepEqual(second.runInput.history, [
+      {
+        sequence: 1,
+        userText: "Question for A",
+        assistantText: "Answer from A",
+        status: "completed",
+      },
+    ]);
+  });
+
+  it("imports legacy messages idempotently and retains an incomplete user turn", async function () {
+    const repository = new MemoryThreadRepository();
+    const metadata = {
+      id: "legacy-thread",
+      scope: "workspace" as const,
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      workspaceLabel: "Library",
+      workspaceTitle: "Library",
+      libraryID: 1,
+      label: "Legacy",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      codexThreadId: "legacy-codex",
+    };
+    const reader = {
+      readAll: async () => [
+        {
+          key: "legacy.json",
+          status: "ready" as const,
+          conversation: {
+            metadata,
+            messages: [
+              {
+                ...legacyMessage("user-1", "user", "Question"),
+                mentions: [
+                  {
+                    ...createMention("PDF-A", "Paper A"),
+                    sourceId: "legacy-root-item-id",
+                  },
+                ],
+              },
+              legacyMessage("assistant-1", "assistant", "Answer"),
+              {
+                ...legacyMessage("user-2", "user", "Orphan"),
+                mentions: [createMention("PDF-B", "Paper B")],
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const store = new ThreadStore("/memory", repository, reader);
+    await store.initialize();
+    const thread = repository.state.threads.get(metadata.id)!;
+    assert.deepEqual(
+      thread.turns.map((turn) => turn.status),
+      ["completed", "failed"],
+    );
+    assert.equal(thread.turns[1]?.error?.code, "legacy_incomplete_turn");
+    assert.equal(thread.bindings[0]?.externalThreadId, "legacy-codex");
+    assert.equal(thread.bindings[0]?.state, "dirty");
+    assert.deepEqual(
+      thread.metadata.activeSources.map((source) => source.sourceId),
+      ["1-PDF-A", "1-PDF-B"],
+    );
+    assert.equal(thread.metadata.primarySourceId, "1-PDF-B");
+
+    const restarted = new ThreadStore("/memory", repository, reader);
+    await restarted.initialize();
+    assert.equal(repository.state.threads.size, 1);
+    assert.equal(repository.state.threads.get(metadata.id)?.turns.length, 2);
+  });
+
+  it("isolates a corrupt legacy conversation from valid imports", async function () {
+    const repository = new MemoryThreadRepository();
+    const metadata = {
+      id: "legacy-valid",
+      scope: "workspace" as const,
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      workspaceLabel: "Library",
+      workspaceTitle: "Library",
+      libraryID: 1,
+      label: "Legacy",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const reader = {
+      readAll: async () => [
+        {
+          key: "corrupt.json",
+          status: "failed" as const,
+          error: new Error("invalid JSON"),
+        },
+        {
+          key: "valid.json",
+          status: "ready" as const,
+          conversation: {
+            metadata,
+            messages: [
+              legacyMessage("user-1", "user", "Question"),
+              legacyMessage("assistant-1", "assistant", "Answer"),
+            ],
+          },
+        },
+      ],
+    };
+
+    const store = new ThreadStore("/memory", repository, reader);
+    await store.initialize();
+
+    assert.isTrue(repository.state.threads.has(metadata.id));
+    assert.equal(
+      await repository.getLegacyImportStatus("corrupt.json"),
+      "failed",
+    );
+    assert.equal(
+      await repository.getLegacyImportStatus("valid.json"),
+      "imported",
+    );
+  });
+
+  it("retries a failed legacy import after the cause is fixed", async function () {
+    const repository = new MemoryThreadRepository();
+    const metadata = {
+      id: "legacy-retry",
+      scope: "workspace" as const,
+      workspaceKey: "library:1",
+      workspaceType: "library" as const,
+      workspaceLabel: "Library",
+      workspaceTitle: "Library",
+      libraryID: 1,
+      label: "Retry",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    let ready = false;
+    const reader = {
+      readAll: async () => [
+        ready
+          ? {
+              key: "retry.json",
+              status: "ready" as const,
+              conversation: {
+                metadata,
+                messages: [
+                  legacyMessage("user-1", "user", "Question"),
+                  legacyMessage("assistant-1", "assistant", "Answer"),
+                ],
+              },
+            }
+          : {
+              key: "retry.json",
+              status: "failed" as const,
+              error: new Error("temporary migration failure"),
+            },
+      ],
+    };
+
+    await new ThreadStore("/memory", repository, reader).initialize();
+    assert.equal(
+      await repository.getLegacyImportStatus("retry.json"),
+      "failed",
+    );
+    assert.isFalse(repository.state.threads.has(metadata.id));
+
+    ready = true;
+    await new ThreadStore("/memory", repository, reader).initialize();
+    assert.equal(
+      await repository.getLegacyImportStatus("retry.json"),
+      "imported",
+    );
+    assert.equal(repository.state.threads.get(metadata.id)?.turns.length, 1);
   });
 });
 
-function createPaper(
-  paperKey: string,
-  parentItemKey: string,
-  title: string,
-): PaperIdentity {
+function createStore(repository = new MemoryThreadRepository()): ThreadStore {
+  return new ThreadStore("/memory", repository, null);
+}
+
+async function begin(
+  store: ThreadStore,
+  conversation: Awaited<ReturnType<ThreadStore["getConversation"]>> & {},
+  overrides: {
+    prompt: string;
+    mentions?: SourceMention[];
+    availableSourceIds?: string[];
+    backendKind?: "codex-cli" | "openai-compatible";
+    providerProfileId?: string;
+    contextLength?: number;
+  },
+) {
+  const backendKind = overrides.backendKind || "openai-compatible";
+  const providerProfileId = overrides.providerProfileId || "byok-a";
+  return store.beginTurn(conversation.metadata, {
+    assistantMessageId: `assistant-${overrides.prompt}`,
+    prompt: overrides.prompt,
+    mentions: overrides.mentions,
+    availableSourceIds: overrides.availableSourceIds,
+    execution: {
+      backendId: providerProfileId,
+      backendKind,
+      providerProfileId,
+      capabilitySnapshot: createCapabilities(
+        backendKind === "codex-cli" ? "codex" : "openai",
+      ),
+    },
+    contextLength: overrides.contextLength,
+  });
+}
+
+function createPaper(attachmentKey: string, title: string): PaperIdentity {
   return {
-    paperKey,
+    paperKey: `1:${attachmentKey}`,
     libraryID: 1,
-    parentItemID: parentItemKey === "AAA" ? 10 : 20,
-    parentItemKey,
-    attachmentItemID: parentItemKey === "AAA" ? 11 : 21,
-    attachmentKey: `${parentItemKey}-pdf`,
+    parentItemID: 10,
+    parentItemKey: `ITEM-${attachmentKey}`,
+    attachmentItemID: attachmentKey === "PDF-A" ? 11 : 12,
+    attachmentKey,
     title,
   };
 }
 
-async function waitForTimestampTick(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 2));
-}
-
-async function getConversationFilePaths(workspaceKey: string): Promise<{
-  metadataPath: string;
-  messagesPath: string;
-}> {
-  const dir = join(rootDir, "workspaces", encodePathSegment(workspaceKey));
-  const files = await readdir(dir);
-  const metadataPath = files.find((file) => file.endsWith(".json"));
-  const messagesPath = files.find((file) => file.endsWith(".jsonl"));
-  if (!metadataPath || !messagesPath) {
-    throw new Error("Conversation test fixture is incomplete.");
-  }
+function createMention(attachmentKey: string, title: string): SourceMention {
+  const paper = createPaper(attachmentKey, title);
   return {
-    metadataPath: join(dir, metadataPath),
-    messagesPath: join(dir, messagesPath),
+    id: `mention-${attachmentKey}`,
+    sourceId: createSourceId(1, attachmentKey),
+    ...paper,
   };
 }
 
-async function assertRejects(
-  action: () => Promise<unknown>,
-  expectedMessage: string,
-): Promise<void> {
-  try {
-    await action();
-  } catch (error) {
-    assert.include(String(error), expectedMessage);
-    return;
-  }
-  assert.fail("Expected action to reject.");
-}
-
-function encodePathSegment(value: string): string {
-  return encodeURIComponent(value).replace(
-    /[!'()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-}
-
-function installFileMocks(): void {
-  (globalThis as typeof globalThis & { IOUtils: typeof IOUtils }).IOUtils = {
-    exists: async (path) => existsSync(path),
-    getChildren: async (path) =>
-      (await readdir(path)).map((entry) => join(path, entry)),
-    makeDirectory: async (path, options) => {
-      await mkdir(path, { recursive: Boolean(options?.createAncestors) });
-    },
-    move: async (sourcePath, targetPath) => {
-      await rename(sourcePath, targetPath);
-    },
-    readJSON: async (path) => JSON.parse(await readFile(path, "utf8")),
-    readUTF8: async (path) => readFile(path, "utf8"),
-    remove: async (path, options) => {
-      await rm(path, {
-        force: Boolean(options?.ignoreAbsent),
-        recursive: Boolean(options?.recursive),
-      });
-    },
-    writeUTF8: async (path, text) => {
-      await writeFile(path, text, "utf8");
-      return text.length;
-    },
-  } as typeof IOUtils;
-
-  (
-    globalThis as typeof globalThis & { PathUtils: typeof PathUtils }
-  ).PathUtils = {
-    join,
-  } as typeof PathUtils;
-}
-
-function installZoteroProfileMock(
-  profileDir: string,
-  getProfileDirectory: () => never,
-): void {
-  (
-    globalThis as typeof globalThis & {
-      PathUtils: typeof PathUtils & { profileDir: string };
-    }
-  ).PathUtils.profileDir = profileDir;
-  (globalThis as unknown as { Zotero: unknown }).Zotero = {
-    getProfileDirectory,
+function legacyMessage(id: string, role: "user" | "assistant", text: string) {
+  return {
+    id,
+    conversationId: "legacy-thread",
+    role,
+    text,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    status: "complete" as const,
+    backendKind: "codex-cli" as const,
   };
-}
-
-function restoreZoteroMock(): void {
-  if (originalZotero === undefined) {
-    delete (globalThis as unknown as { Zotero?: unknown }).Zotero;
-    return;
-  }
-  globalThis.Zotero = originalZotero;
 }

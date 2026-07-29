@@ -93,6 +93,13 @@ class ComposerTextSession {
   }
 
   handleNativeInput(control: TextControl): void {
+    // Once the user edits the native buffer, no delayed script transaction may
+    // refocus the control or restore an obsolete selection afterward.
+    this.cancelPending();
+    this.publishNativeInput(control);
+  }
+
+  private publishNativeInput(control: TextControl): void {
     const cursor = clampOffset(
       control.selectionStart ?? control.value.length,
       control.value.length,
@@ -101,18 +108,18 @@ class ComposerTextSession {
   }
 
   handleCompositionStart(): void {
+    this.cancelPending();
     this.composing = true;
   }
 
   handleCompositionEnd(control: TextControl): void {
     this.composing = false;
-    this.handleNativeInput(control);
+    this.publishNativeInput(control);
     this.scheduleFlush();
   }
 
   handleBlur(): void {
     // blur is the explicit boundary after which a queued script edit may run.
-    this.composing = false;
     this.scheduleFlush();
   }
 
