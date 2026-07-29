@@ -10,7 +10,7 @@ pref-nav-prompts = Prompts
 pref-provider-title = Provider
 pref-provider-description = Manage Codex CLI and OpenAI-compatible BYOK providers.
 pref-provider-add-title = Add BYOK provider
-pref-provider-add-action = Add model
+pref-provider-add-action = Add provider
 pref-provider-add-description = Select a provider, review or edit its default Base URL, then enter an API key and select the models to enable.
 pref-provider-add = Add
 pref-provider-step-credentials = 1. URL and API key
@@ -95,10 +95,13 @@ pref-provider-models-enabled =
         [one] { $count } model enabled
        *[other] { $count } models enabled
     }
+pref-provider-manage-models = Manage models
+pref-provider-manage-models-title = Manage models
+pref-provider-manage-models-description = Select the models to use in Zopilot. The full catalog is loaded only here; after saving, the provider list shows only enabled models.
+pref-provider-refresh-models = Refresh catalog
+pref-provider-save-models = Save changes
 pref-provider-model-list =
     .aria-label = Models visible in the Zopilot sidebar
-pref-provider-model-required =
-    .title = At least one model must remain visible
 pref-provider-no-models = No models saved
 pref-provider-name = Name
 pref-provider-save = Save

@@ -51,6 +51,35 @@ describe("sidebar state projector", function () {
     assert.deepEqual(patch.messages, []);
     assert.isFalse(patch.composerEnabled);
   });
+
+  it("refreshes detached session status while projecting ready state", function () {
+    const conversation = createConversation();
+    const viewState = createInitialSidebarState("Paper");
+    viewState.sessions = [
+      {
+        id: conversation.metadata.id,
+        title: "Question",
+        meta: conversation.metadata.updatedAt,
+        active: false,
+        conversation,
+      },
+    ];
+
+    const patch = projectSidebarState({
+      displayState: {
+        kind: "ready",
+        token: 1,
+        workspace: conversation.metadata,
+        conversation,
+      },
+      viewState,
+      busy: true,
+      getSessionStatus: () => "running",
+      getClosedLabel: () => "Unused",
+    });
+
+    assert.equal(patch.sessions?.[0].status, "running");
+  });
 });
 
 function createConversation(): Conversation {

@@ -49,8 +49,9 @@ function PreferencesApp({ translate }: PreferencesAppProps): ReactElement {
           onCheck={providers.checkProvider}
           onCreate={providers.createProvider}
           onDelete={providers.deleteProvider}
+          onListSavedModels={providers.listSavedProviderModels}
           onReadApiKey={providers.readProviderApiKey}
-          onSetModelVisibility={providers.setModelVisibility}
+          onReplaceModels={providers.replaceProviderModels}
           onUpdate={providers.updateProvider}
           onListModels={providers.listProviderModels}
           profiles={providers.state.profiles}

@@ -4,11 +4,13 @@ import { normalizeBackendError } from "../../../../domain/agent/errors";
 import { createProviderProfile } from "../../../../domain/agent/modelCatalog";
 import { getProviderProfileStore } from "../../../../application/providers/ProviderProfileService";
 import type {
+  AgentModelEntry,
   DiscoveredAgentModel,
   ProviderProfile,
   ProviderProfileInput,
 } from "../../../../domain/agent/types";
 import { getByokRuntimeBridge } from "../../../../integrations/byok/ByokRuntimeBridge";
+import { toDiscoveredModelCatalogEntry } from "./modelSelection";
 
 export { useProviderProfiles };
 
@@ -26,11 +28,7 @@ function useProviderProfiles(): {
     input: Partial<ProviderProfileInput>,
   ) => void;
   deleteProvider: (profileId: string) => void;
-  setModelVisibility: (
-    profileId: string,
-    modelId: string,
-    visible: boolean,
-  ) => void;
+  replaceProviderModels: (profileId: string, models: AgentModelEntry[]) => void;
   readProviderApiKey: (profileId: string) => string;
   checkProvider: (profileId: string) => void;
   listProviderModels: (input: {
@@ -38,6 +36,9 @@ function useProviderProfiles(): {
     baseURL: string;
     apiKey: string;
   }) => Promise<DiscoveredAgentModel[]>;
+  listSavedProviderModels: (
+    profileId: string,
+  ) => Promise<DiscoveredAgentModel[]>;
 } {
   const [state, setState] = useState<ProviderProfilesState>(() => ({
     ...getProviderProfileStore().getSnapshot(),
@@ -69,9 +70,9 @@ function useProviderProfiles(): {
     getProviderProfileStore().deleteProvider(profileId);
   }, []);
 
-  const setModelVisibility = useCallback(
-    (profileId: string, modelId: string, visible: boolean) => {
-      getProviderProfileStore().setModelVisibility(profileId, modelId, visible);
+  const replaceProviderModels = useCallback(
+    (profileId: string, models: AgentModelEntry[]) => {
+      getProviderProfileStore().replaceProviderModels(profileId, models);
     },
     [],
   );
@@ -136,14 +137,27 @@ function useProviderProfiles(): {
     [],
   );
 
+  const listSavedProviderModels = useCallback(async (profileId: string) => {
+    const profile = getProviderProfileStore().getProfile(profileId);
+    if (!profile) {
+      throw new Error("Provider profile not found.");
+    }
+    if (profile.kind === "codex-cli") {
+      const models = await getAgentBackendManager().listModels(profileId);
+      return models.map(toDiscoveredModelCatalogEntry);
+    }
+    return getByokRuntimeBridge().listModels(profile);
+  }, []);
+
   return {
     state,
     createProvider,
     updateProvider,
     deleteProvider,
-    setModelVisibility,
+    replaceProviderModels,
     readProviderApiKey,
     checkProvider,
     listProviderModels,
+    listSavedProviderModels,
   };
 }

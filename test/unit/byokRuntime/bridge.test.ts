@@ -57,10 +57,6 @@ describe("ByokRuntimeBridge", function () {
       arguments: '{"question":"method"}',
     });
     harness.notify("warning", { runId, message: "retrying" });
-    harness.notify("model/imageInputRejected", {
-      runId,
-      modelId: "model-a",
-    });
     harness.notify("item/tool/completed", {
       runId,
       name: "paper_read",
@@ -114,9 +110,6 @@ describe("ByokRuntimeBridge", function () {
         evidence: [{ sourceId: "1-PDF", page: 5 }],
       },
     });
-    assert.deepEqual(harness.imageRejections, [
-      { profileId: profile.id, modelId: "model-a" },
-    ]);
   });
 
   it("does not apply the provider startup deadline to the whole turn", async function () {
@@ -190,11 +183,9 @@ function createBridgeHarness(): {
   instance: ByokRuntimeBridge;
   requests: RpcRequest[];
   responses: RpcResponse[];
-  imageRejections: Array<{ profileId: string; modelId: string }>;
   respond: (id: number, result: unknown) => void;
   notify: (method: string, params: unknown) => void;
 } {
-  const imageRejections: Array<{ profileId: string; modelId: string }> = [];
   const instance = new ByokRuntimeBridge({
     buildMcpConnection: async (_conversation, options) => ({
       status: "ready",
@@ -206,8 +197,6 @@ function createBridgeHarness(): {
         timeoutMs: options.timeoutMs,
       },
     }),
-    markImageInputRejected: (profileId, modelId) =>
-      imageRejections.push({ profileId, modelId }),
   });
   const bridge = instance as unknown as {
     start: () => Promise<void>;
@@ -236,7 +225,6 @@ function createBridgeHarness(): {
     instance,
     requests,
     responses,
-    imageRejections,
     respond: (id, result) => {
       bridge.getTransport().handleLine(JSON.stringify({ id, result }));
     },

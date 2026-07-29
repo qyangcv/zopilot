@@ -11,6 +11,7 @@ import { isLibraryTab } from "../../../integrations/zotero/selectedWorkspace";
 import type {
   SidebarPromptSubmission,
   SidebarReloadContext,
+  SidebarSessionStatus,
   SidebarState,
 } from "../ui/types";
 import { getSelectedItemTitle } from "./selectedItem";
@@ -120,6 +121,7 @@ class SidebarHostController {
   private readonly readerSelection: ReaderSelectionCoordinator;
   private readonly librarySelection: LibrarySelectionCoordinator;
   private readonly turnStore = new RunningTurnStore();
+  private readonly unreadConversationIds = new Set<string>();
   private readonly streamScheduler: StreamRenderScheduler;
   private readonly turnCoordinator: TurnCoordinator;
   private readonly hostBindings: SidebarHostBindings;
@@ -242,6 +244,8 @@ class SidebarHostController {
         this.showBackendDiagnostic(error, providerProfileId, model),
       markBackendHealthy: (providerProfileId, model) =>
         this.providerCatalog.markBackendHealthy(providerProfileId, model),
+      markConversationUnread: (conversationId) =>
+        this.unreadConversationIds.add(conversationId),
       refreshSessions: () => {
         if (this.viewState.detachedWindowOpen) {
           void this.sessions.refreshNavigationSessions();
@@ -259,6 +263,10 @@ class SidebarHostController {
       updateViewState: (patch) => this.updateViewState(patch),
       setReadyConversation: (conversation) =>
         this.setReadyConversation(conversation),
+      getSessionStatus: (conversationId) =>
+        this.getSessionStatus(conversationId),
+      markSessionRead: (conversationId) =>
+        this.unreadConversationIds.delete(conversationId),
       focusComposer: () => this.focusComposer(),
       interruptConversationTurn: (conversationId) =>
         this.turnCoordinator.interruptConversation(conversationId),
@@ -316,6 +324,9 @@ class SidebarHostController {
   }
 
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
+    if (this.hasDetachedWindow()) {
+      return;
+    }
     if (isLibraryTab(this.win)) {
       this.librarySelection.refreshContext();
     } else {
@@ -343,6 +354,19 @@ class SidebarHostController {
       sessionsOpen: false,
       focusToken: this.viewState.focusToken + 1,
     });
+    void this.syncWithSelectedContext();
+  }
+
+  private openDetachedWindow(): void {
+    const wasOpen = this.detachedWindow.isOpen();
+    this.detachedWindow.open();
+    if (!wasOpen && this.detachedWindow.isOpen()) {
+      this.selectionToken++;
+    }
+  }
+
+  private hasDetachedWindow(): boolean {
+    return this.viewState.detachedWindowOpen || this.detachedWindow.isOpen();
   }
 
   private openZopilotPane(reader?: _ZoteroTypes.ReaderInstance): void {
@@ -488,6 +512,9 @@ class SidebarHostController {
   private async getReadyStateForActiveContext(): Promise<
     Extract<DisplayState, { kind: "ready" }> | undefined
   > {
+    if (this.hasDetachedWindow()) {
+      return this.getReadyDisplayState();
+    }
     return isLibraryTab(this.win)
       ? this.librarySelection.getReadyStateForSelectedWorkspace()
       : this.readerSelection.getReadyStateForSelectedReader();
@@ -505,6 +532,9 @@ class SidebarHostController {
   }
 
   private setDisplayState(displayState: DisplayState): void {
+    if (displayState.kind === "ready") {
+      this.unreadConversationIds.delete(displayState.conversation.metadata.id);
+    }
     this.displayState = displayState;
     this.renderDisplayState();
     this.streamScheduler.publishActive();
@@ -517,6 +547,8 @@ class SidebarHostController {
       viewState: this.viewState,
       busy: this.turnStore.has(ready?.conversation.metadata.id),
       pdfHelperNotice: this.pdfHelperGuard.notice,
+      getSessionStatus: (conversationId) =>
+        this.getSessionStatus(conversationId),
       getClosedLabel: () =>
         getSelectedItemTitle(this.win, getSelectedPDFReader(this.win)),
     });
@@ -534,6 +566,14 @@ class SidebarHostController {
 
   private canCommitSelection(token: number): boolean {
     return !this.destroyed && this.open && token === this.selectionToken;
+  }
+
+  private getSessionStatus(
+    conversationId: string,
+  ): SidebarSessionStatus | undefined {
+    if (this.turnStore.has(conversationId)) return "running";
+    if (this.unreadConversationIds.has(conversationId)) return "unread";
+    return undefined;
   }
 
   private setOpen(open: boolean): void {
@@ -604,6 +644,9 @@ class SidebarHostController {
     if (this.destroyed) {
       return;
     }
+    if (this.hasDetachedWindow()) {
+      return;
+    }
     if (active) {
       if (this.open && this.surface.isActive(kind)) {
         return;
@@ -618,6 +661,9 @@ class SidebarHostController {
   }
 
   private async syncWithSelectedContext(): Promise<void> {
+    if (this.hasDetachedWindow()) {
+      return;
+    }
     if (isLibraryTab(this.win)) {
       await this.librarySelection.syncWithSelectedWorkspace();
       return;
@@ -651,7 +697,7 @@ class SidebarHostController {
       reloadPlugin: (context) => this.reloadPlugin(context),
       hideSessions: () => this.sessions.hidePopover(),
       interruptActiveTurn: () => this.interruptActiveTurn(),
-      openInWindow: () => this.detachedWindow.open(),
+      openInWindow: () => this.openDetachedWindow(),
       openExternalLink: (url) => this.contextActions.openExternalLink(url),
       restoreToSidebar: () => this.detachedWindow.close(),
       selectModel: (model) => this.selectModel(model),

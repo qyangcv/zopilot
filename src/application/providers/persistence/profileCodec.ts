@@ -2,8 +2,10 @@ import {
   createLegacyProviderDisplayName,
   createProviderProfile,
   getProviderDefinition,
+  isModelVisible,
   isProviderId,
   resolveProviderId,
+  toAgentModelEntry,
 } from "../../../domain/agent/modelCatalog";
 import type {
   AgentModelEntry,
@@ -93,6 +95,10 @@ function toStoredProviderProfile(
   const { hasApiKey: _hasApiKey, lastDiagnostic, status, ...stored } = profile;
   return {
     ...stored,
+    models:
+      stored.kind === "openai-compatible"
+        ? stored.models.filter(isModelVisible).map(toAgentModelEntry)
+        : stored.models,
     status: status || "unchecked",
     lastDiagnostic,
   };
@@ -107,7 +113,9 @@ function parseStoredCodexStatus(raw: unknown): StoredCodexStatus {
       return {};
     }
     return {
-      models: Array.isArray(parsed.models) ? parsed.models : undefined,
+      models: Array.isArray(parsed.models)
+        ? parsed.models.filter(isModelVisible).map(toAgentModelEntry)
+        : undefined,
       status: isProviderStatus(parsed.status) ? parsed.status : undefined,
       lastCheckedAt:
         typeof parsed.lastCheckedAt === "string"
@@ -125,7 +133,7 @@ function parseStoredCodexStatus(raw: unknown): StoredCodexStatus {
 
 function toStoredCodexStatus(profile: ProviderProfile): StoredCodexStatus {
   return {
-    models: profile.models,
+    models: profile.models.filter(isModelVisible).map(toAgentModelEntry),
     status: profile.status,
     lastCheckedAt: profile.lastCheckedAt,
     lastDiagnostic: profile.lastDiagnostic,

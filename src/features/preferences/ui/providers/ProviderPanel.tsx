@@ -26,12 +26,9 @@ type ProviderPanelProps = {
     baseURL: string;
     apiKey: string;
   }) => Promise<DiscoveredAgentModel[]>;
+  onListSavedModels: (profileId: string) => Promise<DiscoveredAgentModel[]>;
   onReadApiKey: (profileId: string) => string;
-  onSetModelVisibility: (
-    profileId: string,
-    modelId: string,
-    visible: boolean,
-  ) => void;
+  onReplaceModels: (profileId: string, models: AgentModelEntry[]) => void;
   onUpdate: (
     profileId: string,
     input: { displayName?: string; baseURL?: string; apiKey?: string },
@@ -64,6 +61,9 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
       />
       {createExpanded ? (
         <AddProviderForm
+          existingProviderIds={props.profiles.map(
+            (profile) => profile.providerId,
+          )}
           onCancel={() => setCreateExpanded(false)}
           onCreate={props.onCreate}
           onCreated={() => setCreateExpanded(false)}
@@ -87,8 +87,9 @@ function ProviderPanel(props: ProviderPanelProps): ReactElement {
               });
             }}
             onReadApiKey={() => props.onReadApiKey(profile.id)}
-            onSetModelVisibility={(modelId, visible) =>
-              props.onSetModelVisibility(profile.id, modelId, visible)
+            onListModels={() => props.onListSavedModels(profile.id)}
+            onReplaceModels={(models) =>
+              props.onReplaceModels(profile.id, models)
             }
             onToggle={() =>
               setExpandedProviderIds((current) =>

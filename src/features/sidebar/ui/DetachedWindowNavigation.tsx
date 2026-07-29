@@ -154,6 +154,9 @@ function SessionSection({
                   <span className="zp-detached-session-title">
                     {session.title}
                   </span>
+                  {session.status ? (
+                    <SessionStatus status={session.status} />
+                  ) : null}
                   <time
                     className="zp-detached-session-time"
                     dateTime={session.meta}
@@ -191,6 +194,35 @@ function SessionSection({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function SessionStatus({
+  status,
+}: {
+  status: NonNullable<SidebarSessionView["status"]>;
+}): ReactElement {
+  const label = getString(
+    status === "running" ? "sidebar-session-running" : "sidebar-session-unread",
+  );
+  return (
+    <span
+      aria-label={label}
+      className="zp-detached-session-status"
+      data-status={status}
+      title={label}
+    >
+      {status === "running" ? (
+        <Icon
+          className="zp-detached-session-running-icon"
+          name="checking"
+          size={12}
+          strokeWidth={1.7}
+        />
+      ) : (
+        <span aria-hidden="true" className="zp-detached-session-unread-dot" />
+      )}
+    </span>
   );
 }
 

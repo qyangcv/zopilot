@@ -113,7 +113,6 @@ function parseOpenAIModel(
     inputModalities,
     name: readString(value.name),
     outputModalities: readStringArray(value.output_modalities) || [],
-    rejectsImages: providerRejectsImageInput(value),
     supportedParameters: readStringArray(value.supported_parameters) || [],
   });
 }
@@ -148,9 +147,6 @@ function parseOpenRouterModel(
     name: readString(value.name),
     outputModalities: readStringArray(architecture?.output_modalities) || [],
     pricing: readPricing(value.pricing),
-    rejectsImages: Boolean(
-      inputModalities.length && !inputModalities.includes("image"),
-    ),
     supportedParameters,
     supportedReasoningEfforts,
   });
@@ -168,7 +164,6 @@ function createDiscoveredModel(input: {
   name?: string;
   outputModalities: string[];
   pricing?: DiscoveredModelPricing;
-  rejectsImages: boolean;
   supportedParameters: string[];
   supportedReasoningEfforts?: string[];
 }): DiscoveredAgentModel {
@@ -191,7 +186,6 @@ function createDiscoveredModel(input: {
     defaultReasoningEffort,
     displayName: input.name || input.id,
     expirationDate: input.expirationDate,
-    imageInputRejected: input.rejectsImages ? true : undefined,
     inputModalities: input.inputModalities,
     isFree: isFreeModel(input.id, input.pricing),
     outputModalities: input.outputModalities,
@@ -199,15 +193,6 @@ function createDiscoveredModel(input: {
     supportedParameters: input.supportedParameters,
     supportedReasoningEfforts,
   };
-}
-
-function providerRejectsImageInput(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  const modalities = readStringArray(value.input_modalities);
-  return Boolean(
-    modalities &&
-    !modalities.some((modality) => modality.toLowerCase() === "image"),
-  );
 }
 
 function readStringArray(value: unknown): string[] | undefined {
@@ -264,7 +249,6 @@ export {
   parseModelListParams,
   parseOpenAIModelList,
   parseOpenRouterModelList,
-  providerRejectsImageInput,
   parseTurnStartParams,
   validateProfile,
 };

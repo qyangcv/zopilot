@@ -23,6 +23,8 @@ sidebar-window-placeholder = Zopilot is open in a separate window
 sidebar-window-focus = Focus window
 sidebar-no-sessions = No sessions yet
 sidebar-no-archived-sessions = No archived sessions
+sidebar-session-running = Running
+sidebar-session-unread = Unread
 sidebar-session-time-now = Just now
 sidebar-session-time-minutes =
     { $count ->

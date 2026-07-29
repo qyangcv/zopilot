@@ -7,10 +7,7 @@ import {
 import { readFile, stat } from "node:fs/promises";
 import { aisdk } from "@openai/agents-extensions/ai-sdk";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import {
-  isModelVisible,
-  shouldAttemptImageDelivery,
-} from "../../../domain/agent/modelCatalog";
+import { isModelVisible } from "../../../domain/agent/modelCatalog";
 import { buildCodexDeveloperInstructions } from "../../../application/agent/prompt/developerInstructions";
 import { buildStatelessAgentPrompt } from "../../../application/agent/prompt/contextAssembler";
 import { parseRetrievalQuery } from "../../../document/retrieval/queryParser";
@@ -41,14 +38,9 @@ type ByokAgentRunnerOptions = {
   notify: (method: string, params?: JsonValue) => void;
   runAgent?: typeof run;
 };
-type BufferedNotification = { method: string; params?: JsonValue };
 
 class ByokAgentRunner {
   private readonly abortControllers = new Map<string, AbortController>();
-  private readonly notificationBuffers = new Map<
-    string,
-    BufferedNotification[]
-  >();
 
   constructor(private readonly options: ByokAgentRunnerOptions) {}
 
@@ -104,45 +96,7 @@ class ByokAgentRunner {
 
   async startTurn(params: TurnStartParams): Promise<AgentRunResult> {
     validateProfile(params.profile);
-    const modelId =
-      params.input.model ||
-      params.profile.defaultModel ||
-      params.profile.models.find(isModelVisible)?.id;
-    if (!modelId) throw new Error("No model selected for this provider.");
-    const allowImages = shouldAttemptImageDelivery(params.profile, modelId);
-    const maySendImages =
-      allowImages &&
-      (Boolean(params.input.preparedLocalAttachments?.images.length) ||
-        Boolean(
-          params.mcp?.acceptsImages &&
-          parseRetrievalQuery(params.input.prompt).locator,
-        ));
-    const bufferFirstAttempt = maySendImages;
-    if (bufferFirstAttempt) this.notificationBuffers.set(params.runId, []);
-
-    try {
-      const first = await this.runAttempt(params, allowImages);
-      if (bufferFirstAttempt) this.flushNotifications(params.runId);
-      return first;
-    } catch (error) {
-      if (maySendImages && isUnsupportedImageError(error)) {
-        this.discardNotifications(params.runId);
-        this.notify("model/imageInputRejected", {
-          runId: params.runId,
-          modelId,
-        });
-        this.notify("warning", {
-          runId: params.runId,
-          message: unsupportedImageNotice(params),
-        });
-        const retry = await this.runAttempt(params, false);
-        return retry;
-      }
-      if (bufferFirstAttempt) this.flushNotifications(params.runId);
-      throw error;
-    } finally {
-      this.discardNotifications(params.runId);
-    }
+    return this.runAttempt(params, params.profile.capabilities.images);
   }
 
   private async runAttempt(
@@ -556,28 +510,7 @@ class ByokAgentRunner {
   }
 
   private notify(method: string, params?: JsonValue): void {
-    const runId = asRecord(params)?.runId;
-    const buffer =
-      typeof runId === "string"
-        ? this.notificationBuffers.get(runId)
-        : undefined;
-    if (buffer) {
-      buffer.push({ method, params });
-      return;
-    }
     this.options.notify(method, params);
-  }
-
-  private flushNotifications(runId: string): void {
-    const buffer = this.notificationBuffers.get(runId);
-    this.notificationBuffers.delete(runId);
-    for (const notification of buffer || []) {
-      this.options.notify(notification.method, notification.params);
-    }
-  }
-
-  private discardNotifications(runId: string): void {
-    this.notificationBuffers.delete(runId);
   }
 }
 
@@ -592,84 +525,6 @@ function withImageCapabilityHeader(
   );
   next["X-Zopilot-Accepts-Images"] = allowImages ? "true" : "false";
   return next;
-}
-
-function isUnsupportedImageError(error: unknown): boolean {
-  const text = collectErrorText(error).toLowerCase();
-  const rejectsImageJson =
-    /\bunknown variant\b[\s\S]*\b(image|input_image|image_url)\b/.test(text) ||
-    /\b(deserialize|deserialise|json body|message content)\b[\s\S]*\b(image|input_image|image_url)\b/.test(
-      text,
-    );
-  const status = findHttpStatus(error);
-  if (status === undefined) return rejectsImageJson;
-  if (status !== 400 && status !== 422) return false;
-  if (
-    /\b(content[_ -]?policy|moderation|safety|too large|file size|dimensions?|resolution|image size|image bytes)\b/.test(
-      text,
-    )
-  ) {
-    return false;
-  }
-  const mentionsImage =
-    /\b(image|images|image_url|input_image|vision|multimodal)\b/.test(text);
-  const saysUnsupported =
-    /\b(unsupported|not supported|does not support|doesn't support|not accept|only text|text-only|invalid content type)\b/.test(
-      text,
-    ) || rejectsImageJson;
-  return mentionsImage && saysUnsupported;
-}
-
-function unsupportedImageNotice(params: TurnStartParams): string {
-  const imageCount =
-    params.input.preparedLocalAttachments?.images.filter(
-      (image) => image.page === undefined,
-    ).length || 0;
-  if (imageCount > 0) {
-    return `当前模型或接口不支持图片输入，本轮 ${imageCount} 张图片未发送。`;
-  }
-  return "当前模型或接口不支持图片输入，本轮只提供论文文本和页码。";
-}
-
-function findHttpStatus(value: unknown, depth = 0): number | undefined {
-  if (depth > 3 || !value || typeof value !== "object") return undefined;
-  const record = value as Record<string, unknown>;
-  for (const candidate of [record.status, record.statusCode]) {
-    const status =
-      typeof candidate === "number"
-        ? candidate
-        : typeof candidate === "string" && /^\d{3}$/.test(candidate)
-          ? Number(candidate)
-          : undefined;
-    if (status !== undefined) return status;
-  }
-  for (const key of ["cause", "response", "error", "data"]) {
-    const status = findHttpStatus(record[key], depth + 1);
-    if (status !== undefined) return status;
-  }
-  return undefined;
-}
-
-function collectErrorText(error: unknown, depth = 0): string {
-  if (depth > 3 || error === undefined || error === null) return "";
-  if (typeof error === "string") return error;
-  if (typeof error !== "object") return String(error);
-  const record = error as Record<string, unknown>;
-  return [
-    error instanceof Error ? error.message : "",
-    ...[
-      "message",
-      "code",
-      "param",
-      "body",
-      "data",
-      "responseBody",
-      "cause",
-      "response",
-    ].map((key) => collectErrorText(record[key], depth + 1)),
-  ]
-    .filter(Boolean)
-    .join(" ");
 }
 
 function asRecord(value: unknown): UnknownRecord | undefined {
@@ -909,7 +764,6 @@ export {
   buildAgentInput,
   createByokMcpServer,
   detectImageMimeType,
-  isUnsupportedImageError,
   withImageCapabilityHeader,
 };
 export type { ByokAgentRunnerOptions };

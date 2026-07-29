@@ -37,7 +37,6 @@ export type AgentModelEntry = {
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
   visible?: boolean;
-  imageInputRejected?: boolean;
 };
 
 export type DiscoveredModelPricing = {

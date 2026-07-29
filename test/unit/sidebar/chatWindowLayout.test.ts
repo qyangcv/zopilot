@@ -155,6 +155,10 @@ describe("chat window layout styles", function () {
     assert.include(css, ".zp-detached-navigation-disclosure-spacer");
     assert.include(css, "padding-block-start: 3px");
     assert.include(css, "var(--zp-accent) 10%");
+    assert.include(css, ".zp-detached-session-running-icon");
+    assert.include(css, "animation: zp-spin 0.9s linear infinite");
+    assert.include(css, ".zp-detached-session-unread-dot");
+    assert.include(css, "background: var(--zp-accent)");
   });
 
   it("defines a portal tooltip that cannot intercept pointer input", function () {

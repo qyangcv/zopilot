@@ -234,6 +234,46 @@ describe("SidebarApp", function () {
     assert.notInclude(html, 'data-presentation="placeholder"');
   });
 
+  it("renders running and unread indicators in detached history", function () {
+    const running = createConversation("conv-running");
+    const unread = createConversation("conv-unread");
+    const html = renderToStaticMarkup(
+      <SidebarApp
+        actions={createActions()}
+        presentation="window"
+        state={createState({
+          detachedWindowOpen: true,
+          sessions: [
+            {
+              id: running.metadata.id,
+              title: "Running discussion",
+              meta: running.metadata.updatedAt,
+              active: false,
+              status: "running",
+              conversation: running,
+            },
+            {
+              id: unread.metadata.id,
+              title: "Unread discussion",
+              meta: unread.metadata.updatedAt,
+              active: false,
+              status: "unread",
+              conversation: unread,
+            },
+          ],
+        })}
+      />,
+    );
+
+    assert.include(html, 'data-status="running"');
+    assert.include(html, 'data-icon-name="checking"');
+    assert.include(html, "zp-detached-session-running-icon");
+    assert.include(html, 'aria-label="zopilot-sidebar-session-running"');
+    assert.include(html, 'data-status="unread"');
+    assert.include(html, "zp-detached-session-unread-dot");
+    assert.include(html, 'aria-label="zopilot-sidebar-session-unread"');
+  });
+
   it("shows no assistant footer while a response is running", function () {
     const streamStore = createStreamStore({
       answerBlocks: [

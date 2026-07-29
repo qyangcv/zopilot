@@ -36,6 +36,7 @@ type TurnCoordinatorOptions = {
     model?: string,
   ) => Promise<void>;
   markBackendHealthy: (providerProfileId?: string, model?: string) => void;
+  markConversationUnread: (conversationId: string) => void;
   refreshSessions: () => void;
   areSessionsOpen: () => boolean;
 };
@@ -100,6 +101,7 @@ class TurnCoordinator {
     };
     this.activeExecutions.set(conversationId, execution);
     this.updateRunningState();
+    if (this.options.areSessionsOpen()) this.options.refreshSessions();
     this.options.streamScheduler.publishActive();
 
     try {
@@ -417,10 +419,13 @@ class TurnCoordinator {
 
   private finish(conversationId: string, conversation: Conversation): void {
     const active = this.options.getActiveConversationId() === conversationId;
+    const lifecycle = this.options.turnStore.getLifecycle(conversationId);
     this.options.turnStore.remove(conversationId);
     if (active) {
       this.options.streamScheduler.clear();
       this.options.setReadyConversation(conversation);
+    } else if (lifecycle === "completed" || lifecycle === "failed") {
+      this.options.markConversationUnread(conversationId);
     }
     if (this.options.areSessionsOpen()) this.options.refreshSessions();
   }

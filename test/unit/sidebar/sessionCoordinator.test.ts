@@ -88,6 +88,52 @@ describe("sidebar session coordinator", function () {
     );
     assert.isFalse(harness.state.sessionsOpen);
   });
+
+  it("projects running and unread state into detached history", async function () {
+    const active = createConversation("conv-a", "Question A");
+    const running = createConversation("conv-running", "Question running");
+    const unread = createConversation("conv-unread", "Question unread");
+    const harness = createHarness({
+      readyConversation: active,
+      conversations: [active, running, unread],
+      sessionStatuses: new Map([
+        ["conv-running", "running"],
+        ["conv-unread", "unread"],
+      ]),
+    });
+
+    await harness.coordinator.refreshNavigationSessions();
+
+    assert.deepEqual(
+      harness.state.sessions.map((session) => ({
+        id: session.id,
+        status: session.status,
+      })),
+      [
+        { id: "conv-a", status: undefined },
+        { id: "conv-running", status: "running" },
+        { id: "conv-unread", status: "unread" },
+      ],
+    );
+  });
+
+  it("marks an unread session as read when it becomes active", async function () {
+    const active = createConversation("conv-a", "Question A");
+    const unread = createConversation("conv-unread", "Question unread");
+    const statuses = new Map<string, "running" | "unread">([
+      ["conv-unread", "unread"],
+    ]);
+    const harness = createHarness({
+      readyConversation: active,
+      conversations: [active, unread],
+      sessionStatuses: statuses,
+    });
+
+    await harness.coordinator.switchSession(unread);
+
+    assert.isFalse(statuses.has("conv-unread"));
+    assert.equal(harness.ready?.conversation.metadata.id, "conv-unread");
+  });
 });
 
 function createHarness({
@@ -96,12 +142,14 @@ function createHarness({
   archivedConversations = [],
   latestConversation = null,
   onArchive,
+  sessionStatuses = new Map(),
 }: {
   readyConversation: Conversation;
   conversations?: Conversation[];
   archivedConversations?: Conversation[];
   latestConversation?: Conversation | null;
   onArchive?: (conversation: Conversation) => void;
+  sessionStatuses?: Map<string, "running" | "unread">;
 }) {
   let state: SidebarState = createInitialSidebarState("Paper");
   let ready: SidebarReadyDisplayState | undefined = {
@@ -160,6 +208,8 @@ function createHarness({
         };
       }
     },
+    getSessionStatus: (conversationId) => sessionStatuses.get(conversationId),
+    markSessionRead: (conversationId) => sessionStatuses.delete(conversationId),
     focusComposer() {
       state = {
         ...state,

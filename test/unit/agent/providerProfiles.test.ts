@@ -1,8 +1,5 @@
 import { assert } from "chai";
-import {
-  ProviderProfileStore,
-  mergeDiscoveredModels,
-} from "../../../src/application/providers/ProviderProfileService.ts";
+import { ProviderProfileStore } from "../../../src/application/providers/ProviderProfileService.ts";
 
 describe("ProviderProfileStore", function () {
   beforeEach(function () {
@@ -147,49 +144,34 @@ describe("ProviderProfileStore", function () {
     assert.isUndefined(store.getProfile(profile.id)?.lastDiagnostic);
   });
 
-  it("keeps model visibility while applying provider-specific discovery defaults", function () {
-    const current = [
-      { id: "stable", displayName: "Stable" },
-      { id: "existing", displayName: "Existing", visible: false },
-    ];
-    const discovered = [
-      { id: "stable", displayName: "Stable renamed" },
-      { id: "existing", displayName: "Existing renamed" },
-      { id: "new", displayName: "New" },
-    ];
+  it("keeps configured Codex models when the live catalog adds models", function () {
+    const store = new ProviderProfileStore();
+    store.updateCodexProvider({
+      status: "connected",
+      models: [
+        { id: "gpt-a", displayName: "GPT A" },
+        { id: "gpt-b", displayName: "GPT B" },
+      ],
+    });
 
-    assert.deepEqual(
-      mergeDiscoveredModels(current, discovered, true).map((model) => ({
-        id: model.id,
-        visible: model.visible !== false,
-      })),
-      [
-        { id: "stable", visible: true },
-        { id: "existing", visible: false },
-        { id: "new", visible: true },
+    store.updateCodexProvider({
+      status: "connected",
+      models: [
+        { id: "gpt-a", displayName: "GPT A renamed" },
+        { id: "gpt-b", displayName: "GPT B" },
+        { id: "gpt-new", displayName: "GPT New" },
       ],
-    );
+    });
+
+    const models = store.getSnapshot().profiles[0].models;
     assert.deepEqual(
-      mergeDiscoveredModels(current, discovered, false).map((model) => ({
-        id: model.id,
-        visible: model.visible !== false,
-      })),
-      [
-        { id: "stable", visible: true },
-        { id: "existing", visible: false },
-        { id: "new", visible: false },
-      ],
+      models.map((model) => model.id),
+      ["gpt-a", "gpt-b"],
     );
-    assert.isTrue(
-      mergeDiscoveredModels(
-        [{ id: "removed", displayName: "Removed" }],
-        [{ id: "replacement", displayName: "Replacement" }],
-        false,
-      )[0]?.visible !== false,
-    );
+    assert.equal(models[0]?.displayName, "GPT A renamed");
   });
 
-  it("hides models, preserves one visible model, and updates the saved selection", function () {
+  it("replaces configured Codex models and updates the saved selection", function () {
     const prefs = installZoteroPrefsMock();
     const store = new ProviderProfileStore();
     store.updateCodexProvider({
@@ -206,10 +188,15 @@ describe("ProviderProfileStore", function () {
     );
 
     assert.isTrue(
-      store.setModelVisibility("codex-cli.default", "gpt-a", false),
+      store.replaceProviderModels("codex-cli.default", [
+        { id: "gpt-b", displayName: "GPT B" },
+      ]),
     );
     const profile = store.getSnapshot().profiles[0];
-    assert.isFalse(profile.models[0]?.visible);
+    assert.deepEqual(
+      profile.models.map((model) => model.id),
+      ["gpt-b"],
+    );
     assert.equal(profile.defaultModel, "gpt-b");
     assert.deepEqual(
       JSON.parse(
@@ -219,18 +206,10 @@ describe("ProviderProfileStore", function () {
       ),
       { "codex-cli.default": "gpt-b" },
     );
-    assert.isFalse(
-      store.setModelVisibility("codex-cli.default", "gpt-b", false),
-    );
-    assert.equal(
-      store
-        .getSnapshot()
-        .profiles[0].models.filter((model) => model.visible !== false).length,
-      1,
-    );
+    assert.isFalse(store.replaceProviderModels("codex-cli.default", []));
   });
 
-  it("synchronizes model visibility through Zotero prefs when queueMicrotask is unavailable", async function () {
+  it("synchronizes Codex model replacements through Zotero prefs when queueMicrotask is unavailable", async function () {
     const prefs = installZoteroPrefsMock();
     const source = new ProviderProfileStore();
     const consumer = new ProviderProfileStore();
@@ -250,24 +229,27 @@ describe("ProviderProfileStore", function () {
         ],
       });
 
-      const snapshots: boolean[][] = [];
+      const snapshots: string[][] = [];
       const unsubscribe = consumer.subscribe((snapshot) => {
-        snapshots.push(
-          snapshot.profiles[0].models.map((model) => model.visible !== false),
-        );
+        snapshots.push(snapshot.profiles[0].models.map((model) => model.id));
       });
 
       assert.isTrue(
-        source.setModelVisibility("codex-cli.default", "gpt-a", false),
+        source.replaceProviderModels("codex-cli.default", [
+          { id: "gpt-b", displayName: "GPT B" },
+        ]),
       );
       await Promise.resolve();
-      assert.deepEqual(snapshots.at(-1), [false, true]);
+      assert.deepEqual(snapshots.at(-1), ["gpt-b"]);
 
       assert.isTrue(
-        source.setModelVisibility("codex-cli.default", "gpt-a", true),
+        source.replaceProviderModels("codex-cli.default", [
+          { id: "gpt-a", displayName: "GPT A" },
+          { id: "gpt-b", displayName: "GPT B" },
+        ]),
       );
       await Promise.resolve();
-      assert.deepEqual(snapshots.at(-1), [true, true]);
+      assert.deepEqual(snapshots.at(-1), ["gpt-a", "gpt-b"]);
 
       unsubscribe();
     } finally {
@@ -283,7 +265,7 @@ describe("ProviderProfileStore", function () {
     assert.lengthOf(prefs.registrations, 4);
   });
 
-  it("keeps newly discovered BYOK models hidden", function () {
+  it("refreshes configured BYOK models without persisting the full catalog", function () {
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
       providerId: "deepseek",
@@ -301,68 +283,47 @@ describe("ProviderProfileStore", function () {
     });
 
     const models = store.getProfile(profile.id)?.models || [];
+    assert.lengthOf(models, 1);
+    assert.equal(models[0]?.id, "deepseek-chat");
     assert.isTrue(models[0]?.visible !== false);
-    assert.isFalse(models[1]?.visible);
   });
 
-  it("preserves an image rejection on refresh and clears it after an endpoint change", function () {
+  it("replaces models on an existing BYOK profile and repairs its selection", function () {
+    const prefs = installZoteroPrefsMock();
     const store = new ProviderProfileStore();
     const profile = store.createProvider({
-      providerId: "custom",
+      providerId: "openrouter",
       apiKey: "secret-a",
-      baseURL: "https://provider.example/v1",
       models: [
-        {
-          id: "model-a",
-          displayName: "Model A",
-          supportedReasoningEfforts: [],
-        },
+        { id: "model-a", displayName: "Model A" },
+        { id: "model-b", displayName: "Model B" },
       ],
     });
-
-    assert.isTrue(store.markModelImageInputRejected(profile.id, "model-a"));
-    store.updateProviderFromDiscovery(profile.id, {
-      status: "connected",
-      models: [
-        {
-          id: "model-a",
-          displayName: "Model A",
-          supportedReasoningEfforts: [],
-        },
-      ],
-    });
-    assert.deepInclude(store.getProfile(profile.id)?.models[0] || {}, {
-      imageInputRejected: true,
-    });
-
-    store.updateProvider(profile.id, {
-      baseURL: "https://provider.example/v2",
-    });
-    assert.isUndefined(
-      store.getProfile(profile.id)?.models[0]?.imageInputRejected,
+    Zotero.Prefs.set(
+      "extensions.zotero.zopilot.agent.selectedModels",
+      JSON.stringify({ [profile.id]: "model-a" }),
+      true,
     );
-  });
 
-  it("keeps a negative image result when refreshed metadata is inconclusive", function () {
-    const current = [
-      {
-        id: "model-a",
-        displayName: "Model A",
-        imageInputRejected: true,
-        supportedReasoningEfforts: [],
-      },
-    ];
-    const discovered = [
-      {
-        id: "model-a",
-        displayName: "Model A",
-        supportedReasoningEfforts: [],
-      },
-    ];
+    assert.isTrue(
+      store.replaceProviderModels(profile.id, [
+        { id: "model-b", displayName: "Model B" },
+        { id: "model-c", displayName: "Model C" },
+      ]),
+    );
 
-    assert.deepInclude(mergeDiscoveredModels(current, discovered, false)[0], {
-      imageInputRejected: true,
-    });
+    assert.deepEqual(
+      store.getProfile(profile.id)?.models.map((model) => model.id),
+      ["model-b", "model-c"],
+    );
+    assert.deepEqual(
+      JSON.parse(
+        String(
+          prefs.values.get("extensions.zotero.zopilot.agent.selectedModels"),
+        ),
+      ),
+      { [profile.id]: "model-b" },
+    );
   });
 
   it("uses global pref branches, coalesces writes, and unregisters the final subscription", async function () {

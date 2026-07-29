@@ -5,6 +5,7 @@ import {
   createProviderProfile,
   isModelVisible,
   normalizeAgentModelEntry,
+  toAgentModelEntry,
 } from "../../domain/agent/modelCatalog";
 import type {
   AgentCapabilities,
@@ -28,8 +29,8 @@ import {
 export {
   ProviderProfileStore,
   getProviderProfileStore,
-  mergeDiscoveredModels,
   migrateLegacyProviderPrefs,
+  refreshConfiguredModels,
   shutdownProviderProfileStore,
 };
 
@@ -87,7 +88,7 @@ class ProviderProfileStore {
       providerId: input.providerId,
       displayName: input.displayName,
       baseURL: input.baseURL,
-      models: input.models,
+      models: normalizeConfiguredModels(input.models || []),
       capabilities: input.capabilities,
       timeoutMs: input.timeoutMs,
       retryCount: input.retryCount,
@@ -122,12 +123,7 @@ class ProviderProfileStore {
       return undefined;
     }
     const current = normalizeStoredProfile(stored[index]);
-    const endpointChanged =
-      patch.baseURL !== undefined && patch.baseURL !== current.baseURL;
-    const models = resetImageInputRejections(
-      (patch.models || current.models).map(normalizeAgentModelEntry),
-      endpointChanged,
-    );
+    const models = normalizeConfiguredModels(patch.models || current.models);
     const visibleModels = models.filter(isModelVisible);
     const next: StoredProviderProfile = {
       ...current,
@@ -175,8 +171,41 @@ class ProviderProfileStore {
     }
     return this.updateProvider(profileId, {
       ...input,
-      models: mergeDiscoveredModels(profile.models, input.models, false),
+      models: refreshConfiguredModels(profile.models, input.models),
     });
+  }
+
+  replaceProviderModels(profileId: string, models: AgentModelEntry[]): boolean {
+    const profile = this.getSnapshot().profiles.find(
+      (item) => item.id === profileId,
+    );
+    const configuredModels = normalizeConfiguredModels(models);
+    if (!profile || configuredModels.length === 0) {
+      return false;
+    }
+
+    const saved = parseSelectedModels(getPref(SELECTED_MODELS_PREF));
+    const selectedModel = saved[profile.id] || profile.defaultModel;
+    if (profile.kind === "codex-cli") {
+      const next = createCodexProviderProfile({
+        models: configuredModels,
+        status: profile.status,
+      });
+      next.lastCheckedAt = profile.lastCheckedAt;
+      next.lastDiagnostic = profile.lastDiagnostic;
+      this.repository.writeCodexStatus(next);
+      this.notifySoon();
+    } else {
+      this.updateProvider(profileId, { models: configuredModels });
+    }
+    if (
+      selectedModel &&
+      !configuredModels.some((model) => model.id === selectedModel)
+    ) {
+      saved[profile.id] = configuredModels[0].id;
+      setPref(SELECTED_MODELS_PREF, JSON.stringify(saved));
+    }
+    return true;
   }
 
   updateCodexProvider(input: {
@@ -188,7 +217,9 @@ class ProviderProfileStore {
     const current = this.repository.readCodexStatus();
     const profile = createCodexProviderProfile({
       models: input.models
-        ? mergeDiscoveredModels(current.models || [], input.models, true)
+        ? current.models?.length
+          ? refreshConfiguredModels(current.models, input.models)
+          : normalizeConfiguredModels(input.models)
         : current.models,
       status: input.status,
     });
@@ -197,63 +228,6 @@ class ProviderProfileStore {
     this.repository.writeCodexStatus(profile);
     this.notifySoon();
     return profile;
-  }
-
-  setModelVisibility(
-    profileId: string,
-    modelId: string,
-    visible: boolean,
-  ): boolean {
-    const profile = this.getSnapshot().profiles.find(
-      (item) => item.id === profileId,
-    );
-    const model = profile?.models.find((item) => item.id === modelId);
-    if (!profile || !model || isModelVisible(model) === visible) {
-      return false;
-    }
-    if (!visible && profile.models.filter(isModelVisible).length <= 1) {
-      return false;
-    }
-
-    const models = profile.models.map((item) =>
-      item.id === modelId ? setModelVisible(item, visible) : item,
-    );
-    if (profile.kind === "codex-cli") {
-      const next = createCodexProviderProfile({
-        models,
-        status: profile.status,
-      });
-      next.lastCheckedAt = profile.lastCheckedAt;
-      next.lastDiagnostic = profile.lastDiagnostic;
-      this.repository.writeCodexStatus(next);
-      this.notifySoon();
-    } else {
-      this.updateProvider(profileId, { models });
-    }
-    this.resolveHiddenSelectedModel(profile, modelId, models);
-    return true;
-  }
-
-  markModelImageInputRejected(profileId: string, modelId: string): boolean {
-    const profile = this.getSnapshot().profiles.find(
-      (item) => item.id === profileId,
-    );
-    if (!profile || profile.kind === "codex-cli") return false;
-    const model = profile.models.find((item) => item.id === modelId);
-    if (!model || model.imageInputRejected === true) {
-      return false;
-    }
-    this.updateProvider(profileId, {
-      models: profile.models.map((item) =>
-        item.id === modelId
-          ? {
-              ...item,
-              imageInputRejected: true,
-            }
-          : item,
-      ),
-    });
-    return true;
   }
 
   deleteProvider(profileId: string): void {
@@ -338,24 +312,6 @@ class ProviderProfileStore {
     this.secrets.set(profileId, apiKey);
   }
 
-  private resolveHiddenSelectedModel(
-    profile: ProviderProfile,
-    hiddenModelId: string,
-    models: AgentModelEntry[],
-  ): void {
-    const saved = parseSelectedModels(getPref(SELECTED_MODELS_PREF));
-    const selectedModel = saved[profile.id] || profile.defaultModel;
-    if (selectedModel !== hiddenModelId) {
-      return;
-    }
-    const fallback = models.find(isModelVisible);
-    if (!fallback) {
-      return;
-    }
-    saved[profile.id] = fallback.id;
-    setPref(SELECTED_MODELS_PREF, JSON.stringify(saved));
-  }
-
   private notify(): void {
     const snapshot = this.getSnapshot();
     for (const listener of this.listeners) {
@@ -385,49 +341,27 @@ class ProviderProfileStore {
   }
 }
 
-function mergeDiscoveredModels(
+function refreshConfiguredModels(
   current: AgentModelEntry[],
   discovered: AgentModelEntry[],
-  newModelsVisible: boolean,
 ): AgentModelEntry[] {
-  const currentById = new Map(current.map((model) => [model.id, model]));
-  const merged = discovered.map((model) => {
-    const existing = currentById.get(model.id);
-    return setModelVisible(
-      {
-        ...model,
-        imageInputRejected:
-          model.imageInputRejected === true ||
-          existing?.imageInputRejected === true
-            ? true
-            : undefined,
-      },
-      existing ? isModelVisible(existing) : newModelsVisible,
-    );
-  });
-  if (merged.length && !merged.some(isModelVisible)) {
-    merged[0] = setModelVisible(merged[0], true);
-  }
-  return merged;
+  const discoveredById = new Map(
+    discovered.map((model) => [model.id, normalizeAgentModelEntry(model)]),
+  );
+  return normalizeConfiguredModels(
+    current.map((model) => discoveredById.get(model.id) || model),
+  );
 }
 
-function resetImageInputRejections(
+function normalizeConfiguredModels(
   models: AgentModelEntry[],
-  reset: boolean,
 ): AgentModelEntry[] {
-  if (!reset) return models;
-  return models.map((model) => {
-    const { imageInputRejected: _rejected, ...rest } = model;
-    return rest;
-  });
-}
-
-function setModelVisible(
-  model: AgentModelEntry,
-  visible: boolean,
-): AgentModelEntry {
-  const { visible: _visible, ...entry } = model;
-  return visible ? entry : { ...entry, visible: false };
+  const unique = new Map<string, AgentModelEntry>();
+  for (const model of models) {
+    if (!isModelVisible(model)) continue;
+    unique.set(model.id, toAgentModelEntry(normalizeAgentModelEntry(model)));
+  }
+  return [...unique.values()];
 }
 
 function parseSelectedModels(raw: unknown): Record<string, string> {

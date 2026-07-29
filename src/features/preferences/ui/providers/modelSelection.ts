@@ -1,4 +1,7 @@
-import type { DiscoveredAgentModel } from "../../../../domain/agent/types";
+import type {
+  AgentModelEntry,
+  DiscoveredAgentModel,
+} from "../../../../domain/agent/types";
 import { toAgentModelEntry } from "../../../../domain/agent/modelCatalog";
 
 export {
@@ -8,12 +11,27 @@ export {
   formatModelContext,
   formatModelPrice,
   getModelAuthorGroups,
+  toDiscoveredModelCatalogEntry,
   toAgentModelEntry,
 };
 export type { ModelAuthorGroup, ModelCatalogFilter, ModelSort };
 
 const ALL_MODEL_AUTHORS = "__all__";
 const SELECTED_MODEL_AUTHOR = "__selected__";
+
+function toDiscoveredModelCatalogEntry(
+  model: AgentModelEntry,
+  catalogOrder: number,
+): DiscoveredAgentModel {
+  return {
+    ...model,
+    catalogOrder,
+    inputModalities: ["text"],
+    isFree: false,
+    outputModalities: ["text"],
+    supportedParameters: [],
+  };
+}
 
 type ModelSort = "popular" | "name" | "newest" | "price" | "context";
 

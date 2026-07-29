@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  parseStoredCodexStatus,
   parseStoredProfiles,
   toStoredProviderProfile,
 } from "../../../src/application/providers/persistence/profileCodec.ts";
@@ -14,13 +15,20 @@ describe("provider profile codec", function () {
           preset: "deepseek",
           displayName: "Legacy DeepSeek",
           baseURL: "https://api.deepseek.com",
+          defaultModel: "unselected-catalog-model",
           models: [
             {
               id: "deepseek-chat",
               displayName: "DeepSeek Chat",
+              imageInputRejected: true,
               imageSupport: "supported",
               imageSupportSource: "runtime",
               imageSupportObservedAt: "2026-07-26T00:00:00.000Z",
+            },
+            {
+              id: "unselected-catalog-model",
+              displayName: "Unselected catalog model",
+              visible: false,
             },
           ],
           hasApiKey: true,
@@ -37,7 +45,9 @@ describe("provider profile codec", function () {
     assert.equal(profiles[0]?.id, "deepseek.legacy");
     assert.equal(profiles[0]?.providerId, "deepseek");
     assert.equal(profiles[0]?.models[0]?.id, "deepseek-chat");
-    assert.isUndefined(profiles[0]?.models[0]?.imageInputRejected);
+    assert.lengthOf(profiles[0]?.models || [], 1);
+    assert.equal(profiles[0]?.defaultModel, "deepseek-chat");
+    assert.notProperty(profiles[0]?.models[0] || {}, "imageInputRejected");
     assert.notProperty(profiles[0]?.models[0] || {}, "imageSupport");
     assert.notProperty(profiles[0]?.models[0] || {}, "imageSupportSource");
     assert.isTrue(profiles[0]?.capabilities.images);
@@ -51,6 +61,24 @@ describe("provider profile codec", function () {
   it("ignores malformed provider preference payloads", function () {
     assert.deepEqual(parseStoredProfiles("not-json"), []);
     assert.deepEqual(parseStoredProfiles(JSON.stringify({ id: "wrong" })), []);
+  });
+
+  it("migrates hidden Codex catalog entries to configured models", function () {
+    const status = parseStoredCodexStatus(
+      JSON.stringify({
+        models: [
+          { id: "gpt-a", displayName: "GPT A" },
+          { id: "gpt-b", displayName: "GPT B", visible: false },
+        ],
+        status: "connected",
+      }),
+    );
+
+    assert.deepEqual(
+      status.models?.map((model) => model.id),
+      ["gpt-a"],
+    );
+    assert.notProperty(status.models?.[0] || {}, "visible");
   });
 
   it("upgrades legacy automatic hostnames without overwriting custom names", function () {

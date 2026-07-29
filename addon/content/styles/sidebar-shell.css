@@ -360,7 +360,7 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 29px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 5px;
   padding: 4px 6px 4px 8px;
@@ -385,6 +385,26 @@
   color: var(--zp-muted);
   font-size: 10px;
   white-space: nowrap;
+}
+
+.zp-detached-session-status {
+  display: grid;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  place-items: center;
+  color: var(--zp-muted);
+}
+
+.zp-detached-session-running-icon {
+  animation: zp-spin 0.9s linear infinite;
+}
+
+.zp-detached-session-unread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--zp-accent);
 }
 
 .zp-detached-session-row:hover .zp-detached-session-time,

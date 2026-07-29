@@ -18,6 +18,7 @@ import { ModelCatalogPicker } from "./ModelCatalogPicker";
 import { toAgentModelEntry } from "./modelSelection";
 
 type AddProviderFormProps = {
+  existingProviderIds?: readonly AgentProviderId[];
   onCancel: () => void;
   onCreate: (input: {
     providerId: Exclude<AgentProviderId, "codex">;
@@ -47,14 +48,18 @@ function updateSelectedModelIds(
 function AddProviderForm(props: AddProviderFormProps): ReactElement {
   const providerLabelId = `zp-provider-label-${useId().replaceAll(":", "")}`;
   const apiKeyErrorId = `zp-api-key-error-${useId().replaceAll(":", "")}`;
+  const configuredProviderIds = new Set(props.existingProviderIds || []);
   const selectableProviders = PROVIDER_CATALOG.filter(
-    (provider) => provider.selectable,
+    (provider) =>
+      provider.selectable &&
+      (provider.id === "custom" || !configuredProviderIds.has(provider.id)),
   );
-  const [providerId, setProviderId] =
-    useState<Exclude<AgentProviderId, "codex">>("openrouter");
-  const [baseURL, setBaseURL] = useState(
-    getProviderDefinition("openrouter").defaultBaseURL || "",
-  );
+  const initialProvider =
+    selectableProviders[0] || getProviderDefinition("custom");
+  const [providerId, setProviderId] = useState<
+    Exclude<AgentProviderId, "codex">
+  >(initialProvider.id as Exclude<AgentProviderId, "codex">);
+  const [baseURL, setBaseURL] = useState(initialProvider.defaultBaseURL || "");
   const [apiKey, setApiKey] = useState("");
   const [models, setModels] = useState<DiscoveredAgentModel[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);

@@ -3,6 +3,7 @@ import type { Conversation } from "../../../domain/conversation";
 import type {
   SidebarMessageView,
   SidebarModelView,
+  SidebarSessionStatus,
   SidebarState,
 } from "../ui/types";
 import { resolveProviderBrand } from "../../../domain/agent/providerBrand";
@@ -62,12 +63,14 @@ function createConversationMessages(
 function createSessionView(
   conversation: Conversation,
   activeConversationId?: string,
+  status?: SidebarSessionStatus,
 ): SidebarState["sessions"][number] {
   return {
     id: conversation.metadata.id,
     title: getSessionTitle(conversation),
     meta: getLastUserMessageAt(conversation),
     active: activeConversationId === conversation.metadata.id,
+    status,
     conversation,
   };
 }

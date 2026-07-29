@@ -70,9 +70,11 @@ export type SidebarSessionView = {
   title: string;
   meta: string;
   active: boolean;
+  status?: SidebarSessionStatus;
   conversation: Conversation;
 };
 
+export type SidebarSessionStatus = "running" | "unread";
 export type SidebarSessionMode = "history" | "archive";
 export type SidebarPresentation = "sidebar" | "window";
 

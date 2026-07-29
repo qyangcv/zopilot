@@ -115,7 +115,6 @@ describe("preference model selection", function () {
       defaultReasoningEffort: undefined,
       displayName: "Google: Gemini Pro",
       id: "google/gemini-pro",
-      imageInputRejected: undefined,
       supportedReasoningEfforts: [],
     });
   });

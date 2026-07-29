@@ -5,7 +5,6 @@ import { join } from "node:path";
 import {
   ByokAgentRunner,
   createByokMcpServer,
-  isUnsupportedImageError,
   withImageCapabilityHeader,
 } from "../../../src/integrations/byok/runtime/ByokAgentRunner.ts";
 import {
@@ -33,7 +32,7 @@ describe("BYOK image delivery", function () {
     assert.isTrue(server.useStructuredContent);
   });
 
-  it("only trusts explicit input modalities and never guesses from names", function () {
+  it("preserves explicit input modalities without turning them into runtime policy", function () {
     const models = parseOpenAIModelList({
       data: [
         { id: "plain", input_modalities: ["text", "image"] },
@@ -44,12 +43,12 @@ describe("BYOK image delivery", function () {
     });
 
     assert.deepEqual(
-      models.map((model) => [model.id, model.imageInputRejected]),
+      models.map((model) => [model.id, model.inputModalities]),
       [
-        ["plain", undefined],
-        ["text-only", true],
-        ["generic-modalities", undefined],
-        ["vision-in-name-only", undefined],
+        ["plain", ["text", "image"]],
+        ["text-only", ["text"]],
+        ["generic-modalities", []],
+        ["vision-in-name-only", []],
       ],
     );
   });
@@ -69,56 +68,11 @@ describe("BYOK image delivery", function () {
     });
 
     assert.deepEqual(
-      models.map((model) => [model.id, model.imageInputRejected]),
+      models.map((model) => [model.id, model.inputModalities]),
       [
-        ["author/vision", undefined],
-        ["author/text-only", true],
+        ["author/vision", ["text", "image"]],
+        ["author/text-only", ["text"]],
       ],
-    );
-  });
-
-  it("only classifies explicit image incompatibility errors", function () {
-    assert.isTrue(
-      isUnsupportedImageError({
-        statusCode: 400,
-        message: "input_image is not supported by this model",
-      }),
-    );
-    assert.isTrue(
-      isUnsupportedImageError({
-        message: "Failed to deserialize the JSON body: unknown variant `image`",
-      }),
-    );
-    assert.isTrue(
-      isUnsupportedImageError({
-        statusCode: 400,
-        message:
-          "Failed to deserialize the JSON body into the target type: messages[1]: unknown variant `image`",
-      }),
-    );
-    assert.isFalse(
-      isUnsupportedImageError({
-        statusCode: 413,
-        message: "image is too large",
-      }),
-    );
-    assert.isFalse(
-      isUnsupportedImageError({
-        statusCode: 500,
-        message: "vision service unavailable",
-      }),
-    );
-    assert.isFalse(
-      isUnsupportedImageError({
-        statusCode: 400,
-        message: "invalid temperature",
-      }),
-    );
-    assert.isFalse(
-      isUnsupportedImageError({
-        statusCode: 400,
-        message: "image rejected by content policy moderation",
-      }),
     );
   });
 
@@ -138,97 +92,94 @@ describe("BYOK image delivery", function () {
     );
   });
 
-  it("discards the rejected image attempt and retries once without images", async function () {
+  it("streams locator turns before the provider attempt completes", async function () {
     const fixture = await createImageTurn();
     const notifications: Array<{ method: string; params?: any }> = [];
-    const inputs: unknown[] = [];
-    let attempt = 0;
-    let closeCount = 0;
+    fixture.params.input.prompt = "Analyze Figure 1";
+    let releaseAttempt: (() => void) | undefined;
+    const attemptGate = new Promise<void>((resolve) => {
+      releaseAttempt = resolve;
+    });
+    let resolveFirstDelta: (() => void) | undefined;
+    const firstDelta = new Promise<void>((resolve) => {
+      resolveFirstDelta = resolve;
+    });
     const runner = new ByokAgentRunner({
       connectMcp: (async () => ({
         active: [],
         errors: new Map(),
-        close: async () => {
-          closeCount += 1;
-        },
+        close: async () => undefined,
       })) as any,
-      notify: (method, params) => notifications.push({ method, params }),
-      runAgent: (async (_agent: unknown, input: unknown) => {
-        inputs.push(input);
-        attempt += 1;
-        return attempt === 1
-          ? createStream("discarded", {
-              statusCode: 400,
-              message: "input_image is not supported by this model",
-            })
-          : createStream("retry", undefined, "retry");
-      }) as any,
+      notify: (method, params) => {
+        notifications.push({ method, params });
+        if (method === "item/agentMessage/delta") resolveFirstDelta?.();
+      },
+      runAgent: (async () => createGatedStream("streamed", attemptGate)) as any,
     });
 
     try {
-      const result = await runner.startTurn(fixture.params);
-      assert.equal(result.text, "retry");
-      assert.lengthOf(inputs, 2);
-      assert.isArray(inputs[0]);
-      assert.isString(inputs[1]);
-      assert.include(String(inputs[1]), "were not sent");
-      assert.include(String(inputs[1]), "Do not claim");
-      assert.equal(closeCount, 2);
-      assert.notInclude(
+      let settled = false;
+      const pending = runner.startTurn(fixture.params).finally(() => {
+        settled = true;
+      });
+      await firstDelta;
+      assert.isFalse(settled);
+      assert.include(
         notifications
           .map((notification) => String(notification.params?.delta || ""))
           .join(""),
-        "discarded",
+        "streamed",
       );
-      assert.include(
-        notifications
-          .map((notification) => String(notification.params?.message || ""))
-          .join(""),
-        "1 张图片未发送",
-      );
-      assert.deepInclude(
-        notifications.find(
-          (notification) => notification.method === "model/imageInputRejected",
-        )?.params,
-        {
-          modelId: "model-a",
-        },
-      );
+      releaseAttempt?.();
+      assert.equal((await pending).text, "streamed");
     } finally {
+      releaseAttempt?.();
       await fixture.cleanup();
     }
   });
 
-  it("does not create a positive model capability after image success", async function () {
-    const fixture = await createImageTurn({ withMcp: false });
+  it("surfaces image rejection without retrying or hiding streamed events", async function () {
+    const fixture = await createImageTurn();
+    const notifications: Array<{ method: string; params?: any }> = [];
+    let attempts = 0;
     const runner = new ByokAgentRunner({
-      notify: () => undefined,
-      runAgent: (async () => createStream("ok", undefined, "ok")) as any,
-    });
-
-    try {
-      const result = await runner.startTurn(fixture.params);
-      assert.equal(result.text, "ok");
-    } finally {
-      await fixture.cleanup();
-    }
-  });
-
-  it("treats every BYOK provider the same until an image is rejected", async function () {
-    const fixture = await createImageTurn({ withMcp: false });
-    fixture.params.profile.providerId = "deepseek";
-    let receivedInput: unknown;
-    const runner = new ByokAgentRunner({
-      notify: () => undefined,
-      runAgent: (async (_agent: unknown, input: unknown) => {
-        receivedInput = input;
-        return createStream("ok", undefined, "ok");
+      connectMcp: (async () => ({
+        active: [],
+        errors: new Map(),
+        close: async () => undefined,
+      })) as any,
+      notify: (method, params) => notifications.push({ method, params }),
+      runAgent: (async () => {
+        attempts += 1;
+        return createStream("visible-before-error", {
+          statusCode: 400,
+          message: "input_image is not supported by this model",
+        });
       }) as any,
     });
 
     try {
-      await runner.startTurn(fixture.params);
-      assert.isArray(receivedInput);
+      let caught: unknown;
+      try {
+        await runner.startTurn(fixture.params);
+      } catch (error) {
+        caught = error;
+      }
+      assert.equal(attempts, 1);
+      assert.deepInclude(caught as Record<string, unknown>, {
+        statusCode: 400,
+        message: "input_image is not supported by this model",
+      });
+      assert.include(
+        notifications
+          .map((notification) => String(notification.params?.delta || ""))
+          .join(""),
+        "visible-before-error",
+      );
+      assert.notInclude(
+        notifications.map((notification) => notification.method),
+        "model/imageInputRejected",
+      );
     } finally {
       await fixture.cleanup();
     }
@@ -250,9 +201,25 @@ function createStream(delta: string, failure?: unknown, finalOutput = ""): any {
   };
 }
 
-async function createImageTurn(
-  options: { withMcp?: boolean } = {},
-): Promise<{ cleanup: () => Promise<void>; params: TurnStartParams }> {
+function createGatedStream(delta: string, gate: Promise<void>): any {
+  return {
+    cancelled: false,
+    completed: Promise.resolve(),
+    finalOutput: delta,
+    async *[Symbol.asyncIterator]() {
+      yield {
+        type: "raw_model_stream_event",
+        data: { type: "output_text_delta", delta },
+      };
+      await gate;
+    },
+  };
+}
+
+async function createImageTurn(): Promise<{
+  cleanup: () => Promise<void>;
+  params: TurnStartParams;
+}> {
   const dir = await mkdtemp(join(tmpdir(), "zopilot-image-capability-"));
   const path = join(dir, "image.png");
   await writeFile(
@@ -278,7 +245,7 @@ async function createImageTurn(
       ],
       capabilities: {
         streaming: true,
-        tools: options.withMcp !== false,
+        tools: true,
         images: true,
         cancellation: true,
         modelListing: true,
@@ -315,17 +282,13 @@ async function createImageTurn(
         warnings: [],
       },
     },
-    ...(options.withMcp === false
-      ? {}
-      : {
-          mcp: {
-            url: "http://127.0.0.1:23119/zopilot/mcp",
-            headers: { Authorization: "Bearer secret" },
-            serverName: "zopilot",
-            acceptsImages: true,
-            timeoutMs: 30000,
-          },
-        }),
+    mcp: {
+      url: "http://127.0.0.1:23119/zopilot/mcp",
+      headers: { Authorization: "Bearer secret" },
+      serverName: "zopilot",
+      acceptsImages: true,
+      timeoutMs: 30000,
+    },
   };
   return {
     params,

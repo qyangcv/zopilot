@@ -1,6 +1,10 @@
 import { getString } from "../../../app/localization";
 import { isStandalonePaper } from "../../../domain/conversation";
-import type { SidebarMessageView, SidebarState } from "../ui/types";
+import type {
+  SidebarMessageView,
+  SidebarSessionStatus,
+  SidebarState,
+} from "../ui/types";
 import { loadPromptViews } from "../prompts/promptStore";
 import { createConversationMessages, createSessionView } from "./viewModel";
 import type { SidebarDisplayState } from "../workspace/WorkspaceCoordinator";
@@ -13,6 +17,9 @@ type SidebarStateProjectionInput = {
     conversationId: string;
     message: SidebarMessageView;
   };
+  getSessionStatus?: (
+    conversationId: string,
+  ) => SidebarSessionStatus | undefined;
   getClosedLabel: () => string;
 };
 
@@ -51,7 +58,11 @@ function projectSidebarState(
       busy: input.busy,
       prompts: loadPromptViews(),
       sessions: input.viewState.sessions.map((session) =>
-        createSessionView(session.conversation, state.conversation.metadata.id),
+        createSessionView(
+          session.conversation,
+          state.conversation.metadata.id,
+          input.getSessionStatus?.(session.id),
+        ),
       ),
       archivedSessions: input.viewState.archivedSessions.map((session) =>
         createSessionView(session.conversation, state.conversation.metadata.id),

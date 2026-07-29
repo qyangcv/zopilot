@@ -613,6 +613,111 @@ describe("sidebar controller", function () {
     assert.equal(controller.getReadyDisplayState()?.token, 1);
   });
 
+  it("keeps the detached workspace stable across library and reader context changes", async function () {
+    const win = new FakeWindow(1200) as FakeWindow & {
+      Zotero_Tabs: { selectedID: string; selectedType: string };
+    };
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    const paper = createPaperIdentity();
+    const workspace = createItemWorkspaceIdentity(paper);
+    const ready = {
+      kind: "ready" as const,
+      token: 4,
+      reader: createPDFReader(11, "tab-a"),
+      workspace,
+      conversation: createConversation(paper, "conv-a", "Question A"),
+    };
+    let librarySyncCount = 0;
+    let readerSyncCount = 0;
+    let libraryRefreshCount = 0;
+    let readerRefreshCount = 0;
+
+    controller.open = true;
+    controller.selectionToken = 4;
+    controller.setDisplayState(ready);
+    controller.viewState.detachedWindowOpen = true;
+    controller.librarySelection.syncWithSelectedWorkspace = async () => {
+      librarySyncCount++;
+    };
+    controller.readerSelection.syncWithSelectedPDFReader = async () => {
+      readerSyncCount++;
+    };
+    controller.librarySelection.refreshContext = () => {
+      libraryRefreshCount++;
+    };
+    controller.readerSelection.refreshContext = () => {
+      readerRefreshCount++;
+    };
+    controller.surface.close = () => {
+      throw new Error("host surface changes must not close detached state");
+    };
+
+    win.Zotero_Tabs = { selectedID: "zotero-pane", selectedType: "library" };
+    controller.refreshContext();
+    await controller.syncWithSelectedContext();
+    controller.handleActiveSurfaceChange("library", true);
+    controller.handleActiveSurfaceChange("reader", false);
+    assert.strictEqual(await controller.getReadyStateForActiveContext(), ready);
+
+    win.Zotero_Tabs = { selectedID: "tab-b", selectedType: "reader" };
+    controller.refreshContext(createPDFReader(21, "tab-b"));
+    await controller.syncWithSelectedContext();
+    assert.strictEqual(await controller.getReadyStateForActiveContext(), ready);
+
+    assert.equal(libraryRefreshCount, 0);
+    assert.equal(readerRefreshCount, 0);
+    assert.equal(librarySyncCount, 0);
+    assert.equal(readerSyncCount, 0);
+    assert.strictEqual(controller.getReadyDisplayState(), ready);
+    assert.equal(controller.selectionToken, 4);
+  });
+
+  it("resynchronizes the selected host context after the detached window closes", function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+    let syncCount = 0;
+
+    controller.viewState.detachedWindowOpen = true;
+    controller.syncWithSelectedContext = async () => {
+      syncCount++;
+    };
+
+    controller.handleDetachedWindowClosed();
+
+    assert.isFalse(controller.viewState.detachedWindowOpen);
+    assert.equal(syncCount, 1);
+  });
+
+  it("invalidates an in-flight host selection when detaching", function () {
+    const win = new FakeWindow(1200);
+    const controller = new (
+      __sidebarControllerTestHooks as unknown as {
+        SidebarController: new (win: Window) => Record<string, any>;
+      }
+    ).SidebarController(win as unknown as Window) as Record<string, any>;
+
+    controller.open = true;
+    controller.selectionToken = 7;
+    controller.detachedWindow.isOpen = () => false;
+    controller.detachedWindow.open = () => {
+      controller.detachedWindow.isOpen = () => true;
+    };
+
+    controller.openDetachedWindow();
+
+    assert.equal(controller.selectionToken, 8);
+    assert.isFalse(controller.canCommitSelection(7));
+    assert.isTrue(controller.canCommitSelection(8));
+  });
+
   it("formats PDF helper prompt notices for missing, outdated, and unsupported helpers", function () {
     const createPdfHelperNoticeText = (
       __sidebarControllerTestHooks as unknown as {

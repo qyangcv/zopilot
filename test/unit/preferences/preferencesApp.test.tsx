@@ -17,6 +17,7 @@ import {
   updateSelectedModelIds,
 } from "../../../src/features/preferences/ui/providers/AddProviderForm.tsx";
 import { ModelCatalogPicker } from "../../../src/features/preferences/ui/providers/ModelCatalogPicker.tsx";
+import { mergeConfiguredModelsIntoCatalog } from "../../../src/features/preferences/ui/providers/ProviderModelManager.tsx";
 import { toggleProviderExpansion } from "../../../src/features/preferences/ui/providers/ProviderPanel.tsx";
 import { PromptPanel } from "../../../src/features/preferences/ui/prompts/PromptPanel.tsx";
 import { getPromptModeAfterSave } from "../../../src/features/preferences/ui/prompts/usePromptEditor.ts";
@@ -102,17 +103,30 @@ describe("PreferencesApp", function () {
   });
 
   it("renders providers as controlled collapsed and expanded summary rows", function () {
+    const profileWithDiscoveredModel = {
+      ...TEST_PROVIDER,
+      models: [
+        ...TEST_PROVIDER.models,
+        {
+          id: "unselected/model",
+          displayName: "Unselected catalog model",
+          supportedReasoningEfforts: [],
+          visible: false,
+        },
+      ],
+    };
     const collapsed = renderToStaticMarkup(
       <ProviderCard
         checking={false}
         expanded={false}
         onCheck={() => undefined}
         onDelete={() => undefined}
+        onListModels={async () => []}
         onReadApiKey={() => ""}
-        onSetModelVisibility={() => undefined}
+        onReplaceModels={() => undefined}
         onToggle={() => undefined}
         onUpdate={() => undefined}
-        profile={TEST_PROVIDER}
+        profile={profileWithDiscoveredModel}
       />,
     );
     const expanded = renderToStaticMarkup(
@@ -121,11 +135,12 @@ describe("PreferencesApp", function () {
         expanded
         onCheck={() => undefined}
         onDelete={() => undefined}
+        onListModels={async () => []}
         onReadApiKey={() => ""}
-        onSetModelVisibility={() => undefined}
+        onReplaceModels={() => undefined}
         onToggle={() => undefined}
         onUpdate={() => undefined}
-        profile={TEST_PROVIDER}
+        profile={profileWithDiscoveredModel}
       />,
     );
 
@@ -158,9 +173,13 @@ describe("PreferencesApp", function () {
     );
     assert.include(expanded, 'data-l10n-id="zopilot-pref-provider-key-saved"');
     assert.include(expanded, "GPT-5");
+    assert.notInclude(expanded, "Unselected catalog model");
     assert.include(expanded, "zp-pref-provider-model-list");
-    assert.equal(countOccurrences(expanded, 'type="checkbox"'), 1);
-    assert.include(expanded, 'disabled=""');
+    assert.equal(countOccurrences(expanded, 'type="checkbox"'), 0);
+    assert.include(
+      expanded,
+      'data-l10n-id="zopilot-pref-provider-manage-models"',
+    );
   });
 
   it("hides the provider status icon while testing the connection", function () {
@@ -170,8 +189,9 @@ describe("PreferencesApp", function () {
         expanded={false}
         onCheck={() => undefined}
         onDelete={() => undefined}
+        onListModels={async () => []}
         onReadApiKey={() => ""}
-        onSetModelVisibility={() => undefined}
+        onReplaceModels={() => undefined}
         onToggle={() => undefined}
         onUpdate={() => undefined}
         profile={TEST_PROVIDER}
@@ -194,15 +214,16 @@ describe("PreferencesApp", function () {
     assert.deepEqual([...secondOnly], ["provider-b"]);
   });
 
-  it("renders every Codex model as a separate visibility row", function () {
+  it("shows only configured Codex models with the shared manager action", function () {
     const html = renderToStaticMarkup(
       <ProviderCard
         checking={false}
         expanded
         onCheck={() => undefined}
         onDelete={() => undefined}
+        onListModels={async () => []}
         onReadApiKey={() => ""}
-        onSetModelVisibility={() => undefined}
+        onReplaceModels={() => undefined}
         onToggle={() => undefined}
         onUpdate={() => undefined}
         profile={{
@@ -215,13 +236,15 @@ describe("PreferencesApp", function () {
             id: `gpt-${index + 1}`,
             displayName: `GPT ${index + 1}`,
             supportedReasoningEfforts: [],
+            visible: index === 4 ? false : undefined,
           })),
         }}
       />,
     );
 
-    assert.equal(countOccurrences(html, 'type="checkbox"'), 5);
-    assert.include(html, "GPT 5");
+    assert.equal(countOccurrences(html, 'type="checkbox"'), 0);
+    assert.notInclude(html, "GPT 5");
+    assert.include(html, 'data-l10n-id="zopilot-pref-provider-manage-models"');
   });
 
   it("hides the add-provider action before a model is selected", function () {
@@ -247,6 +270,38 @@ describe("PreferencesApp", function () {
       html.indexOf("zp-pref-provider-model-step"),
       html.indexOf('data-l10n-id="zopilot-pref-provider-step-models"'),
     );
+  });
+
+  it("routes an already configured provider away from duplicate creation", function () {
+    const html = renderToStaticMarkup(
+      <AddProviderForm
+        existingProviderIds={["openrouter"]}
+        onCancel={() => undefined}
+        onCreate={() => undefined}
+        onCreated={() => undefined}
+        onListModels={async () => []}
+      />,
+    );
+
+    assert.notInclude(html, "OpenRouter");
+    assert.include(html, "DeepSeek");
+  });
+
+  it("keeps configured models selectable when discovery omits them", function () {
+    const catalog = mergeConfiguredModelsIntoCatalog(
+      [],
+      [
+        {
+          id: "retired/model",
+          displayName: "Retired model",
+          supportedReasoningEfforts: [],
+        },
+      ],
+    );
+
+    assert.lengthOf(catalog, 1);
+    assert.equal(catalog[0]?.id, "retired/model");
+    assert.deepEqual(catalog[0]?.inputModalities, ["text"]);
   });
 
   it("updates model selections without retaining the checkbox event", function () {

@@ -17,7 +17,6 @@ export {
   modelFromId,
   normalizeAgentModelEntry,
   resolveProviderId,
-  shouldAttemptImageDelivery,
   toAgentModelEntry,
 };
 export type { ProviderDefinition };
@@ -152,6 +151,11 @@ function createProviderProfile(input: {
       ? [modelFromId(input.defaultModel)]
       : [];
   const visibleModels = models.filter(isModelVisible);
+  const defaultModel = visibleModels.some(
+    (model) => model.id === input.defaultModel,
+  )
+    ? input.defaultModel
+    : visibleModels[0]?.id;
   return {
     id: input.id,
     kind: "openai-compatible",
@@ -160,7 +164,7 @@ function createProviderProfile(input: {
     baseURL: input.baseURL || provider.defaultBaseURL,
     apiKeyRef: input.apiKeyRef || input.id,
     hasApiKey: input.hasApiKey,
-    defaultModel: input.defaultModel || visibleModels[0]?.id,
+    defaultModel,
     models,
     capabilities: createCapabilities(provider.id, input.capabilities),
     timeoutMs: input.timeoutMs || 180000,
@@ -212,7 +216,6 @@ function normalizeAgentModelEntry(
       ? requestedReasoningEffort
       : supportedReasoningEfforts[0],
     visible: model.visible === false ? false : undefined,
-    imageInputRejected: model.imageInputRejected === true ? true : undefined,
   };
 }
 
@@ -221,21 +224,8 @@ function toAgentModelEntry(model: AgentModelEntry): AgentModelEntry {
     defaultReasoningEffort: model.defaultReasoningEffort,
     displayName: model.displayName,
     id: model.id,
-    imageInputRejected: model.imageInputRejected,
     supportedReasoningEfforts: model.supportedReasoningEfforts,
   };
-}
-
-function shouldAttemptImageDelivery(
-  profile: ProviderProfile,
-  modelId: string | undefined,
-): boolean {
-  if (profile.kind !== "openai-compatible") return true;
-  const model =
-    profile.models.find((entry) => entry.id === modelId) ||
-    profile.models.find((entry) => entry.id === profile.defaultModel) ||
-    profile.models.find(isModelVisible);
-  return model?.imageInputRejected !== true;
 }
 
 function resolveProviderId(baseURL: string | undefined): AgentProviderId {

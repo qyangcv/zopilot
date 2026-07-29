@@ -1,7 +1,9 @@
 import {
+  Check,
   ChevronRight,
   CircleAlert,
   KeyRound,
+  ListPlus,
   LoaderCircle,
   PlugZap,
   RotateCcw,
@@ -9,19 +11,25 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useId, useState, type ReactElement } from "react";
-import type { ProviderProfile } from "../../../../domain/agent/types";
+import type {
+  AgentModelEntry,
+  DiscoveredAgentModel,
+  ProviderProfile,
+} from "../../../../domain/agent/types";
 import { isModelVisible } from "../../../../domain/agent/modelCatalog";
 import { l10nAttributes, type LocalizedMessage } from "../../localization";
 import { PreferenceIconButton, T } from "../PreferenceChrome";
 import { ProviderBrandIcon } from "../../../../ui/ProviderBrandIcon";
+import { ProviderModelManager } from "./ProviderModelManager";
 
 type ProviderCardProps = {
   checking: boolean;
   expanded: boolean;
   onCheck: () => void;
   onDelete: () => void;
+  onListModels: () => Promise<DiscoveredAgentModel[]>;
   onReadApiKey: () => string;
-  onSetModelVisibility: (modelId: string, visible: boolean) => void;
+  onReplaceModels: (models: AgentModelEntry[]) => void;
   onToggle: () => void;
   onUpdate: (input: {
     displayName?: string;
@@ -36,17 +44,20 @@ function ProviderCard({
   expanded,
   onCheck,
   onDelete,
+  onListModels,
   onReadApiKey,
-  onSetModelVisibility,
+  onReplaceModels,
   onToggle,
   onUpdate,
   profile,
 }: ProviderCardProps): ReactElement {
   const status = checking ? "checking" : profile.status;
   const visibleModelCount = profile.models.filter(isModelVisible).length;
+  const visibleModels = profile.models.filter(isModelVisible);
   const apiKeyInputId = `zp-provider-api-key-${useId().replaceAll(":", "")}`;
   const detailsId = `zp-provider-details-${useId().replaceAll(":", "")}`;
   const [editing, setEditing] = useState(false);
+  const [managingModels, setManagingModels] = useState(false);
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [baseURL, setBaseURL] = useState(profile.baseURL || "");
   const [apiKey, setApiKey] = useState("");
@@ -56,7 +67,10 @@ function ProviderCard({
     baseURL !== (profile.baseURL || "") ||
     apiKey !== savedApiKey;
   useEffect(() => {
-    if (!expanded) setEditing(false);
+    if (!expanded) {
+      setEditing(false);
+      setManagingModels(false);
+    }
   }, [expanded]);
 
   const toggleEditor = () => {
@@ -174,46 +188,68 @@ function ProviderCard({
       </div>
       {expanded ? (
         <div className="zp-pref-provider-details" id={detailsId}>
-          {profile.models.length ? (
-            <div
-              className="zp-pref-provider-model-list"
-              {...l10nAttributes("pref-provider-model-list")}
-              role="group"
-            >
-              {profile.models.map((model) => {
-                const visible = isModelVisible(model);
-                const lastVisible = visible && visibleModelCount === 1;
-                return (
-                  <label
-                    className="zp-pref-provider-model-row"
-                    key={model.id}
-                    title={model.displayName}
-                  >
-                    <input
-                      checked={visible}
-                      disabled={lastVisible}
-                      {...(lastVisible
-                        ? l10nAttributes("pref-provider-model-required")
-                        : {})}
-                      onChange={(event) =>
-                        onSetModelVisibility(
-                          model.id,
-                          event.currentTarget.checked,
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>{model.displayName}</span>
-                  </label>
-                );
-              })}
-            </div>
+          {managingModels ? (
+            <ProviderModelManager
+              configuredModels={visibleModels}
+              onCancel={() => setManagingModels(false)}
+              onListModels={onListModels}
+              onSave={(models) => {
+                onReplaceModels(models);
+                setManagingModels(false);
+              }}
+            />
           ) : (
-            <div className="zp-pref-provider-meta">
-              <span>
-                <T id="pref-provider-no-models" />
-              </span>
-            </div>
+            <>
+              <div className="zp-pref-provider-models-header">
+                <span>
+                  <T
+                    args={{ count: visibleModelCount }}
+                    id="pref-provider-models-enabled"
+                  />
+                </span>
+                <button
+                  className="zp-pref-button zp-pref-button-secondary"
+                  onClick={() => {
+                    setEditing(false);
+                    setManagingModels(true);
+                  }}
+                  type="button"
+                >
+                  <ListPlus aria-hidden="true" size={14} />
+                  <T id="pref-provider-manage-models" />
+                </button>
+              </div>
+              {visibleModels.length ? (
+                <div
+                  className="zp-pref-provider-model-list"
+                  {...l10nAttributes("pref-provider-model-list")}
+                  role="group"
+                >
+                  {visibleModels.map((model) => {
+                    return (
+                      <div
+                        className="zp-pref-provider-model-row"
+                        key={model.id}
+                        title={model.displayName}
+                      >
+                        <Check
+                          aria-hidden="true"
+                          className="zp-pref-provider-model-check"
+                          size={13}
+                        />
+                        <span>{model.displayName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="zp-pref-provider-meta">
+                  <span>
+                    <T id="pref-provider-no-models" />
+                  </span>
+                </div>
+              )}
+            </>
           )}
           {editing ? (
             <div className="zp-pref-form-grid zp-pref-provider-edit-form">

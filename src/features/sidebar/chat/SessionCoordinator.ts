@@ -4,7 +4,11 @@ import type {
 } from "../../../domain/conversation";
 import { getConversationStore } from "../../../runtime/persistence/conversations/ConversationService";
 import { createLogger } from "../../../runtime/logging/logger";
-import type { SidebarSessionMode, SidebarState } from "../ui/types";
+import type {
+  SidebarSessionMode,
+  SidebarSessionStatus,
+  SidebarState,
+} from "../ui/types";
 import { createSessionView } from "../state/viewModel";
 
 export { SidebarSessionCoordinator };
@@ -48,6 +52,10 @@ type SidebarSessionCoordinatorOptions = {
   getViewState: () => SidebarState;
   updateViewState: (patch: Partial<SidebarState>) => void;
   setReadyConversation: (conversation: Conversation) => void;
+  getSessionStatus: (
+    conversationId: string,
+  ) => SidebarSessionStatus | undefined;
+  markSessionRead: (conversationId: string) => void;
   focusComposer: () => void;
   interruptConversationTurn: (conversationId: string) => void;
   isDestroyed: () => boolean;
@@ -103,7 +111,11 @@ class SidebarSessionCoordinator {
     const activeConversationId =
       this.options.getReadyDisplayState()?.conversation.metadata.id;
     const sessionViews = conversations.map((conversation) =>
-      createSessionView(conversation, activeConversationId),
+      createSessionView(
+        conversation,
+        activeConversationId,
+        this.options.getSessionStatus(conversation.metadata.id),
+      ),
     );
     this.options.updateViewState({
       ...(mode === "archive"
@@ -193,6 +205,7 @@ class SidebarSessionCoordinator {
     if (!this.isStillCurrentWorkspace(active.metadata.workspaceKey)) {
       return;
     }
+    this.options.markSessionRead(active.metadata.id);
     this.options.setReadyConversation(active);
     this.hidePopover();
     this.options.focusComposer();
@@ -299,7 +312,11 @@ class SidebarSessionCoordinator {
     this.navigationWorkspaceKey = workspaceKey;
     this.options.updateViewState({
       sessions: sessions.map((conversation) =>
-        createSessionView(conversation, activeConversationId),
+        createSessionView(
+          conversation,
+          activeConversationId,
+          this.options.getSessionStatus(conversation.metadata.id),
+        ),
       ),
       archivedSessions: archivedSessions.map((conversation) =>
         createSessionView(conversation, activeConversationId),

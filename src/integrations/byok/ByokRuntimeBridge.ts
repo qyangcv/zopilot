@@ -50,14 +50,11 @@ import {
 import { getNestedValue } from "../../runtime/json/accessors";
 import { loadSubprocessModule } from "../../platform/gecko";
 import { parseRetrievalQuery } from "../../document/retrieval/queryParser";
-import { getProviderProfileStore } from "../../application/providers/ProviderProfileService";
-import { shouldAttemptImageDelivery } from "../../domain/agent/modelCatalog";
 
 export { ByokRuntimeBridge, getByokRuntimeBridge, shutdownByokRuntimeBridge };
 
 type ByokRuntimeBridgeOptions = {
   buildMcpConnection?: typeof buildZopilotMcpConnection;
-  markImageInputRejected?: (profileId: string, modelId: string) => void;
   prepareAttachments?: LocalAttachmentPreparer["prepare"];
 };
 
@@ -69,7 +66,6 @@ type ActiveTurn = {
   callbacks: AgentPromptCallbacks;
   eventSequence: number;
   runId: string;
-  providerProfileId: string;
   streamLengths: Map<string, number>;
   syntheticIdSequence: number;
 };
@@ -142,7 +138,6 @@ class ByokRuntimeBridge {
       callbacks,
       eventSequence: 0,
       runId,
-      providerProfileId: profile.id,
       streamLengths: new Map(),
       syntheticIdSequence: 0,
     };
@@ -154,7 +149,7 @@ class ByokRuntimeBridge {
       runId,
     });
     try {
-      const allowImages = shouldAttemptImageDelivery(profile, input.model);
+      const allowImages = profile.capabilities.images;
       const preparedLocalAttachments = input.localAttachments?.length
         ? await (
             this.options.prepareAttachments ||
@@ -556,20 +551,6 @@ class ByokRuntimeBridge {
             });
           }
           logger.warn("BYOK runtime warning", { warning, runId });
-        }
-        break;
-      }
-      case "model/imageInputRejected": {
-        const modelId = getNestedString(message.params, ["modelId"]);
-        if (activeTurn && modelId) {
-          (
-            this.options.markImageInputRejected ||
-            ((profileId, rejectedModelId) =>
-              getProviderProfileStore().markModelImageInputRejected(
-                profileId,
-                rejectedModelId,
-              ))
-          )(activeTurn.providerProfileId, modelId);
         }
         break;
       }
