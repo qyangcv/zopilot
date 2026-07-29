@@ -2,6 +2,7 @@ import { getString } from "../../../app/localization";
 import { createLogger } from "../../../runtime/logging/logger";
 import { CONTEXT_PANE_DECK_ID, ZOPILOT_CONTEXT_PANE } from "./constants";
 import { ContextPaneSidenavAdapter } from "./ContextPaneSidenavAdapter";
+import { blurFocusedDescendant } from "./focusedEditor";
 import {
   probeContextPane,
   type ContextPaneActiveState,
@@ -125,7 +126,10 @@ class ContextPaneDeckAdapter {
       (element) => element.parentElement === probe.deck,
     );
     matches.forEach((element) => {
-      if (element !== existing) element.remove();
+      if (element !== existing) {
+        blurFocusedDescendant(element);
+        element.remove();
+      }
     });
     if (existing) {
       this.panel = existing;
@@ -140,6 +144,9 @@ class ContextPaneDeckAdapter {
   select(state: ContextPaneActiveState): boolean {
     const probe = this.mount();
     if (!probe.available) return false;
+    if (state !== "zopilot") {
+      blurFocusedDescendant(this.panel);
+    }
     const panel =
       state === "zopilot"
         ? this.ensurePanel()
@@ -167,6 +174,7 @@ class ContextPaneDeckAdapter {
   }
 
   destroy(restoreHost = true): void {
+    blurFocusedDescendant(this.panel);
     if (restoreHost) {
       this.restoreNativePanel();
       this.restoreHostState();
@@ -217,6 +225,7 @@ class ContextPaneDeckAdapter {
     const probe = probeContextPane(this.win.document);
     if (!probe.available || !this.panel) return;
     if (getSelectedPanel(probe) !== this.panel) return;
+    blurFocusedDescendant(this.panel);
     const nativePanel =
       this.previousPanel?.parentElement === probe.deck
         ? this.previousPanel

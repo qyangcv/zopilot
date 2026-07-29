@@ -1,5 +1,6 @@
 import { getString } from "../../../app/localization";
 import { createStaticIconElement } from "../ui/staticIcons";
+import { blurFocusedDescendant } from "./focusedEditor";
 import {
   probeLibraryItemPane,
   type LibraryItemPaneProbeResult,
@@ -104,7 +105,10 @@ class LibraryItemPaneAdapter {
       (element) => element.parentElement === probe.deck,
     );
     matches.forEach((element) => {
-      if (element !== existing) element.remove();
+      if (element !== existing) {
+        blurFocusedDescendant(element);
+        element.remove();
+      }
     });
     if (existing) {
       this.panel = existing;
@@ -134,6 +138,7 @@ class LibraryItemPaneAdapter {
   selectNative(): boolean {
     const probe = this.mount();
     if (!probe.available) return false;
+    blurFocusedDescendant(this.panel);
     this.setActive(false);
     const selected = getSelectedPanel(probe);
     if (selected && selected !== this.panel) this.previousPanel = selected;
@@ -160,6 +165,7 @@ class LibraryItemPaneAdapter {
   }
 
   destroy(restoreHost = true): void {
+    blurFocusedDescendant(this.panel);
     const probe = probeLibraryItemPane(this.win.document);
     if (restoreHost && probe.available) {
       if (this.panel && getSelectedPanel(probe) === this.panel) {

@@ -10,14 +10,20 @@ import type {
   ItemContextTree,
   PaperSourceRef,
 } from "../../../src/domain/conversation.ts";
+import { ComposerPromptPicker } from "../../../src/features/sidebar/ui/Composer.tsx";
 import { ComposerEditor } from "../../../src/features/sidebar/ui/ComposerEditor.tsx";
+import { ComposerFooter } from "../../../src/features/sidebar/ui/ComposerFooter.tsx";
 import type { ComposerBindings } from "../../../src/features/sidebar/ui/composerBindings.ts";
 import { countItemContextSelections } from "../../../src/features/sidebar/ui/itemContextGroups.ts";
 import { ContextChips } from "../../../src/features/sidebar/ui/ContextChips.tsx";
 import { ItemContextMentionPopover } from "../../../src/features/sidebar/ui/ItemContextMentionPopover.tsx";
 import { MentionPopover } from "../../../src/features/sidebar/ui/MentionPopover.tsx";
+import { PromptPicker } from "../../../src/features/sidebar/ui/PromptPicker.tsx";
 import { FloatingPortal } from "../../../src/ui/primitives/FloatingPortal.tsx";
-import type { SidebarState } from "../../../src/features/sidebar/ui/types.ts";
+import type {
+  SidebarActions,
+  SidebarState,
+} from "../../../src/features/sidebar/ui/types.ts";
 
 describe("sidebar composer mention keyboard navigation", function () {
   before(function () {
@@ -89,6 +95,160 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.deepEqual(moves, [1, -1]);
     assert.equal(selected[0]?.sourceId, "b");
     assert.equal(submitCount, 0);
+  });
+
+  it("inserts prompt text without replacing selected context", function () {
+    const mention = {
+      id: "mention:paper",
+      ...createSource("paper"),
+    };
+    const inserted: string[] = [];
+    const bindings = {
+      ...createBindings({
+        activeMentionIndex: 0,
+        candidates: [],
+        move: () => undefined,
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      insertPrompt: (text: string) => inserted.push(text),
+      mentions: [mention],
+      promptPickerOpen: true,
+    };
+    const picker = ComposerPromptPicker({
+      bindings,
+      state: {
+        prompts: [{ body: "Prompt-3 body", id: "prompt-3", title: "Prompt-3" }],
+      } as SidebarState,
+    });
+    const promptPicker = findElement(
+      picker,
+      (element) => element.type === PromptPicker,
+    );
+
+    assert.isDefined(promptPicker);
+    (getProps(promptPicker).onInsert as (body: string) => void)(
+      "Prompt-3 body",
+    );
+    assert.deepEqual(inserted, ["Prompt-3 body"]);
+    assert.deepEqual(bindings.mentions, [mention]);
+  });
+
+  it("ends the native editing session before opening the prompt picker", function () {
+    let blurCount = 0;
+    const bindings = createBindings({
+      activeMentionIndex: 0,
+      candidates: [],
+      move: () => undefined,
+      select: () => undefined,
+      submit: () => undefined,
+    });
+    (
+      bindings.textareaRef as {
+        current: Pick<HTMLTextAreaElement, "blur"> | null;
+      }
+    ).current = {
+      blur: () => blurCount++,
+    };
+    const footer = ComposerFooter({
+      actions: {} as SidebarActions,
+      bindings,
+      state: {
+        backendStatus: "connected",
+        composerEnabled: true,
+        context: { workspaceKey: "library:1" },
+        models: [],
+      } as SidebarState,
+    });
+    const promptButton = findElement(
+      footer,
+      (element) =>
+        element.type === "button" &&
+        getProps(element)["aria-haspopup"] === "dialog",
+    );
+
+    assert.isDefined(promptButton);
+    (getProps(promptButton).onMouseDown as () => void)();
+    assert.equal(blurCount, 1);
+  });
+
+  it("leaves the textarea buffer and geometry under Gecko control", function () {
+    const nativeInputs: Array<[string, number | null]> = [];
+    const bindings = {
+      ...createBindings({
+        activeMentionIndex: 0,
+        candidates: [],
+        move: () => undefined,
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      hasDraftText: true,
+      handleEditorInput: (textarea: HTMLTextAreaElement) =>
+        nativeInputs.push([textarea.value, textarea.selectionStart]),
+    };
+    const editor = ComposerEditor({
+      bindings,
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const textarea = findElement(
+      editor,
+      (element) => element.type === "textarea",
+    );
+
+    assert.isDefined(textarea);
+    const props = getProps(textarea);
+    assert.notProperty(props, "value");
+    assert.notProperty(props, "defaultValue");
+    assert.notProperty(props, "onInput");
+
+    (props.onChange as (event: { currentTarget: HTMLTextAreaElement }) => void)(
+      {
+        currentTarget: {
+          selectionStart: 6,
+          value: "native",
+        } as HTMLTextAreaElement,
+      },
+    );
+    assert.deepEqual(nativeInputs, [["native", 6]]);
+  });
+
+  it("does not intercept native editing shortcuts", function () {
+    const editor = ComposerEditor({
+      bindings: createBindings({
+        activeMentionIndex: 0,
+        candidates: [],
+        move: () => undefined,
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const onKeyDown = getTextareaKeyDown(editor);
+
+    for (const key of ["a", "c", "x", "v", "z", "Backspace", "Delete"]) {
+      assert.isFalse(pressKey(onKeyDown, key), key);
+    }
+  });
+
+  it("leaves modified editing keys native while a picker is open", function () {
+    const editor = ComposerEditor({
+      bindings: createBindings({
+        activeMentionIndex: 0,
+        candidates: [createSource("paper")],
+        move: () => {
+          throw new Error("modified navigation must stay in the textarea");
+        },
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const onKeyDown = getTextareaKeyDown(editor);
+
+    assert.isFalse(pressKey(onKeyDown, "a", { metaKey: true }));
+    assert.isFalse(pressKey(onKeyDown, "c", { ctrlKey: true }));
+    assert.isFalse(pressKey(onKeyDown, "ArrowLeft", { altKey: true }));
+    assert.isFalse(pressKey(onKeyDown, "ArrowDown", { shiftKey: true }));
   });
 
   it("moves the single active highlight to the hovered mention", function () {
@@ -480,16 +640,29 @@ describe("sidebar composer mention keyboard navigation", function () {
 });
 
 type KeyDownHandler = (event: {
+  altKey?: boolean;
+  ctrlKey?: boolean;
   key: string;
+  metaKey?: boolean;
   shiftKey: boolean;
   preventDefault: () => void;
 }) => void;
 
-function pressKey(handler: KeyDownHandler, key: string): boolean {
+function pressKey(
+  handler: KeyDownHandler,
+  key: string,
+  modifiers: {
+    altKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    shiftKey?: boolean;
+  } = {},
+): boolean {
   let prevented = false;
   handler({
+    ...modifiers,
     key,
-    shiftKey: false,
+    shiftKey: modifiers.shiftKey ?? false,
     preventDefault: () => {
       prevented = true;
     },
@@ -544,7 +717,7 @@ function createBindings({
     bottomDockRef: createRef<HTMLDivElement>(),
     closeItemContextPicker: () => undefined,
     composerRef: createRef<HTMLFormElement>(),
-    draft: "@",
+    hasDraftText: true,
     insertPrompt: () => undefined,
     itemContextExpanded: true,
     itemContextLimitReached: false,
@@ -572,8 +745,12 @@ function createBindings({
     setMentionQuery: () => undefined,
     setPromptPickerOpen: () => undefined,
     submit,
+    textareaCallbackRef: () => undefined,
     textareaRef: createRef<HTMLTextAreaElement>(),
-    updateDraft: () => undefined,
+    handleEditorBlur: () => undefined,
+    handleEditorCompositionEnd: () => undefined,
+    handleEditorCompositionStart: () => undefined,
+    handleEditorInput: () => undefined,
   };
 }
 

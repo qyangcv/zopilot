@@ -174,7 +174,7 @@ function InteractiveSidebarApp({
         copiedId={copiedId}
         logRef={autoScroll.logRef}
         onCopy={copyMessage}
-        onEdit={composer.insertPrompt}
+        onEdit={composer.restoreDraft}
         onScroll={(event) => autoScroll.onScroll(event.currentTarget)}
         onSubmit={composer.submit}
         state={state}

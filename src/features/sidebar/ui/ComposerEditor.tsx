@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { getString } from "../../../app/localization";
 import type { ComposerBindings } from "./composerBindings";
-import { resizeTextarea } from "./composerLayout";
 import { ContextChips } from "./ContextChips";
 import { MentionPopover } from "./MentionPopover";
 import { ItemContextMentionPopover } from "./ItemContextMentionPopover";
@@ -24,7 +23,10 @@ function ComposerEditor({
   state: SidebarState;
 }): ReactElement {
   const {
-    draft,
+    handleEditorBlur,
+    handleEditorCompositionEnd,
+    handleEditorCompositionStart,
+    handleEditorInput,
     localAttachments,
     mentionCandidates,
     mentions,
@@ -34,8 +36,6 @@ function ComposerEditor({
     selectMention,
     setMentionQuery,
     submit,
-    textareaRef,
-    updateDraft,
   } = bindings;
   const noteContexts = bindings.noteContexts;
   const activeMention =
@@ -190,12 +190,8 @@ function ComposerEditor({
         className="zp-composer-input"
         disabled={!state.composerEnabled}
         {...ZOTERO_NO_NATIVE_INPUT_PROPS}
-        onChange={(event) =>
-          updateDraft(
-            event.currentTarget.value,
-            event.currentTarget.selectionStart ?? undefined,
-          )
-        }
+        onBlur={handleEditorBlur}
+        onChange={(event) => handleEditorInput(event.currentTarget)}
         onClick={(event) =>
           setMentionQuery(
             findMentionQuery(
@@ -204,8 +200,26 @@ function ComposerEditor({
             ),
           )
         }
-        onInput={(event) => resizeTextarea(event.currentTarget)}
+        onCompositionEnd={(event) =>
+          handleEditorCompositionEnd(event.currentTarget)
+        }
+        onCompositionStart={handleEditorCompositionStart}
         onKeyDown={(event) => {
+          if (
+            (event.nativeEvent as KeyboardEvent | undefined)?.isComposing ||
+            event.key === "Process" ||
+            event.keyCode === 229
+          ) {
+            return;
+          }
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.altKey ||
+            event.shiftKey
+          ) {
+            return;
+          }
           if (bindings.itemContextPickerOpen) {
             const itemCount =
               1 +
@@ -325,10 +339,9 @@ function ComposerEditor({
           }
         }}
         placeholder={getString("sidebar-input-placeholder")}
-        ref={textareaRef}
+        ref={bindings.textareaCallbackRef}
         rows={1}
         spellCheck={false}
-        value={draft}
       />
     </>
   );

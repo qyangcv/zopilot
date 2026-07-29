@@ -6,6 +6,7 @@ import type {
   SidebarStreamingSnapshot,
 } from "../ui/types";
 import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
+import { blurFocusedDescendant } from "./focusedEditor";
 
 const DETACHED_CHAT_WINDOW_HOST_ID = "zopilot-detached-window-host";
 const DETACHED_CHAT_WINDOW_URI =
@@ -85,7 +86,10 @@ class DetachedChatWindow {
     const chatWindow = this.chatWindow;
     if (!chatWindow) return;
     try {
-      if (!chatWindow.closed) chatWindow.close();
+      if (!chatWindow.closed) {
+        blurFocusedDescendant(chatWindow.document.documentElement);
+        chatWindow.close();
+      }
     } catch (error) {
       this.warn("failed to close the detached Zopilot window", error);
     }

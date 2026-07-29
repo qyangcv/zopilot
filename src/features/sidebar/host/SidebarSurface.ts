@@ -7,6 +7,7 @@ import type {
 import { ContextPaneDeckAdapter } from "./ContextPaneAdapter";
 import { STYLE_URI } from "./constants";
 import { createZopilotDeckHost, type ZopilotDeckHost } from "./deckHost";
+import { blurFocusedDescendant } from "./focusedEditor";
 import { LibraryItemPaneAdapter } from "./LibraryItemPaneAdapter";
 import type { HostMutationTargets } from "./HostMutationCoordinator";
 
@@ -142,6 +143,9 @@ class SidebarSurface {
   }
 
   attach(_reader?: _ZoteroTypes.ReaderInstance): void {
+    if (this.activeKind && this.activeKind !== "reader") {
+      blurFocusedDescendant(this.deckPanel);
+    }
     this.libraryAdapter.deactivate();
     if (!this.deckAdapter.ensureVisible()) {
       logger.warn("failed to open Zotero context pane compatibility host");
@@ -174,6 +178,9 @@ class SidebarSurface {
       this.ensureDeckHost(mountedPanel);
       return;
     }
+    if (this.activeKind && this.activeKind !== "library") {
+      blurFocusedDescendant(this.deckPanel);
+    }
     this.deckAdapter.deactivate();
     const selected = this.libraryAdapter.selectZopilot();
     const panel = this.libraryAdapter.ensurePanel();
@@ -195,6 +202,7 @@ class SidebarSurface {
     } = {},
   ): void {
     const activeKind = this.activeKind;
+    blurFocusedDescendant(this.deckPanel);
     if (options.restoreItemPane) {
       this.deckAdapter.restoreNativePanel();
       this.libraryAdapter.selectNative();
@@ -281,6 +289,7 @@ class SidebarSurface {
 
   private requestDeactivation(kind: SidebarSurfaceKind): void {
     if (this.activeKind !== kind) return;
+    blurFocusedDescendant(this.deckPanel);
     this.activeKind = undefined;
     this.deckPanel = undefined;
     this.options.onActiveSurfaceChange(kind, false);

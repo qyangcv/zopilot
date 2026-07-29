@@ -5,6 +5,7 @@ import { SidebarApp } from "./ui/SidebarApp";
 import { SidebarStreamSnapshotStore } from "./ui/SidebarStreamSnapshotStore";
 import type { SidebarActions } from "./ui/types";
 import { HTML_NS, PORTAL_ROOT_ID } from "./host/constants";
+import { blurFocusedDescendant } from "./host/focusedEditor";
 import { resolveSidebarPortalHost } from "./host/portalHost";
 import {
   SIDEBAR_WINDOW_RUNTIME_KEY,
@@ -48,6 +49,9 @@ const runtime: SidebarWindowRuntime = {
         const portalChanged =
           portalRoot.parentElement !== nextOverlayHost ||
           !portalRoot.isConnected;
+        if (mountChanged || portalChanged) {
+          blurFocusedDescendant(mountNode, portalRoot);
+        }
         if (mountChanged) nextPanel.replaceChildren(mountNode);
         if (portalChanged) nextOverlayHost.append(portalRoot);
         currentPanel = nextPanel;
@@ -90,6 +94,7 @@ const runtime: SidebarWindowRuntime = {
         if (destroyed) return;
         destroyed = true;
         streamStore.clear();
+        blurFocusedDescendant(mountNode, portalRoot);
         root.unmount();
         mountNode.remove();
         portalRoot.remove();
@@ -156,7 +161,10 @@ function removeDuplicateRoots(doc: Document): void {
   const roots = Array.prototype.slice.call(
     doc.querySelectorAll("[data-zopilot-root], #zopilot-portal-root"),
   ) as Element[];
-  roots.forEach((root) => root.remove());
+  roots.forEach((root) => {
+    blurFocusedDescendant(root);
+    root.remove();
+  });
 }
 
 (globalThis as typeof globalThis & Record<string, unknown>)[

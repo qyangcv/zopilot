@@ -16,7 +16,7 @@ function ComposerFooter({
 }): ReactElement {
   const {
     addLocalAttachment,
-    draft,
+    hasDraftText,
     localAttachments,
     mentions,
     promptButtonRef,
@@ -44,6 +44,12 @@ function ComposerFooter({
           onClick={(event) => {
             event.stopPropagation();
             setPromptPickerOpen((open) => !open);
+          }}
+          onMouseDown={() => {
+            // End Gecko's macOS text-input session before opening the picker.
+            // Keeping it active across a programmatic insert can make the next
+            // whole-buffer deletion recurse inside NSTextInputContext.
+            bindings.textareaRef.current?.blur();
           }}
           ref={promptButtonRef}
           title={getString("sidebar-prompts")}
@@ -85,7 +91,7 @@ function ComposerFooter({
         disabled={
           !state.composerEnabled ||
           (!state.busy &&
-            !draft.trim() &&
+            !hasDraftText &&
             !mentions.length &&
             !noteContexts.length &&
             !localAttachments.length)

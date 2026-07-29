@@ -34,6 +34,7 @@ const MENTION_TERMINATORS = new Set([
   "{",
   "}",
 ]);
+const MAX_MENTION_QUERY_LENGTH = 256;
 
 type MentionQuery = {
   start: number;
@@ -43,7 +44,8 @@ type MentionQuery = {
 
 function findMentionQuery(text: string, cursor: number): MentionQuery | null {
   const end = Math.max(0, Math.min(cursor, text.length));
-  for (let index = end - 1; index >= 0; index -= 1) {
+  const earliestStart = Math.max(0, end - MAX_MENTION_QUERY_LENGTH - 1);
+  for (let index = end - 1; index >= earliestStart; index -= 1) {
     const char = text[index];
     if (char === "@") {
       const before = index > 0 ? text[index - 1] : "";

@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefCallback } from "react";
 import type {
   ItemContextNode,
   ItemContextTree,
   LocalAttachmentRef,
   NoteContextRef,
+  PaperSourceRef,
   SourceMention,
 } from "../../../../domain/conversation";
 import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
 import { findPopupNextIndex } from "../../../../ui/primitives/index";
 import type { ComposerBindings } from "../composerBindings";
-import { resizeTextarea } from "../composerLayout";
 import type { SidebarActions, SidebarState } from "../types";
 import { countItemContextSelections } from "../itemContextGroups";
 import { useMentionPicker } from "./useMentionPicker";
@@ -19,16 +19,17 @@ import {
   mergeDroppedContext,
   removeMentionFromComposerContext,
 } from "../droppedContext";
+import { ComposerTextSession } from "../composerDraftText";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
 
 type ComposerDraftController = {
   bindings: ComposerBindings;
-  insertPrompt: (
+  restoreDraft: (
     text: string,
-    mentions?: SourceMention[],
-    noteContexts?: NoteContextRef[],
-    attachments?: LocalAttachmentRef[],
+    mentions: SourceMention[],
+    noteContexts: NoteContextRef[],
+    attachments: LocalAttachmentRef[],
   ) => void;
   submit: (
     text?: string,
@@ -47,7 +48,7 @@ function useComposerDraft(
   actions: SidebarActions,
   state: SidebarState,
 ): ComposerDraftController {
-  const [draft, setDraft] = useState("");
+  const [hasDraftText, setHasDraftText] = useState(false);
   const [mentions, setMentions] = useState<SourceMention[]>([]);
   const [noteContexts, setNoteContexts] = useState<NoteContextRef[]>([]);
   const [localAttachments, setLocalAttachments] = useState<
@@ -67,7 +68,27 @@ function useComposerDraft(
   const bottomDockRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const textareaCallbackRef = useRef<RefCallback<HTMLTextAreaElement> | null>(
+    null,
+  );
+  textareaCallbackRef.current ??= (element) => {
+    textareaRef.current = element;
+    if (!element) return;
+    return () => {
+      element.blur();
+      if (textareaRef.current === element) textareaRef.current = null;
+    };
+  };
   const promptButtonRef = useRef<HTMLButtonElement | null>(null);
+  const draftPublisherRef = useRef<(text: string, cursor: number) => void>(
+    () => undefined,
+  );
+  const textSessionRef = useRef<ComposerTextSession | null>(null);
+  textSessionRef.current ??= new ComposerTextSession({
+    getControl: () => textareaRef.current,
+    onTextChange: (text, cursor) => draftPublisherRef.current(text, cursor),
+  });
+  const textSession = textSessionRef.current;
   const sourceCandidates = state.sourceCandidates;
   const mentionSourceCandidates =
     state.context.workspaceType === "item" ? [] : sourceCandidates;
@@ -104,8 +125,14 @@ function useComposerDraft(
 
   useEffect(() => {
     if (composerScopeRef.current === composerScope) return;
+    const initialScope = !composerScopeRef.current;
     composerScopeRef.current = composerScope;
-    setDraft("");
+    if (initialScope) {
+      setHasDraftText(false);
+    } else {
+      textSession.replaceAll("", { refocus: false });
+      setHasDraftText(false);
+    }
     mentionsRef.current = [];
     setMentions([]);
     const nextNoteContexts: NoteContextRef[] = [];
@@ -118,15 +145,12 @@ function useComposerDraft(
     setItemContextPicker({ kind: "closed" });
     itemContextLoadTokenRef.current += 1;
     setActiveItemContextIndex(1);
-  }, [composerScope]);
+  }, [composerScope, textSession]);
 
   useEffect(() => {
-    resizeTextarea(textareaRef.current);
-  }, [draft, state.busy, state.composerEnabled]);
+    return () => textSession.cancelPending();
+  }, [textSession]);
 
-  const updateDraftWithoutMention = (text: string) => {
-    setDraft(text);
-  };
   const selectedContextCount = countItemContextSelections(
     mentions,
     noteContexts,
@@ -134,13 +158,7 @@ function useComposerDraft(
   );
   const mentionPicker = useMentionPicker({
     currentSourceId,
-    draft,
-    mentions,
-    onDraftChange: updateDraftWithoutMention,
-    selectedContextCount,
-    setMentions,
     sourceCandidates: mentionSourceCandidates,
-    textareaRef,
   });
   const itemContextPickerOpen = Boolean(itemContextTree);
   const catalogItemContextNodeIds = new Set(
@@ -188,19 +206,23 @@ function useComposerDraft(
   };
   const setMentionQuery = mentionPicker.setMentionQuery;
   const updateDraft = (text: string, cursor?: number) => {
-    updateDraftWithoutMention(text);
+    setHasDraftText(Boolean(text.trim()));
     itemContextLoadTokenRef.current += 1;
-    setItemContextPicker({ kind: "closed" });
+    setItemContextPicker((current) =>
+      current.kind === "closed" ? current : { kind: "closed" },
+    );
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
   };
+  draftPublisherRef.current = (text, cursor) => updateDraft(text, cursor);
 
   const submit = (
-    text = draft,
+    text?: string,
     nextMentions = mentions,
     nextNoteContexts?: NoteContextRef[],
     nextLocalAttachments = localAttachments,
   ) => {
-    const trimmed = text.trim();
+    const sourceText = text ?? textSession.read().text;
+    const trimmed = sourceText.trim();
     const effectiveNoteContexts = nextNoteContexts ?? noteContextsRef.current;
     if (
       (!trimmed &&
@@ -222,7 +244,8 @@ function useComposerDraft(
       noteContexts: effectiveNoteContexts,
       localAttachments: nextLocalAttachments,
     });
-    setDraft("");
+    textSession.replaceAll("", { refocus: false });
+    setHasDraftText(false);
     mentionsRef.current = [];
     setMentions([]);
     noteContextsRef.current = [];
@@ -234,26 +257,49 @@ function useComposerDraft(
     setMentionQuery(null);
   };
 
-  const insertPrompt = (
+  const replaceDraftText = (text: string, cursor = text.length) => {
+    textSession.replaceAll(text, { cursor, refocus: true });
+  };
+
+  const insertPrompt = (text: string) => {
+    textSession.insert(text, { refocus: true });
+  };
+
+  const selectMention = (source: PaperSourceRef) => {
+    if (selectedContextCount >= MAX_SELECTED_CONTEXTS) return;
+    const editor = textSession.read();
+    const query = findMentionQuery(editor.text, editor.start);
+    if (!query) {
+      setMentionQuery(null);
+      return;
+    }
+    const nextMentions = mentions.some(
+      (mention) => mention.sourceId === source.sourceId,
+    )
+      ? mentions
+      : [...mentions, sourceToMention(source)];
+    textSession.replaceRange(query.start, query.end, "", {
+      cursor: query.start,
+      refocus: true,
+    });
+    mentionsRef.current = nextMentions;
+    setMentions(nextMentions);
+    setMentionQuery(null);
+  };
+
+  const restoreDraft = (
     text: string,
-    nextMentions: SourceMention[] = [],
-    nextNoteContexts?: NoteContextRef[],
-    nextLocalAttachments: LocalAttachmentRef[] = [],
+    nextMentions: SourceMention[],
+    nextNoteContexts: NoteContextRef[],
+    nextLocalAttachments: LocalAttachmentRef[],
   ) => {
     mentionsRef.current = [...nextMentions];
-    setMentions([...nextMentions]);
-    if (nextNoteContexts !== undefined) {
-      const effectiveNoteContexts = [...nextNoteContexts];
-      noteContextsRef.current = effectiveNoteContexts;
-      setNoteContexts(effectiveNoteContexts);
-    }
+    noteContextsRef.current = [...nextNoteContexts];
     localAttachmentsRef.current = [...nextLocalAttachments];
+    setMentions([...nextMentions]);
+    setNoteContexts([...nextNoteContexts]);
     setLocalAttachments([...nextLocalAttachments]);
-    updateDraft(text);
-    globalThis.setTimeout(() => {
-      textareaRef.current?.focus();
-      resizeTextarea(textareaRef.current);
-    }, 0);
+    replaceDraftText(text);
   };
 
   const addLocalAttachment = () => {
@@ -415,7 +461,7 @@ function useComposerDraft(
       bottomDockRef,
       closeItemContextPicker,
       composerRef,
-      draft,
+      hasDraftText,
       insertPrompt,
       itemContextExpanded,
       itemContextLimitReached: selectedContextCount >= MAX_SELECTED_CONTEXTS,
@@ -475,17 +521,22 @@ function useComposerDraft(
         setNoteContexts(nextNoteContexts);
       },
       selectItemContext,
-      selectMention: mentionPicker.selectMention,
+      selectMention,
       setActiveMentionIndex: mentionPicker.setActiveMentionIndex,
       setActiveItemContextIndex,
       setItemContextExpanded,
       setMentionQuery,
       setPromptPickerOpen,
       submit: () => submit(),
+      textareaCallbackRef: textareaCallbackRef.current,
       textareaRef,
-      updateDraft,
+      handleEditorBlur: () => textSession.handleBlur(),
+      handleEditorCompositionEnd: (textarea) =>
+        textSession.handleCompositionEnd(textarea),
+      handleEditorCompositionStart: () => textSession.handleCompositionStart(),
+      handleEditorInput: (textarea) => textSession.handleNativeInput(textarea),
     },
-    insertPrompt,
+    restoreDraft,
     submit,
   };
 }

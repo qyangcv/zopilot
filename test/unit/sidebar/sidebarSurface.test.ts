@@ -215,6 +215,47 @@ describe("sidebar surface", function () {
     assert.equal(selectCount, 1);
   });
 
+  it("ends the focused native edit before moving the host between surfaces", function () {
+    const calls: string[] = [];
+    const activeElement = {
+      blur: () => calls.push("blur"),
+    } as unknown as Element;
+    const doc = { activeElement } as unknown as Document;
+    const surface = new SidebarSurface({ document: doc } as Window, {
+      isDestroyed: () => false,
+      isOpen: () => true,
+      onActiveSurfaceChange: () => undefined,
+      onUnavailable: () => undefined,
+      onReady: () => undefined,
+    });
+    const internals = surface as unknown as Record<string, any>;
+    const readerPanel = {
+      contains: (element: Element) => element === activeElement,
+      ownerDocument: doc,
+    };
+    const libraryPanel = { isConnected: true };
+    internals.activeKind = "reader";
+    internals.deckPanel = readerPanel;
+    internals.deckAdapter = {
+      deactivate: () => calls.push("deactivate-reader"),
+    };
+    internals.libraryAdapter = {
+      ensurePanel: () => libraryPanel,
+      getPanel: () => undefined,
+      selectZopilot: () => true,
+    };
+    internals.deckHost = {
+      attach: () => {
+        calls.push("attach-library");
+        return true;
+      },
+    };
+
+    surface.attachLibrary();
+
+    assert.deepEqual(calls, ["blur", "deactivate-reader", "attach-library"]);
+  });
+
   it("collapses the Reader host when the Zopilot close action is requested", function () {
     const surface = new SidebarSurface({ document: {} } as unknown as Window, {
       isDestroyed: () => false,

@@ -32,6 +32,16 @@ describe("sidebar source mentions", function () {
     );
   });
 
+  it("bounds mention scanning for arbitrarily long drafts", function () {
+    const text = `@${"a".repeat(257)}`;
+
+    assert.isNull(findMentionQuery(text, text.length));
+    assert.equal(
+      findMentionQuery(`prefix @${"a".repeat(256)}`, 264)?.query.length,
+      256,
+    );
+  });
+
   it("ranks exact, prefix, substring, and multi-token matches", function () {
     const sources = [
       createSource("s1", "A Survey of Retrieval Augmented Generation", "2024"),

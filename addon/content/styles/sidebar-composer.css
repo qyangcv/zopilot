@@ -288,9 +288,15 @@
 }
 
 .zp-composer-input {
+  box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 34px;
+  height: 72px;
+  min-height: 72px;
+  max-height: 72px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   resize: none;
   border: 0;
   outline: 0;

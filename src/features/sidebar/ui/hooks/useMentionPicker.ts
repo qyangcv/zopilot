@@ -1,30 +1,14 @@
-import {
-  useState,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-} from "react";
-import type {
-  PaperSourceRef,
-  SourceMention,
-} from "../../../../domain/conversation";
-import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
+import { useState } from "react";
+import type { PaperSourceRef } from "../../../../domain/conversation";
 import {
   findMentionQuery,
   matchMentionCandidates,
   moveMentionCandidateIndex,
-  sourceToMention,
 } from "../mentions";
 
 type MentionPickerOptions = {
   currentSourceId?: string;
-  draft: string;
-  mentions: SourceMention[];
-  onDraftChange: (text: string, cursor?: number) => void;
-  selectedContextCount?: number;
-  setMentions: Dispatch<SetStateAction<SourceMention[]>>;
   sourceCandidates: PaperSourceRef[];
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
 };
 
 function useMentionPicker(options: MentionPickerOptions) {
@@ -51,10 +35,6 @@ function useMentionPicker(options: MentionPickerOptions) {
     setMentionQueryState(query);
   };
 
-  const updateMentionQuery = (text: string, cursor?: number) => {
-    setMentionQuery(findMentionQuery(text, cursor ?? text.length));
-  };
-
   const moveMentionSelection = (direction: -1 | 1) => {
     setActiveMentionIndex((current) =>
       moveMentionCandidateIndex(
@@ -65,41 +45,13 @@ function useMentionPicker(options: MentionPickerOptions) {
     );
   };
 
-  const selectMention = (source: PaperSourceRef) => {
-    if (
-      !mentionQuery ||
-      (options.selectedContextCount ?? options.mentions.length) >=
-        MAX_SELECTED_CONTEXTS
-    ) {
-      return;
-    }
-    const nextDraft =
-      options.draft.slice(0, mentionQuery.start) +
-      options.draft.slice(mentionQuery.end);
-    const nextMentions = options.mentions.some(
-      (mention) => mention.sourceId === source.sourceId,
-    )
-      ? options.mentions
-      : [...options.mentions, sourceToMention(source)];
-    options.onDraftChange(nextDraft, mentionQuery.start);
-    options.setMentions(nextMentions);
-    setMentionQuery(null);
-    globalThis.setTimeout(() => {
-      const nextCursor = mentionQuery.start;
-      options.textareaRef.current?.focus();
-      options.textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
-    }, 0);
-  };
-
   return {
     activeMentionIndex: resolvedActiveMentionIndex,
     mentionQuery,
     mentionCandidates,
     moveMentionSelection,
-    selectMention,
     setActiveMentionIndex,
     setMentionQuery,
-    updateMentionQuery,
   };
 }
 

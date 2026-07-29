@@ -133,11 +133,19 @@ function createFixture(readyState: DocumentReadyState = "complete") {
   let renderedState: SidebarState | undefined;
   let renderedActions: SidebarActions | undefined;
   let streamingSnapshot: SidebarStreamingSnapshot | undefined;
+  const documentElement = {
+    contains: () => false,
+    isConnected: true,
+  } as unknown as HTMLElement;
   const document = {
+    activeElement: null,
     readyState,
-    documentElement: { isConnected: true },
+    documentElement,
     getElementById: () => (document.readyState === "loading" ? null : panel),
   } as unknown as Document;
+  Object.defineProperty(documentElement, "ownerDocument", {
+    value: document,
+  });
   const panel = {
     isConnected: true,
     ownerDocument: document,
