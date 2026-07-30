@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -16,6 +17,15 @@ SPEC.loader.exec_module(HELPER)
 
 
 class DocumentIrTests(unittest.TestCase):
+    def test_reports_the_package_version(self) -> None:
+        package = json.loads(
+            (ROOT / "helpers" / "pdf-helper" / "package.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(HELPER.HELPER_VERSION, package["version"])
+
     def test_uses_layout_boxes_as_the_document_structure(self) -> None:
         text = (
             "ignored header"

@@ -3,9 +3,9 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ActiveStreamingMessage } from "../../src/features/sidebar/ui/ActiveStreamingMessage";
 import { MarkdownView } from "../../src/features/sidebar/ui/MarkdownView";
+import { Message } from "../../src/features/sidebar/ui/Message";
 import { SidebarStreamSnapshotStore } from "../../src/features/sidebar/ui/SidebarStreamSnapshotStore";
 import { StreamingMarkdownView } from "../../src/features/sidebar/ui/StreamingMarkdownView";
-import { renderMarkdownToHtml } from "../../src/features/sidebar/ui/markdownRenderer";
 import {
   getSidebarPerformanceReport,
   measureSidebarPerformance,
@@ -26,31 +26,7 @@ describe("streaming performance attribution integration", function () {
 
     try {
       const markdown = createLongMarkdown();
-      const html = renderMarkdownToHtml(markdown);
-      const directContent = fixture.querySelector(
-        "[data-direct-content]",
-      ) as HTMLElement;
       const scrollContainer = fixture;
-
-      measureSidebarPerformance(
-        "markdown.domReplace",
-        { textLength: markdown.length },
-        () => {
-          directContent.innerHTML = html;
-        },
-      );
-      measureSidebarPerformance(
-        "markdown.layout",
-        { textLength: markdown.length },
-        () => {
-          void directContent.getBoundingClientRect().height;
-          void scrollContainer.scrollHeight;
-        },
-      );
-      measureSidebarPerformance("scroll.sync", {}, () => {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      });
-
       const reactMount = fixture.querySelector(
         "[data-react-mount]",
       ) as HTMLElement;
@@ -62,6 +38,20 @@ describe("streaming performance attribution integration", function () {
         }),
       );
       await waitForFrames(win, 2);
+      const renderedContent = reactMount.querySelector(
+        ".zp-markdown-rendered",
+      ) as HTMLElement;
+      measureSidebarPerformance(
+        "markdown.layout",
+        { textLength: markdown.length },
+        () => {
+          void renderedContent.getBoundingClientRect().height;
+          void scrollContainer.scrollHeight;
+        },
+      );
+      measureSidebarPerformance("scroll.sync", {}, () => {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      });
       root.render(
         createElement(MarkdownView, {
           markdown: `${markdown}\n\nFinal appended paragraph.`,
@@ -98,6 +88,172 @@ describe("streaming performance attribution integration", function () {
       root?.unmount();
       fixture.remove();
       setSidebarPerformanceMetricsEnabled(false);
+    }
+  });
+
+  it("mounts and updates a message without privileged sanitizer warnings", async function () {
+    this.timeout(30_000);
+    const win = Zotero.getMainWindow();
+    if (!win) this.skip();
+    const fixture = createFixture(win.document);
+    const reactMount = fixture.querySelector(
+      "[data-react-mount]",
+    ) as HTMLElement;
+    const root = createRoot(reactMount);
+    const innerWindowId = win.windowGlobalChild?.innerWindowId;
+    assert.isNumber(innerWindowId, "current Gecko inner window ID");
+    if (typeof innerWindowId !== "number") return;
+    const sanitizerWarnings: string[] = [];
+    let openedUrl: string | undefined;
+    const listener: nsIConsoleListener = (message) => {
+      let error: nsIScriptError;
+      try {
+        error = message.QueryInterface(Ci.nsIScriptError) as nsIScriptError;
+      } catch {
+        return;
+      }
+      if (error.category !== "DOM" || error.innerWindowID !== innerWindowId) {
+        return;
+      }
+      if (
+        /(?:Flattening|Removing) unsafe node|Removed unsafe (?:attribute|URI)|Removed some rules and\/or properties from stylesheet/u.test(
+          error.errorMessage,
+        )
+      ) {
+        sanitizerWarnings.push(
+          `${error.errorMessage} (${error.sourceName}:${error.lineNumber})`,
+        );
+      }
+    };
+    Services.console.registerListener(listener);
+
+    try {
+      const markdown = [
+        String.raw`Boundary sentinel $\sqrt[3]{x^2}+1$.`,
+        "",
+        "[Open](https://example.com)",
+        "",
+        "- [x] Complete",
+        "",
+        "Footnote.[^a]",
+        "",
+        "[^a]: Native target",
+        "",
+        "```typescript",
+        "const value = 1;",
+        "```",
+      ].join("\n");
+      root.render(
+        createElement(Message, {
+          busy: false,
+          copiedId: null,
+          message: {
+            id: "markdown-boundary",
+            role: "assistant",
+            status: "complete",
+            text: markdown,
+          },
+          onCopy: () => undefined,
+          onEdit: () => undefined,
+          onOpenLink: (url: string) => {
+            openedUrl = url;
+          },
+          onSubmit: () => undefined,
+        }),
+      );
+      await waitForCondition(
+        win,
+        () => reactMount.querySelector("math mroot") !== null,
+      );
+      await waitForFrames(win, 2);
+
+      const markdownRoot = reactMount.querySelector(
+        ".zp-message-markdown",
+      ) as HTMLElement;
+      const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
+      const mathmlNamespace = "http://www.w3.org/1998/Math/MathML";
+      const svgNamespace = "http://www.w3.org/2000/svg";
+      assert.equal(markdownRoot.namespaceURI, xhtmlNamespace);
+      for (const selector of ["p", "span", "button", "input"]) {
+        const element = markdownRoot.querySelector(selector);
+        assert.exists(element, selector);
+        assert.equal(element?.namespaceURI, xhtmlNamespace, selector);
+      }
+      for (const selector of [
+        "math",
+        "semantics",
+        "mrow",
+        "mroot",
+        "msup",
+        "mi",
+        "mn",
+        "mo",
+        "annotation",
+      ]) {
+        const element = markdownRoot.querySelector(selector);
+        assert.exists(element, selector);
+        assert.equal(element?.namespaceURI, mathmlNamespace, selector);
+      }
+      const copyButton = markdownRoot.querySelector(
+        "button[data-zp-copy-code]",
+      );
+      assert.exists(copyButton);
+      for (const selector of ["svg", "rect", "path"]) {
+        const element = copyButton?.querySelector(selector);
+        assert.exists(element, selector);
+        assert.equal(element?.namespaceURI, svgNamespace, selector);
+      }
+      assert.equal(
+        copyButton?.querySelector("svg")?.getAttribute("viewBox"),
+        "0 0 24 24",
+      );
+      const checkbox = markdownRoot.querySelector(
+        "input.zp-task-checkbox",
+      ) as HTMLInputElement;
+      assert.isTrue(checkbox.disabled);
+      assert.isTrue(checkbox.checked);
+      assert.exists(markdownRoot.querySelector("#footnote1"));
+      assert.exists(markdownRoot.querySelector("#footnote-ref1"));
+      assert.exists(markdownRoot.querySelector('a[href="#footnote-ref1"]'));
+
+      const externalLink = markdownRoot.querySelector(
+        'a[href="https://example.com"]',
+      ) as HTMLAnchorElement;
+      assert.exists(externalLink);
+      externalLink.dispatchEvent(
+        new win.MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+      assert.equal(openedUrl, "https://example.com");
+
+      root.render(
+        createElement(Message, {
+          busy: false,
+          copiedId: null,
+          message: {
+            id: "markdown-boundary",
+            role: "assistant",
+            status: "complete",
+            text: `${markdown}\n\nUpdated $\\frac{a}{b}$.`,
+          },
+          onCopy: () => undefined,
+          onEdit: () => undefined,
+          onOpenLink: () => undefined,
+          onSubmit: () => undefined,
+        }),
+      );
+      await waitForCondition(
+        win,
+        () =>
+          markdownRoot.textContent?.includes("Updated") === true &&
+          markdownRoot.querySelector("math mfrac") !== null,
+      );
+      await waitForFrames(win, 2);
+      assert.include(markdownRoot.textContent, "Boundary sentinel");
+      assert.deepEqual(sanitizerWarnings, []);
+    } finally {
+      Services.console.unregisterListener(listener);
+      root.unmount();
+      fixture.remove();
     }
   });
 
@@ -264,14 +420,9 @@ function createFixture(doc: Document): HTMLElement {
     ].join(";"),
   );
   fixture.setAttribute("data-scroll-container", "");
-  const directContent = doc.createElementNS(
-    "http://www.w3.org/1999/xhtml",
-    "div",
-  );
-  directContent.setAttribute("data-direct-content", "");
   const reactMount = doc.createElementNS("http://www.w3.org/1999/xhtml", "div");
   reactMount.setAttribute("data-react-mount", "");
-  fixture.append(directContent, reactMount);
+  fixture.append(reactMount);
   doc.documentElement.append(fixture);
   return fixture;
 }

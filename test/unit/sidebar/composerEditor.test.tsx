@@ -172,7 +172,7 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.equal(blurCount, 1);
   });
 
-  it("leaves the textarea buffer and geometry under Gecko control", function () {
+  it("publishes every native input without React change-value deduplication", function () {
     const nativeInputs: Array<[string, number | null]> = [];
     const bindings = {
       ...createBindings({
@@ -199,16 +199,14 @@ describe("sidebar composer mention keyboard navigation", function () {
     const props = getProps(textarea);
     assert.notProperty(props, "value");
     assert.notProperty(props, "defaultValue");
-    assert.notProperty(props, "onInput");
+    assert.notProperty(props, "onChange");
 
-    (props.onChange as (event: { currentTarget: HTMLTextAreaElement }) => void)(
-      {
-        currentTarget: {
-          selectionStart: 6,
-          value: "native",
-        } as HTMLTextAreaElement,
-      },
-    );
+    (props.onInput as (event: { currentTarget: HTMLTextAreaElement }) => void)({
+      currentTarget: {
+        selectionStart: 6,
+        value: "native",
+      } as HTMLTextAreaElement,
+    });
     assert.deepEqual(nativeInputs, [["native", 6]]);
   });
 

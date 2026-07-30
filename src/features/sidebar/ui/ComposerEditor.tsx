@@ -191,7 +191,7 @@ function ComposerEditor({
         disabled={!state.composerEnabled}
         {...ZOTERO_NO_NATIVE_INPUT_PROPS}
         onBlur={handleEditorBlur}
-        onChange={(event) => handleEditorInput(event.currentTarget)}
+        onInput={(event) => handleEditorInput(event.currentTarget)}
         onClick={(event) =>
           setMentionQuery(
             findMentionQuery(

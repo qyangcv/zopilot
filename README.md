@@ -68,4 +68,5 @@ Zopilot 是一款简约、现代化的 Zotero AI 插件, 将 AI 接入 Zotero �
 
 ## 其他
 
+- [PDF Helper 构建与发布](./docs/pdf-helper-release.md)
 - [llm-for-zotero](https://github.com/yilewang/llm-for-zotero): 另一款 Zotero AI 插件，具有更丰富的 Agent 功能。

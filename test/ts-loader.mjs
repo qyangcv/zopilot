@@ -3,6 +3,55 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
 import { transformSync } from "esbuild";
 
+const reservedBindings = new Set([
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "enum",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "function",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "instanceof",
+  "interface",
+  "let",
+  "new",
+  "null",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "static",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "var",
+  "void",
+  "while",
+  "with",
+  "yield",
+]);
+
 export function resolve(specifier, context, defaultResolve) {
   if (
     context.parentURL?.startsWith("file:") &&
@@ -34,7 +83,9 @@ export function load(url, context, defaultLoad) {
     const source = readFileSync(fileURLToPath(url), "utf8");
     const value = JSON.parse(source);
     const namedExports = Object.keys(value)
-      .filter((key) => /^[A-Za-z_$][\w$]*$/u.test(key))
+      .filter(
+        (key) => /^[A-Za-z_$][\w$]*$/u.test(key) && !reservedBindings.has(key),
+      )
       .map((key) => `export const ${key} = __json[${JSON.stringify(key)}];`)
       .join("\n");
 

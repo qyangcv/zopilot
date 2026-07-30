@@ -1,12 +1,20 @@
 import {
   useCallback,
+  useLayoutEffect,
   useMemo,
   type MouseEvent,
   type ReactElement,
 } from "react";
 import { copyText } from "./clipboard";
-import { isInternalUrl, renderMarkdownToHtml } from "./markdownRenderer";
-import { beginSidebarPerformanceMeasure } from "./performanceMetrics";
+import {
+  isInternalMarkdownUrl,
+  replaceSanitizedMarkdownHtml,
+} from "./markdownHtml";
+import { renderMarkdownToHtml } from "./markdownRenderer";
+import {
+  beginSidebarPerformanceMeasure,
+  measureSidebarPerformance,
+} from "./performanceMetrics";
 import { createStaticIconElement } from "./staticIcons";
 
 type MarkdownViewProps = {
@@ -31,6 +39,20 @@ export function MarkdownView({
     () => renderMarkdownToHtml(markdown, { unwrapSingleParagraph }),
     [markdown, unwrapSingleParagraph],
   );
+  const mountContent = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (!element) return;
+      measureSidebarPerformance(
+        "markdown.domReplace",
+        { textLength: markdown.length },
+        () => replaceSanitizedMarkdownHtml(element, html),
+      );
+    },
+    [html, markdown.length],
+  );
+  useLayoutEffect(() => {
+    finishCommit?.();
+  });
   const handleClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       const target = event.target;
@@ -55,7 +77,7 @@ export function MarkdownView({
       }
 
       const href = anchor.getAttribute("href");
-      if (!href || isInternalUrl(href)) {
+      if (!href || isInternalMarkdownUrl(href)) {
         return;
       }
 
@@ -69,15 +91,8 @@ export function MarkdownView({
     <div
       className={["zp-markdown-rendered", className].filter(Boolean).join(" ")}
       data-zp-markdown-segment={segmentId}
-      dangerouslySetInnerHTML={{ __html: html }}
       onClick={handleClick}
-      ref={
-        finishCommit
-          ? (element) => {
-              if (element) finishCommit();
-            }
-          : undefined
-      }
+      ref={mountContent}
     />
   );
 }

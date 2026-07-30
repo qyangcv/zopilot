@@ -4,12 +4,17 @@ import { tex } from "@mdit/plugin-tex";
 import katex from "katex";
 import MarkdownIt from "markdown-it";
 import type { RenderRule } from "markdown-it/lib/renderer.mjs";
-import sanitizeHtml from "sanitize-html";
 import {
   escapeHtml,
   getCodeLanguage,
   highlightCodeWithShiki,
 } from "./codeHighlighting";
+import {
+  isInternalMarkdownUrl,
+  isSafeExternalMarkdownUrl,
+  sanitizeMarkdownHtml,
+  type SanitizedMarkdownHtml,
+} from "./markdownHtml";
 import {
   beginSidebarPerformanceMeasure,
   recordSidebarPerformanceMetric,
@@ -30,10 +35,6 @@ export type StreamingMarkdownSegment = {
   text: string;
 };
 
-declare const sanitizedHtmlBrand: unique symbol;
-type SanitizedHtml = string & { readonly [sanitizedHtmlBrand]: true };
-
-const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "zotero:"]);
 const CROSS_BLOCK_MARKDOWN_PATTERN =
   /(?:\[[^\]]+\]\s*\[[^\]]*\]|\[\^[^\]]+\]|^\s{0,3}\[[^\]]+\]:)/mu;
 const MAX_KATEX_CACHE_ENTRIES = 128;
@@ -93,7 +94,7 @@ export function splitStreamingMarkdown(
 export function renderMarkdownToHtml(
   markdown: string,
   options: MarkdownRenderOptions = {},
-): SanitizedHtml {
+): SanitizedMarkdownHtml {
   const details = { textLength: markdown.length };
   const finishTotal = beginSidebarPerformanceMeasure("markdown.total", details);
   try {
@@ -143,10 +144,6 @@ export function renderMarkdownToHtml(
   } finally {
     finishTotal?.();
   }
-}
-
-export function isInternalUrl(url: string): boolean {
-  return url.startsWith("#");
 }
 
 function getLineOffsets(markdown: string): number[] {
@@ -263,7 +260,7 @@ const renderImage: RenderRule = function renderImage(tokens, idx) {
   const label = token.content.trim() || "image";
   const escapedLabel = escapeHtml(label);
 
-  if (!isSafeExternalUrl(src)) {
+  if (!isSafeExternalMarkdownUrl(src)) {
     return [
       '<span class="zp-markdown-image">',
       `<span class="zp-markdown-image-label">${escapedLabel}</span>`,
@@ -288,7 +285,7 @@ const renderLinkOpen: RenderRule = function renderLinkOpen(
 ) {
   const renderEnv = env as MarkdownRenderEnv;
   const href = tokens[idx].attrGet("href") ?? "";
-  const isSafe = isInternalUrl(href) || isSafeExternalUrl(href);
+  const isSafe = isInternalMarkdownUrl(href) || isSafeExternalMarkdownUrl(href);
   renderEnv.unsafeLinkStack ??= [];
   renderEnv.unsafeLinkStack.push(!isSafe);
 
@@ -297,7 +294,7 @@ const renderLinkOpen: RenderRule = function renderLinkOpen(
   }
 
   const escapedHref = escapeHtml(href);
-  if (isInternalUrl(href)) {
+  if (isInternalMarkdownUrl(href)) {
     return `<a href="${escapedHref}">`;
   }
 
@@ -330,7 +327,11 @@ function renderMathWithKatex(content: string, displayMode: boolean): string {
   try {
     const rendered = katex.renderToString(content, {
       displayMode,
+      maxExpand: 1_000,
+      maxSize: 50,
+      output: "htmlAndMathml",
       throwOnError: false,
+      trust: false,
     });
     if (katexCache.size >= MAX_KATEX_CACHE_ENTRIES) {
       const oldestKey = katexCache.keys().next().value;
@@ -383,95 +384,6 @@ function renderPlainCodeBlock(text: string, language: string): string {
 function getHeadingLevel(tag: string): number {
   const match = /^h([1-6])$/u.exec(tag);
   return match ? Number(match[1]) : 6;
-}
-
-function isSafeExternalUrl(url: string): boolean {
-  if (!/^[A-Za-z][\w+.-]*:/u.test(url)) {
-    return false;
-  }
-  try {
-    const parsed = new URL(url);
-    return SAFE_PROTOCOLS.has(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
-
-function sanitizeMarkdownHtml(html: string): SanitizedHtml {
-  return sanitizeHtml(html, {
-    allowProtocolRelative: false,
-    allowedAttributes: {
-      "*": [
-        "aria-hidden",
-        "aria-label",
-        "class",
-        "data-*",
-        "id",
-        "role",
-        "style",
-        "title",
-      ],
-      a: ["class", "href", "id", "rel", "target", "title"],
-      annotation: ["encoding"],
-      button: ["aria-label", "class", "data-zp-copy-code", "title", "type"],
-      input: ["checked", "class", "disabled", "readonly", "type"],
-      circle: ["cx", "cy", "r"],
-      line: ["x1", "x2", "y1", "y2"],
-      path: ["d"],
-      rect: ["height", "rx", "ry", "width", "x", "y"],
-      span: ["aria-hidden", "class", "style"],
-      svg: [
-        "aria-hidden",
-        "class",
-        "data-icon-name",
-        "fill",
-        "focusable",
-        "height",
-        "stroke",
-        "stroke-linecap",
-        "stroke-linejoin",
-        "stroke-width",
-        "viewbox",
-        "width",
-      ],
-    },
-    allowedSchemes: ["http", "https", "mailto", "zotero"],
-    allowedTags: [
-      ...sanitizeHtml.defaults.allowedTags,
-      "annotation",
-      "button",
-      "circle",
-      "del",
-      "input",
-      "line",
-      "math",
-      "menclose",
-      "mfrac",
-      "mi",
-      "mn",
-      "mo",
-      "mover",
-      "mpadded",
-      "mphantom",
-      "mrow",
-      "mspace",
-      "msqrt",
-      "mstyle",
-      "msub",
-      "msubsup",
-      "msup",
-      "mtable",
-      "mtd",
-      "mtext",
-      "mtr",
-      "munder",
-      "munderover",
-      "path",
-      "rect",
-      "semantics",
-      "svg",
-    ],
-  }) as SanitizedHtml;
 }
 
 const markdownIt = createMarkdownIt();

@@ -3,6 +3,10 @@ import {
   registerSidebar,
   unregisterSidebar,
 } from "../../src/features/sidebar/host/SidebarHostController";
+import {
+  createCustomPrompt,
+  deleteCustomPrompt,
+} from "../../src/features/sidebar/prompts/promptStore";
 
 describe("sidebar host integration", function () {
   it("keeps one host of each kind across unregister/register", async function () {
@@ -60,7 +64,7 @@ describe("sidebar host integration", function () {
     assert.notEqual(portal?.parentElement?.id, "zotero-pane");
   });
 
-  it("keeps the focused composer geometry stable while its content scrolls", async function () {
+  it("grows the focused composer with content and collapses after deletion", async function () {
     this.timeout(20_000);
     const win = Zotero.getMainWindow();
     if (!win) this.skip();
@@ -91,20 +95,51 @@ describe("sidebar host integration", function () {
       (_, index) => `Long composer line ${index + 1}`,
     ).join("\n");
 
+    const inputProcessor = createTestTextInputProcessor(win);
+    let regressionPromptId: string | undefined;
     try {
-      textarea.blur();
-      await waitForFrame(win);
-      const initialLayout = readComposerLayout(win, textarea);
+      textarea.focus();
+      if (textarea.value) {
+        textarea.select();
+        sendBackspace(win, inputProcessor);
+        await waitForFrames(win, 2);
+      }
+      assert.equal(textarea.value, "");
+      const collapsedLayout = readComposerLayout(win, textarea);
 
-      setNativeTextareaValue(win, textarea, longText, "insertReplacementText");
+      const promptTitle = `Elastic height regression ${Date.now()}`;
+      const regressionPrompt = createCustomPrompt({
+        body: longText,
+        title: promptTitle,
+      });
+      regressionPromptId = regressionPrompt.id;
+      await waitForFrames(win, 2);
+
+      await insertComposerPrompt(win, textarea, promptTitle);
+
+      await waitForHostValue(
+        win,
+        () => (textarea.value === longText ? textarea : null),
+        5_000,
+      );
       await waitForFrames(win, 2);
       assert.equal(textarea.value, longText);
-      assert.deepEqual(
-        readComposerLayout(win, textarea),
-        initialLayout,
-        "long text must not resize the unfocused composer",
+      assert.isFalse(
+        readComposerSendButton(textarea).disabled,
+        "programmatic prompt insertion must reach React draft state",
       );
-      assert.equal(initialLayout.overflowY, "auto");
+      const expandedLayout = readComposerLayout(win, textarea);
+      assert.isAbove(
+        expandedLayout.clientHeight,
+        collapsedLayout.clientHeight,
+        "long text must grow the elastic composer",
+      );
+      assert.equal(expandedLayout.overflowY, "auto");
+      assert.isAtMost(
+        expandedLayout.clientHeight,
+        Number.parseFloat(expandedLayout.maxHeight),
+        "the composer must stop at its host-relative cap",
+      );
       assert.isAbove(
         textarea.scrollHeight,
         textarea.clientHeight,
@@ -117,45 +152,47 @@ describe("sidebar host integration", function () {
         "overflowing composer content should be internally scrollable",
       );
 
-      textarea.focus();
-      await waitForFrame(win);
-      assert.strictEqual(doc.activeElement, textarea);
-      assert.deepEqual(
-        readComposerLayout(win, textarea),
-        initialLayout,
-        "focus must not resize the composer or change its overflow",
-      );
-
       textarea.select();
       await waitForFrame(win);
+      assert.strictEqual(doc.activeElement, textarea);
       assert.equal(textarea.selectionStart, 0);
       assert.equal(textarea.selectionEnd, longText.length);
       assert.deepEqual(
         readComposerLayout(win, textarea),
-        initialLayout,
-        "selecting all text must keep the composer geometry stable",
+        expandedLayout,
+        "selecting all text must not independently reframe the composer",
       );
 
-      textarea.blur();
-      await waitForFrame(win);
-      setNativeTextareaValue(win, textarea, "", "deleteContentBackward");
-      await waitForFrames(win, 2);
-      assert.equal(textarea.value, "");
+      sendBackspace(win, inputProcessor);
       assert.deepEqual(
         readComposerLayout(win, textarea),
-        initialLayout,
-        "deleting the selection must keep the composer geometry stable",
+        expandedLayout,
+        "native deletion must not synchronously reframe the focused editor",
       );
+      await waitForFrames(win, 2);
+      assert.equal(textarea.value, "");
+      assert.isTrue(
+        readComposerSendButton(textarea).disabled,
+        "native deletion after setRangeText must reach React draft state",
+      );
+      const clearedLayout = readComposerLayout(win, textarea);
+      assert.equal(
+        clearedLayout.clientHeight,
+        collapsedLayout.clientHeight,
+        "deleting the prompt must restore the original composer height",
+      );
+      assert.equal(clearedLayout.overflowY, "auto");
+      assert.strictEqual(doc.activeElement, textarea);
     } finally {
-      textarea.blur();
-      await waitForFrame(win);
+      if (regressionPromptId) deleteCustomPrompt(regressionPromptId);
       if (textarea.isConnected) {
-        setNativeTextareaValue(
-          win,
-          textarea,
-          originalValue,
-          "insertReplacementText",
-        );
+        textarea.focus();
+        textarea.select();
+        if (originalValue) {
+          inputProcessor.insertTextWithKeyPress(originalValue);
+        } else if (textarea.value) {
+          sendBackspace(win, inputProcessor);
+        }
         await waitForFrames(win, 2);
         const selectionStart = Math.min(
           originalSelectionStart,
@@ -196,6 +233,7 @@ describe("sidebar host integration", function () {
     if (!openWindowButton) return;
 
     let detachedWindow: Window | null = null;
+    let regressionPromptId: string | undefined;
     try {
       openWindowButton.click();
       detachedWindow = await waitForHostValue(
@@ -250,18 +288,41 @@ describe("sidebar host integration", function () {
       );
 
       const inputProcessor = createTestTextInputProcessor(detachedWindow);
-      textarea.focus();
-      textarea.setSelectionRange(0, 0);
-      inputProcessor.insertTextWithKeyPress("Prompt-3");
+      const originalParent = textarea.parentElement;
+      const collapsedLayout = readComposerLayout(detachedWindow, textarea);
+      const longText = Array.from(
+        { length: 192 },
+        (_, index) => `Detached prompt line ${index + 1}`,
+      ).join("\n");
+      const promptTitle = `Detached elastic regression ${Date.now()}`;
+      const regressionPrompt = createCustomPrompt({
+        body: longText,
+        title: promptTitle,
+      });
+      regressionPromptId = regressionPrompt.id;
       await waitForFrames(detachedWindow, 2);
-      assert.equal(textarea.value, "Prompt-3");
+
+      await insertComposerPrompt(detachedWindow, textarea, promptTitle);
+      await waitForHostValue(
+        detachedWindow,
+        () => (textarea.value === longText ? textarea : null),
+        5_000,
+      );
+      await waitForFrames(detachedWindow, 2);
+      assert.equal(textarea.value, longText);
       assert.isFalse(
         readDetachedSendButton(detachedDocument).disabled,
-        "native input must reach detached React draft state",
+        "programmatic prompt insertion must reach detached React draft state",
       );
+      const expandedLayout = readComposerLayout(detachedWindow, textarea);
+      assert.isAbove(
+        expandedLayout.clientHeight,
+        collapsedLayout.clientHeight,
+        "the detached composer must grow for a long prompt",
+      );
+      assert.equal(expandedLayout.overflowY, "auto");
 
-      const originalParent = textarea.parentElement;
-      const initialLayout = readComposerLayout(detachedWindow, textarea);
+      textarea.focus();
       textarea.select();
       await waitForFrame(detachedWindow);
       assert.strictEqual(detachedDocument.activeElement, textarea);
@@ -288,12 +349,13 @@ describe("sidebar host integration", function () {
         "React handling must not blur or replace the focused editor",
       );
       assert.equal(textarea.value, "");
-      assert.deepEqual(
-        readComposerLayout(detachedWindow, textarea),
-        initialLayout,
-        "focused delete handling must not reframe the editor",
+      assert.equal(
+        readComposerLayout(detachedWindow, textarea).clientHeight,
+        collapsedLayout.clientHeight,
+        "deleting a programmatic prompt must restore detached height",
       );
     } finally {
+      if (regressionPromptId) deleteCustomPrompt(regressionPromptId);
       if (detachedWindow && !detachedWindow.closed) {
         const textarea = detachedWindow.document.querySelector(
           ".zp-composer-input",
@@ -332,50 +394,6 @@ function readComposerLayout(
     maxHeight: style.maxHeight,
     overflowY: style.overflowY,
   };
-}
-
-function setNativeTextareaValue(
-  win: Window,
-  textarea: HTMLTextAreaElement,
-  value: string,
-  inputType: string,
-): void {
-  setNativeTextareaBuffer(textarea, value);
-  dispatchNativeInput(
-    win,
-    textarea,
-    inputType.startsWith("delete") ? null : value,
-    inputType,
-  );
-}
-
-function dispatchNativeInput(
-  win: Window,
-  textarea: HTMLTextAreaElement,
-  data: string | null,
-  inputType: string,
-): void {
-  textarea.dispatchEvent(
-    new win.InputEvent("input", {
-      bubbles: true,
-      data,
-      inputType,
-    }),
-  );
-}
-
-function setNativeTextareaBuffer(
-  textarea: HTMLTextAreaElement,
-  value: string,
-): void {
-  const valueSetter = Object.getOwnPropertyDescriptor(
-    Object.getPrototypeOf(textarea) as object,
-    "value",
-  )?.set;
-  if (!valueSetter) {
-    throw new Error("Native textarea value setter is unavailable");
-  }
-  valueSetter.call(textarea, value);
 }
 
 function assertAtMostOne(doc: Document, selector: string): void {
@@ -440,6 +458,46 @@ function readDetachedSendButton(doc: Document): HTMLButtonElement {
   ) as HTMLButtonElement | null;
   if (!button) throw new Error("Detached composer send button is unavailable");
   return button;
+}
+
+function readComposerSendButton(
+  textarea: HTMLTextAreaElement,
+): HTMLButtonElement {
+  const button = textarea
+    .closest(".zp-composer")
+    ?.querySelector(".zp-send-button") as HTMLButtonElement | null;
+  if (!button) throw new Error("Composer send button is unavailable");
+  return button;
+}
+
+async function insertComposerPrompt(
+  win: Window,
+  textarea: HTMLTextAreaElement,
+  promptTitle: string,
+): Promise<void> {
+  const promptButton = textarea
+    .closest(".zp-composer")
+    ?.querySelector(
+      'button[aria-haspopup="dialog"]',
+    ) as HTMLButtonElement | null;
+  if (!promptButton) throw new Error("Composer prompt button is unavailable");
+
+  promptButton.dispatchEvent(
+    new win.MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }),
+  );
+  promptButton.click();
+  const promptRow = await waitForHostValue(win, () => {
+    const rows = Array.from(
+      win.document.querySelectorAll(".zp-prompt-insert-row"),
+    ) as HTMLElement[];
+    return rows.find((row) => row.textContent?.includes(promptTitle)) || null;
+  });
+  if (!promptRow) throw new Error("Temporary regression prompt is unavailable");
+  promptRow.click();
 }
 
 async function activateLibraryAndWait<T>(

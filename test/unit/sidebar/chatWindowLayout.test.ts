@@ -29,7 +29,7 @@ describe("chat window layout styles", function () {
     assert.include(css, "var(--zp-chat-content-max-width, 900px)");
   });
 
-  it("keeps the native textarea geometry stable while it is focused", function () {
+  it("keeps the public-font native textarea elastic", function () {
     const css = readFileSync(
       resolve("addon/content/styles/sidebar-composer.css"),
       "utf8",
@@ -40,9 +40,9 @@ describe("chat window layout styles", function () {
         /\.zp-composer-input:focus,[^{]*\.zp-composer-input:focus-visible \{([^}]*)\}/,
       )?.[1] || "";
 
-    assert.include(inputRule, "height: 72px");
-    assert.include(inputRule, "min-height: 72px");
-    assert.include(inputRule, "max-height: 72px");
+    assert.include(inputRule, "min-height: 34px");
+    assert.notMatch(inputRule, /(?:^|;)\s*height\s*:/);
+    assert.notMatch(inputRule, /\bmax-height\s*:/);
     assert.include(inputRule, "overflow-y: auto");
     assert.include(inputRule, "scrollbar-gutter: stable");
     assert.notMatch(

@@ -4,7 +4,7 @@ import {
   getCodeLanguage,
   highlightCodeWithShiki,
 } from "../../../src/features/sidebar/ui/codeHighlighting.ts";
-import { MarkdownView } from "../../../src/features/sidebar/ui/MarkdownView.tsx";
+import { sanitizeMarkdownHtml } from "../../../src/features/sidebar/ui/markdownHtml.ts";
 import { StreamingMarkdownView } from "../../../src/features/sidebar/ui/StreamingMarkdownView.tsx";
 import {
   renderMarkdownToHtml,
@@ -16,9 +16,7 @@ import {
 } from "../../../src/features/sidebar/ui/performanceMetrics.ts";
 
 function renderMarkdown(markdown: string): string {
-  return renderToStaticMarkup(
-    <MarkdownView markdown={markdown} onOpenLink={() => undefined} />,
-  );
+  return renderMarkdownToHtml(markdown);
 }
 
 describe("MarkdownView", function () {
@@ -81,8 +79,6 @@ describe("MarkdownView", function () {
 
     assert.include(html, 'data-zp-streaming-markdown=""');
     assert.equal((html.match(/data-zp-markdown-segment=/gu) ?? []).length, 2);
-    assert.include(html, "Stable.");
-    assert.include(html, "Active.");
   });
 
   it("renders CommonMark and GFM block elements compactly", function () {
@@ -117,6 +113,7 @@ describe("MarkdownView", function () {
     assert.include(html, 'type="checkbox"');
     assert.include(html, 'disabled="disabled"');
     assert.include(html, 'class="zp-task-checkbox"');
+    assert.notInclude(html, "task-item-");
   });
 
   it("wraps GFM tables in a horizontal scroll container", function () {
@@ -147,6 +144,7 @@ describe("MarkdownView", function () {
     assert.include(html, 'class="zp-code-content"');
     assert.include(html, "shiki-themes github-light github-dark");
     assert.include(html, "--shiki-dark");
+    assert.include(html, 'tabindex="0"');
     assert.include(html, ">const</span>");
     assert.include(html, " answer</span>");
     assert.include(html, " 42</span>");
@@ -248,6 +246,55 @@ describe("MarkdownView", function () {
     assert.include(html, "y");
   });
 
+  it("preserves KaTeX MathML structure and semantic attributes", function () {
+    const html = renderMarkdown(
+      [
+        "$$",
+        String.raw`\sqrt[3]{x^2}+\frac{a}{b}+\left(y\right)+\begin{matrix}a&b\\c&d\end{matrix}+\overline{z}+\color{red}{q}`,
+        "$$",
+      ].join("\n"),
+    );
+
+    assert.include(html, "<mroot>");
+    assert.include(html, "<msup>");
+    assert.include(html, "<mfrac>");
+    assert.include(html, 'display="block"');
+    assert.include(html, 'fence="true"');
+    assert.include(html, 'rowspacing="0.16em"');
+    assert.include(html, 'columnalign="center center"');
+    assert.include(html, 'columnspacing="1em"');
+    assert.include(html, 'accent="true"');
+    assert.include(html, 'stretchy="true"');
+    assert.include(html, 'mathcolor="red"');
+    assert.include(html, 'encoding="application/x-tex"');
+  });
+
+  it("keeps trusted KaTeX extensions and TeX markup inert", function () {
+    const html = renderMarkdown(
+      [
+        String.raw`$\href{https://example.com}{x}$`,
+        String.raw`$\includegraphics{https://example.com/x.png}$`,
+        String.raw`$\text{</annotation><script>alert(1)</script>}$`,
+      ].join(" "),
+    );
+
+    assert.notMatch(html, /<a(?:\s|>)/u);
+    assert.notMatch(html, /<img(?:\s|>)/u);
+    assert.notMatch(html, /<script(?:\s|>)/u);
+    assert.notInclude(html, 'href="https://example.com"');
+    assert.notInclude(html, 'src="https://example.com/x.png"');
+    assert.include(html, "&lt;/annotation&gt;");
+    assert.include(html, "&lt;script&gt;");
+  });
+
+  it("caps user-controlled KaTeX dimensions", function () {
+    const html = renderMarkdown(String.raw`$\rule{500em}{500em}$`);
+
+    assert.notMatch(html, /style="[^"]*500em/u);
+    assert.include(html, 'width="50em"');
+    assert.include(html, "border-right-width:50em");
+  });
+
   it("reuses KaTeX results across repeated renders", function () {
     setSidebarPerformanceMetricsEnabled(true);
     try {
@@ -296,6 +343,9 @@ describe("MarkdownView", function () {
 
     assert.include(html, 'class="footnotes"');
     assert.include(html, 'href="#footnote1"');
+    assert.include(html, 'id="footnote1"');
+    assert.include(html, 'id="footnote-ref1"');
+    assert.include(html, 'href="#footnote-ref1"');
     assert.include(html, "Footnote body");
   });
 
@@ -308,6 +358,33 @@ describe("MarkdownView", function () {
     assert.notInclude(html, "<b>raw</b>");
     assert.notInclude(html, "<svg");
     assert.notInclude(html, "alert");
+  });
+
+  it("keeps the HTML boundary inert if a future renderer emits hostile markup", function () {
+    const html = sanitizeMarkdownHtml(
+      [
+        '<script src="https://evil.test/x.js">alert(1)</script>',
+        '<span onclick="alert(1)" style="position:fixed;inset:0;z-index:999;background:url(https://evil.test/x);-moz-binding:url(chrome://evil);color:red;height:2em">safe</span>',
+        '<a href="/relative" rel="opener" target="evil">relative</a>',
+        '<a href="javascript:alert(1)">script link</a>',
+        '<button onclick="alert(1)" type="submit">submit</button>',
+        '<input type="file" oninput="alert(1)">',
+        '<svg fill="url(https://evil.test/fill)" stroke="url(https://evil.test/stroke)"><foreignObject><iframe src="https://evil.test"></iframe></foreignObject></svg>',
+      ].join(""),
+    );
+
+    assert.notMatch(
+      html,
+      /(?:<script|<iframe|<foreignobject|<button|<input)/iu,
+    );
+    assert.notMatch(
+      html,
+      /(?:onclick|oninput|javascript:|position:|inset:|z-index:|url\(|-moz-binding)/iu,
+    );
+    assert.notInclude(html, 'href="/relative"');
+    assert.include(html, "safe");
+    assert.include(html, "color:red");
+    assert.include(html, "height:2em");
   });
 
   it("does not render unsafe javascript links as anchors", function () {

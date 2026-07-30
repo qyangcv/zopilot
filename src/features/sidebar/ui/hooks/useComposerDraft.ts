@@ -20,6 +20,11 @@ import {
   removeMentionFromComposerContext,
 } from "../droppedContext";
 import { ComposerTextSession } from "../composerDraftText";
+import {
+  cancelTextareaResize,
+  requestTextareaResize,
+  resizeTextarea,
+} from "../composerLayout";
 import { createTimestampId } from "../../../../runtime/ids/timestampId";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
@@ -80,6 +85,7 @@ function useComposerDraft(
   const bottomDockRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const composingRef = useRef(false);
   const textareaCallbackRef = useRef<RefCallback<HTMLTextAreaElement> | null>(
     null,
   );
@@ -87,6 +93,7 @@ function useComposerDraft(
     textareaRef.current = element;
     if (!element) return;
     return () => {
+      cancelTextareaResize(element);
       element.blur();
       if (textareaRef.current === element) textareaRef.current = null;
     };
@@ -164,6 +171,30 @@ function useComposerDraft(
     return () => textSession.cancelPending();
   }, [textSession]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const requestResize = () => {
+      if (!composingRef.current) requestTextareaResize(textarea);
+    };
+    requestResize();
+
+    const host = textarea.closest(".zp-sidebar") as HTMLElement | null;
+    const ownerWindow = textarea.ownerDocument?.defaultView;
+    const ResizeObserverCtor =
+      ownerWindow?.ResizeObserver || globalThis.ResizeObserver;
+    const observer =
+      host && ResizeObserverCtor
+        ? new ResizeObserverCtor(requestResize)
+        : undefined;
+    if (host) observer?.observe(host);
+
+    return () => {
+      observer?.disconnect();
+      cancelTextareaResize(textarea);
+    };
+  }, [textareaRef]);
+
   const selectedContextCount = countItemContextSelections(
     mentions,
     noteContexts,
@@ -226,7 +257,17 @@ function useComposerDraft(
     );
     setMentionQuery(findMentionQuery(text, cursor ?? text.length));
   };
-  draftPublisherRef.current = (text, cursor) => updateDraft(text, cursor);
+  draftPublisherRef.current = (text, cursor) => {
+    updateDraft(text, cursor);
+    const textarea = textareaRef.current;
+    if (!textarea || composingRef.current) return;
+    if (textarea.ownerDocument?.activeElement === textarea) {
+      requestTextareaResize(textarea);
+    } else {
+      cancelTextareaResize(textarea);
+      resizeTextarea(textarea);
+    }
+  };
 
   useEffect(() => {
     const result = state.submissionResult;
@@ -573,9 +614,15 @@ function useComposerDraft(
       textareaCallbackRef: textareaCallbackRef.current,
       textareaRef,
       handleEditorBlur: () => textSession.handleBlur(),
-      handleEditorCompositionEnd: (textarea) =>
-        textSession.handleCompositionEnd(textarea),
-      handleEditorCompositionStart: () => textSession.handleCompositionStart(),
+      handleEditorCompositionEnd: (textarea) => {
+        composingRef.current = false;
+        textSession.handleCompositionEnd(textarea);
+      },
+      handleEditorCompositionStart: () => {
+        composingRef.current = true;
+        cancelTextareaResize(textareaRef.current);
+        textSession.handleCompositionStart();
+      },
       handleEditorInput: (textarea) => textSession.handleNativeInput(textarea),
     },
     restoreDraft,

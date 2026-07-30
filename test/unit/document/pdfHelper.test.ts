@@ -11,6 +11,11 @@ import {
   type PdfHelperManifest,
 } from "../../../src/document/pdf-helper/index.ts";
 
+const HELPER_PACKAGE_DIR = `zopilot-pdf-helper-macos-arm64-v${PDF_HELPER_VERSION}`;
+const HELPER_ARCHIVE_EXECUTABLE = `${HELPER_PACKAGE_DIR}/bin/zopilot-pdf-helper/zopilot-pdf-helper`;
+const HELPER_INSTALL_DIR = `/profile/zopilot/runtime/pdf-helper/${HELPER_PACKAGE_DIR}`;
+const HELPER_EXECUTABLE = `${HELPER_INSTALL_DIR}/bin/zopilot-pdf-helper/zopilot-pdf-helper`;
+
 describe("PDF helper", function () {
   afterEach(function () {
     delete (globalThis as unknown as { Components?: unknown }).Components;
@@ -84,10 +89,7 @@ describe("PDF helper", function () {
 
   it("reports an installed helper when the executable and version match", async function () {
     installRuntimeMocks({
-      existingPaths: new Set([
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
-      ]),
+      existingPaths: new Set([HELPER_EXECUTABLE, HELPER_INSTALL_DIR]),
       version: PDF_HELPER_VERSION,
     });
 
@@ -97,10 +99,7 @@ describe("PDF helper", function () {
     assert.equal(status.installedVersion, PDF_HELPER_VERSION);
     assert.equal(status.latestVersion, PDF_HELPER_VERSION);
     assert.isFalse(status.needsUpdate);
-    assert.equal(
-      status.installDir,
-      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
-    );
+    assert.equal(status.installDir, HELPER_INSTALL_DIR);
     assert.include(
       status.executablePath,
       "/bin/zopilot-pdf-helper/zopilot-pdf-helper",
@@ -210,9 +209,7 @@ describe("PDF helper", function () {
 
   it("reports an incomplete helper when the latest install directory is empty", async function () {
     installRuntimeMocks({
-      children: [
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
-      ],
+      children: [HELPER_INSTALL_DIR],
     });
 
     const status = await getPdfHelperStatus();
@@ -254,8 +251,7 @@ describe("PDF helper", function () {
   it("installs helper zip artifacts with slash-separated entrypoints", async function () {
     const archiveBytes = new TextEncoder().encode("mock zip");
     const sha256 = await sha256Hex(archiveBytes);
-    const finalExecutable =
-      "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper";
+    const finalExecutable = HELPER_EXECUTABLE;
     const existingPaths = new Set<string>();
     const writtenPaths: string[] = [];
     const extractedPaths: string[] = [];
@@ -270,10 +266,7 @@ describe("PDF helper", function () {
       version: PDF_HELPER_VERSION,
     });
     installNativeZipReaderMock({
-      entries: [
-        "zopilot-pdf-helper-macos-arm64-v0.3.0/VERSION",
-        "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
-      ],
+      entries: [`${HELPER_PACKAGE_DIR}/VERSION`, HELPER_ARCHIVE_EXECUTABLE],
       existingPaths,
       extractedPaths,
     });
@@ -352,8 +345,7 @@ describe("PDF helper", function () {
                   url: "https://example.test/helper.zip",
                   sha256,
                   size: archiveBytes.byteLength,
-                  entrypoint:
-                    "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+                  entrypoint: HELPER_ARCHIVE_EXECUTABLE,
                 },
               ],
             }),
@@ -395,20 +387,16 @@ describe("PDF helper", function () {
       );
       assert.isTrue(
         extractedPaths.some((path) =>
-          path.endsWith(
-            "/zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
-          ),
+          path.endsWith(`/${HELPER_ARCHIVE_EXECUTABLE}`),
         ),
       );
       assert.lengthOf(movedPaths, 1);
       assert.match(
         movedPaths[0].source,
-        /^\/profile\/zopilot\/runtime\/pdf-helper\/\.installing-macos-arm64-\d+\/zopilot-pdf-helper-macos-arm64-v0\.3\.0$/,
+        /^\/profile\/zopilot\/runtime\/pdf-helper\/\.installing-macos-arm64-\d+\//,
       );
-      assert.equal(
-        movedPaths[0].dest,
-        "/profile/zopilot/runtime/pdf-helper/zopilot-pdf-helper-macos-arm64-v0.3.0",
-      );
+      assert.isTrue(movedPaths[0].source.endsWith(`/${HELPER_PACKAGE_DIR}`));
+      assert.equal(movedPaths[0].dest, HELPER_INSTALL_DIR);
       assert.isTrue(existingPaths.has(finalExecutable));
       assert.deepEqual(permissions, [finalExecutable]);
     } finally {
@@ -433,10 +421,7 @@ describe("PDF helper", function () {
       version: PDF_HELPER_VERSION,
     });
     installNativeZipReaderMock({
-      entries: [
-        "zopilot-pdf-helper-macos-arm64-v0.3.0/VERSION",
-        "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
-      ],
+      entries: [`${HELPER_PACKAGE_DIR}/VERSION`, HELPER_ARCHIVE_EXECUTABLE],
       existingPaths,
       extractedPaths: [],
     });
@@ -662,8 +647,7 @@ function mockPdfHelperFetch(
                 url: "https://example.test/helper.zip",
                 sha256,
                 size: archiveBytes.byteLength,
-                entrypoint:
-                  "zopilot-pdf-helper-macos-arm64-v0.3.0/bin/zopilot-pdf-helper/zopilot-pdf-helper",
+                entrypoint: HELPER_ARCHIVE_EXECUTABLE,
               },
             ],
           }),

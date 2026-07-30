@@ -6,6 +6,10 @@ node_modules
 pnpm-lock.yaml
 yarn.lock
 
+# Python
+__pycache__/
+*.py[cod]
+
 # TSC
 tsconfig.tsbuildinfo
 

@@ -9,13 +9,28 @@ import sys
 from pathlib import Path
 from typing import Any
 
-HELPER_VERSION = "0.3.0"
 EXCLUDED_LAYOUT_CLASSES = {"page-header", "page-footer"}
 PICTURE_TEXT_COMMENTS = re.compile(
     r"<!--\s*(?:Start|End) of picture text\s*-->",
     re.IGNORECASE,
 )
 MAX_BLOCK_CHARS = 8_000
+
+
+def read_helper_version() -> str:
+    if getattr(sys, "frozen", False):
+        version_path = Path(sys.executable).resolve().parents[2] / "VERSION"
+        return version_path.read_text(encoding="utf-8").strip()
+
+    package_path = Path(__file__).with_name("package.json")
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+    version = package.get("version")
+    if not isinstance(version, str) or not version.strip():
+        raise RuntimeError(f"Invalid PDF helper version in {package_path}")
+    return version.strip()
+
+
+HELPER_VERSION = read_helper_version()
 
 
 def main(argv: list[str]) -> int:
