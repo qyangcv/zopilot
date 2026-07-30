@@ -47,13 +47,13 @@
     "@openai/agents-extensions": "0.14.1",
     "ai": "^6.0.219",
     "flexsearch": "^0.8.212",
-    "katex": "^0.17.0",
+    "katex": "^0.18.1",
     "lucide-react": "^1.23.0",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "sanitize-html": "^2.17.5",
-    "shiki": "^4.2.0",
+    "sanitize-html": "^2.17.6",
+    "shiki": "^4.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
