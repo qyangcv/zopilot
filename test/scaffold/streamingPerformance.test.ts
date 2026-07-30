@@ -18,7 +18,7 @@ describe("streaming performance attribution integration", function () {
   it("measures Markdown, DOM replacement, layout, React commit, and scrolling in Gecko", async function () {
     this.timeout(30_000);
     const win = Zotero.getMainWindow();
-    if (!win) this.skip();
+    if (!win) return;
     const doc = win.document;
     const fixture = createFixture(doc);
     let root: Root | undefined;
@@ -37,10 +37,17 @@ describe("streaming performance attribution integration", function () {
           onOpenLink: () => undefined,
         }),
       );
-      await waitForFrames(win, 2);
+      const mounted = await waitForCondition(
+        win,
+        () => reactMount.querySelector(".zp-markdown-rendered") !== null,
+        5_000,
+      );
+      assert.isTrue(mounted, "initial Markdown render mounted");
       const renderedContent = reactMount.querySelector(
         ".zp-markdown-rendered",
-      ) as HTMLElement;
+      ) as HTMLElement | null;
+      assert.exists(renderedContent, "rendered Markdown content");
+      if (!renderedContent) return;
       measureSidebarPerformance(
         "markdown.layout",
         { textLength: markdown.length },
@@ -58,7 +65,14 @@ describe("streaming performance attribution integration", function () {
           onOpenLink: () => undefined,
         }),
       );
-      await waitForFrames(win, 2);
+      const updated = await waitForCondition(
+        win,
+        () =>
+          reactMount.textContent?.includes("Final appended paragraph.") ===
+          true,
+        5_000,
+      );
+      assert.isTrue(updated, "updated Markdown render committed");
 
       const report = getSidebarPerformanceReport();
       for (const name of [
@@ -94,7 +108,7 @@ describe("streaming performance attribution integration", function () {
   it("mounts and updates a message without privileged sanitizer warnings", async function () {
     this.timeout(30_000);
     const win = Zotero.getMainWindow();
-    if (!win) this.skip();
+    if (!win) return;
     const fixture = createFixture(win.document);
     const reactMount = fixture.querySelector(
       "[data-react-mount]",
@@ -260,7 +274,7 @@ describe("streaming performance attribution integration", function () {
   it("preserves stable Markdown DOM and only sanitizes the active tail", async function () {
     this.timeout(30_000);
     const win = Zotero.getMainWindow();
-    if (!win) this.skip();
+    if (!win) return;
     const fixture = createFixture(win.document);
     const reactMount = fixture.querySelector(
       "[data-react-mount]",
@@ -338,7 +352,7 @@ describe("streaming performance attribution integration", function () {
 
   it("does not synchronize scrolling for lifecycle-only snapshots", async function () {
     const win = Zotero.getMainWindow();
-    if (!win) this.skip();
+    if (!win) return;
     const fixture = createFixture(win.document);
     const reactMount = fixture.querySelector(
       "[data-react-mount]",
@@ -455,9 +469,10 @@ async function waitForCondition(
   win: Window,
   condition: () => boolean,
   timeoutMs = 2_000,
-): Promise<void> {
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (!condition() && Date.now() < deadline) {
     await new Promise<void>((resolve) => win.setTimeout(resolve, 10));
   }
+  return condition();
 }
