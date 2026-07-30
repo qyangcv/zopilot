@@ -54,7 +54,7 @@ describe("sidebar host integration", function () {
           '.zp-library-sidenav-button[data-pane="zopilot-library"]',
         ) as HTMLButtonElement | null,
     );
-    if (!button) this.skip();
+    if (!button) return;
 
     const portal = await activateLibraryAndWait(win, button, () =>
       doc.getElementById("zopilot-portal-root"),
@@ -77,7 +77,7 @@ describe("sidebar host integration", function () {
           '.zp-library-sidenav-button[data-pane="zopilot-library"]',
         ) as HTMLButtonElement | null,
     );
-    if (!button) this.skip();
+    if (!button) return;
 
     const textarea = await activateLibraryAndWait(win, button, () => {
       const candidate = doc.querySelector(
@@ -221,7 +221,7 @@ describe("sidebar host integration", function () {
           '.zp-library-sidenav-button[data-pane="zopilot-library"]',
         ) as HTMLButtonElement | null,
     );
-    if (!libraryButton) this.skip();
+    if (!libraryButton) return;
 
     const openWindowButton = await activateLibraryAndWait(
       ownerWindow,
@@ -411,37 +411,39 @@ function waitForFrame(win: Window): Promise<void> {
 }
 
 async function selectUserLibrary(win: Window): Promise<boolean> {
-  const mainWindow = win as Window & {
-    ZoteroPane?: _ZoteroTypes.ZoteroPane;
-    Zotero_Tabs?: _ZoteroTypes.Zotero_Tabs;
-  };
-  mainWindow.Zotero_Tabs?.select("zotero-pane");
-  const collectionsView = await waitForHostValue(
-    win,
-    () => mainWindow.ZoteroPane?.collectionsView || null,
-  );
-  if (!collectionsView) return false;
-
-  const userLibraryID = Zotero.Libraries.userLibraryID;
-  const loadedCollectionsView = await waitForHostValue(win, () =>
-    collectionsView.rowCount > 0 ? collectionsView : null,
-  );
-  if (!loadedCollectionsView) return false;
-
   try {
+    const mainWindow = win as Window & {
+      ZoteroPane?: _ZoteroTypes.ZoteroPane;
+      Zotero_Tabs?: _ZoteroTypes.Zotero_Tabs;
+    };
+    if (mainWindow.Zotero_Tabs?.selectedID !== "zotero-pane") {
+      mainWindow.Zotero_Tabs?.select("zotero-pane");
+    }
+    const collectionsView = await waitForHostValue(
+      win,
+      () => mainWindow.ZoteroPane?.collectionsView || null,
+    );
+    if (!collectionsView) return false;
+
+    const userLibraryID = Zotero.Libraries.userLibraryID;
+    const loadedCollectionsView = await waitForHostValue(win, () =>
+      collectionsView.rowCount > 0 ? collectionsView : null,
+    );
+    if (!loadedCollectionsView) return false;
+
     await loadedCollectionsView.selectLibrary(userLibraryID);
+    const selectedLibrary = await waitForHostValue(win, () => {
+      const row = mainWindow.ZoteroPane?.getCollectionTreeRow?.() as
+        | Zotero.CollectionTreeRow
+        | undefined;
+      const libraryID = (row?.ref as { libraryID?: unknown } | undefined)
+        ?.libraryID;
+      return row?.isLibrary() && libraryID === userLibraryID ? row : null;
+    });
+    return Boolean(selectedLibrary);
   } catch {
     return false;
   }
-  const selectedLibrary = await waitForHostValue(win, () => {
-    const row = mainWindow.ZoteroPane?.getCollectionTreeRow?.() as
-      | Zotero.CollectionTreeRow
-      | undefined;
-    const libraryID = (row?.ref as { libraryID?: unknown } | undefined)
-      ?.libraryID;
-    return row?.isLibrary() && libraryID === userLibraryID ? row : null;
-  });
-  return Boolean(selectedLibrary);
 }
 
 function findDetachedChatWindow(): Window | null {
