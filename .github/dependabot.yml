@@ -10,7 +10,47 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      all-non-major:
+      agents-sdk:
+        patterns:
+          - "@openai/agents"
+          - "@openai/agents-*"
+        update-types:
+          - "minor"
+          - "patch"
+      eslint-toolchain:
+        patterns:
+          - "eslint"
+          - "@zotero-plugin/eslint-config"
+        update-types:
+          - "minor"
+          - "patch"
+      markdown-rendering:
+        patterns:
+          - "katex"
+          - "markdown-it"
+          - "sanitize-html"
+          - "shiki"
+          - "@types/katex"
+          - "@types/markdown-it"
+          - "@types/sanitize-html"
+        update-types:
+          - "minor"
+          - "patch"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - "minor"
+          - "patch"
+      test-runner:
+        patterns:
+          - "chai"
+          - "mocha"
+          - "@types/chai"
+          - "@types/mocha"
         update-types:
           - "minor"
           - "patch"
