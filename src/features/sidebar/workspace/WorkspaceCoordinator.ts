@@ -250,7 +250,7 @@ class WorkspaceCoordinator {
     }
     const token = this.options.nextSelectionToken();
     const currentSource = ready.currentSource || ready.workspace.defaultSource;
-    let workspace: WorkspaceIdentity | null = null;
+    let workspace: WorkspaceIdentity | null;
     if (type === "library") {
       workspace = await this.options
         .getSourceUniverse()

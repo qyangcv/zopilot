@@ -80,12 +80,9 @@ class MaterialRepository {
       ignoreExisting: true,
     });
 
-    let parserWarnings: string[] = [];
-    let pageCount = 0;
+    let parserResult: { warnings: string[]; pageCount: number };
     try {
-      const result = await this.runParser(source.filePath, dir, signal);
-      parserWarnings = result.warnings;
-      pageCount = result.pageCount;
+      parserResult = await this.runParser(source.filePath, dir, signal);
     } catch (error) {
       if (signal?.aborted) {
         await geckoIO.remove(dir, { recursive: true, ignoreAbsent: true });
@@ -130,9 +127,9 @@ class MaterialRepository {
       parserVersion: MATERIAL_PARSER_VERSION,
       source,
       builtAt: new Date().toISOString(),
-      pageCount: pageCount || pages.length,
+      pageCount: parserResult.pageCount || pages.length,
       status: "ready",
-      warnings: parserWarnings,
+      warnings: parserResult.warnings,
     };
     await this.writeJSON(this.getManifestPath(dir), manifest);
     return {

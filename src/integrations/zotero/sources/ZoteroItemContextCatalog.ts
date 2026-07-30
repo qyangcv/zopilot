@@ -237,7 +237,7 @@ class ZoteroItemContextCatalog {
     if (!source) {
       throw new Error(`Failed to create PDF source: ${attachment.key}`);
     }
-    let fileAvailable = false;
+    let fileAvailable: boolean;
     try {
       fileAvailable = Boolean(await attachment.getFilePathAsync?.());
     } catch {

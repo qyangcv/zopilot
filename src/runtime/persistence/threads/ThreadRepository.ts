@@ -589,7 +589,9 @@ function parseJsonRow<Value>(
     return parse(JSON.parse(text) as unknown, source);
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in ${source}: ${error.message}`);
+      throw new Error(`Invalid JSON in ${source}: ${error.message}`, {
+        cause: error,
+      });
     }
     throw error;
   }

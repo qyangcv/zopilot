@@ -313,6 +313,7 @@ class ByokAgentRunner {
       if (startupTimedOut) {
         throw new Error(
           "Provider response timed out before streaming started.",
+          { cause: error },
         );
       }
       if (!controller.signal.aborted) throw error;
