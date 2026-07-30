@@ -516,8 +516,7 @@ class SidebarHostController {
   }
 
   private getReadyDisplayState():
-    | Extract<DisplayState, { kind: "ready" }>
-    | undefined {
+    Extract<DisplayState, { kind: "ready" }> | undefined {
     return this.displayState.kind === "ready" ? this.displayState : undefined;
   }
 

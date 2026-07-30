@@ -112,11 +112,7 @@ export type AgentStreamEventInput = AgentStreamEvent extends infer Event
   : never;
 
 export type RunningTurnLifecycle =
-  | "running"
-  | "interrupting"
-  | "completed"
-  | "interrupted"
-  | "failed";
+  "running" | "interrupting" | "completed" | "interrupted" | "failed";
 
 export type RunningTurnContentBlock = {
   id: string;

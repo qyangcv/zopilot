@@ -107,8 +107,7 @@ function toStoredProviderProfile(
 function parseStoredCodexStatus(raw: unknown): StoredCodexStatus {
   try {
     const parsed = JSON.parse(String(raw || "{}")) as
-      | Partial<ProviderProfile>
-      | undefined;
+      Partial<ProviderProfile> | undefined;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return {};
     }

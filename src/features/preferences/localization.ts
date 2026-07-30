@@ -16,8 +16,7 @@ type PreferenceLocalization = {
 };
 
 declare const document:
-  | (Document & { l10n?: PreferenceLocalization })
-  | undefined;
+  (Document & { l10n?: PreferenceLocalization }) | undefined;
 
 function localized(id: FluentMessageId, args?: FluentArgs): LocalizedMessage {
   return args ? { id, args } : { id };

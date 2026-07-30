@@ -430,8 +430,7 @@ async function selectUserLibrary(win: Window): Promise<boolean> {
     await loadedCollectionsView.selectLibrary(userLibraryID);
     const selectedLibrary = await waitForHostValue(win, () => {
       const row = mainWindow.ZoteroPane?.getCollectionTreeRow?.() as
-        | Zotero.CollectionTreeRow
-        | undefined;
+        Zotero.CollectionTreeRow | undefined;
       const libraryID = (row?.ref as { libraryID?: unknown } | undefined)
         ?.libraryID;
       return row?.isLibrary() && libraryID === userLibraryID ? row : null;

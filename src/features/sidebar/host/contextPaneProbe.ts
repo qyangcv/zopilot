@@ -20,8 +20,7 @@ type ContextPaneUnavailableResult = {
 };
 
 type ContextPaneProbeResult =
-  | ContextPaneProbeSuccess
-  | ContextPaneUnavailableResult;
+  ContextPaneProbeSuccess | ContextPaneUnavailableResult;
 
 function probeContextPane(doc: Document): ContextPaneProbeResult {
   const contextPane = requireSelector(doc, "#zotero-context-pane");
@@ -36,8 +35,7 @@ function probeContextPane(doc: Document): ContextPaneProbeResult {
     );
   }
   const deck = requireSelector(doc, "#zotero-context-pane-deck") as
-    | (Element & Partial<XUL.Deck>)
-    | undefined;
+    (Element & Partial<XUL.Deck>) | undefined;
   if (!deck) {
     return unavailable("#zotero-context-pane-deck", "missing top context deck");
   }

@@ -60,10 +60,7 @@ export type DiscoveredAgentModel = AgentModelEntry & {
 };
 
 export type ProviderConnectionStatus =
-  | "unchecked"
-  | "checking"
-  | "connected"
-  | "disconnected";
+  "unchecked" | "checking" | "connected" | "disconnected";
 
 export type AgentDiagnosticCode =
   | "missing_codex_cli"

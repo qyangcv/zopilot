@@ -312,12 +312,10 @@ function runProduction(scenario: ReplayScenario): ReplayMetrics {
   let scrollSyncs = 0;
   let snapshotPublishes = 0;
   let lastScrolledAnswerBlocks:
-    | SidebarStreamingSnapshot["answerBlocks"]
-    | undefined;
+    SidebarStreamingSnapshot["answerBlocks"] | undefined;
   let lastScrolledTraceCollapsed: boolean | undefined;
   let lastScrolledTraceBlocks:
-    | SidebarStreamingSnapshot["traceBlocks"]
-    | undefined;
+    SidebarStreamingSnapshot["traceBlocks"] | undefined;
   const ordinaryPublishTimes: number[] = [];
   const parsedRevisions = new Map<string, number>();
   const renderedSegments = new Map<string, string>();

@@ -15,10 +15,7 @@ export type AgentToolKind =
   | "generic";
 
 export type AgentToolStatus =
-  | "running"
-  | "completed"
-  | "failed"
-  | "interrupted";
+  "running" | "completed" | "failed" | "interrupted";
 
 export type AgentToolRisk = "read-only" | "network" | "write" | "unknown";
 

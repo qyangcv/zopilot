@@ -56,8 +56,7 @@ function createGlobalProxy<Value extends object>(name: string): Value {
   return new Proxy({} as Value, {
     get(_target, property) {
       const source = (globalThis as Record<string, unknown>)[name] as
-        | Record<PropertyKey, unknown>
-        | undefined;
+        Record<PropertyKey, unknown> | undefined;
       if (!source) throw new Error(`${name} is unavailable in this realm`);
       const value = source[property];
       return typeof value === "function" ? value.bind(source) : value;
