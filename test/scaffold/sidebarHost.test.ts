@@ -68,6 +68,7 @@ describe("sidebar host integration", function () {
     this.timeout(20_000);
     const win = Zotero.getMainWindow();
     if (!win) this.skip();
+    if (!(await selectUserLibrary(win))) return;
     const doc = win.document;
     const button = await waitForHostValue(
       win,
@@ -211,6 +212,7 @@ describe("sidebar host integration", function () {
     this.timeout(30_000);
     const ownerWindow = Zotero.getMainWindow();
     if (!ownerWindow) this.skip();
+    if (!(await selectUserLibrary(ownerWindow))) return;
     const ownerDocument = ownerWindow.document;
     const libraryButton = await waitForHostValue(
       ownerWindow,
@@ -406,6 +408,40 @@ function assertAtMostOne(doc: Document, selector: string): void {
 
 function waitForFrame(win: Window): Promise<void> {
   return new Promise((resolve) => win.requestAnimationFrame(() => resolve()));
+}
+
+async function selectUserLibrary(win: Window): Promise<boolean> {
+  const mainWindow = win as Window & {
+    ZoteroPane?: _ZoteroTypes.ZoteroPane;
+    Zotero_Tabs?: _ZoteroTypes.Zotero_Tabs;
+  };
+  mainWindow.Zotero_Tabs?.select("zotero-pane");
+  const collectionsView = await waitForHostValue(
+    win,
+    () => mainWindow.ZoteroPane?.collectionsView || null,
+  );
+  if (!collectionsView) return false;
+
+  const userLibraryID = Zotero.Libraries.userLibraryID;
+  const loadedCollectionsView = await waitForHostValue(win, () =>
+    collectionsView.rowCount > 0 ? collectionsView : null,
+  );
+  if (!loadedCollectionsView) return false;
+
+  try {
+    await loadedCollectionsView.selectLibrary(userLibraryID);
+  } catch {
+    return false;
+  }
+  const selectedLibrary = await waitForHostValue(win, () => {
+    const row = mainWindow.ZoteroPane?.getCollectionTreeRow?.() as
+      | Zotero.CollectionTreeRow
+      | undefined;
+    const libraryID = (row?.ref as { libraryID?: unknown } | undefined)
+      ?.libraryID;
+    return row?.isLibrary() && libraryID === userLibraryID ? row : null;
+  });
+  return Boolean(selectedLibrary);
 }
 
 function findDetachedChatWindow(): Window | null {
