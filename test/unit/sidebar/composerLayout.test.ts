@@ -166,8 +166,7 @@ function createTextareaFixture({
     measuredAtHeights,
     runFrame() {
       const entry = frames.entries().next().value as
-        | [number, () => void]
-        | undefined;
+        [number, () => void] | undefined;
       if (!entry) return;
       frames.delete(entry[0]);
       entry[1]();

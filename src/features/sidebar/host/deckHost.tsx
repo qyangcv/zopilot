@@ -41,8 +41,7 @@ async function createZopilotDeckHost(
       return getString(command.args[0], command.args[1]);
     }
     const action = currentActions?.[command.type] as
-      | ((...args: unknown[]) => unknown)
-      | undefined;
+      ((...args: unknown[]) => unknown) | undefined;
     return action?.(...command.args);
   };
   const host: SidebarWindowHost = runtime.createHost(panel, dispatch, options);

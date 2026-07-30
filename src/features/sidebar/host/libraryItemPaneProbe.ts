@@ -17,19 +17,16 @@ type LibraryItemPaneUnavailableResult = {
 };
 
 type LibraryItemPaneProbeResult =
-  | LibraryItemPaneProbeSuccess
-  | LibraryItemPaneUnavailableResult;
+  LibraryItemPaneProbeSuccess | LibraryItemPaneUnavailableResult;
 
 function probeLibraryItemPane(doc: Document): LibraryItemPaneProbeResult {
   const itemPane = doc.querySelector("#zotero-item-pane") as
-    | LibraryItemPaneProbeSuccess["itemPane"]
-    | null;
+    LibraryItemPaneProbeSuccess["itemPane"] | null;
   if (!itemPane) {
     return unavailable("#zotero-item-pane", "missing library item pane");
   }
   const deck = doc.querySelector("#zotero-item-pane-content") as
-    | LibraryItemPaneProbeSuccess["deck"]
-    | null;
+    LibraryItemPaneProbeSuccess["deck"] | null;
   if (!deck) {
     return unavailable(
       "#zotero-item-pane-content",

@@ -18,8 +18,7 @@ import type { ProviderBrand } from "../../../domain/agent/providerBrand";
 import type { AgentRunResult } from "../../../domain/agent/types";
 
 type RunningTurnOrderEntry =
-  | { type: "content"; id: string }
-  | { type: "trace"; id: string };
+  { type: "content"; id: string } | { type: "trace"; id: string };
 
 type RunningTurnRecord = {
   answerBlockCache?: readonly RunningTurnContentBlock[];

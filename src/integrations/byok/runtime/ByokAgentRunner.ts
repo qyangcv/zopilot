@@ -139,8 +139,7 @@ class ByokAgentRunner {
     let responseIndex = 0;
     let currentResponse = 0;
     let managedMcpServers:
-      | Awaited<ReturnType<typeof connectMcpServers>>
-      | undefined;
+      Awaited<ReturnType<typeof connectMcpServers>> | undefined;
     try {
       const mcp = params.mcp
         ? createByokMcpServer(params.mcp, allowImages)

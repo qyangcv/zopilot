@@ -13,11 +13,7 @@ import type { ProviderBrand } from "./agent/providerBrand";
 import type { AgentTraceItem } from "./agent/trace";
 
 type ThreadTurnStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "interrupted"
-  | "failed";
+  "pending" | "running" | "completed" | "interrupted" | "failed";
 
 type ThreadContextSnapshot = {
   sources: ThreadSource[];

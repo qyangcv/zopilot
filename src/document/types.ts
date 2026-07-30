@@ -102,12 +102,7 @@ export type MaterialArtifact = {
 };
 
 export type MaterialChunkKind =
-  | "title"
-  | "abstract"
-  | "body"
-  | "caption"
-  | "table"
-  | "references";
+  "title" | "abstract" | "body" | "caption" | "table" | "references";
 
 export type MaterialChunk = {
   id: string;
@@ -136,13 +131,7 @@ export type Material = {
 };
 
 export type QueryIntent =
-  | "summary"
-  | "table"
-  | "figure"
-  | "equation"
-  | "page"
-  | "metadata"
-  | "general";
+  "summary" | "table" | "figure" | "equation" | "page" | "metadata" | "general";
 
 export type QueryPlan = {
   query: string;

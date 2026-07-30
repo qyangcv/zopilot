@@ -1044,8 +1044,7 @@ function legacyExecution(
     model: message?.model,
     reasoningEffort: message?.reasoningEffort,
     capabilitySnapshot: message?.capabilitySnapshot as
-      | ThreadTurnExecution["capabilitySnapshot"]
-      | undefined,
+      ThreadTurnExecution["capabilitySnapshot"] | undefined,
     runId: message?.backendRunId || message?.codexThreadId,
     providerTurnId: message?.backendTurnId || message?.codexTurnId,
   };

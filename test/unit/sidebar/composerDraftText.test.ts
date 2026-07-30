@@ -188,8 +188,7 @@ function createScheduler(): TextSessionScheduler & {
     },
     runNext() {
       const entry = tasks.entries().next().value as
-        | [number, () => void]
-        | undefined;
+        [number, () => void] | undefined;
       if (!entry) return;
       tasks.delete(entry[0]);
       entry[1]();

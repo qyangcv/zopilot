@@ -21,8 +21,7 @@ function resolveSelectedWorkspace(win: Window): SelectedWorkspaceResult {
   const pane = (win as Window & { ZoteroPane?: _ZoteroTypes.ZoteroPane })
     .ZoteroPane;
   const row = pane?.getCollectionTreeRow?.() as
-    | Zotero.CollectionTreeRow
-    | undefined;
+    Zotero.CollectionTreeRow | undefined;
   if (!row) {
     return {
       status: "unavailable",

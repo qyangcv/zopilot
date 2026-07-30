@@ -110,16 +110,10 @@ function readMessages(file: string): Map<string, string[]> {
   const junk = resource.body.filter((entry) => entry.type === "Junk");
   assert.lengthOf(junk, 0, `${file} contains invalid Fluent syntax`);
   return new Map(
-    resource.body.flatMap(
-      (entry): Array<[string, string[]]> =>
-        entry.type === "Message"
-          ? [
-              [
-                entry.id.name,
-                entry.attributes.map((item) => item.id.name).sort(),
-              ],
-            ]
-          : [],
+    resource.body.flatMap((entry): Array<[string, string[]]> =>
+      entry.type === "Message"
+        ? [[entry.id.name, entry.attributes.map((item) => item.id.name).sort()]]
+        : [],
     ),
   );
 }
