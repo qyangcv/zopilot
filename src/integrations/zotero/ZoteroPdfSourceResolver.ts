@@ -3,6 +3,7 @@ import type { PaperSourceRef } from "../../domain/conversation";
 import { createSourceId } from "../../domain/sourceIdentity";
 import { sha256Hex } from "../../runtime/crypto/sha256";
 import { geckoIO } from "../../platform/gecko";
+import { getZoteroItem } from "./compat/items";
 
 export { ZoteroPdfSourceResolver };
 export { createSourceId } from "../../domain/sourceIdentity";
@@ -70,9 +71,9 @@ async function resolvePdfSourceIdentity(
 function resolvePdfAttachment(
   source: PdfSourceInput,
 ): ZoteroPdfAttachment | null {
-  const attachment = Zotero.Items.get(source.attachmentItemID) as
-    | ZoteroPdfAttachment
-    | undefined;
+  const attachment: ZoteroPdfAttachment | undefined = getZoteroItem(
+    source.attachmentItemID,
+  );
   if (!attachment?.isAttachment?.() || !attachment.isPDFAttachment?.()) {
     return null;
   }

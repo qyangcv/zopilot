@@ -5,6 +5,7 @@ import {
   type WorkspaceIdentity,
 } from "../../domain/conversation";
 import { createPaperIdentity } from "./paperIdentity";
+import { getZoteroItem } from "./compat/items";
 
 export { ZoteroContextGateway };
 
@@ -19,7 +20,7 @@ class ZoteroContextGateway {
       return null;
     }
 
-    const attachment = Zotero.Items.get(activeReader.itemID);
+    const attachment = getZoteroItem(activeReader.itemID);
     if (!attachment) {
       return null;
     }

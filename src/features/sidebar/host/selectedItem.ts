@@ -1,4 +1,5 @@
 import { getString } from "../../../app/localization";
+import { getZoteroItem } from "../../../integrations/zotero/compat/items";
 
 export { getSelectedItemTitle };
 
@@ -7,7 +8,7 @@ function getSelectedItemTitle(
   reader?: _ZoteroTypes.ReaderInstance,
 ): string {
   if (reader?.itemID) {
-    const item = Zotero.Items.get(reader.itemID);
+    const item = getZoteroItem(reader.itemID);
     const title =
       getOptionalItemTitle(item?.parentItem) || getOptionalItemTitle(item);
     return title || getString("sidebar-untitled-item");
