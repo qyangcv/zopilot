@@ -83,8 +83,7 @@ class StreamRenderScheduler {
       return;
     }
     let completedSynchronously = false;
-    let frame = 0;
-    frame = this.options.win.requestAnimationFrame(() => {
+    const frame = this.options.win.requestAnimationFrame(() => {
       completedSynchronously = true;
       this.frame = undefined;
       this.flushFrame();

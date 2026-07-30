@@ -44,7 +44,7 @@ function readSidebarDropPayload(
   if (!dataTransfer) return undefined;
 
   if (hasType(dataTransfer.types, ZOTERO_ITEM_FLAVOR)) {
-    let rawItemIDs = "";
+    let rawItemIDs: string;
     try {
       rawItemIDs = dataTransfer.getData(ZOTERO_ITEM_FLAVOR);
     } catch {
