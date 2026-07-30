@@ -5,6 +5,7 @@ import {
   getSelectedPDFReaderAsync,
   isPDFReader,
 } from "../../../integrations/zotero/reader";
+import { getZoteroItem } from "../../../integrations/zotero/compat/items";
 import { getSelectedItemTitle } from "./selectedItem";
 import { SidebarSurface } from "./SidebarSurface";
 
@@ -148,7 +149,7 @@ class ReaderSelectionCoordinator {
     return (
       state.kind === "ready" &&
       reader.itemID !== undefined &&
-      Zotero.Items.get(reader.itemID)?.key ===
+      getZoteroItem(reader.itemID)?.key ===
         state.workspace.defaultSource?.attachmentKey
     );
   }

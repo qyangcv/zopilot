@@ -1,11 +1,12 @@
 import type { PaperIdentity } from "../../domain/conversation";
 import type { PaperScope } from "./types";
+import { getZoteroItem } from "./compat/items";
 
 function createPaperIdentity(scope: PaperScope): PaperIdentity | null {
   const parentItem = scope.parentItemID
-    ? Zotero.Items.get(scope.parentItemID)
+    ? getZoteroItem(scope.parentItemID)
     : undefined;
-  const attachment = Zotero.Items.get(scope.attachmentItemID);
+  const attachment = getZoteroItem(scope.attachmentItemID);
   if (!attachment) {
     return null;
   }
