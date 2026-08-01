@@ -41,7 +41,7 @@
     "@ai-sdk/openai-compatible": "^2.0.56",
     "@mdit/plugin-footnote": "^0.23.2",
     "@mdit/plugin-tasklist": "^0.23.2",
-    "@mdit/plugin-tex": "^0.24.2",
+    "@mdit/plugin-tex": "^1.0.2",
     "@modelcontextprotocol/sdk": "1.30.0",
     "@openai/agents": "0.14.1",
     "@openai/agents-extensions": "0.14.1",
