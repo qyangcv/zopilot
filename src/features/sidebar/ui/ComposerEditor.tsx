@@ -204,6 +204,7 @@ function ComposerEditor({
           handleEditorCompositionEnd(event.currentTarget)
         }
         onCompositionStart={handleEditorCompositionStart}
+        onPaste={bindings.handleEditorPaste}
         onKeyDown={(event) => {
           if (
             (event.nativeEvent as KeyboardEvent | undefined)?.isComposing ||

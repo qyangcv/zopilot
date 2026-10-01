@@ -30,6 +30,17 @@ type ReaderSelectionOptions = {
 class ReaderSelectionCoordinator {
   constructor(private readonly options: ReaderSelectionOptions) {}
 
+  async openPaneAndWait(
+    reader: _ZoteroTypes.ReaderInstance<"pdf">,
+  ): Promise<void> {
+    const token = this.options.nextToken();
+    this.options.surface.attach(reader);
+    this.options.setOpen(true);
+    if (this.options.canCommit(token)) {
+      await this.loadReaderConversation(reader, token);
+    }
+  }
+
   refreshContext(reader?: _ZoteroTypes.ReaderInstance): void {
     if (this.options.isOpen()) {
       if (isPDFReader(reader)) {

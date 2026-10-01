@@ -42,6 +42,7 @@ function createInitialSidebarState(label: string): SidebarState {
     collectionOptions: [],
     prompts: [],
     reloading: false,
+    pendingComposerAttachments: undefined,
   };
 }
 

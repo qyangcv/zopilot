@@ -68,6 +68,26 @@ describe("workspace binding codec", function () {
 
     assert.isFalse(parsed.ok);
   });
+
+  it("keeps non-ASCII workspace labels and source titles safe for HTTP headers", function () {
+    const binding = createBinding();
+    binding.workspace.workspaceLabel = "zopilot代码报告";
+    binding.context.sources[0].title = "中文图片区域";
+    const headers = createPaperBindingHeaders(binding);
+
+    assert.isTrue(
+      Object.values(headers).every((value) =>
+        Array.from(value).every((character) => character.charCodeAt(0) <= 0x7f),
+      ),
+    );
+    const parsed = parsePaperBindingHeaders(headers);
+
+    assert.isTrue(parsed.ok);
+    if (parsed.ok) {
+      assert.equal(parsed.value.workspaceLabel, "zopilot代码报告");
+      assert.equal(parsed.value.sources[0]?.title, "中文图片区域");
+    }
+  });
 });
 
 function createBinding(): ThreadWorkspaceBinding {

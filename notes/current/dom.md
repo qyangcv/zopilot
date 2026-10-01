@@ -1,8 +1,8 @@
 # Zopilot DOM / Zotero API 风险登记表
 
-最后更新：2026-07-25
-支持范围：Zotero `9.0.*`  
-验证基线：Zotero 9.0.6；发布时增加最新 9.0.x
+最后更新：2026-09-28
+支持范围：Zotero `9.0.*` 与 `10.0.x`  
+验证基线：Zotero 10.0.4；发布前仍需补充 Zotero 9.0.x 回归
 
 ## 1. 治理结论
 
@@ -84,7 +84,7 @@ Zopilot 自有 UI 已在节点所属窗口 Realm 中运行。插件 sandbox 不�
 
 ## 6. 升级与发布矩阵
 
-每次 Zotero 9.0.x 升级和正式发布前执行：
+每次 Zotero 9.0.x 或 10.0.x 升级和正式发布前执行：
 
 - [ ] Library 与 PDF Reader 中打开、切换、关闭 Zopilot；
 - [ ] stacked/narrow layout 和 Reader tab 切换；

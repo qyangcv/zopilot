@@ -16,6 +16,7 @@ type BoundWorkspaceScope = WorkspaceQueryScope;
 
 const PAPER_BINDING_MISSING_MESSAGE =
   "This provider turn is not bound to a Zopilot paper context.";
+const HEADER_ENCODING_PREFIX = "zopilot-uri:";
 
 const PAPER_BINDING_HEADERS = {
   conversationId: "X-Zopilot-Conversation-ID",
@@ -55,29 +56,41 @@ function createPaperBindingHeaders(
 ): Record<string, string> {
   const scope = threadContextToWorkspaceQueryScope(binding);
   const headers: Record<string, string> = {
-    [PAPER_BINDING_HEADERS.conversationId]: scope.conversationId,
-    [PAPER_BINDING_HEADERS.workspaceKey]: scope.workspaceKey,
-    [PAPER_BINDING_HEADERS.workspaceType]: scope.workspaceType,
-    [PAPER_BINDING_HEADERS.workspaceLabel]: scope.workspaceLabel,
+    [PAPER_BINDING_HEADERS.conversationId]: encodeHeaderValue(
+      scope.conversationId,
+    ),
+    [PAPER_BINDING_HEADERS.workspaceKey]: encodeHeaderValue(scope.workspaceKey),
+    [PAPER_BINDING_HEADERS.workspaceType]: encodeHeaderValue(
+      scope.workspaceType,
+    ),
+    [PAPER_BINDING_HEADERS.workspaceLabel]: encodeHeaderValue(
+      scope.workspaceLabel,
+    ),
     [PAPER_BINDING_HEADERS.libraryID]: String(scope.libraryID),
-    [PAPER_BINDING_HEADERS.sources]: JSON.stringify(scope.sources),
+    [PAPER_BINDING_HEADERS.sources]: encodeHeaderValue(
+      JSON.stringify(scope.sources),
+    ),
     [PAPER_BINDING_HEADERS.acceptsImages]: options.acceptsImages
       ? "true"
       : "false",
   };
   if (scope.collectionKey) {
-    headers[PAPER_BINDING_HEADERS.collectionKey] = scope.collectionKey;
+    headers[PAPER_BINDING_HEADERS.collectionKey] = encodeHeaderValue(
+      scope.collectionKey,
+    );
   }
   if (scope.collectionPath?.length) {
-    headers[PAPER_BINDING_HEADERS.collectionPath] = JSON.stringify(
-      scope.collectionPath,
+    headers[PAPER_BINDING_HEADERS.collectionPath] = encodeHeaderValue(
+      JSON.stringify(scope.collectionPath),
     );
   }
   if (scope.itemKey) {
-    headers[PAPER_BINDING_HEADERS.itemKey] = scope.itemKey;
+    headers[PAPER_BINDING_HEADERS.itemKey] = encodeHeaderValue(scope.itemKey);
   }
   if (scope.primarySourceId) {
-    headers[PAPER_BINDING_HEADERS.primarySourceId] = scope.primarySourceId;
+    headers[PAPER_BINDING_HEADERS.primarySourceId] = encodeHeaderValue(
+      scope.primarySourceId,
+    );
   }
   return headers;
 }
@@ -254,10 +267,32 @@ function readHeader(
   name: string,
 ): string | undefined {
   const direct = headers[name];
-  if (direct !== undefined) return direct.trim() || undefined;
+  if (direct !== undefined)
+    return decodeHeaderValue(direct.trim()) || undefined;
   const foundKey = Object.keys(headers).find(
     (key) => key.toLowerCase() === name.toLowerCase(),
   );
   const value = foundKey ? headers[foundKey] : undefined;
-  return value?.trim() || undefined;
+  return value ? decodeHeaderValue(value.trim()) || undefined : undefined;
+}
+
+function encodeHeaderValue(value: string): string {
+  return !isAscii(value)
+    ? `${HEADER_ENCODING_PREFIX}${encodeURIComponent(value)}`
+    : value;
+}
+
+function isAscii(value: string): boolean {
+  return Array.from(value).every(
+    (character) => character.charCodeAt(0) <= 0x7f,
+  );
+}
+
+function decodeHeaderValue(value: string): string {
+  if (!value.startsWith(HEADER_ENCODING_PREFIX)) return value;
+  try {
+    return decodeURIComponent(value.slice(HEADER_ENCODING_PREFIX.length));
+  } catch {
+    return value;
+  }
 }

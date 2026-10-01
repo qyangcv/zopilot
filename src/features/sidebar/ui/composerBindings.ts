@@ -1,4 +1,4 @@
-import type { RefCallback, RefObject } from "react";
+import type { ClipboardEvent, RefCallback, RefObject } from "react";
 import type {
   ItemContextNode,
   ItemContextTree,
@@ -62,6 +62,7 @@ type ComposerBindings = {
   handleEditorCompositionEnd: (textarea: HTMLTextAreaElement) => void;
   handleEditorCompositionStart: () => void;
   handleEditorInput: (textarea: HTMLTextAreaElement) => void;
+  handleEditorPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
 };
 
 export type { ComposerBindings };

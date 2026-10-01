@@ -210,6 +210,33 @@ describe("sidebar composer mention keyboard navigation", function () {
     assert.deepEqual(nativeInputs, [["native", 6]]);
   });
 
+  it("routes paste events to the composer binding", function () {
+    const pastes: unknown[] = [];
+    const bindings = {
+      ...createBindings({
+        activeMentionIndex: 0,
+        candidates: [],
+        move: () => undefined,
+        select: () => undefined,
+        submit: () => undefined,
+      }),
+      handleEditorPaste: (event: unknown) => pastes.push(event),
+    };
+    const editor = ComposerEditor({
+      bindings,
+      state: { composerEnabled: true } as SidebarState,
+    });
+    const textarea = findElement(
+      editor,
+      (element) => element.type === "textarea",
+    );
+
+    assert.isDefined(textarea);
+    const pasteEvent = {};
+    (getProps(textarea).onPaste as (event: unknown) => void)(pasteEvent);
+    assert.deepEqual(pastes, [pasteEvent]);
+  });
+
   it("does not intercept native editing shortcuts", function () {
     const editor = ComposerEditor({
       bindings: createBindings({
@@ -749,6 +776,7 @@ function createBindings({
     handleEditorCompositionEnd: () => undefined,
     handleEditorCompositionStart: () => undefined,
     handleEditorInput: () => undefined,
+    handleEditorPaste: () => undefined,
   };
 }
 

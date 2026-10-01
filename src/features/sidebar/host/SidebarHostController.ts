@@ -1,12 +1,16 @@
 import type {
   Conversation,
+  LocalAttachmentRef,
   PaperIdentity,
   SourceMention,
   WorkspaceIdentity,
   WorkspaceType,
 } from "../../../domain/conversation";
 import { ZoteroSourceUniverse } from "../../../integrations/zotero/ZoteroWorkspaceService";
-import { getSelectedPDFReader } from "../../../integrations/zotero/reader";
+import {
+  getSelectedPDFReader,
+  getSelectedReader,
+} from "../../../integrations/zotero/reader";
 import { isLibraryTab } from "../../../integrations/zotero/selectedWorkspace";
 import type {
   SidebarPromptSubmission,
@@ -51,10 +55,15 @@ import {
 } from "../../../app/pluginLifecycle";
 import { createLogger } from "../../../runtime/logging/logger";
 import { DetachedChatWindow } from "./DetachedChatWindow";
+import type { RegionAnnotationTarget } from "../../../integrations/zotero/ZoteroAnnotationService";
+import { RegionAskError } from "../../../integrations/zotero/ZoteroAnnotationService";
+import { createTimestampId } from "../../../runtime/ids/timestampId";
+import { isPDFReader } from "../../../integrations/zotero/reader";
 
 const controllers = new WeakMap<Window, SidebarHostController>();
 const logger = createLogger("sidebar.host");
 export {
+  askAboutRegion,
   prepareAllSidebarsForShutdown,
   registerSidebar,
   unregisterSidebar,
@@ -88,6 +97,21 @@ function unregisterSidebar(
 
 function unregisterAllSidebars(): void {
   Zotero.getMainWindows().forEach((win) => unregisterSidebar(win));
+}
+
+async function askAboutRegion(
+  reader: _ZoteroTypes.ReaderInstance,
+  target: RegionAnnotationTarget,
+  attachment: LocalAttachmentRef,
+): Promise<void> {
+  for (const win of Zotero.getMainWindows()) {
+    const controller = controllers.get(win);
+    if (controller?.canHandleReader(reader)) {
+      await controller.askAboutRegion(reader, target, attachment);
+      return;
+    }
+  }
+  throw new RegionAskError("sidebar_unavailable");
 }
 
 async function prepareAllSidebarsForShutdown(): Promise<void> {
@@ -373,6 +397,67 @@ class SidebarHostController {
     this.readerSelection.openPane(reader);
   }
 
+  canHandleReader(reader: _ZoteroTypes.ReaderInstance): boolean {
+    const selected = getSelectedReader(this.win);
+    return Boolean(
+      selected &&
+      selected.tabID === reader.tabID &&
+      selected.itemID === reader.itemID,
+    );
+  }
+
+  async askAboutRegion(
+    reader: _ZoteroTypes.ReaderInstance,
+    target: RegionAnnotationTarget,
+    attachment: LocalAttachmentRef,
+  ): Promise<void> {
+    if (
+      this.destroyed ||
+      !isPDFReader(reader) ||
+      !this.canHandleReader(reader)
+    ) {
+      throw new RegionAskError("sidebar_unavailable");
+    }
+    if (this.hasDetachedWindow()) this.detachedWindow.close();
+    const existing = this.getReadyDisplayState();
+    if (
+      existing?.hostContext?.kind === "reader" &&
+      existing.reader?.tabID === reader.tabID &&
+      existing.workspace.workspaceType === "item"
+    ) {
+      this.surface.attach(reader);
+      this.setOpen(true);
+    } else {
+      await this.readerSelection.openPaneAndWait(reader);
+    }
+    const ready = await this.getReadyStateForActiveContext();
+    if (
+      this.destroyed ||
+      !this.open ||
+      !this.canHandleReader(reader) ||
+      !ready ||
+      ready.hostContext?.kind !== "reader" ||
+      ready.reader?.tabID !== reader.tabID
+    ) {
+      throw new RegionAskError("sidebar_unavailable");
+    }
+    const source = ready.currentSource || ready.workspace.defaultSource;
+    if (
+      source?.libraryID !== target.libraryID ||
+      source.attachmentKey !== target.attachmentKey
+    ) {
+      throw new RegionAskError("sidebar_unavailable");
+    }
+    this.updateViewState({
+      pendingComposerAttachments: {
+        id: createTimestampId("region-seed"),
+        conversationId: ready.conversation.metadata.id,
+        attachments: [attachment],
+      },
+    });
+    this.focusComposer();
+  }
+
   private async loadWorkspaceConversation(input: {
     token: number;
     hostContext?: SidebarHostContext;
@@ -515,6 +600,11 @@ class SidebarHostController {
     });
   }
 
+  private consumePendingComposerAttachments(seedID: string): void {
+    if (this.viewState.pendingComposerAttachments?.id !== seedID) return;
+    this.updateViewState({ pendingComposerAttachments: undefined });
+  }
+
   private getReadyDisplayState():
     Extract<DisplayState, { kind: "ready" }> | undefined {
     return this.displayState.kind === "ready" ? this.displayState : undefined;
@@ -543,6 +633,17 @@ class SidebarHostController {
   }
 
   private setDisplayState(displayState: DisplayState): void {
+    const pending = this.viewState.pendingComposerAttachments;
+    if (
+      pending &&
+      (displayState.kind !== "ready" ||
+        pending.conversationId !== displayState.conversation.metadata.id)
+    ) {
+      this.viewState = {
+        ...this.viewState,
+        pendingComposerAttachments: undefined,
+      };
+    }
     if (displayState.kind === "ready") {
       this.unreadConversationIds.delete(displayState.conversation.metadata.id);
     }
@@ -721,6 +822,8 @@ class SidebarHostController {
         void this.selectItemWorkspace(sourceId),
       submitPrompt: (submission) => void this.submitPromptAsync(submission),
       uploadAttachment: () => this.contextActions.uploadAttachment(),
+      consumePendingComposerAttachments: (seedID) =>
+        this.consumePendingComposerAttachments(seedID),
       switchSession: (conversation) =>
         void this.sessions.switchSession(conversation),
       restoreSession: (conversation) =>

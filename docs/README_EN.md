@@ -14,7 +14,8 @@ Zopilot is a modern Zotero AI plugin that brings AI into the Zopilot sidebar as 
 
 ## Requirements
 
-- Zotero 9.0
+- Zotero 9.0 and Zotero 10.0.x
+- Node.js 22 or newer
 - macOS or Windows x86_64
 
 ## Getting Started

@@ -24,6 +24,7 @@ type SidebarActionHandlers = {
   toggleArchivedSessions: () => void;
   toggleSessions: () => void;
   uploadAttachment: SidebarActions["uploadAttachment"];
+  consumePendingComposerAttachments: SidebarActions["consumePendingComposerAttachments"];
 };
 
 function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
@@ -46,6 +47,8 @@ function createSidebarActions(handlers: SidebarActionHandlers): SidebarActions {
     selectItemWorkspace: handlers.selectItemWorkspace,
     submitPrompt: handlers.submitPrompt,
     uploadAttachment: handlers.uploadAttachment,
+    consumePendingComposerAttachments:
+      handlers.consumePendingComposerAttachments,
     switchSession: (conversation) => handlers.switchSession(conversation),
     restoreSession: (conversation) => handlers.restoreSession(conversation),
     toggleArchivedSessions: handlers.toggleArchivedSessions,

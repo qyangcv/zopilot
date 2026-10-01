@@ -13,7 +13,7 @@ Zopilot 是一款简约、现代化的 Zotero AI 插件, 将 AI 接入 Zotero �
 
 ## 环境要求
 
-- Zotero >= 9.0
+- Zotero >= 9.0（兼容 Zotero 10.0.x）
 - Node.js >= 22
 - macOS 或 Windows x86_64
 
@@ -61,6 +61,15 @@ Zopilot 是一款简约、现代化的 Zotero AI 插件, 将 AI 接入 Zotero �
 
 - 附件功能（插入外部PDF/图片到对话中）当前仅对 Codex CLI 有效
 - 文档解析功能依赖 [pymupdf4llm](https://github.com/pymupdf/pymupdf)，处理超长文档 (>100页) 时速度较慢，可能遇到回答超时、 UI 阻塞问题
+
+## Zotero 10 兼容性
+
+本修复版将插件兼容上限更新为 `10.*`，版本号为 `0.8.1`。当前打包的
+Zotero 10 静态兼容性基线来自本机已安装的 Zopilot 0.8.0 XPI；其中已包含
+`getSelectedItems()`、Reader 空值保护以及 MCP endpoint 降级处理。
+
+尚未在本工作区连接真实 Zotero 窗口执行 Provider、PDF helper 和 MCP 的
+端到端操作；未配置 Provider 时应显示配置诊断，而不是把错误传播到主界面。
 
 ## 反馈
 

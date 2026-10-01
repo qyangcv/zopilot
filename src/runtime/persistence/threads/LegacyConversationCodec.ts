@@ -261,6 +261,7 @@ function isLocalAttachmentRef(value: unknown): boolean {
     filename?: unknown;
     kind?: unknown;
     mimeType?: unknown;
+    region?: unknown;
   };
   return (
     Boolean(item) &&
@@ -268,7 +269,24 @@ function isLocalAttachmentRef(value: unknown): boolean {
     typeof item.path === "string" &&
     typeof item.filename === "string" &&
     (item.kind === "pdf" || item.kind === "image") &&
-    (item.mimeType === undefined || typeof item.mimeType === "string")
+    (item.mimeType === undefined || typeof item.mimeType === "string") &&
+    isLegacyRegionAttachmentContext(item.region)
+  );
+}
+
+function isLegacyRegionAttachmentContext(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!value || typeof value !== "object") return false;
+  const region = value as Record<string, unknown>;
+  return (
+    typeof region.annotationKey === "string" &&
+    typeof region.attachmentKey === "string" &&
+    typeof region.libraryID === "number" &&
+    typeof region.pageIndex === "number" &&
+    Number.isInteger(region.pageIndex) &&
+    region.pageIndex >= 0 &&
+    (region.pageLabel === undefined || typeof region.pageLabel === "string") &&
+    typeof region.title === "string"
   );
 }
 

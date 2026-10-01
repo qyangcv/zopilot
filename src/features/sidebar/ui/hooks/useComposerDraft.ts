@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type RefCallback } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type RefCallback,
+} from "react";
 import type {
   ItemContextNode,
   ItemContextTree,
@@ -7,7 +13,10 @@ import type {
   PaperSourceRef,
   SourceMention,
 } from "../../../../domain/conversation";
-import { MAX_SELECTED_CONTEXTS } from "../../../../domain/contextSelection";
+import {
+  MAX_LOCAL_ATTACHMENTS,
+  MAX_SELECTED_CONTEXTS,
+} from "../../../../domain/contextSelection";
 import { findPopupNextIndex } from "../../../../ui/primitives/index";
 import type { ComposerBindings } from "../composerBindings";
 import type { SidebarActions, SidebarState } from "../types";
@@ -26,6 +35,10 @@ import {
   resizeTextarea,
 } from "../composerLayout";
 import { createTimestampId } from "../../../../runtime/ids/timestampId";
+import {
+  findClipboardImageItem,
+  persistClipboardImage,
+} from "../../context/clipboardAttachment";
 
 const SELECTED_CONTEXT_PROMPT = "Use the selected context.";
 
@@ -76,6 +89,8 @@ function useComposerDraft(
   const composerScopeRef = useRef("");
   const activeComposerScopeRef = useRef("");
   const itemContextLoadTokenRef = useRef(0);
+  const pasteTokenRef = useRef(0);
+  const consumedAttachmentSeedRef = useRef<string | undefined>(undefined);
   const mentionsRef = useRef(mentions);
   const noteContextsRef = useRef(noteContexts);
   const localAttachmentsRef = useRef(localAttachments);
@@ -147,6 +162,7 @@ function useComposerDraft(
     const initialScope = !composerScopeRef.current;
     composerScopeRef.current = composerScope;
     pendingSubmissionRef.current = undefined;
+    pasteTokenRef.current += 1;
     if (initialScope) {
       setHasDraftText(false);
     } else {
@@ -166,6 +182,33 @@ function useComposerDraft(
     itemContextLoadTokenRef.current += 1;
     setActiveItemContextIndex(1);
   }, [composerScope, textSession]);
+
+  useEffect(() => {
+    const seed = state.pendingComposerAttachments;
+    if (
+      !seed ||
+      seed.conversationId !== state.conversationId ||
+      consumedAttachmentSeedRef.current === seed.id
+    ) {
+      return;
+    }
+    consumedAttachmentSeedRef.current = seed.id;
+    const next = mergeDroppedContext(
+      {
+        mentions: mentionsRef.current,
+        noteContexts: noteContextsRef.current,
+        localAttachments: localAttachmentsRef.current,
+      },
+      seed.attachments.map((attachment) => ({
+        kind: "local-attachment" as const,
+        attachment,
+      })),
+    );
+    localAttachmentsRef.current = next.localAttachments;
+    setLocalAttachments(next.localAttachments);
+    actions.consumePendingComposerAttachments(seed.id);
+    globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [actions, state.conversationId, state.pendingComposerAttachments]);
 
   useEffect(() => {
     return () => textSession.cancelPending();
@@ -410,6 +453,42 @@ function useComposerDraft(
       .catch(() => undefined);
   };
 
+  const handleEditorPaste = (
+    event: ReactClipboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (!state.composerEnabled) return;
+    const item = findClipboardImageItem(event.clipboardData?.items);
+    if (!item) return;
+    const file = item.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    if (localAttachmentsRef.current.length >= MAX_LOCAL_ATTACHMENTS) return;
+    const token = ++pasteTokenRef.current;
+    const scope = activeComposerScopeRef.current;
+    void persistClipboardImage(file, item.type)
+      .then((result) => {
+        if (
+          token !== pasteTokenRef.current ||
+          scope !== activeComposerScopeRef.current ||
+          result.status !== "created"
+        ) {
+          return;
+        }
+        if (
+          localAttachmentsRef.current.some(
+            (attachment) => attachment.path === result.attachment.path,
+          )
+        ) {
+          return;
+        }
+        const next = [...localAttachmentsRef.current, result.attachment];
+        localAttachmentsRef.current = next;
+        setLocalAttachments(next);
+        globalThis.setTimeout(() => textareaRef.current?.focus(), 0);
+      })
+      .catch(() => undefined);
+  };
+
   const addDroppedContext = (payload: SidebarDropPayload) => {
     const workspaceKey = state.context.workspaceKey;
     if (
@@ -624,6 +703,7 @@ function useComposerDraft(
         textSession.handleCompositionStart();
       },
       handleEditorInput: (textarea) => textSession.handleNativeInput(textarea),
+      handleEditorPaste,
     },
     restoreDraft,
     submit,

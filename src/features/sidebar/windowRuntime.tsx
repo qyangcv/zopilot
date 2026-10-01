@@ -154,6 +154,8 @@ function createCommandActions(
           ? Value
           : never
       >,
+    consumePendingComposerAttachments: (seedID) =>
+      void invoke("consumePendingComposerAttachments", [seedID]),
   };
 }
 

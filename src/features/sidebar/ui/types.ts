@@ -119,6 +119,11 @@ export type SidebarState = {
   prompts: SidebarPromptView[];
   reloading: boolean;
   submissionResult?: SidebarSubmissionResult;
+  pendingComposerAttachments?: {
+    id: string;
+    conversationId: string;
+    attachments: LocalAttachmentRef[];
+  };
 };
 
 export type SidebarStreamingSnapshot = RunningTurnSnapshot;
@@ -158,6 +163,7 @@ export type SidebarActions = {
   selectItemWorkspace: (sourceId: string) => void;
   submitPrompt: (submission: SidebarPromptSubmission) => void;
   uploadAttachment: () => Promise<LocalAttachmentRef[]>;
+  consumePendingComposerAttachments: (seedID: string) => void;
   interruptActiveTurn: () => void;
   restoreSession: (conversation: Conversation) => void;
   switchSession: (conversation: Conversation) => void;

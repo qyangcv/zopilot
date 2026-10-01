@@ -72,9 +72,10 @@ function buildAttachmentBlock(attachments: LocalAttachmentRef[]): string {
         kind: attachment.kind,
         path: attachment.path,
         mimeType: attachment.mimeType,
+        region: attachment.region,
       })),
     ),
-    "Use these absolute file paths directly only if the selected model supports this attachment type.",
+    "Use these absolute file paths directly only if the selected model supports this attachment type. Region attachments include page metadata; use it when describing where the image came from.",
   ].join("\n");
 }
 

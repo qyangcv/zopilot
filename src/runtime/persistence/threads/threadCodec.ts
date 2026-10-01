@@ -201,7 +201,23 @@ function isLocalAttachment(value: unknown): value is LocalAttachmentRef {
     typeof value.path === "string" &&
     typeof value.filename === "string" &&
     (value.kind === "pdf" || value.kind === "image") &&
-    optionalString(value.mimeType)
+    optionalString(value.mimeType) &&
+    isRegionAttachmentContext(value.region)
+  );
+}
+
+function isRegionAttachmentContext(value: unknown): boolean {
+  if (value === undefined) return true;
+  return (
+    isRecord(value) &&
+    typeof value.annotationKey === "string" &&
+    typeof value.attachmentKey === "string" &&
+    typeof value.libraryID === "number" &&
+    typeof value.pageIndex === "number" &&
+    Number.isInteger(value.pageIndex) &&
+    value.pageIndex >= 0 &&
+    optionalString(value.pageLabel) &&
+    typeof value.title === "string"
   );
 }
 

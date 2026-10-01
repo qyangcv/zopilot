@@ -100,6 +100,16 @@ type LocalAttachmentRef = {
   filename: string;
   kind: "pdf" | "image";
   mimeType?: string;
+  region?: RegionAttachmentContext;
+};
+
+type RegionAttachmentContext = {
+  annotationKey: string;
+  attachmentKey: string;
+  libraryID: number;
+  pageIndex: number;
+  pageLabel?: string;
+  title: string;
 };
 
 type WorkspaceIdentity = {
@@ -238,6 +248,7 @@ export type {
   ConversationMessageStatus,
   ConversationMetadata,
   LocalAttachmentRef,
+  RegionAttachmentContext,
   ItemContextNode,
   ItemContextTree,
   NoteContextRef,

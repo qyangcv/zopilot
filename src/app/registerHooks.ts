@@ -21,6 +21,9 @@ import {
   startMcpHttpServer,
 } from "../integrations/mcp/httpServer";
 import { createLogger } from "../runtime/logging/logger";
+import { registerReaderRegionMenu } from "../integrations/zotero/readerRegionMenu";
+import { askAboutRegion } from "../features/sidebar/host/SidebarHostController";
+import { getString } from "./localization";
 import {
   getThreadStore,
   shutdownThreadStore,
@@ -30,6 +33,7 @@ type ZoteroPluginRegistry = typeof Zotero & Record<string, unknown>;
 
 const logger = createLogger("hooks");
 let shutdownPromise: Promise<void> | undefined;
+let unregisterReaderRegionMenu: (() => void) | undefined;
 
 async function onStartup(): Promise<void> {
   await Promise.all([
@@ -46,6 +50,23 @@ async function onStartup(): Promise<void> {
   });
 
   registerPreferencePane();
+  unregisterReaderRegionMenu = registerReaderRegionMenu(
+    (reader, target, attachment) => askAboutRegion(reader, target, attachment),
+    (error) => {
+      const messageID = {
+        unavailable: "reader-region-unavailable",
+        "too-large": "reader-region-too-large",
+        "copy-failed": "reader-region-copy-failed",
+        sidebar_unavailable: "reader-region-sidebar-unavailable",
+        "attachment-limit": "reader-region-attachment-limit",
+      } as const;
+      Services.prompt.alert(
+        Zotero.getMainWindow() as unknown as mozIDOMWindowProxy,
+        getString("sidebar-title"),
+        getString(messageID[error.code]),
+      );
+    },
+  );
 
   Zotero.getMainWindows().forEach((win) => onMainWindowLoad(win));
 
@@ -74,6 +95,8 @@ function onShutdown(): Promise<void> {
 }
 
 async function performShutdown(): Promise<void> {
+  unregisterReaderRegionMenu?.();
+  unregisterReaderRegionMenu = undefined;
   const sidebarSettlement = prepareAllSidebarsForShutdown();
   const runtimeResults = await Promise.allSettled([
     sidebarSettlement,
