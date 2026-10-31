@@ -1,5 +1,8 @@
 # Zopilot
 
+> [!WARNING]
+> 由于个人原因，该插件已暂停维护，可能无法兼容最新的模型和协议，请考虑使用 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) 等其他还在维护的插件。
+
 [![使用 Zotero 插件模板](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
 
 [English](./docs/README_EN.md) · **简体中文**
