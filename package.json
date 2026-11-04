@@ -70,7 +70,7 @@
     "eslint": "^10.8.0",
     "mocha": "^11.7.6",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "zotero-plugin-scaffold": "0.8.8",
     "zotero-types": "4.1.3"
   },
